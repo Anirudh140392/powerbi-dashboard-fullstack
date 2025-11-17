@@ -15,6 +15,7 @@ const LocationCard = ({
   impressionsGrowth,
   conversion,
   conversionGrowth,
+  onViewTrends,     // <-- ADDED
 }) => {
   return (
     <Paper
@@ -33,16 +34,12 @@ const LocationCard = ({
         <Typography sx={{ fontSize: "18px", fontWeight: 600 }}>
           {title}
         </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          sx={{ fontSize: "10px", textTransform: "none", height: 26 }}
-        >
+        <Button variant="outlined" size="small" sx={{ fontSize: "10px" }}>
           View SKUs &gt;
         </Button>
       </Box>
 
-      {/* Sales / Revenue */}
+      {/* Sales */}
       <Box>
         <Typography sx={{ fontSize: "22px", fontWeight: 600 }}>
           {sales}
@@ -52,13 +49,10 @@ const LocationCard = ({
         </Typography>
       </Box>
 
-     
-
       {/* Units */}
       <Box>
         <Typography sx={{ fontWeight: 600, fontSize: "14px" }}>
-          # Units:
-          <span style={{ marginLeft: "10px" }}>{units}</span>
+          # Units: <span style={{ marginLeft: "10px" }}>{units}</span>
         </Typography>
         <Typography sx={{ color: "green", fontSize: "12px" }}>
           ▲ {unitsGrowth}% ({unitsGrowthValue}) vs Comparison Period
@@ -89,48 +83,21 @@ const LocationCard = ({
 
       {/* Buttons */}
       <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-        <Button variant="outlined" sx={{ flex: 1, textTransform: "none" }}>
-          <RcaIcon sx={{ fontSize: 18, mr: 1 }} />
-          RCA
+        <Button variant="outlined" sx={{ flex: 1 }}>
+          <RcaIcon sx={{ fontSize: 18, mr: 1 }} /> RCA
         </Button>
-        <Button variant="outlined" sx={{ flex: 1, textTransform: "none" }}>
-          <InsightsIcon sx={{ fontSize: 18, mr: 1 }} />
-          Insights
+        <Button variant="outlined" sx={{ flex: 1 }}>
+          <InsightsIcon sx={{ fontSize: 18, mr: 1 }} /> Insights
         </Button>
       </Stack>
 
+      {/* Trends button */}
       <Button
         variant="text"
-        sx={{
-          mt: 1,
-          fontSize: "12px",
-          textTransform: "none",
-          color: "#1976d2",
-        }}
+        sx={{ mt: 1, fontSize: "12px", color: "#1976d2" }}
+        onClick={onViewTrends}       // <-- FIX HERE
       >
         View Trends &gt;
-      </Button>
-      <Button
-        variant="text"
-        sx={{
-          mt: 1,
-          fontSize: "12px",
-          textTransform: "none",
-          color: "#1976d2",
-        }}
-      >
-        Competition &gt;
-      </Button>
-      <Button
-        variant="text"
-        sx={{
-          mt: 1,
-          fontSize: "12px",
-          textTransform: "none",
-          color: "#1976d2",
-        }}
-      >
-        Cross Platform &gt;
       </Button>
     </Paper>
   );
