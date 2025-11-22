@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
 import {
   Box,
   Typography,
@@ -49,6 +51,8 @@ const Navbar = ({
     }
   };
 
+  const navigate = useNavigate();
+
   const menuSections = {
     "CONTROL TOWER": [
       { label: "Watch Tower", active: true },
@@ -61,9 +65,7 @@ const Navbar = ({
     ],
     ANALYTICS: [
       { label: "Category RCA" },
-      { label: "Availability" },
-      { label: "Visibility" },
-      { label: "Discounting" },
+     
     ],
   };
 
@@ -113,7 +115,7 @@ const Navbar = ({
               fontWeight: 700,
             }}
           >
-            GabbleCube
+            Trailytics
           </Typography>
         </Box>
       </Box>
@@ -157,58 +159,69 @@ const Navbar = ({
             <Collapse in={expandedSection === sectionName} timeout="auto">
               <List sx={{ py: 0 }}>
                 {items.map((item, index) => (
-                  <ListItemButton
-                    key={index}
-                    onClick={() => {
-                      if (sectionName === "Q-COMM") {
-                        handlePlatformChange(item.label);
-                      }
-                    }}
-                    sx={{
-                      py: 1.25,
-                      px: 3,
-                      bgcolor:
-                        item.active || (sectionName === "Q-COMM" && activePlatform === item.label)
-                          ? "rgba(255, 255, 255, 0.1)"
-                          : "transparent",
-                      borderLeft:
-                        item.active || (sectionName === "Q-COMM" && activePlatform === item.label)
-                          ? "3px solid #3b82f6"
-                          : "3px solid transparent",
-                      "&:hover": {
-                        bgcolor: "rgba(255, 255, 255, 0.08)",
-                      },
-                    }}
-                  >
-                    {item.icon && (
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: "0.9rem",
-                          mr: 1.5,
-                        }}
-                      >
-                        {item.icon}
-                      </Box>
-                    )}
-                    {!item.icon && (
-                      <CircleIcon
-                        sx={{
-                          fontSize: "0.4rem",
-                          mr: 1.5,
-                          color: "#6b7280",
-                        }}
-                      />
-                    )}
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{
-                        fontSize: "0.85rem",
-                        fontWeight: 500,
-                        color: "#e5e7eb",
-                      }}
-                    />
-                  </ListItemButton>
+                 <ListItemButton
+  key={index}
+  onClick={() => {
+    // CONTROL TOWER
+    if (sectionName === "CONTROL TOWER" && item.label === "Watch Tower") {
+      navigate("/"); // or your Watch Tower route
+    }
+    if (sectionName === "CONTROL TOWER" && item.label === "Account Overview") {
+      navigate("/account-overview");
+    }
+
+    // Q-COMM
+    if (sectionName === "Q-COMM") {
+      handlePlatformChange(item.label);
+    }
+
+    // ANALYTICS
+    if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
+      navigate("/category-rca");
+    }
+  }}
+  sx={{
+    py: 1.25,
+    px: 3,
+    bgcolor:
+      (sectionName === "Q-COMM" && activePlatform === item.label) ||
+      (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
+      (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
+        ? "rgba(255, 255, 255, 0.1)"
+        : "transparent",
+
+    borderLeft:
+      (sectionName === "Q-COMM" && activePlatform === item.label) ||
+      (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
+      (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
+        ? "3px solid #3b82f6"
+        : "3px solid transparent",
+
+    "&:hover": {
+      bgcolor: "rgba(255, 255, 255, 0.08)",
+    },
+  }}
+>
+  {/* Icons */}
+  {item.icon ? (
+    <Box component="span" sx={{ fontSize: "0.9rem", mr: 1.5 }}>
+      {item.icon}
+    </Box>
+  ) : (
+    <CircleIcon sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }} />
+  )}
+
+  <ListItemText
+    primary={item.label}
+    primaryTypographyProps={{
+      fontSize: "0.85rem",
+      fontWeight: 500,
+      color: "#e5e7eb",
+    }}
+  />
+</ListItemButton>
+
+    
                 ))}
               </List>
             </Collapse>

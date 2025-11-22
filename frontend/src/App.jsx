@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
+import CategoryRCA from "./pages/CategoryRCA";
 
 // MUI Date Picker Providers
 import { LocalizationProvider } from "@mui/x-date-pickers";
@@ -12,7 +13,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+         <Route path="/category-rca" element={<CategoryRCA />} />
         </Routes>
       </BrowserRouter>
     </LocalizationProvider>

@@ -1,38 +1,76 @@
+import dayjs from "dayjs";
+
 export default class TrendController {
-  generateData(months = 6, timeStep = "Monthly") {
-    const dataPoints =
-      timeStep === "Daily"
-        ? months * 30
-        : timeStep === "Weekly"
-        ? months * 4
-        : months;
+  
+  // Utility to generate random values
+  random(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+
+  // ⭐ Main Data Generator — EXACT Required Logic
+  generateData(months = 1, timeStep = "Daily") {
+    const today = dayjs();
+    const start = today.subtract(months, "month");
 
     const data = [];
-    const start = new Date();
-    start.setMonth(start.getMonth() - months);
+    let cursor = start;
 
-    for (let i = 0; i < dataPoints; i++) {
-      const date = new Date(start);
+    if (timeStep === "Daily") {
+      // ✔ All dates inside the period
+      while (cursor.isBefore(today) || cursor.isSame(today)) {
+        data.push({
+          date: cursor.format("DD MMM"), // Example: 01 Jun
+          offtake: this.random(1.5, 3.5),
+          osa: this.random(70, 95),
+          discount: this.random(5, 15),
+          sov: this.random(20, 45),
+        });
 
-      if (timeStep === "Daily") date.setDate(date.getDate() + i);
-      else if (timeStep === "Weekly") date.setDate(date.getDate() + i * 7);
-      else date.setMonth(date.getMonth() + i);
+        cursor = cursor.add(1, "day");
+      }
+    }
 
-      data.push({
-        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        offtake: 2.5 + Math.random() * 0.8 - 0.4,
-        osa: 95 + Math.random() * 5,
-        discount: 8 + Math.random() * 4,
-        sov: 45 + Math.random() * 10,
-      });
+    else if (timeStep === "Weekly") {
+      // ✔ Week start dates
+      cursor = cursor.startOf("week");
+
+      while (cursor.isBefore(today) || cursor.isSame(today)) {
+        data.push({
+          date: cursor.format("DD MMM"), // Example: 03 Jun
+          offtake: this.random(1.5, 3.5),
+          osa: this.random(70, 95),
+          discount: this.random(5, 15),
+          sov: this.random(20, 45),
+        });
+
+        cursor = cursor.add(1, "week");
+      }
+    }
+
+    else if (timeStep === "Monthly") {
+      // ✔ 1 point per month
+      cursor = cursor.startOf("month");
+
+      while (cursor.isBefore(today) || cursor.isSame(today)) {
+        data.push({
+          date: cursor.format("MMM YYYY"), // Example: June 2025
+          offtake: this.random(1.5, 3.5),
+          osa: this.random(70, 95),
+          discount: this.random(5, 15),
+          sov: this.random(20, 45),
+        });
+
+        cursor = cursor.add(1, "month");
+      }
     }
 
     return data;
   }
 
+  // ⭐ Metrics Summary
   getMetrics(data) {
     const latest = data[data.length - 1];
-    const prev = data[data.length - 2];
+    const prev = data.length > 1 ? data[data.length - 2] : latest;
 
     return {
       offtake: {

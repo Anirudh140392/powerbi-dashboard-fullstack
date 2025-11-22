@@ -1,0 +1,278 @@
+import React, { useState } from "react";
+import { ChevronRight } from "lucide-react";
+import RCAHeader from "../components/Category/RCAHeader";   
+import Insights from "../components/Category/Insights";
+import InsightsDrawer from "../components/Category/InsightsDrawer";
+import Navbar from "../components/Navbar";
+import { Box } from "@mui/material";
+import PlatformOverview from "../components/PlatformOverview";
+import handleViewTrends from "../components/PlatformOverview";
+import CategoryPlatformOverview from "../components/Category/CategoryPlatformOverview";
+import MyTrendsDrawer from "../components/MyTrendsDrawer";
+import RCACardMetric from "../components/Category/RCACardMetric";
+import { Container } from "@mui/material";
+
+export default function CategoryRCA() {
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  
+
+  const products = [
+    {
+      id: 1,
+      rank: "01",
+      name: "Colgate Total Advanced Health Toothpaste",
+      weight: "80 g",
+      growth: "4.2 %",
+      category: "Toothpaste",
+      offtake: "₹71.3 K",
+      offtakeChange: "-73.6% (₹2.0 lac)",
+      cities: [
+        {
+          name: "Delhi-NCR",
+          offtake: "₹71.3 K",
+          offtakeChange: "-73.6%",
+          catShare: "0.7%",
+          catShareChange: "-2.2%",
+          wtOsa: "30.9%",
+          wtOsaChange: "-63.8%",
+          overallSov: "0.8%",
+          overallSovChange: "-6.1%",
+          adSov: "NA",
+          wtDisc: "10.1%",
+          wtDiscChange: "10.1%"
+        },
+        {
+          name: "Others",
+          offtake: "₹3.3 lac",
+          offtakeChange: "-9.2%",
+          catShare: "2.3%",
+          catShareChange: "-0.4%",
+          wtOsa: "70.6%",
+          wtOsaChange: "-11.4%",
+          overallSov: "6.0%",
+          overallSovChange: "-1.4%",
+          adSov: "NA",
+          wtDisc: "9.8%",
+          wtDiscChange: "9.8%"
+        },
+        {
+          name: "Kolkata",
+          offtake: "₹14.6 K",
+          offtakeChange: "-68.5%",
+          catShare: "0.6%",
+          catShareChange: "-1.2%",
+          wtOsa: "35.6%",
+          wtOsaChange: "-61.6%",
+          overallSov: "0.1%",
+          overallSovChange: "-4.0%",
+          adSov: "NA",
+          wtDisc: "11.1%",
+          wtDiscChange: "11.1%"
+        },
+        {
+          name: "Chennai",
+          offtake: "₹10.3 K",
+          offtakeChange: "-40.5%",
+          catShare: "1.1%",
+          catShareChange: "-1.0%",
+          wtOsa: "33.7%",
+          wtOsaChange: "-28.5%",
+          overallSov: "1.9%",
+          overallSovChange: "-1.9%",
+          adSov: "NA",
+          wtDisc: "11.1%",
+          wtDiscChange: "11.1%"
+        },
+        {
+          name: "Pune",
+          offtake: "₹44.8 K",
+          offtakeChange: "-12.5%",
+          catShare: "3.0%",
+          catShareChange: "-0.8%",
+          wtOsa: "75.8%",
+          wtOsaChange: "-20.6%",
+          overallSov: "5.3%",
+          overallSovChange: "-1.5%",
+          adSov: "NA",
+          wtDisc: "11.1%",
+          wtDiscChange: "11.1%"
+        },
+        {
+          name: "Mumbai",
+          offtake: "₹1.1 lac",
+          offtakeChange: "2.0%",
+          catShare: "3.8%",
+          catShareChange: "-0.6%",
+          wtOsa: "95.9%",
+          wtOsaChange: "0.1%",
+          overallSov: "8.2%",
+          overallSovChange: "-0.2%",
+          adSov: "NA",
+          wtDisc: "9.1%",
+          wtDiscChange: "9.1%"
+        },
+        {
+          name: "Hyderabad",
+          offtake: "₹12.0 K",
+          offtakeChange: "102.9%",
+          catShare: "0.6%",
+          catShareChange: "0.3%",
+          wtOsa: "35.1%",
+          wtOsaChange: "14.8%",
+          overallSov: "0.2%",
+          overallSovChange: "-0.1%",
+          adSov: "NA",
+          wtDisc: "11.1%",
+          wtDiscChange: "11.1%"
+        },
+        {
+          name: "Bangalore",
+          offtake: "₹78.7 K",
+          offtakeChange: "-",
+          catShare: "2.5%",
+          catShareChange: "-",
+          wtOsa: "60.5%",
+          wtOsaChange: "-",
+          overallSov: "3.3%",
+          overallSovChange: "-",
+          adSov: "NA",
+          wtDisc: "11.1%",
+          wtDiscChange: "11.1%"
+        }
+      ],
+      overall: {
+        offtake: "₹6.7 lac",
+        offtakeChange: "-27.6%",
+        catShare: "1.8%",
+        catShareChange: "-0.8%",
+        wtOsa: "61.1%",
+        wtOsaChange: "-22.7%",
+        overallSov: "3.1%",
+        overallSovChange: "-3.3%",
+        adSov: "NA",
+        wtDisc: "10.0%",
+        wtDiscChange: "10.0%"
+      }
+    },
+    {
+      id: 2,
+      rank: "02",
+      name: "Colgate MaxFresh Spicy Fresh Gel",
+      weight: "150 g",
+      growth: "5.1 %",
+      category: "Toothpaste",
+      offtake: "₹1.5 lac",
+      offtakeChange: "-53.4% (₹1.7 lac)",
+      cities: [
+        {
+          name: "Delhi-NCR",
+          offtake: "₹1.5 lac",
+          offtakeChange: "-53.4%",
+          catShare: "1.4%",
+          catShareChange: "-1.7%",
+          wtOsa: "45.2%",
+          wtOsaChange: "-52.1%",
+          overallSov: "1.2%",
+          overallSovChange: "-5.8%",
+          adSov: "NA",
+          wtDisc: "8.5%",
+          wtDiscChange: "8.5%"
+        },
+        {
+          name: "Others",
+          offtake: "₹3.4 lac",
+          offtakeChange: "-29.1%",
+          catShare: "2.8%",
+          catShareChange: "-0.9%",
+          wtOsa: "68.3%",
+          wtOsaChange: "-18.2%",
+          overallSov: "7.1%",
+          overallSovChange: "-2.1%",
+          adSov: "NA",
+          wtDisc: "7.9%",
+          wtDiscChange: "7.9%"
+        }
+      ]
+    },
+    {
+      id: 3,
+      rank: "03",
+      name: "Colgate Visible White",
+      weight: "120 g",
+      growth: "5.5 %",
+      category: "Toothpaste",
+      cities: [
+        {
+          name: "Kolkata",
+          offtake: "₹2.1 lac",
+          offtakeChange: "-35.2%",
+          catShare: "0.9%",
+          catShareChange: "-0.8%",
+          wtOsa: "52.4%",
+          wtOsaChange: "-31.5%",
+          overallSov: "1.8%",
+          overallSovChange: "-3.2%",
+          adSov: "NA",
+          wtDisc: "9.2%",
+          wtDiscChange: "9.2%"
+        }
+      ]
+    }
+  ];
+
+  return (
+      <>
+      <Box sx={{ display: "flex", bgcolor: "#f5f5f5", minHeight: "100vh" }}>
+      {/* Sidebar */}
+      <Navbar />
+      
+
+      {/* Main Content */}
+       <Box
+                
+       sx={{
+                  flex: 1,
+                  marginLeft: { xs: 0, sm: "250px" },
+                  width: { xs: "100%", sm: "calc(100% - 250px)" },
+                  overflowX: "hidden"
+                }}
+              >
+        <RCAHeader/>
+           <Container
+            maxWidth={false}
+            disableGutters
+            sx={{
+              py: 3,
+              px: { xs: 2, sm: 3 },
+              width: "100%",
+              boxSizing: "border-box"
+            }}
+          >
+         
+           <Insights products={products} onKnowMore={setSelectedProduct} />
+             <RCACardMetric />
+             <CategoryPlatformOverview/>
+
+           </Container>
+      
+
+              </Box>
+      
+    {/* Header */}
+    
+        
+
+    
+ 
+      </Box>
+
+      <InsightsDrawer 
+        product={selectedProduct} 
+        onClose={() => setSelectedProduct(null)}
+        totalProducts={products.length}
+      />
+      <MyTrendsDrawer />
+    </>
+  );
+}

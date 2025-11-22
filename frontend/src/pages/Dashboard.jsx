@@ -1,29 +1,88 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import { Container, Typography, Box, Tabs, Tab } from "@mui/material";
 
+
+import React, { useState } from "react";
+import { Container, Typography, Box } from "@mui/material";
 
 import Navbar from "../components/Navbar";
 import Header from "../components/Header";
-import Filters from "../components/Filters";
-import CardMetric from "../components/CardMetric";
-import CategoryCard from "../components/CategoryCard";
-import LocationCard from "../components/LocationCard";
-import DataTableMUI from "../components/DataTableMUI";
-import SkuLevelSummary from "../components/SkuLevelSummary";
-import DashboardHeadersFilters from "../components/Filters";
-
-import TrendController from "../utils/TrendController";
+import TopMetricCard from "../components/TopMetricCard";
+import PlatformOverview from "../components/PlatformOverview";
+import CategoryMetricsSection from "../components/CategoryMetricsSection";
+import CategoryTable from "../components/CategoryTable";
+import SKUTable from "../components/SKUTable";
 import MyTrendsDrawer from "../components/MyTrendsDrawer";
+import CardMetric from "../components/CardMetric";
 
-
+//import dashboardData from "../../../backend/src/controllers/dashboardController";
 
 export default function Dashboard() {
-  const trendCtrl = new TrendController();
-
-  // Drawer State
   const [showTrends, setShowTrends] = useState(false);
-const [selectedLocation, setSelectedLocation] = useState({ title: "Blinkit" });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("category");
+  const [dashboardData, setDashboardData] = useState({
+    summaryMetrics: {
+      offtakes: "₹5.1 Cr",
+      offtakesTrend: "+1.5%",
+      shareOfSearch: "39.4%",
+      shareOfSearchTrend: "-2.0%",
+      stockAvailability: "96.3%",
+      stockAvailabilityTrend: "+4.2%",
+      marketShare: "32.1%"
+    },
+    
+    topMetrics: [
+      {
+        label: "₹5.1 Cr",
+        subtitle: "for MTD",
+        trend: "+1.5% (₹7.3 lac)",
+        trendType: "up",
+        comparison: "vs Previous Month",
+        units: "2.9 lac",
+        unitsTrend: "-2.1%",
+        chart: [0.6, 1.2, 1.6, 2.0, 2.2, 2.0, 2.4, 2.5] // mini line points
+      },
+      {
+        label: "39.4%",
+        subtitle: "for MTD",
+        trend: "-2.0% (-0.8%)",
+        trendType: "down",
+        comparison: "vs Previous Month",
+        units: "",
+        unitsTrend: "",
+        chart: [20, 28, 34, 36, 38, 39, 39.5, 39.4]
+      },
+      {
+        label: "26.5%",
+        subtitle: "for MTD",
+        trend: "+62.2% (10.2%)",
+        trendType: "up",
+        comparison: "vs Previous Month",
+        units: "",
+        unitsTrend: "",
+        chart: [10, 12, 14, 16, 18, 20, 22, 26.5]
+      }
+    ],
+
+    skuTable: [
+      { sku: "Colgate Visible White 02 Whitening Toothpaste - 100g", all: { offtake: "₹8.8 lac", trend: "+3.0%" }, blinkit: { offtake: "₹5.3 lac", trend: "+7.6%" }, zepto: { offtake: "₹2.5 lac", trend: "-1.4%" }, instamart: { offtake: "₹3.4 lac", trend: "+5.2%" } },
+      { sku: "Colgate Sensitive Toothbrush (Ultra Soft) - 4 units", all: { offtake: "₹8.4 lac", trend: "-1.4%" }, blinkit: { offtake: "₹4.0 lac", trend: "-18.9%" }, zepto: { offtake: "₹4.4 lac", trend: "+22.2%" }, instamart: { offtake: "NA", trend: "NA" } },
+      { sku: "Colgate Gentle Sensitive Soft Bristles Toothbrush - 1 piece", all: { offtake: "₹7.9 lac", trend: "-2.0%" }, blinkit: { offtake: "₹3.5 lac", trend: "-12.8%" }, zepto: { offtake: "₹2.5 lac", trend: "+1.9%" }, instamart: { offtake: "₹1.9 lac", trend: "+5.1%" } },
+      // more rows for scroll
+      ...Array.from({ length: 12 }).map((_, i) => ({
+        sku: `Colgate SKU Sample ${i + 1}`,
+        all: { offtake: `₹${(7 - i) > 0 ? (7 - i) + '.0 lac' : (i + 1) + '.0 lac'}`, trend: `${i % 2 ? '+1.0%' : '-0.5%'}` },
+        blinkit: { offtake: `₹${(i + 1) * 0.4} lac`, trend: `${i % 2 ? '+0.5%' : '-0.2%'}` },
+        zepto: { offtake: `₹${(i + 1) * 0.25} lac`, trend: `${i % 3 ? '+0.3%' : '-0.7%'}` },
+        instamart: { offtake: `₹${(i + 1) * 0.15} lac`, trend: `${i % 2 ? '+0.9%' : '-0.4%'}` }
+      }))
+    ]
+  });
+
+  const [filters, setFilters] = useState({
+    platform: "Blinkit",
+    months: 6,
+    timeStep: "Monthly"
+  });
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -35,570 +94,198 @@ const [selectedLocation, setSelectedLocation] = useState({ title: "Blinkit" });
     timeSeries: [],
     metrics: {}
   });
-  // Hardcoded dashboard data
-
-  const dashboardData = {
-    summaryMetrics: {
-      offtakes: "211.78M",
-      offtakesTrend: "+1060.81%",
-      shareOfSearch: "58.32%",
-      shareOfSearchTrend: "+12.11%",
-      stockAvailability: "96.32%",
-      stockAvailabilityTrend: "+4.2%",
-      marketShare: "32.12%"
-    },
-    locations: [
-      {
-        title: "All",
-        sales: "211.78M",
-        salesGrowth: "1060.81",
-        salesGrowthValue: "18.24M",
-        units: "1.17M",
-        unitsGrowth: "985.49",
-        unitsGrowthValue: "108.16K",
-        impressions: "4.36M",
-        conversion: "26.93%",
-        conversionGrowth: "26.93"
-      },
-      {
-        title: "Bangalore",
-        sales: "60.90M",
-        salesGrowth: "1062.71",
-        salesGrowthValue: "5.24M",
-        units: "354.87K",
-        unitsGrowth: "972.64",
-        unitsGrowthValue: "33.08K",
-        impressions: "1.19M",
-        conversion: "29.89%",
-        conversionGrowth: "29.89"
-      },
-      {
-        title: "Mumbai",
-        sales: "32.21M",
-        salesGrowth: "1053.87",
-        salesGrowthValue: "2.79M",
-        units: "165.20K",
-        unitsGrowth: "975.64",
-        unitsGrowthValue: "15.36K",
-        impressions: "481.89K",
-        conversion: "34.28%",
-        conversionGrowth: "34.28"
-      },
-      {
-        title: "Delhi - NCR",
-        sales: "49.30M",
-        salesGrowth: "1067.45",
-        salesGrowthValue: "4.22M",
-        units: "264.99K",
-        unitsGrowth: "1009.24",
-        unitsGrowthValue: "23.89K",
-        impressions: "997.38K",
-        conversion: "26.57%",
-        conversionGrowth: "26.57"
-      }
-    ],
-    skuTable: [
-      {
-        productName: "Product A",
-        productId: "A123",
-        itemId: "ITM001",
-        osa: "58.06%",
-        asp: "₹189.38",
-        discount: "12%"
-      },
-      {
-        productName: "Product B",
-        productId: "B456",
-        itemId: "ITM002",
-        osa: "62.12%",
-        asp: "₹210.00",
-        discount: "10%"
-      }
-    ]
-  };
-
-  const [tabValue, setTabValue] = useState(0);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
- const [filters, setFilters] = useState({
-    platform: "Blinkit"
-  });
 
   const handlePlatformChange = (platform) => {
-  setFilters((prev) => ({
-    ...prev,
-    platform,
-  }));
-};
+    setFilters((prev) => ({
+      ...prev,
+      platform
+    }));
+  };
 
-   const handleViewTrends = () => {
-    const series = trendCtrl.generateData(trendParams.months, trendParams.timeStep);
-    const metrics = trendCtrl.getMetrics(series);
+  const handleViewTrends = (card) => {
+    console.log('card', card)
+    // Use miniature chart array to make timeSeries
+    const series = card.chart?.map((v, i) => {
+      const now = new Date();
+
+      let date;
+
+      if (trendParams.timeStep === "Monthly") {
+        const dt = new Date();
+        dt.setMonth(dt.getMonth() - (card.chart.length - 1 - i));
+        date = dt.toLocaleString("default", { month: "short", year: "2-digit" }); // Example: Jan 25
+      }
+
+      else if (trendParams.timeStep === "Weekly") {
+        const dt = new Date();
+        dt.setDate(dt.getDate() - (7 * (card.chart.length - 1 - i)));
+        date = dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }); // Example: 12 Jan
+      }
+
+      else {
+        // Daily
+        const dt = new Date();
+        dt.setDate(dt.getDate() - (card.chart.length - 1 - i));
+        date = dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+      }
+
+      return { date, offtake: v };
+    }) || [];
+
 
     setTrendData({
       timeSeries: series,
-      metrics: metrics
+      metrics: {} // Not needed for now
     });
 
-    setTrendParams(prev => ({ ...prev, platform: filters.platform }));
+
+    setTrendParams((prev) => ({
+      ...prev,
+      platform: card.name
+    }));
+
     setShowTrends(true);
   };
 
-
   return (
     <>
-      <Box sx={{ display: 'flex', bgcolor: '#f5f5f5', minHeight: '100vh' }}>
-        {/* Left Sidebar Navbar */}
-      <Navbar 
-        platforms={["Blinkit", "Instamart", "Zepto"]} 
-        selectedPlatform={filters.platform}
-        onPlatformChange={handlePlatformChange}
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-      />
-
-      {/* Main Content Area */}
-      <Box sx={{ 
-        flex: 1, 
-        marginLeft: { xs: 0, sm: '250px' },
-        width: { xs: '100%', sm: 'calc(100% - 250px)' },
-        overflowX: 'hidden'
-      }}>
-        {/* Header */}
-        <Header 
-          title="Watch Tower" 
-          onMenuClick={() => setMobileMenuOpen(true)}
+      <Box sx={{ display: "flex", bgcolor: "#f5f5f5", minHeight: "100vh" }}>
+        {/* Left Sidebar */}
+        <Navbar
+          platforms={["Blinkit", "Instamart", "Zepto"]}
+          selectedPlatform={filters.platform}
+          onPlatformChange={handlePlatformChange}
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
         />
 
-        <Container maxWidth={false} disableGutters sx={{ py: 3, px: { xs: 2, sm: 3 }, width: '100%', boxSizing: 'border-box' }}>
-          {/* Summary Metrics - EVENLY SPACED */}
-          <Box sx={{ mb: 4 }}>
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(4, 1fr)', 
-              gap: 2.5,
-              '@media (max-width: 1024px)': {
-                gridTemplateColumns: 'repeat(2, 1fr)'
-              },
-              '@media (max-width: 600px)': {
-                gridTemplateColumns: '1fr'
-              }
-            }}>
-              <CardMetric 
-                title="OFFTAKES at MRP" 
-                value={dashboardData.summaryMetrics.offtakes} 
-                trend={dashboardData.summaryMetrics.offtakesTrend} 
-                chartKey="offtake" 
-              />
-              <CardMetric 
-                title="SHARE OF SEARCH" 
-                value={dashboardData.summaryMetrics.shareOfSearch} 
-                trend={dashboardData.summaryMetrics.shareOfSearchTrend} 
-                chartKey="share" 
-              />
-              <CardMetric 
-                title="STOCK AVAILABILITY" 
-                value={dashboardData.summaryMetrics.stockAvailability} 
-                trend={dashboardData.summaryMetrics.stockAvailabilityTrend} 
-                chartKey="stock" 
-              />
-              <CardMetric 
-                title="MARKET SHARE" 
-                value={dashboardData.summaryMetrics.marketShare} 
-                chartKey="market" 
-              />
-            </Box>
-          </Box>
+        {/* Main Content */}
+        <Box
+          sx={{
+            flex: 1,
+            marginLeft: { xs: 0, sm: "250px" },
+            width: { xs: "100%", sm: "calc(100% - 250px)" },
+            overflowX: "hidden"
+          }}
+        >
+          {/* Header */}
+          <Header
+            title="Watch Tower"
+            onMenuClick={() => setMobileMenuOpen(true)}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
 
-          {/* Tabs - EVENLY SPACED 
-          <Box sx={{ mb: 3, bgcolor: 'white', borderRadius: 2, overflow: 'hidden' }}>
-            <Tabs
-              value={tabValue}
-              onChange={(e, v) => setTabValue(v)}
-              variant="fullWidth"
+          <Container
+            maxWidth={false}
+            disableGutters
+            sx={{
+              py: 3,
+              px: { xs: 2, sm: 3 },
+              width: "100%",
+              boxSizing: "border-box"
+            }}
+          >
+            {/* Top Metrics */}
+            {/* Summary Metrics - EVENLY SPACED */}
+            <CardMetric />
+
+            {/* Platform Overview */}
+            <PlatformOverview
+              onViewTrends={handleViewTrends}
+            />
+
+
+
+
+            {/* Category/SKU Tabs */}
+            <Box
               sx={{
-                borderBottom: 1,
-                borderColor: 'divider',
-                '& .MuiTab-root': {
-                  fontWeight: 700,
-                  fontSize: '0.85rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  py: 2,
-                  color: '#6b7280',
-                  transition: 'all 0.3s',
-                  '&.Mui-selected': {
-                    color: '#2563eb'
-                  }
-                },
-                '& .MuiTabs-indicator': {
-                  height: 3,
-                  backgroundColor: '#2563eb'
-                }
+                bgcolor: "white",
+                borderRadius: 2,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                mb: 4
               }}
             >
-              <Tab label="SUMMARY" />
-              <Tab label="AVAILABILITY ANALYSIS" />
-              <Tab label="SOV ANALYSIS" />
-              <Tab label="PRICING ANALYSIS" />
-            </Tabs>
-          </Box>*/}
+              <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
+                <Box sx={{ display: "flex", gap: 4 }}>
+                  <Box
+                    onClick={() => setActiveTab("category")}
+                    sx={{
+                      py: 2,
+                      cursor: "pointer",
+                      borderBottom:
+                        activeTab === "category"
+                          ? "3px solid #2563eb"
+                          : "3px solid transparent",
+                      color:
+                        activeTab === "category" ? "#2563eb" : "#6b7280",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      transition: "all 0.3s"
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                    >
+                      <span style={{ fontSize: "1.2rem" }}>▦</span>
+                      <span>Split by Category</span>
+                    </Box>
+                  </Box>
 
-          {/* Overview Badge */}
-          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 900, color: '#111827' }}>
-              OVERVIEW for
-            </Typography>
-            <Box sx={{
-              bgcolor: '#dbeafe',
-              px: 2.5,
-              py: 0.75,
-              borderRadius: 2,
-              display: 'inline-block'
-            }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, color: '#2563eb' }}>
-                ALL
-              </Typography>
+                  <Box
+                    onClick={() => setActiveTab("sku")}
+                    sx={{
+                      py: 2,
+                      cursor: "pointer",
+                      borderBottom:
+                        activeTab === "sku"
+                          ? "3px solid #2563eb"
+                          : "3px solid transparent",
+                      color:
+                        activeTab === "sku" ? "#2563eb" : "#6b7280",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      transition: "all 0.3s"
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                    >
+                      <span style={{ fontSize: "1.2rem" }}>▦</span>
+                      <span>Split by SKUs</span>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* CATEGORY TAB */}
+              {activeTab === "category" && (
+                <Box sx={{ p: 3 }}>
+                  <CategoryTable />
+                </Box>
+              )}
+
+              {/* SKU TAB */}
+              {activeTab === "sku" && (
+                <Box sx={{ p: 3 }}>
+                  <SKUTable data={dashboardData.skuTable} />
+                </Box>
+              )}
             </Box>
-            <Box sx={{ ml: 'auto' }}>
-              <Typography variant="body2" sx={{ fontSize: '1.5rem' }}>📋</Typography>
-            </Box>
-          </Box>
-
-          {/* Category Overview */}
-          <Box sx={{ mb: 4, bgcolor: 'white', p: 3, borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <Typography variant="h6" sx={{ mb: 3, fontWeight: 900, color: '#111827' }}>
-              OVERVIEW for Category at <span style={{ color: "#16a34a" }}>MRP</span>
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              {/* Left sidebar */}
-              <Box sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 1.5,
-                minWidth: 90,
-                flexShrink: 0
-              }}>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 1.5,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  fontWeight: 700,
-                  fontSize: '1.3rem',
-                  height: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  ☰
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 110
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Offtake
-                  </Typography>
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 70
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Market Share
-                  </Typography>
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 70
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Impressions
-                  </Typography>
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 70
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Conversion
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Category cards */}
-              <Box sx={{ 
-                flex: 1,
-                overflowX: "auto", 
-                display: 'flex',
-                gap: 2.5, 
-                pb: 2,
-                '&::-webkit-scrollbar': {
-                  height: 8
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: '#f3f4f6',
-                  borderRadius: 4
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: '#cbd5e1',
-                  borderRadius: 4,
-                  '&:hover': {
-                    backgroundColor: '#94a3b8'
-                  }
-                }
-              }}>
-                {/* Add category cards here */}
-              </Box>
-            </Box>
-          </Box>
-
-          {/* Location Overview */}
-          <Box sx={{ mb: 4, bgcolor: 'white', p: 3, borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <Typography variant="h6" sx={{ mb: 3, fontWeight: 900, color: '#111827' }}>
-              OVERVIEW for Location at <span style={{ color: "#16a34a" }}>MRP</span>
-            </Typography>
-
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              {/* Left sidebar */}
-              <Box sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 1.5,
-                minWidth: 90,
-                flexShrink: 0
-              }}>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 1.5,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  fontWeight: 700,
-                  fontSize: '1.3rem',
-                  height: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  ☰
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 110
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Offtake
-                  </Typography>
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 70
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Impressions
-                  </Typography>
-                </Box>
-                <Box sx={{
-                  bgcolor: "#f3f4f6",
-                  p: 2,
-                  borderRadius: 2,
-                  textAlign: "center",
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 70
-                }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#4b5563' }}>
-                    Conversion
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Location cards */}
-              <Box sx={{
-                flex: 1,
-                overflowX: "auto",
-                display: 'flex',
-                gap: 2.5,
-                pb: 2,
-                '&::-webkit-scrollbar': {
-                  height: 8
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: '#f3f4f6',
-                  borderRadius: 4
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: '#cbd5e1',
-                  borderRadius: 4,
-                  '&:hover': {
-                    backgroundColor: '#94a3b8'
-                  }
-                }
-              }}>
-            {dashboardData.locations.map((loc, idx) => (
-              <LocationCard
-                key={idx}
-                {...loc}
-                onViewTrends={() => {
-                  // prepare trend params + data then open drawer
-                  setSelectedLocation(loc);
-                  const params = { months: 6, timeStep: 'Monthly', platform: filters.platform || loc.title };
-                  setTrendParams(params);
-                  const ts = trendCtrl.generateData(params.months, params.timeStep);
-                  const metrics = trendCtrl.getMetrics(ts);
-                  setTrendData({ timeSeries: ts, metrics });
-                  setShowTrends(true);
-                }}
-              />
-            ))}
-
-               
-              </Box>
-            </Box>
-          </Box>
-
-          {/* SKU Level Breakdown */}
-          <Box sx={{ bgcolor: 'white', p: 3, borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <Typography variant="h6" sx={{ fontWeight: 900, mb: 3, color: '#111827' }}>
-              SKU Level Breakdown
-            </Typography>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 3 }}>
-              {/* Left summary card */}
-              <Box sx={{
-                p: 3,
-                borderRadius: 2,
-                bgcolor: "#eff6ff",
-                border: "1px solid #bfdbfe",
-                height: 'fit-content'
-              }}>
-                <Typography variant="subtitle2" sx={{ color: '#6b7280', mb: 1, fontWeight: 600 }}>
-                  Selected Category X Brand
-                </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 900, mb: 2, color: '#111827' }}>
-                  All
-                </Typography>
-
-                <Box sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontWeight: 800,
-                  mb: 1,
-                  color: '#374151'
-                }}>
-                  <div>Offtake:</div>
-                  <div>211.78M</div>
-                </Box>
-                <Box sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontWeight: 800,
-                  mb: 2,
-                  color: '#374151'
-                }}>
-                  <div>OSA%:</div>
-                  <div>58.06%</div>
-                </Box>
-
-                <Box sx={{
-                  borderTop: 2,
-                  borderColor: '#cbd5e1',
-                  pt: 2,
-                  mt: 2
-                }} />
-
-                <Box sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  mb: 0.5,
-                  color: '#4b5563',
-                  fontWeight: 600
-                }}>
-                  <div>Impressions:</div>
-                  <div>4.36M</div>
-                </Box>
-                <Box sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  mb: 0.5,
-                  color: '#4b5563',
-                  fontWeight: 600
-                }}>
-                  <div>Conversions:</div>
-                  <div>26.93%</div>
-                </Box>
-                <Box sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  color: '#4b5563',
-                  fontWeight: 600
-                }}>
-                  <div>ASP:</div>
-                  <div>₹ 189.38</div>
-                </Box>
-              </Box>
-
-              {/* Right table */}
-              <Box>
-                <DataTableMUI rows={dashboardData.skuTable} />
-              </Box>
-            </Box>
-          </Box>
-
-          <Box sx={{ mb: 4, bgcolor: 'white', p: 3, borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <SkuLevelSummary />
-          </Box>
-        </Container>
-
-      </Box>
+          </Container>
         </Box>
+      </Box>
 
+
+
+      {/* Trends Drawer */}
       <MyTrendsDrawer
         open={showTrends}
         onClose={() => setShowTrends(false)}
         trendData={trendData}
         trendParams={trendParams}
       />
-  
     </>
   );
 }

@@ -1,53 +1,39 @@
 import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
-const CardMetric = () => {
+const RCACardMetric = () => {
   const cards = [
     {
-      title: "Offtake",
-      value: "₹9.0 Cr",
-      sub: "for MTD",
-      change: "▲3.2% (₹28.8 lac)",
-      changeColor: "green",
-      prevText: "vs Previous Month",
-      extra: "#Units: 4.9 lac",
-      extraChange: "▲2.4%",
-      extraChangeColor: "green",
-    },
-    {
-      title: "Ad Spends",
-      value: "₹1.63 Cr",
-      sub: "for MTD",
-      change: "▲2.8% (₹4.6 lac)",
-      changeColor: "green",
-      prevText: "vs Previous Month",
-    },
-    {
-      title: "ROAS",
-      value: "5.44x",
-      sub: "for MTD (Avg.)",
-      change: "▲3.1% (+0.2x)",
-      changeColor: "green",
-      prevText: "vs Previous Month",
-    },
-    {
-      title: "Impressions",
-      value: "21.0M",
-      sub: "for MTD",
-      change: "▲4.6% (+0.9M)",
-      changeColor: "green",
-      prevText: "vs Previous Month",
-    },
-    {
-      title: "Orders",
-      value: "16.8K",
-      sub: "for MTD",
-      change: "▲2.6% (+420)",
-      changeColor: "green",
-      prevText: "vs Previous Month",
-    },
-  ];
-
+    title: "Estimated Offtake",
+    value: "₹2.3 Cr",
+    sub: "for MTD",
+    change: "▼1.8% (₹4.3 lac)",
+    changeColor: "red",
+    prevText: "vs Previous Month",
+    extra: "#Units: 1.4 lac",
+    extraChange: "▼6.6%",
+    extraChangeColor: "red"
+  },
+  {
+    title: "Estimated Category Share",
+    value: "35.9%",
+    sub: "for MTD",
+    change: "▼5.4% (-2.0%)",
+    changeColor: "red",
+    prevText: "vs Previous Month",
+    extra: "#Units: 1.4 lac",
+    extraChange: "▼6.6%",
+    extraChangeColor: "red"
+  },
+  {
+    title: "Estimated Category Size",
+    value: "₹6.5 Cr",
+    sub: "for MTD",
+    change: "▲3.8% (₹24.1 lac)",
+    changeColor: "green",
+    prevText: "vs Previous Month",
+  }
+];
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
   // Generate smooth data
@@ -81,7 +67,7 @@ const CardMetric = () => {
             </Box>
 
             <Typography variant="h6" fontWeight={600}>
-              Watchtower Overview
+              Category at MRP
             </Typography>
 
             <Chip label="All" size="small" variant="outlined" />
@@ -271,4 +257,4 @@ const MiniChartCard = ({ card, months, values, color, scrollNeeded, totalCards }
   );
 };
 
-export default CardMetric;
+export default RCACardMetric;
