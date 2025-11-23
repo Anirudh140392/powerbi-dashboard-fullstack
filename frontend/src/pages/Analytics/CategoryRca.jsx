@@ -1,22 +1,21 @@
 import React, { useState } from "react";
-import { ChevronRight } from "lucide-react";
-import RCAHeader from "../components/Category/RCAHeader";   
-import Insights from "../components/Category/Insights";
-import InsightsDrawer from "../components/Category/InsightsDrawer";
-import Navbar from "../components/Navbar";
-import { Box } from "@mui/material";
-import PlatformOverview from "../components/PlatformOverview";
-import handleViewTrends from "../components/PlatformOverview";
-import CategoryPlatformOverview from "../components/Category/CategoryPlatformOverview";
-import MyTrendsDrawer from "../components/MyTrendsDrawer";
-import RCACardMetric from "../components/Category/RCACardMetric";
-import { Container } from "@mui/material";
+import Insights from "../../components/Analytics/CategoryRca/Insights";
+import InsightsDrawer from "../../components/Analytics/CategoryRca/InsightsDrawer";
+import Sidebar from "../../components/CommonLayout/Sidebar";
+import { Box, Container } from "@mui/material";
+import CategoryPlatformOverview from "../../components/Analytics/CategoryRca/CategoryPlatformOverview";
+import RCACardMetric from "../../components/Analytics/CategoryRca/RCACardMetric";
+import RCAHeader from "../../components/Analytics/CategoryRca/RCAHeader";
+import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
+import CommonContainer from "../../components/CommonLayout/CommonContainer";
 
-export default function CategoryRCA() {
+export default function CategoryRca() {
   const [selectedProduct, setSelectedProduct] = useState(null);
-
-  
-
+  const [filters, setFilters] = useState({
+    platform: "Blinkit",
+    months: 6,
+    timeStep: "Monthly",
+  }); 
   const products = [
     {
       id: 1,
@@ -40,7 +39,7 @@ export default function CategoryRCA() {
           overallSovChange: "-6.1%",
           adSov: "NA",
           wtDisc: "10.1%",
-          wtDiscChange: "10.1%"
+          wtDiscChange: "10.1%",
         },
         {
           name: "Others",
@@ -54,7 +53,7 @@ export default function CategoryRCA() {
           overallSovChange: "-1.4%",
           adSov: "NA",
           wtDisc: "9.8%",
-          wtDiscChange: "9.8%"
+          wtDiscChange: "9.8%",
         },
         {
           name: "Kolkata",
@@ -68,7 +67,7 @@ export default function CategoryRCA() {
           overallSovChange: "-4.0%",
           adSov: "NA",
           wtDisc: "11.1%",
-          wtDiscChange: "11.1%"
+          wtDiscChange: "11.1%",
         },
         {
           name: "Chennai",
@@ -82,7 +81,7 @@ export default function CategoryRCA() {
           overallSovChange: "-1.9%",
           adSov: "NA",
           wtDisc: "11.1%",
-          wtDiscChange: "11.1%"
+          wtDiscChange: "11.1%",
         },
         {
           name: "Pune",
@@ -96,7 +95,7 @@ export default function CategoryRCA() {
           overallSovChange: "-1.5%",
           adSov: "NA",
           wtDisc: "11.1%",
-          wtDiscChange: "11.1%"
+          wtDiscChange: "11.1%",
         },
         {
           name: "Mumbai",
@@ -110,7 +109,7 @@ export default function CategoryRCA() {
           overallSovChange: "-0.2%",
           adSov: "NA",
           wtDisc: "9.1%",
-          wtDiscChange: "9.1%"
+          wtDiscChange: "9.1%",
         },
         {
           name: "Hyderabad",
@@ -124,7 +123,7 @@ export default function CategoryRCA() {
           overallSovChange: "-0.1%",
           adSov: "NA",
           wtDisc: "11.1%",
-          wtDiscChange: "11.1%"
+          wtDiscChange: "11.1%",
         },
         {
           name: "Bangalore",
@@ -138,8 +137,8 @@ export default function CategoryRCA() {
           overallSovChange: "-",
           adSov: "NA",
           wtDisc: "11.1%",
-          wtDiscChange: "11.1%"
-        }
+          wtDiscChange: "11.1%",
+        },
       ],
       overall: {
         offtake: "₹6.7 lac",
@@ -152,8 +151,8 @@ export default function CategoryRCA() {
         overallSovChange: "-3.3%",
         adSov: "NA",
         wtDisc: "10.0%",
-        wtDiscChange: "10.0%"
-      }
+        wtDiscChange: "10.0%",
+      },
     },
     {
       id: 2,
@@ -177,7 +176,7 @@ export default function CategoryRCA() {
           overallSovChange: "-5.8%",
           adSov: "NA",
           wtDisc: "8.5%",
-          wtDiscChange: "8.5%"
+          wtDiscChange: "8.5%",
         },
         {
           name: "Others",
@@ -191,9 +190,9 @@ export default function CategoryRCA() {
           overallSovChange: "-2.1%",
           adSov: "NA",
           wtDisc: "7.9%",
-          wtDiscChange: "7.9%"
-        }
-      ]
+          wtDiscChange: "7.9%",
+        },
+      ],
     },
     {
       id: 3,
@@ -215,60 +214,26 @@ export default function CategoryRCA() {
           overallSovChange: "-3.2%",
           adSov: "NA",
           wtDisc: "9.2%",
-          wtDiscChange: "9.2%"
-        }
-      ]
-    }
+          wtDiscChange: "9.2%",
+        },
+      ],
+    },
   ];
 
   return (
-      <>
-      <Box sx={{ display: "flex", bgcolor: "#f5f5f5", minHeight: "100vh" }}>
-      {/* Sidebar */}
-      <Navbar />
-      
+    <>
+      <CommonContainer
+        title="Category Rca"
+        filters={filters}
+        onFiltersChange={setFilters}
+      >
+        <Insights products={products} onKnowMore={setSelectedProduct} />
+        <RCACardMetric />
+        <CategoryPlatformOverview />
+      </CommonContainer>
 
-      {/* Main Content */}
-       <Box
-                
-       sx={{
-                  flex: 1,
-                  marginLeft: { xs: 0, sm: "250px" },
-                  width: { xs: "100%", sm: "calc(100% - 250px)" },
-                  overflowX: "hidden"
-                }}
-              >
-        <RCAHeader/>
-           <Container
-            maxWidth={false}
-            disableGutters
-            sx={{
-              py: 3,
-              px: { xs: 2, sm: 3 },
-              width: "100%",
-              boxSizing: "border-box"
-            }}
-          >
-         
-           <Insights products={products} onKnowMore={setSelectedProduct} />
-             <RCACardMetric />
-             <CategoryPlatformOverview/>
-
-           </Container>
-      
-
-              </Box>
-      
-    {/* Header */}
-    
-        
-
-    
- 
-      </Box>
-
-      <InsightsDrawer 
-        product={selectedProduct} 
+      <InsightsDrawer
+        product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         totalProducts={products.length}
       />

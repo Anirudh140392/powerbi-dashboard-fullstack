@@ -19,7 +19,7 @@ import {
   Circle as CircleIcon,
 } from "@mui/icons-material";
 
-const Navbar = ({
+const Sidebar = ({
   platforms = ["Blinkit", "Instamart", "Zepto"],
   selectedPlatform,
   onPlatformChange,
@@ -56,12 +56,12 @@ const Navbar = ({
   const menuSections = {
     "CONTROL TOWER": [
       { label: "Watch Tower", active: true },
-      { label: "Account Overview" },
+      // { label: "Account Overview" },
     ],
     "Q-COMM": [
       { label: "Blinkit", icon: "🟡" },
-      { label: "Instamart", icon: "🟠" },
-      { label: "Zepto", icon: "🟣" },
+      // { label: "Instamart", icon: "🟠" },
+      // { label: "Zepto", icon: "🟣" },
     ],
     ANALYTICS: [
       { label: "Category RCA" },
@@ -281,4 +281,4 @@ const Navbar = ({
   );
 };
 
-export default Navbar;
+export default Sidebar;

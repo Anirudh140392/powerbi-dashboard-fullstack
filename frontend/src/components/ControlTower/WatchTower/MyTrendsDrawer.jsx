@@ -23,7 +23,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
-import TrendController from "../utils/TrendController";
+import TrendController from "../../../utils/TrendController";
 
 const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => {
   const hasRemoteData = Array.isArray(trendData.timeSeries) && trendData.timeSeries.length > 0;
