@@ -12,6 +12,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  useTheme,
 } from "@mui/material";
 import TableChartIcon from "@mui/icons-material/TableChart";
 
@@ -727,16 +728,19 @@ export default function CategoryTable() {
   const renderChange = (value) => {
     if (!value) return "-";
     const positive = value.startsWith("+");
+    const theme = useTheme();
     return (
-      <span style={{ color: positive ? "#16a34a" : "#dc2626" }}>
+      <span style={{ color: positive ? theme.palette.success.main : theme.palette.error.main }}>
         {value}
       </span>
     );
   };
 
+  const theme = useTheme();
+
   return (
     <Box>
-      <Card sx={{ p: 3, borderRadius: 3, boxShadow: 2 }}>
+      <Card sx={{ p: 3, borderRadius: 3, boxShadow: 2, background: theme.palette.background.paper }}>
         
         {/* HEADER */}
         <Box display="flex" justifyContent="space-between" mb={3}>
@@ -746,13 +750,13 @@ export default function CategoryTable() {
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "#f1f5f9",
+                background: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <TableChartIcon sx={{ color: "#2563eb" }} />
+              <TableChartIcon sx={{ color: theme.palette.primary.main }} />
             </Box>
             <Typography fontSize="1.25rem" fontWeight={700}>
               Split by Category
@@ -773,7 +777,7 @@ export default function CategoryTable() {
               }
               sx={{
                 minWidth: 200,
-                background: "#f9fafb",
+                background: theme.palette.mode === "dark" ? theme.palette.background.paper : "#f9fafb",
                 borderRadius: "50px",
                 px: 2,
                 py: 1,
@@ -790,15 +794,15 @@ export default function CategoryTable() {
         </Box>
 
         {/* TABLE */}
-        <TableContainer component={Paper}>
-          <Table stickyHeader>
-            <TableHead>
+          <TableContainer component={Paper} sx={{ background: theme.palette.background.paper }}>
+            <Table stickyHeader>
+              <TableHead>
               
               {/* ROW 1 */}
               <TableRow>
                 <TableCell
                   sx={{
-                    background: "#f9fafb",
+                    background: theme.palette.mode === "dark" ? theme.palette.background.default : "#f9fafb",
                     fontWeight: 700,
                     position: "sticky",
                     left: 0,
@@ -812,7 +816,7 @@ export default function CategoryTable() {
                   <TableCell
                     align="center"
                     key={p}
-                    sx={{ background: "#f9fafb", fontWeight: 700 }}
+                    sx={{ background: theme.palette.mode === "dark" ? theme.palette.background.default : "#f9fafb", fontWeight: 700 }}
                   >
                     {p.toUpperCase()}
                   </TableCell>
@@ -834,8 +838,8 @@ export default function CategoryTable() {
                   align="center"
                   colSpan={platforms.length}
                   sx={{
-                    background: "#f9fafb",
-                    color: "balck",
+                    background: theme.palette.mode === "dark" ? theme.palette.background.default : "#f9fafb",
+                    color: theme.palette.text.primary,
                     fontWeight: 900,
                     fontSize: "0.9rem",
                   }}
@@ -852,7 +856,7 @@ export default function CategoryTable() {
                     sx={{
                       position: "sticky",
                       left: 0,
-                      background: "white",
+                      background: theme.palette.background.paper,
                       fontWeight: 700,
                     }}
                   >

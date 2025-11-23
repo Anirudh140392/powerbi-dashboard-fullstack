@@ -15,7 +15,7 @@ export default function CategoryRca() {
     platform: "Blinkit",
     months: 6,
     timeStep: "Monthly",
-  }); 
+  });
   const products = [
     {
       id: 1,

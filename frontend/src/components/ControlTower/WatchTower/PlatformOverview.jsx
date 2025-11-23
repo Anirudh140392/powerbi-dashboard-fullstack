@@ -13,6 +13,7 @@ import {
   Container,
   Typography,
   Button,
+  useTheme,
 } from "@mui/material";
 
 const defaultPlatforms = [
@@ -314,8 +315,14 @@ const defaultPlatforms = [
 ];
 
 const SmallCard = ({ item }) => {
+  const theme = useTheme();
   const { value, meta } = item;
   const hasValue = value !== null && value !== undefined;
+
+  const cardBg = theme.palette.mode === "dark" ? theme.palette.background.paper : "#fff";
+  const muted = theme.palette.text.secondary;
+  const positive = theme.palette.success.main;
+  const negative = theme.palette.error.main;
 
   return (
     <Card
@@ -323,13 +330,14 @@ const SmallCard = ({ item }) => {
         mb: 1.5,
         borderRadius: 2,
         height: 70,
-        boxShadow: "0px 1px 3px rgba(0,0,0,0.1)"
+        boxShadow: theme.palette.mode === "dark" ? "0 1px 3px rgba(0,0,0,0.6)" : "0px 1px 3px rgba(0,0,0,0.1)",
+        background: cardBg,
       }}
     >
       <CardContent sx={{ py: 1.2 }}>
-        <Typography fontWeight="bold" fontSize="1.05rem">
+        <Typography fontWeight="bold" fontSize="1.05rem" color="text.primary">
           {hasValue ? value : (
-            <span style={{ color: "#6c757d", fontSize: "0.8rem" }}>
+            <span style={{ color: muted, fontSize: "0.8rem" }}>
               No Data Available
             </span>
           )}
@@ -341,7 +349,7 @@ const SmallCard = ({ item }) => {
             <span
               style={{
                 marginLeft: 4,
-                color: meta.change?.includes("▲") ? "#16a34a" : "#dc2626"
+                color: meta.change?.includes("▲") ? positive : negative,
               }}
             >
               {meta.change}
@@ -355,18 +363,20 @@ const SmallCard = ({ item }) => {
 
 
 const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
+  const theme = useTheme();
+
   return (
 
-<Box sx={{ mb: 4 }}>
-  <Card
-    sx={{
-      p: 3,
-      borderRadius: 4,
-      boxShadow: 4,
-      height: 740,
-      background: "#fff",
-    }}
-  >
+    <Box sx={{ mb: 4 }}>
+      <Card
+        sx={{
+          p: 3,
+          borderRadius: 4,
+          boxShadow: 4,
+          height: 740,
+          background: theme.palette.background.paper,
+        }}
+      >
         {/* Header */}
         <Box
           display="flex"
@@ -376,27 +386,27 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
           gap={2}
           mb={3}
         >
-          <Box display="flex" alignItems="center">
-            <Box
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                backgroundColor: "#f8f9fa",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <BsGrid3X3GapFill size={20} color="#0d6efd" />
+            <Box display="flex" alignItems="center">
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f8f9fa",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <BsGrid3X3GapFill size={20} color={theme.palette.primary.main} />
+              </Box>
+
+              <Typography ml={1.2} fontWeight={600} fontSize="1.1rem">
+                Platform Overview
+              </Typography>
             </Box>
 
-            <Typography ml={1.2} fontWeight={600} fontSize="1.1rem">
-              Platform Overview
-            </Typography>
-          </Box>
-
-          <Box display="flex" alignItems="center" gap={2}>
+            <Box display="flex" alignItems="center" gap={2}>
             {/* Stale Data */}
             <Box
               display="flex"
@@ -407,9 +417,9 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                 borderRadius: 1,
                 fontSize: "0.8rem",
                 fontWeight: 500,
-                background: "#f8f3f0",
-                border: "1px solid #e3dad6",
-                color: "#6c757d",
+                background: theme.palette.mode === "dark" ? theme.palette.background.default : "#f8f3f0",
+                border: `1px solid ${theme.palette.divider}`,
+                color: theme.palette.text.secondary,
               }}
             >
               <BsCalendar style={{ marginRight: 6 }} /> Stale Data
@@ -424,8 +434,8 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                 borderRadius: 5,
                 width: 220,
                 height: 36,
-                border: "1px solid #dee2e6",
-                background: "#f2f6fb",
+                border: `1px solid ${theme.palette.divider}`,
+                background: theme.palette.mode === "dark" ? theme.palette.background.paper : "#f2f6fb",
               }}
             >
               <input
@@ -439,7 +449,7 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                   fontSize: "0.85rem",
                 }}
               />
-              <BsSearch size={15} color="#6c757d" />
+              <BsSearch size={15} color={theme.palette.text.secondary} />
             </Box>
           </Box>
         </Box>
@@ -468,7 +478,7 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                 left: 0,
                 top: 0,
 
-                background: "#fff",
+                background: theme.palette.mode === "dark" ? theme.palette.background.paper : "#fff",
                 zIndex: 5,
                 height: "620px",
                 boxShadow: "4px 0 6px -3px rgba(0,0,0,0.1)",
@@ -482,7 +492,7 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                     width: 42,
                     height: 34,
                     borderRadius: "50%",
-                    background: "#fff",
+                    background: theme.palette.mode === "dark" ? theme.palette.background.paper : "#fff",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -491,33 +501,35 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                    
                     zIndex: 4,
                     mx: "auto",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                    boxShadow: theme.palette.mode === "dark" ? "0 2px 4px rgba(0,0,0,0.6)" : "0 2px 4px rgba(0,0,0,0.05)",
                   }}
                 >
-                  <BsGrid3X3GapFill size={18} color="#6c757d" />
+                  <BsGrid3X3GapFill size={18} color={theme.palette.text.secondary} />
                 </Box>
 
                 {/* Metric Buttons */}
                 {data[0]?.columns.map((metric, i) => (
                   <Button
                     key={i}
-                    variant="light"
-                    className="text-start small border w-100 mb-3"
-                    style={{
-                      borderRadius: 10,
+                    sx={{
+                      borderRadius: 2,
                       padding: "0.65rem 0.75rem",
-                      top:35,
-                      paddingLeft: 22,
-  
+                      pt: 2,
+                      pl: 2.5,
                       height: 85,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      backgroundColor: "#f2f6fb",
+                      background: theme.palette.mode === "dark" ? theme.palette.background.default : "#f2f6fb",
+                      color: theme.palette.text.primary,
+                      border: `1px solid ${theme.palette.divider}`,
+                      width: "100%",
+                      mb: 1.5,
+                      textTransform: "none",
                     }}
                   >
                     {metric.title}
-                    <BsInfoCircle size={14} color="#6c757d" />
+                    <BsInfoCircle size={14} color={theme.palette.text.secondary} />
                   </Button>
                 ))}
               </Box>
@@ -554,7 +566,7 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                       position: "sticky",
                       top: 4,
                       zIndex: 3,
-                      background: "#f9fafb",
+                      background: theme.palette.background.default,
                     }}
                   >
                     <Card
@@ -563,13 +575,13 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                         py: 1,
                         borderRadius: 2,
                         background:
-                          platform.key === "all" ? "#0d6efd" : "#fff",
+                          platform.key === "all" ? theme.palette.primary.main : theme.palette.background.paper,
                         border:
                           platform.key === "all"
-                            ? "2px solid #0d6efd"
-                            : "1px solid #e0e0e0",
+                            ? `2px solid ${theme.palette.primary.main}`
+                            : `1px solid ${theme.palette.divider}`,
                         color:
-                          platform.key === "all" ? "#fff" : "#000",
+                          platform.key === "all" ? theme.palette.primary.contrastText : theme.palette.text.primary,
                       }}
                     >
                       <Box display="flex" alignItems="center" gap={1}>
@@ -598,15 +610,15 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
                     
                       key={i}
                       sx={{
-                        mb: 1,
-                        p: 0.5,
-                        borderRadius: 2,
-                        border: "1px solid #e0e0e0",
-                        background: "#fff",
-                        maxHeight: 90,
-                        transition: "transform 0.1s ease",
-                        "&:hover": { transform: "scale(1.02)" },
-                      }}
+                          mb: 1,
+                          p: 0.5,
+                          borderRadius: 2,
+                          border: `1px solid ${theme.palette.divider}`,
+                          background: theme.palette.background.paper,
+                          maxHeight: 90,
+                          transition: "transform 0.1s ease",
+                          "&:hover": { transform: "scale(1.02)" },
+                        }}
                     >
                       <CardContent sx={{ py: 1, px: 1.5 }}>
                       

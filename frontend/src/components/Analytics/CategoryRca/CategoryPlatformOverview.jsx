@@ -8,7 +8,7 @@ import {
   BsCalendar,
 } from "react-icons/bs";
 
-import { Typography, Box } from "@mui/material";
+import { Typography, Box, useTheme } from "@mui/material";
 
 const categoryData = [
   {
@@ -57,232 +57,257 @@ const categoryData = [
   }
 ];
 
-const Change = ({ value, positive }) => (
-  <span style={{ 
-    color: positive ? '#16a34a' : '#dc2626', 
-    fontSize: '11px', 
-    fontWeight: 600,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    {positive ? '▲' : '▼'}{value}
-  </span>
-);
-
-const MetricLabel = ({ label }) => (
-  <div style={{
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '12px 16px',
-    backgroundColor: '#fff',
-    border: '1px solid #e5e7eb',
-    borderRadius: '8px',
-    height: '95px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    <span style={{ color: '#374151', fontSize: '13px', fontWeight: 500 }}>{label}</span>
-    <Info size={14} color="#9ca3af" />
-  </div>
-);
-
-const OfftakeCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
-    height: '88px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{data.value}</div>
-    <div style={{ marginTop: '2px' }}>
-      <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
-    </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '11px', color: '#6b7280' }}>
-      <span style={{ fontSize: '11px', color: '#6b7280' }}>#Units: {data.units}</span>
-      <Change value={data.unitChange} positive={data.unitPositive} />
-    </div>
-  </div>
-);
-
-const ShareCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
-    height: '72px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{data.value}</div>
-    <div style={{ marginTop: '4px' }}>
-      <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
-    </div>
-  </div>
-);
-
-const ImpressionsCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
-    height: '124px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{data.value}</div>
-    <div style={{ marginTop: '2px' }}>
-      <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
-    </div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px' }}>
-      <span style={{ fontSize: '11px', color: '#6b7280' }}>
-        Wt. OSA % <span style={{ fontWeight: 600, color: '#111' }}>{data.wtOsa}</span>
-      </span>
-      <Change value={data.wtOsaChange} positive={data.wtOsaPositive} />
-    </div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px' }}>
-      <span style={{ fontSize: '11px', color: '#6b7280' }}>
-        Ad. SOV: <span style={{ fontWeight: 600, color: '#111' }}>{data.adSov}</span>
-      </span>
-      <Change value={data.adSovChange} positive={data.adSovPositive} />
-    </div>
-  </div>
-);
-
-const ConversionCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
-    height: '95px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{data.value}</div>
-    <div style={{ marginTop: '2px' }}>
-      <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
-    </div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px' }}>
-      <span style={{ fontSize: '11px', color: '#6b7280' }}>
-        Wt. Disc%: <span style={{ fontWeight: 600, color: '#111' }}>{data.wtDisc}</span>
-      </span>
-      <Change value={data.wtDiscChange} positive={data.wtDiscPositive} />
-    </div>
-  </div>
-);
-
-const AspCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
-    height: '75px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  }}>
-    <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>{data.value}</div>
-    <div style={{ marginTop: '4px' }}>
-      <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
-    </div>
-  </div>
-);
-
-const ActionButtons = () => (
-  <div style={{ marginTop: '12px' }}>
-    <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-      <button style={{
-        fontSize: '11px', 
-        fontWeight: 600, 
-        color: '#2563eb', 
-        backgroundColor: '#eff6ff',
-        border: '1px solid #bfdbfe', 
-        borderRadius: '16px', 
-        padding: '6px 14px',
-        cursor: 'pointer',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-        📊 Impact SKUs
-      </button>
-      <button style={{
-        fontSize: '11px', 
-        fontWeight: 600, 
-        color: '#6b7280', 
-        backgroundColor: '#f9fafb',
-        border: '1px solid #e5e7eb', 
-        borderRadius: '16px', 
-        padding: '6px 14px',
-        cursor: 'pointer',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-        🔗 RCA
-      </button>
-    </div>
-    <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
-      <button style={{ 
-        fontSize: '11px', 
-        color: '#2563eb', 
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '2px',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-        View Trends <ChevronRight size={12} />
-      </button>
-      <button style={{ 
-        fontSize: '11px', 
-        color: '#2563eb', 
-        background: 'none',
-        border: 'none',
-        padding: 0,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '2px',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-        Competition <ChevronRight size={12} />
-      </button>
-    </div>
-    <button style={{ 
+const Change = ({ value, positive }) => {
+  const theme = useTheme();
+  return (
+    <span style={{ 
+      color: positive ? theme.palette.success.main : theme.palette.error.main, 
       fontSize: '11px', 
-      color: '#2563eb', 
-      background: 'none',
-      border: 'none',
-      padding: 0,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
+      fontWeight: 600,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
-      Cross Platform
-      <span style={{ 
-        width: '18px', 
-        height: '18px', 
-        borderRadius: '50%', 
-        backgroundColor: '#f3e8ff', 
-        display: 'inline-flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        fontSize: '10px',
-        color: '#7c3aed'
+      {positive ? '▲' : '▼'}{value}
+    </span>
+  );
+};
+
+const MetricLabel = ({ label }) => {
+  const theme = useTheme();
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '12px 16px',
+      backgroundColor: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: '8px',
+      height: '95px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <span style={{ color: theme.palette.text.primary, fontSize: '13px', fontWeight: 500 }}>{label}</span>
+      <Info size={14} color={theme.palette.text.secondary} />
+    </div>
+  );
+};
+
+const OfftakeCard = ({ data }) => {
+  const theme = useTheme();
+  return (
+    <div style={{ 
+      backgroundColor: theme.palette.background.paper, 
+      border: `1px solid ${theme.palette.divider}`, 
+      borderRadius: '8px', 
+      padding: '12px 16px', 
+      height: '88px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <div style={{ fontSize: '16px', fontWeight: 700, color: theme.palette.text.primary }}>{data.value}</div>
+      <div style={{ marginTop: '2px' }}>
+        <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', fontSize: '11px', color: theme.palette.text.secondary }}>
+        <span style={{ fontSize: '11px', color: theme.palette.text.secondary }}>#Units: {data.units}</span>
+        <Change value={data.unitChange} positive={data.unitPositive} />
+      </div>
+    </div>
+  );
+};
+
+const ShareCard = ({ data }) => {
+  const theme = useTheme();
+  return (
+    <div style={{ 
+      backgroundColor: theme.palette.background.paper, 
+      border: `1px solid ${theme.palette.divider}`, 
+      borderRadius: '8px', 
+      padding: '12px 16px', 
+      height: '72px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <div style={{ fontSize: '16px', fontWeight: 700, color: theme.palette.text.primary }}>{data.value}</div>
+      <div style={{ marginTop: '4px' }}>
+        <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
+      </div>
+    </div>
+  );
+};
+
+const ImpressionsCard = ({ data }) => {
+  const theme = useTheme();
+  return (
+    <div style={{ 
+      backgroundColor: theme.palette.background.paper, 
+      border: `1px solid ${theme.palette.divider}`, 
+      borderRadius: '8px', 
+      padding: '12px 16px', 
+      height: '124px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <div style={{ fontSize: '16px', fontWeight: 700, color: theme.palette.text.primary }}>{data.value}</div>
+      <div style={{ marginTop: '2px' }}>
+        <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px' }}>
+        <span style={{ fontSize: '11px', color: theme.palette.text.secondary }}>
+          Wt. OSA % <span style={{ fontWeight: 600, color: theme.palette.text.primary }}>{data.wtOsa}</span>
+        </span>
+        <Change value={data.wtOsaChange} positive={data.wtOsaPositive} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px' }}>
+        <span style={{ fontSize: '11px', color: theme.palette.text.secondary }}>
+          Ad. SOV: <span style={{ fontWeight: 600, color: theme.palette.text.primary }}>{data.adSov}</span>
+        </span>
+        <Change value={data.adSovChange} positive={data.adSovPositive} />
+      </div>
+    </div>
+  );
+};
+
+const ConversionCard = ({ data }) => {
+  const theme = useTheme();
+  return (
+    <div style={{ 
+      backgroundColor: theme.palette.background.paper, 
+      border: `1px solid ${theme.palette.divider}`, 
+      borderRadius: '8px', 
+      padding: '12px 16px', 
+      height: '95px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <div style={{ fontSize: '16px', fontWeight: 700, color: theme.palette.text.primary }}>{data.value}</div>
+      <div style={{ marginTop: '2px' }}>
+        <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px' }}>
+        <span style={{ fontSize: '11px', color: theme.palette.text.secondary }}>
+          Wt. Disc%: <span style={{ fontWeight: 600, color: theme.palette.text.primary }}>{data.wtDisc}</span>
+        </span>
+        <Change value={data.wtDiscChange} positive={data.wtDiscPositive} />
+      </div>
+    </div>
+  );
+};
+
+const AspCard = ({ data }) => {
+  const theme = useTheme();
+  return (
+    <div style={{ 
+      backgroundColor: theme.palette.background.paper, 
+      border: `1px solid ${theme.palette.divider}`, 
+      borderRadius: '8px', 
+      padding: '12px 16px', 
+      height: '75px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <div style={{ fontSize: '16px', fontWeight: 700, color: theme.palette.text.primary }}>{data.value}</div>
+      <div style={{ marginTop: '4px' }}>
+        <Change value={`${data.change} (${data.changeValue})`} positive={data.positive} />
+      </div>
+    </div>
+  );
+};
+
+const ActionButtons = () => {
+  const theme = useTheme();
+  return (
+    <div style={{ marginTop: '12px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+        <button style={{
+          fontSize: '11px', 
+          fontWeight: 600, 
+          color: theme.palette.primary.main, 
+          backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#eff6ff',
+          border: `1px solid ${theme.palette.mode === 'dark' ? theme.palette.divider : '#bfdbfe'}`, 
+          borderRadius: '16px', 
+          padding: '6px 14px',
+          cursor: 'pointer',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}>
+          📊 Impact SKUs
+        </button>
+        <button style={{
+          fontSize: '11px', 
+          fontWeight: 600, 
+          color: theme.palette.text.secondary, 
+          backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
+          border: `1px solid ${theme.palette.divider}`, 
+          borderRadius: '16px', 
+          padding: '6px 14px',
+          cursor: 'pointer',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}>
+          🔗 RCA
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
+        <button style={{ 
+          fontSize: '11px', 
+          color: theme.palette.primary.main, 
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}>
+          View Trends <ChevronRight size={12} />
+        </button>
+        <button style={{ 
+          fontSize: '11px', 
+          color: theme.palette.primary.main, 
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}>
+          Competition <ChevronRight size={12} />
+        </button>
+      </div>
+      <button style={{ 
+        fontSize: '11px', 
+        color: theme.palette.primary.main, 
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
-        ◎
-      </span>
-    </button>
-  </div>
-);
+        Cross Platform
+        <span style={{ 
+          width: '18px', 
+          height: '18px', 
+          borderRadius: '50%', 
+          backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#f3e8ff', 
+          display: 'inline-flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          fontSize: '10px',
+          color: theme.palette.secondary.main
+        }}>
+          ◎
+        </span>
+      </button>
+    </div>
+  );
+};
 
 export default function CategoryRCA() {
   const [selected, setSelected] = useState("all");
+  const theme = useTheme();
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ backgroundColor: '#fff', minHeight: '100vh', padding: '24px 12px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: theme.palette.background.default, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <div style={{ backgroundColor: theme.palette.background.paper, minHeight: '100vh', padding: '24px 12px' }}>
         {/* Header */}
          <Box
           display="flex"
@@ -364,7 +389,7 @@ export default function CategoryRCA() {
        
         {/* Main Content */}
         <div style={{ padding: '20px'}}>
-          <div style={{ display: 'flex', gap: '16px', minWidth: 'max-content',  backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', borderColor: '#e5e7eb', borderWidth: '1px', borderStyle: 'solid' }}>
+          <div style={{ display: 'flex', gap: '16px', minWidth: 'max-content',  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb', padding: '16px', borderRadius: '8px', border: `1px solid ${theme.palette.divider}` }}>
             {/* Left Labels */}
             <div style={{ width: '180px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -407,9 +432,9 @@ export default function CategoryRCA() {
                   style={{
                     height: '44px',
                     borderRadius: '8px',
-                    border: selected === cat.key ? '2px solid #2563eb' : '1px solid #e5e7eb',
-                    backgroundColor: selected === cat.key ? '#2563eb' : '#fff',
-                    color: selected === cat.key ? '#fff' : '#374151',
+                    border: selected === cat.key ? `2px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
+                    backgroundColor: selected === cat.key ? theme.palette.primary.main : theme.palette.background.paper,
+                    color: selected === cat.key ? theme.palette.primary.contrastText : theme.palette.text.primary,
                     fontSize: '13px',
                     fontWeight: 600,
                     width: '100%',

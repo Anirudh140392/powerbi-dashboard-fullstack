@@ -1,6 +1,29 @@
 import React, { useState } from "react";
-import { Container, Box } from "@mui/material";
+import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+
+function TabButton({ label, active, onClick }) {
+  const theme = useTheme();
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        py: 2,
+        cursor: "pointer",
+        borderBottom: active ? `3px solid ${theme.palette.primary.main}` : "3px solid transparent",
+        color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+        fontWeight: 700,
+        fontSize: "0.85rem",
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+      }}
+    >
+      <Box component="span" sx={{ fontSize: "1.1rem" }}>▦</Box>
+      <Box component="span">{label}</Box>
+    </Box>
+  );
+}
 
 import PlatformOverview from "../../components/ControlTower/WatchTower/PlatformOverview";
 import CategoryTable from "../../components/ControlTower/WatchTower/CategoryTable";
@@ -175,50 +198,26 @@ export default function WatchTower() {
         {/* Category / SKU Tabs */}
         <Box
           sx={{
-            bgcolor: "white",
+            bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 2,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            boxShadow: 1,
             mb: 4,
           }}
         >
           {/* Tabs */}
           <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
             <Box sx={{ display: "flex", gap: 4 }}>
-              <Box
+              <TabButton
+                label="Split by Category"
+                active={activeTab === "category"}
                 onClick={() => setActiveTab("category")}
-                sx={{
-                  py: 2,
-                  cursor: "pointer",
-                  borderBottom:
-                    activeTab === "category" ? "3px solid #2563eb" : "3px solid transparent",
-                  color: activeTab === "category" ? "#2563eb" : "#6b7280",
-                  fontWeight: 700,
-                  fontSize: "0.85rem",
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <span style={{ fontSize: "1.2rem" }}>▦</span>
-                  <span>Split by Category</span>
-                </Box>
-              </Box>
+              />
 
-              <Box
+              <TabButton
+                label="Split by SKUs"
+                active={activeTab === "sku"}
                 onClick={() => setActiveTab("sku")}
-                sx={{
-                  py: 2,
-                  cursor: "pointer",
-                  borderBottom:
-                    activeTab === "sku" ? "3px solid #2563eb" : "3px solid transparent",
-                  color: activeTab === "sku" ? "#2563eb" : "#6b7280",
-                  fontWeight: 700,
-                  fontSize: "0.85rem",
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <span style={{ fontSize: "1.2rem" }}>▦</span>
-                  <span>Split by SKUs</span>
-                </Box>
-              </Box>
+              />
             </Box>
           </Box>
 
