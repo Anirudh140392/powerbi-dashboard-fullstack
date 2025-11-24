@@ -306,8 +306,16 @@ export default function CategoryRCA() {
   const theme = useTheme();
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: theme.palette.background.default, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ backgroundColor: theme.palette.background.paper, minHeight: '100vh', padding: '24px 12px' }}>
+    <Box
+      sx={{
+        bgcolor: "#fff",
+        borderRadius: "16px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        border: "1px solid #e5e7eb",
+        p: 3,
+        mb: 4
+      }}
+    >
         {/* Header */}
          <Box
           display="flex"
@@ -485,7 +493,6 @@ export default function CategoryRCA() {
           </div>
         
         </div>
-      </div>
-    </div>
+        </Box>
   );
 }

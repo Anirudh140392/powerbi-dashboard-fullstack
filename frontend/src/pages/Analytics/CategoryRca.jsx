@@ -8,6 +8,7 @@ import RCACardMetric from "../../components/Analytics/CategoryRca/RCACardMetric"
 import RCAHeader from "../../components/Analytics/CategoryRca/RCAHeader";
 import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import SkuLevelBreakdown from "../../components/Analytics/CategoryRca/SkuLevelBreakdown";
 
 export default function CategoryRca() {
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -230,6 +231,7 @@ export default function CategoryRca() {
         <Insights products={products} onKnowMore={setSelectedProduct} />
         <RCACardMetric />
         <CategoryPlatformOverview />
+        <SkuLevelBreakdown/>
       </CommonContainer>
 
       <InsightsDrawer
