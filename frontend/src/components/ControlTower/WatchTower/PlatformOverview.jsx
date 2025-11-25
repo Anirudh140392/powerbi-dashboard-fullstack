@@ -16,298 +16,6 @@ import {
   useTheme,
 } from "@mui/material";
 
-const defaultPlatforms = [
-  {
-    key: "all",
-    label: "All",
-    logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
-    columns: [
-      {
-        title: "Offtake",
-        value: "₹9.0 Cr",
-        change: { text: "▲3.2% (₹28.8 lac)", positive: true },
-        meta: { units: "4.9 lac", change: "▲2.4%" },
-      },
-      {
-        title: "Est. Category Share",
-        value: "35.0%",
-        change: { text: "▲0.4% (+0.1 pp)", positive: true },
-        meta: { units: "4.9 lac", change: "▲2.4%" },
-      },
-      {
-        title: "Category Size",
-        value: "₹25.7 Cr",
-        change: { text: "▲2.9% (₹72.5 lac)", positive: true },
-        meta: { units: "4.9 lac", change: "▲2.4%" },
-      },
-      {
-        title: "Wt. OSA%",
-        value: "78.6%",
-        change: { text: "▼9.4% (-8.2 pp)", positive: false },
-        meta: { units: "4.9 lac", change: "▲2.4%" },
-      },
-      {
-        title: "Wt. Disc %",
-        value: "26.5%",
-        change: { text: "▲6.2% (+1.6 pp)", positive: true },
-        meta: { units: "4.9 lac", change: "▲2.4%" },
-      },
-      // {
-      //   title: "Overall SOV",
-      //   value: "37.4%",
-      //   change: { text: "▼7.2% (-2.9 pp)", positive: false },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Impressions",
-      //   value: "21.0M",
-      //   change: { text: "▲4.6% (+0.9M)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Clicks",
-      //   value: "973K",
-      //   change: { text: "▲3.6% (+33.6K)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "CTR",
-      //   value: "4.6%",
-      //   change: { text: "▲0.2 pp", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "CVR",
-      //   value: "2.2%",
-      //   change: { text: "▲0.1 pp", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Orders",
-      //   value: "13.8K",
-      //   change: { text: "▲1.5% (+201)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Ad Spends",
-      //   value: "₹1.63 Cr",
-      //   change: { text: "▲2.8% (₹4.6 lac)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "ROAS",
-      //   value: "5.44x",
-      //   change: { text: "▲3.1% (+0.2x)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-    ],
-  },
-
-  // BLINKIT
-  {
-    key: "blinkit",
-    label: "Blinkit",
-    logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
-    columns: [
-      {
-        title: "Offtake",
-        value: "₹2.1 Cr",
-        change: { text: "▲3.0% (₹6.1 lac)", positive: true },
-        meta: { units: "1.1 lac", change: "▲1.8%" },
-      },
-      {
-        title: "Est. Category Share",
-        value: "38.3%",
-        change: { text: "▲0.6% (+0.2 pp)", positive: true },
-        meta: { units: "1.1 lac", change: "▲1.8%" },
-      },
-      {
-        title: "Category Size",
-        value: "₹5.48 Cr",
-        change: { text: "▲2.2% (₹11.9 lac)", positive: true },
-        meta: { units: "1.1 lac", change: "▲1.8%" },
-      },
-      {
-        title: "Wt. OSA%",
-        value: "75.4%",
-        change: { text: "▼15.5% (-13.9 pp)", positive: false },
-        meta: { units: "1.1 lac", change: "▲1.8%" },
-      },
-      {
-        title: "Wt. Disc %",
-        value: "24.0%",
-        change: { text: "▲7.4% (+1.7 pp)", positive: true },
-        meta: { units: "1.1 lac", change: "▲1.8%" },
-      },
-      // {
-      //   title: "Overall SOV",
-      //   value: "36.5%",
-      //   change: { text: "▼7.3% (-2.9 pp)", positive: false },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Impressions",
-      //   value: "4.2M",
-      //   change: { text: "▲4.0% (+0.16M)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Clicks",
-      //   value: "196K",
-      //   change: { text: "▲3.5% (+6.6K)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "CTR",
-      //   value: "4.7%",
-      //   change: { text: "▲0.2 pp", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "CVR",
-      //   value: "2.1%",
-      //   change: { text: "▲0.1 pp", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Orders",
-      //   value: "4.1K",
-      //   change: { text: "▲1.5% (+60)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Ad Spends",
-      //   value: "₹0.36 Cr",
-      //   change: { text: "▲2.1% (₹0.8 lac)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "ROAS",
-      //   value: "5.8x",
-      //   change: { text: "▲2.5% (+0.1x)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-    ],
-  },
-
-  // ZEPTO
-  {
-    key: "zepto",
-    label: "Zepto",
-    logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
-    columns: [
-      {
-        title: "Offtake",
-        value: "₹1.6 Cr",
-        change: { text: "▲3.6% (₹5.6 lac)", positive: true },
-        meta: { units: "0.9 lac", change: "▲1.2%" },
-      },
-      {
-        title: "Est. Category Share",
-        value: "36.4%",
-        change: { text: "▲0.4% (+0.1 pp)", positive: true },
-        meta: { units: "0.9 lac", change: "▲1.2%" },
-      },
-      {
-        title: "Category Size",
-        value: "₹4.40 Cr",
-        change: { text: "▲1.9% (₹8.3 lac)", positive: true },
-        meta: { units: "0.9 lac", change: "▲1.2%" },
-      },
-      {
-        title: "Wt. OSA%",
-        value: "79.7%",
-        change: { text: "▼4.7% (-3.9 pp)", positive: false },
-        meta: { units: "0.9 lac", change: "▲1.2%" },
-      },
-      {
-        title: "Wt. Disc %",
-        value: "29.9%",
-        change: { text: "▲6.3% (+1.8 pp)", positive: true },
-        meta: { units: "0.9 lac", change: "▲1.2%" },
-      },
-    ],
-  },
-
-  // SWIGGY
-  {
-    key: "swiggy",
-    label: "Swiggy",
-    logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
-    columns: [
-      {
-        title: "Offtake",
-        value: "₹1.1 Cr",
-        change: { text: "▲2.5% (₹2.8 lac)", positive: true },
-        meta: { units: "0.7 lac", change: "▲0.8%" },
-      },
-      {
-        title: "Est. Category Share",
-        value: "30.5%",
-        change: { text: "▲0.2% (+0.1 pp)", positive: true },
-        meta: { units: "0.7 lac", change: "▲0.8%" },
-      },
-      {
-        title: "Category Size",
-        value: "₹3.61 Cr",
-        change: { text: "▲1.7% (₹6.1 lac)", positive: true },
-        meta: { units: "0.7 lac", change: "▲0.8%" },
-      },
-      {
-        title: "Wt. OSA%",
-        value: "83.3%",
-        change: { text: "▼2.8% (-2.4 pp)", positive: false },
-        meta: { units: "0.7 lac", change: "▲0.8%" },
-      },
-      {
-        title: "Wt. Disc %",
-        value: "27.3%",
-        change: { text: "▲4.4% (+1.1 pp)", positive: true },
-        meta: { units: "0.7 lac", change: "▲0.8%" },
-      },
-    ],
-  },
-
-  // AMAZON
-  {
-    key: "amazon",
-    label: "Amazon",
-    logo: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
-    columns: [
-      {
-        title: "Offtake",
-        value: "₹2.2 Cr",
-        change: { text: "▲3.1% (₹6.6 lac)", positive: true },
-        meta: { units: "1.1 lac", change: "▲2.0%" },
-      },
-      {
-        title: "Est. Category Share",
-        value: "33.5%",
-        change: { text: "▲0.3% (+0.1 pp)", positive: true },
-        meta: { units: "1.1 lac", change: "▲2.0%" },
-      },
-      {
-        title: "Category Size",
-        value: "₹6.57 Cr",
-        change: { text: "▲2.5% (₹16.0 lac)", positive: true },
-        meta: { units: "1.1 lac", change: "▲2.0%" },
-      },
-      {
-        title: "Wt. OSA%",
-        value: "81.2%",
-        change: { text: "▼3.1% (-2.6 pp)", positive: false },
-        meta: { units: "1.1 lac", change: "▲2.0%" },
-      },
-      {
-        title: "Wt. Disc %",
-        value: "25.5%",
-        change: { text: "▲3.6% (+0.9 pp)", positive: true },
-        meta: { units: "1.1 lac", change: "▲2.0%" },
-      },
-    ],
-  },
-];
-
 const SmallCard = ({ item }) => {
   const theme = useTheme();
   const { value, meta } = item;
@@ -361,7 +69,11 @@ const SmallCard = ({ item }) => {
   );
 };
 
-const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
+const PlatformOverview = ({
+  data = defaultPlatforms,
+  onViewTrends,
+  activeKpisTab,
+}) => {
   const theme = useTheme();
 
   return (
@@ -403,31 +115,43 @@ const PlatformOverview = ({ data = defaultPlatforms, onViewTrends }) => {
             </Box>
 
             <Typography ml={1.2} fontWeight={600} fontSize="1.1rem">
-              Platform Overview
+              {activeKpisTab}
             </Typography>
           </Box>
 
           <Box display="flex" alignItems="center" gap={2}>
-            {/* Stale Data */}
-            <Box
-              display="flex"
-              alignItems="center"
-              px={1.5}
-              py={0.7}
-              sx={{
-                borderRadius: 1,
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                background:
-                  theme.palette.mode === "dark"
-                    ? theme.palette.background.default
-                    : "#f8f3f0",
-                border: `1px solid ${theme.palette.divider}`,
-                color: theme.palette.text.secondary,
-              }}
-            >
-              <BsCalendar style={{ marginRight: 6 }} /> Stale Data
-            </Box>
+            {activeKpisTab !== "Platform Overview" && (
+              <Box
+                sx={{
+                  borderRadius: 5,
+                  width: 180,
+                  height: 36,
+                  border: `1px solid ${theme.palette.divider}`,
+                  background:
+                    theme.palette.mode === "dark"
+                      ? theme.palette.background.paper
+                      : "#f2f6fb",
+                  display: "flex",
+                  alignItems: "center",
+                  px: 1.5,
+                }}
+              >
+                <select
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    background: "transparent",
+                    outline: "none",
+                    fontSize: "0.85rem",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
+                  <option>Blinkit</option>
+                  <option>Zepto</option>
+                  <option>Instamart</option>
+                </select>
+              </Box>
+            )}
 
             {/* Search Box */}
             <Box

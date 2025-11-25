@@ -2,47 +2,85 @@ import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
 const CardMetric = () => {
+  // const cards = [
+  //   {
+  //     title: "Offtake",
+  //     value: "₹9.0 Cr",
+  //     sub: "for MTD",
+  //     change: "▲3.2% (₹28.8 lac)",
+  //     changeColor: "green",
+  //     prevText: "vs Previous Month",
+  //     extra: "#Units: 4.9 lac",
+  //     extraChange: "▲2.4%",
+  //     extraChangeColor: "green",
+  //   },
+  //   {
+  //     title: "Ad Spends",
+  //     value: "₹1.63 Cr",
+  //     sub: "for MTD",
+  //     change: "▲2.8% (₹4.6 lac)",
+  //     changeColor: "green",
+  //     prevText: "vs Previous Month",
+  //   },
+  //   {
+  //     title: "ROAS",
+  //     value: "5.44x",
+  //     sub: "for MTD (Avg.)",
+  //     change: "▲3.1% (+0.2x)",
+  //     changeColor: "green",
+  //     prevText: "vs Previous Month",
+  //   },
+  //   {
+  //     title: "Impressions",
+  //     value: "21.0M",
+  //     sub: "for MTD",
+  //     change: "▲4.6% (+0.9M)",
+  //     changeColor: "green",
+  //     prevText: "vs Previous Month",
+  //   },
+  //   {
+  //     title: "Orders",
+  //     value: "16.8K",
+  //     sub: "for MTD",
+  //     change: "▲2.6% (+420)",
+  //     changeColor: "green",
+  //     prevText: "vs Previous Month",
+  //   },
+  // ];
+
   const cards = [
     {
       title: "Offtake",
-      value: "₹9.0 Cr",
+      value: "₹12.4 Cr",
       sub: "for MTD",
-      change: "▲3.2% (₹28.8 lac)",
+      change: "▲4.8% (₹57.2 lac)",
       changeColor: "green",
       prevText: "vs Previous Month",
-      extra: "#Units: 4.9 lac",
-      extraChange: "▲2.4%",
+      extra: "#Units: 6.3 lac",
+      extraChange: "▲3.1%",
       extraChangeColor: "green",
     },
     {
-      title: "Ad Spends",
-      value: "₹1.63 Cr",
+      title: "Availability",
+      value: "₹2.18 Cr",
       sub: "for MTD",
-      change: "▲2.8% (₹4.6 lac)",
+      change: "▲3.5% (₹7.4 lac)",
       changeColor: "green",
       prevText: "vs Previous Month",
     },
     {
-      title: "ROAS",
-      value: "5.44x",
+      title: "Discount",
+      value: "4.92x",
       sub: "for MTD (Avg.)",
-      change: "▲3.1% (+0.2x)",
+      change: "▲2.4% (+0.11x)",
       changeColor: "green",
       prevText: "vs Previous Month",
     },
     {
-      title: "Impressions",
-      value: "21.0M",
+      title: "Market Share",
+      value: "23.7M",
       sub: "for MTD",
-      change: "▲4.6% (+0.9M)",
-      changeColor: "green",
-      prevText: "vs Previous Month",
-    },
-    {
-      title: "Orders",
-      value: "16.8K",
-      sub: "for MTD",
-      change: "▲2.6% (+420)",
+      change: "▲5.2% (+1.17M)",
       changeColor: "green",
       prevText: "vs Previous Month",
     },
@@ -63,7 +101,12 @@ const CardMetric = () => {
     <Box sx={{ mb: 4 }}>
       <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4 }}>
         {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
           <Box display="flex" alignItems="center" gap={1.5}>
             <Box
               sx={{
@@ -123,7 +166,14 @@ const CardMetric = () => {
 };
 
 /* ------------ Mini Chart Component with Tooltip + Smooth Curve ------------ */
-const MiniChartCard = ({ card, months, values, color, scrollNeeded, totalCards }) => {
+const MiniChartCard = ({
+  card,
+  months,
+  values,
+  color,
+  scrollNeeded,
+  totalCards,
+}) => {
   const [hover, setHover] = useState(null);
 
   // Create a smooth Bezier curve path
@@ -176,93 +226,110 @@ const MiniChartCard = ({ card, months, values, color, scrollNeeded, totalCards }
         {card.extra && (
           <Typography variant="body2" color="text.secondary" mt={0.5}>
             {card.extra}{" "}
-            <span style={{ color: card.extraChangeColor }}>{card.extraChange}</span>
+            <span style={{ color: card.extraChangeColor }}>
+              {card.extraChange}
+            </span>
           </Typography>
         )}
 
         {/* Mini chart */}
         <Box mt={1.5} sx={{ height: 80, position: "relative" }}>
-          <svg width="100%" height="100%" viewBox="0 0 100 110" preserveAspectRatio="none">
+          <svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 100 110"
+            preserveAspectRatio="none"
+          >
             {/* Smooth curve */}
-            <path d={createSmoothPath()} fill="none" stroke={color} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+            <path
+              d={createSmoothPath()}
+              fill="none"
+              stroke={color}
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
           </svg>
 
           {/* Dots layer - positioned absolutely to maintain circular shape */}
           {/* Dots + Tooltip */}
-{values.map((v, i) => {
-  const xPercent = (i / (values.length - 1)) * 100;
-  const yPercent = 100 - v;
+          {values.map((v, i) => {
+            const xPercent = (i / (values.length - 1)) * 100;
+            const yPercent = 100 - v;
 
-  return (
-    <Box key={i}>
-      {/* Tooltip */}
-      {hover === i && (
-        <Box
-          sx={{
-            position: "absolute",
-            left: `${xPercent}%`,
-            top: `${(yPercent / 110) * 100 - 12}%`,
-            transform: "translate(-50%, -100%)",
-            bgcolor: "white",
-            px: 1.2,
-            py: 0.6,
-            borderRadius: 1.5,
-            boxShadow: 3,
-            zIndex: 5,
-            minWidth: 55,
-            textAlign: "center",
-          }}
-        >
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>
-            {months[i]}
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ display: "block", color: "#555", fontSize: "0.7rem", whiteSpace: "nowrap" }}
-          >
-            value : {v}
-          </Typography>
-        </Box>
-      )}
+            return (
+              <Box key={i}>
+                {/* Tooltip */}
+                {hover === i && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: `${xPercent}%`,
+                      top: `${(yPercent / 110) * 100 - 12}%`,
+                      transform: "translate(-50%, -100%)",
+                      bgcolor: "white",
+                      px: 1.2,
+                      py: 0.6,
+                      borderRadius: 1.5,
+                      boxShadow: 3,
+                      zIndex: 5,
+                      minWidth: 55,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                      {months[i]}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: "block",
+                        color: "#555",
+                        fontSize: "0.7rem",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      value : {v}
+                    </Typography>
+                  </Box>
+                )}
 
-      {/* Dot */}
-      <Box
-        sx={{
-          position: "absolute",
-          left: `${xPercent}%`,
-          top: `${(yPercent / 110) * 100}%`,
-          width: hover === i ? 10 : 8,
-          height: hover === i ? 10 : 8,
-          borderRadius: "50%",
-          backgroundColor: hover === i ? color : "white",
-          border: `2px solid ${color}`,
-          transform: "translate(-50%, -50%)",
-          transition: "all 0.2s ease",
-          cursor: "pointer",
-          zIndex: 2,
-        }}
-        onMouseEnter={() => setHover(i)}
-        onMouseLeave={() => setHover(null)}
-      />
-    </Box>
-  );
-})}
-
+                {/* Dot */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    left: `${xPercent}%`,
+                    top: `${(yPercent / 110) * 100}%`,
+                    width: hover === i ? 10 : 8,
+                    height: hover === i ? 10 : 8,
+                    borderRadius: "50%",
+                    backgroundColor: hover === i ? color : "white",
+                    border: `2px solid ${color}`,
+                    transform: "translate(-50%, -50%)",
+                    transition: "all 0.2s ease",
+                    cursor: "pointer",
+                    zIndex: 2,
+                  }}
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                />
+              </Box>
+            );
+          })}
 
           {/* X-axis labels */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+          <Box
+            sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}
+          >
             {months.map((month, i) => (
               <Typography
                 key={i}
                 variant="caption"
                 sx={{
-                  fontSize: '0.65rem',
-                  color: 'text.secondary',
-                  opacity: 0.7
+                  fontSize: "0.65rem",
+                  color: "text.secondary",
+                  opacity: 0.7,
                 }}
-              >
-               
-              </Typography>
+              ></Typography>
             ))}
           </Box>
         </Box>
