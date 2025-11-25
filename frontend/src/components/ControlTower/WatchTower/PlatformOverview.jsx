@@ -450,6 +450,8 @@ import {
   Button,
   Chip,
   useTheme,
+  Select,
+  MenuItem,
 } from "@mui/material";
 
 /* SMALL KPI CARD */
@@ -506,6 +508,7 @@ const PlatformOverview = ({
 
   /* VERTICAL SORT */
   const [sortType, setSortType] = React.useState("default");
+  const [platformFilter, setPlatformFilter] = React.useState("all");
 
   const sortedPlatforms = React.useMemo(() => {
     return data.map((platform) => {
@@ -564,6 +567,30 @@ const PlatformOverview = ({
 
           {/* RIGHT SECTION — SEARCH + SORTING */}
           <Box display="flex" alignItems="center" gap={1.2}>
+            {/* FILTER DROPDOWN */}
+            {activeKpisTab !== "Platform Overview" && (
+              <Select
+                size="small"
+                value={platformFilter}
+                onChange={(e) => setPlatformFilter(e.target.value)}
+                sx={{
+                  minWidth: 130,
+                  height: 36,
+                  fontSize: "0.85rem",
+                  background: "#f3f4f6",
+                  borderRadius: 1.5,
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: theme.palette.divider,
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: theme.palette.text.primary,
+                  },
+                }}
+              >
+                <MenuItem value="blinkit">Blinkit</MenuItem>
+              </Select>
+            )}
+
             {/* SEARCH */}
             <Box
               display="flex"
@@ -591,7 +618,7 @@ const PlatformOverview = ({
               <BsSearch size={15} color={theme.palette.text.secondary} />
             </Box>
 
-            {/* SORT BUTTONS MOVED NEAR SEARCH */}
+            {/* SORT BUTTONS */}
             <Button
               size="small"
               variant={sortType === "asc" ? "contained" : "outlined"}
