@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 body {
   margin: 0;
   font-family: 'Roboto', sans-serif;
@@ -5,5 +7,5 @@ body {
 html, body {
   height: 100%;
   width: 100%;
-  overflow: hidden !important;  /* ⬅ stop outer scroll completely */
+  overflow: hidden !important;
 }

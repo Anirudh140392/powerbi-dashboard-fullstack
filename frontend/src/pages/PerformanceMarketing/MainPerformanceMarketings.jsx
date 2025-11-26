@@ -30,22 +30,10 @@ function TabButton({ label, active, onClick }) {
     </Box>
   );
 }
-
-import PlatformOverview from "../../components/ControlTower/WatchTower/PlatformOverview";
-import CategoryTable from "../../components/ControlTower/WatchTower/CategoryTable";
-import SKUTable from "../../components/ControlTower/WatchTower/SKUTable";
 import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
-import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
-import {
-  allCategories,
-  allProducts,
-  defaultCategory,
-  defaultMonths,
-  defaultPlatforms,
-} from "../../utils/DataCenter";
-import PerformanceMatric from "../../components/ControlTower/WatchTower/PeformanceMatric";
+import MainPerformanceMarketing from "../../components/PerformanceMarketing/MainPerformanceMarketing";
 
-export default function WatchTower() {
+export default function MainPerformanceMarketings() {
   const [showTrends, setShowTrends] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -212,106 +200,7 @@ export default function WatchTower() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        {/* Top Cards */}
-        <CardMetric
-          data={dashboardData.topMetrics}
-          onViewTrends={handleViewTrends}
-        />
-
-        {/* Top Cards */}
-        <PerformanceMatric/>
-
-        {/* Platform Overview */}
-        {/* Tabs */}
-        <Box
-          sx={{
-            bgcolor: (theme) => theme.palette.background.paper,
-            borderRadius: 2,
-            boxShadow: 1,
-            mb: 4,
-          }}
-        >
-          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
-            <Box sx={{ display: "flex", gap: 4 }}>
-              <TabButton
-                label="By Platfrom"
-                active={activeKpisTab === "Platform Overview"}
-                onClick={() => setActiveKpisTab("Platform Overview")}
-              />
-
-              <TabButton
-                label="By Category"
-                active={activeKpisTab === "Category Overview"}
-                onClick={() => setActiveKpisTab("Category Overview")}
-              />
-
-              <TabButton
-                label="By Month"
-                active={activeKpisTab === "Month Overview"}
-                onClick={() => setActiveKpisTab("Month Overview")}
-              />
-            </Box>
-          </Box>
-          <Box sx={{ p: 3 }}>
-            <PlatformOverview
-              onViewTrends={handleViewTrends}
-              data={
-                activeKpisTab === "Platform Overview"
-                  ? defaultPlatforms
-                  : activeKpisTab === "Category Overview"
-                  ? defaultCategory
-                  : activeKpisTab === "Month Overview"
-                  ? defaultMonths
-                  : []
-              }
-              activeKpisTab={activeKpisTab}
-            />
-            {/* defaultMonths
-defaultCategory */}
-          </Box>
-        </Box>
-
-        {/* Category / SKU Tabs */}
-        <Box
-          sx={{
-            bgcolor: (theme) => theme.palette.background.paper,
-            borderRadius: 2,
-            boxShadow: 1,
-            mb: 4,
-          }}
-        >
-          {/* Tabs */}
-          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
-            <Box sx={{ display: "flex", gap: 4 }}>
-              <TabButton
-                label="Split by Category"
-                active={activeTab === "Split by Category"}
-                onClick={() => setActiveTab("Split by Category")}
-              />
-
-              <TabButton
-                label="Split by SKUs"
-                active={activeTab === "Split by SKUs"}
-                onClick={() => setActiveTab("Split by SKUs")}
-              />
-            </Box>
-          </Box>
-
-          <Box sx={{ p: 3 }}>
-            <CategoryTable
-              categories={
-                activeTab === "Split by Category" ? allCategories : allProducts
-              }
-              activeTab={activeTab}
-            />
-          </Box>
-
-          {/* {activeTab === "sku" && (
-            <Box sx={{ p: 3 }}>
-              <SKUTable data={dashboardData.skuTable} />
-            </Box>
-          )} */}
-        </Box>
+    <MainPerformanceMarketing />;
       </CommonContainer>
 
       {/* Trend Drawer */}

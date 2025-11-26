@@ -67,6 +67,9 @@ const Sidebar = ({
       { label: "Category RCA" },
      
     ],
+    'PERFORMANCE MARKETING': [
+      { label: "Blinkit" },
+    ],
   };
 
   const navbarContent = (
@@ -81,7 +84,7 @@ const Sidebar = ({
     >
       {/* Logo Section */}
       <Box sx={{ p: 2.5, bgcolor: "rgba(0, 0, 0, 0.3)" }}>
-        <Box
+        {/* <Box
           sx={{
             bgcolor: "#dc2626",
             color: "#fff",
@@ -95,7 +98,7 @@ const Sidebar = ({
           }}
         >
           Colgate
-        </Box>
+        </Box> */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
           <Typography
             variant="caption"
@@ -178,6 +181,10 @@ const Sidebar = ({
     // ANALYTICS
     if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
       navigate("/category-rca");
+    }
+    // ANALYTICS
+    if (sectionName === "PERFORMANCE MARKETING" && item.label === "Blinkit") {
+      navigate("/performance-marketing");
     }
   }}
   sx={{
