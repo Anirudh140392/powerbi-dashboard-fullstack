@@ -6,14 +6,68 @@ import { Box, Container } from "@mui/material";
 import CategoryPlatformOverview from "../../components/Analytics/CategoryRca/CategoryPlatformOverview";
 import RCACardMetric from "../../components/Analytics/CategoryRca/RCACardMetric";
 import RCAHeader from "../../components/Analytics/CategoryRca/RCAHeader";
-import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
+
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import SkuLevelBreakdown from "../../components/Analytics/CategoryRca/SkuLevelBreakdown";
+import CategoryTrendsDrawer from "../../components/Analytics/CategoryTrendsDrawer";
+import RCADashboard from "../../components/Analytics/CategoryRca/RCADashboard";
+import Dashboard from "../../components/Analytics/CategoryRca/SkuLevelBreakdown";
 
 export default function CategoryRca() {
   const [selectedProduct, setSelectedProduct] = useState(null);
+   const [showTrends, setShowTrends] = useState(false);
+
+   const [trendParams, setTrendParams] = useState({
+      months: 6,
+      timeStep: "Monthly",
+      cat: "All",
+    });
+    
+    
+    const [trendData, setTrendData] = useState({
+        timeSeries: [],
+        metrics: {},
+      });
+
+     const handleViewTrends = (card) => {
+    console.log("card clicked", card);
+
+    const series =
+      card.chart?.map((v, i) => {
+        let date;
+
+        if (trendParams.timeStep === "Monthly") {
+          const d = new Date();
+          d.setMonth(d.getMonth() - (card.chart.length - 1 - i));
+          date = d.toLocaleString("default", { month: "short", year: "2-digit" });
+        } else if (trendParams.timeStep === "Weekly") {
+          const d = new Date();
+          d.setDate(d.getDate() - 7 * (card.chart.length - 1 - i));
+          date = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+        } else {
+          const d = new Date();
+          d.setDate(d.getDate() - (card.chart.length - 1 - i));
+          date = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+        }
+
+        return { date, offtake: v };
+      }) ?? [];
+
+    setTrendData({
+      timeSeries: series,
+      metrics: {},
+    });
+
+    setTrendParams((prev) => ({
+      ...prev,
+    cat: card.name ?? "All",
+    }));
+
+    setShowTrends(true);
+  };
+  
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    cat: "All",
     months: 6,
     timeStep: "Monthly",
   });
@@ -230,8 +284,10 @@ export default function CategoryRca() {
       >
         <Insights products={products} onKnowMore={setSelectedProduct} />
         <RCACardMetric />
-        <CategoryPlatformOverview />
+        <CategoryPlatformOverview onViewTrends={handleViewTrends} />
         <SkuLevelBreakdown/>
+        <RCADashboard/>
+        
       </CommonContainer>
 
       <InsightsDrawer
@@ -239,7 +295,12 @@ export default function CategoryRca() {
         onClose={() => setSelectedProduct(null)}
         totalProducts={products.length}
       />
-      <MyTrendsDrawer />
+        <CategoryTrendsDrawer
+        open={showTrends}
+        onClose={() => setShowTrends(false)}
+        trendData={trendData}
+        trendParams={trendParams}
+      />
     </>
   );
 }

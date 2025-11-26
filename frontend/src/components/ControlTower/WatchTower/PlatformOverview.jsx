@@ -52,54 +52,7 @@ const defaultPlatforms = [
         change: { text: "▲6.2% (+1.6 pp)", positive: true },
         meta: { units: "4.9 lac", change: "▲2.4%" },
       },
-      // {
-      //   title: "Overall SOV",
-      //   value: "37.4%",
-      //   change: { text: "▼7.2% (-2.9 pp)", positive: false },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Impressions",
-      //   value: "21.0M",
-      //   change: { text: "▲4.6% (+0.9M)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Clicks",
-      //   value: "973K",
-      //   change: { text: "▲3.6% (+33.6K)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "CTR",
-      //   value: "4.6%",
-      //   change: { text: "▲0.2 pp", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "CVR",
-      //   value: "2.2%",
-      //   change: { text: "▲0.1 pp", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Orders",
-      //   value: "13.8K",
-      //   change: { text: "▲1.5% (+201)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "Ad Spends",
-      //   value: "₹1.63 Cr",
-      //   change: { text: "▲2.8% (₹4.6 lac)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
-      // {
-      //   title: "ROAS",
-      //   value: "5.44x",
-      //   change: { text: "▲3.1% (+0.2x)", positive: true },
-      //   meta: { units: "4.9 lac", change: "▲2.4%" },
-      // },
+      
     ],
   },
 
@@ -139,54 +92,7 @@ const defaultPlatforms = [
         change: { text: "▲7.4% (+1.7 pp)", positive: true },
         meta: { units: "1.1 lac", change: "▲1.8%" },
       },
-      // {
-      //   title: "Overall SOV",
-      //   value: "36.5%",
-      //   change: { text: "▼7.3% (-2.9 pp)", positive: false },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Impressions",
-      //   value: "4.2M",
-      //   change: { text: "▲4.0% (+0.16M)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Clicks",
-      //   value: "196K",
-      //   change: { text: "▲3.5% (+6.6K)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "CTR",
-      //   value: "4.7%",
-      //   change: { text: "▲0.2 pp", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "CVR",
-      //   value: "2.1%",
-      //   change: { text: "▲0.1 pp", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Orders",
-      //   value: "4.1K",
-      //   change: { text: "▲1.5% (+60)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "Ad Spends",
-      //   value: "₹0.36 Cr",
-      //   change: { text: "▲2.1% (₹0.8 lac)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
-      // {
-      //   title: "ROAS",
-      //   value: "5.8x",
-      //   change: { text: "▲2.5% (+0.1x)", positive: true },
-      //   meta: { units: "1.1 lac", change: "▲1.8%" },
-      // },
+   
     ],
   },
 

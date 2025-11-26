@@ -360,39 +360,8 @@ const SkuLevelBreakdown = () => {
         <Box sx={{ width: "8px", height: "4px", bgcolor: "#e5e7eb", borderRadius: "2px" }} />
       </Box>
 
-      {/* Root Cause Analysis */}
-      <Box sx={{ mt: 4, pt: 3, borderTop: "1px solid #e5e7eb" }}>
-        <Box
-          sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 1.5,
-            px: 3,
-            py: 1.5,
-            bgcolor: "#f0f9ff",
-            border: "1px solid #bae6fd",
-            borderRadius: "12px"
-          }}
-        >
-          <BarChart2 size={18} color="#0369a1" />
-          <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#0c4a6e" }}>
-            Root Cause Analysis for
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: "14px",
-              fontWeight: 700,
-              color: "#0369a1",
-              px: 1.5,
-              py: 0.5,
-              bgcolor: "#bae6fd",
-              borderRadius: "6px"
-            }}
-          >
-            All x Chennai
-          </Typography>
-        </Box>
-      </Box>
+
+     
     </Box>
   );
 };
