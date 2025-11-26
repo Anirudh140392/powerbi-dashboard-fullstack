@@ -10,8 +10,12 @@ function TabButton({ label, active, onClick }) {
       sx={{
         py: 2,
         cursor: "pointer",
-        borderBottom: active ? `3px solid ${theme.palette.primary.main}` : "3px solid transparent",
-        color: active ? theme.palette.primary.main : theme.palette.text.secondary,
+        borderBottom: active
+          ? `3px solid ${theme.palette.primary.main}`
+          : "3px solid transparent",
+        color: active
+          ? theme.palette.primary.main
+          : theme.palette.text.secondary,
         fontWeight: 700,
         fontSize: "0.85rem",
         display: "flex",
@@ -19,7 +23,9 @@ function TabButton({ label, active, onClick }) {
         gap: 1,
       }}
     >
-      <Box component="span" sx={{ fontSize: "1.1rem" }}>▦</Box>
+      <Box component="span" sx={{ fontSize: "1.1rem" }}>
+        ▦
+      </Box>
       <Box component="span">{label}</Box>
     </Box>
   );
@@ -30,6 +36,13 @@ import CategoryTable from "../../components/ControlTower/WatchTower/CategoryTabl
 import SKUTable from "../../components/ControlTower/WatchTower/SKUTable";
 import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
 import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
+import {
+  allCategories,
+  allProducts,
+  defaultCategory,
+  defaultMonths,
+  defaultPlatforms,
+} from "../../utils/DataCenter";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -40,7 +53,8 @@ export default function WatchTower() {
     timeStep: "Monthly",
   });
 
-  const [activeTab, setActiveTab] = useState("category");
+  const [activeTab, setActiveTab] = useState("Split by Category");
+  const [activeKpisTab, setActiveKpisTab] = useState("Platform Overview");
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -63,15 +77,24 @@ export default function WatchTower() {
         if (trendParams.timeStep === "Monthly") {
           const d = new Date();
           d.setMonth(d.getMonth() - (card.chart.length - 1 - i));
-          date = d.toLocaleString("default", { month: "short", year: "2-digit" });
+          date = d.toLocaleString("default", {
+            month: "short",
+            year: "2-digit",
+          });
         } else if (trendParams.timeStep === "Weekly") {
           const d = new Date();
           d.setDate(d.getDate() - 7 * (card.chart.length - 1 - i));
-          date = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+          date = d.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+          });
         } else {
           const d = new Date();
           d.setDate(d.getDate() - (card.chart.length - 1 - i));
-          date = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+          date = d.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+          });
         }
 
         return { date, offtake: v };
@@ -136,7 +159,6 @@ export default function WatchTower() {
         chart: [10, 12, 14, 16, 18, 20, 22, 26.5],
       },
     ],
-
     skuTable: [
       {
         sku: "Colgate Visible White 02 Whitening Toothpaste - 100g",
@@ -190,10 +212,60 @@ export default function WatchTower() {
         onFiltersChange={setFilters}
       >
         {/* Top Cards */}
-        <CardMetric data={dashboardData.topMetrics} onViewTrends={handleViewTrends} />
+        <CardMetric
+          data={dashboardData.topMetrics}
+          onViewTrends={handleViewTrends}
+        />
 
         {/* Platform Overview */}
-        <PlatformOverview onViewTrends={handleViewTrends} />
+        {/* Tabs */}
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 2,
+            boxShadow: 1,
+            mb: 4,
+          }}
+        >
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
+            <Box sx={{ display: "flex", gap: 4 }}>
+              <TabButton
+                label="By Platfrom"
+                active={activeKpisTab === "Platform Overview"}
+                onClick={() => setActiveKpisTab("Platform Overview")}
+              />
+
+              <TabButton
+                label="By Category"
+                active={activeKpisTab === "Category Overview"}
+                onClick={() => setActiveKpisTab("Category Overview")}
+              />
+
+              <TabButton
+                label="By Month"
+                active={activeKpisTab === "Month Overview"}
+                onClick={() => setActiveKpisTab("Month Overview")}
+              />
+            </Box>
+          </Box>
+          <Box sx={{ p: 3 }}>
+            <PlatformOverview
+              onViewTrends={handleViewTrends}
+              data={
+                activeKpisTab === "Platform Overview"
+                  ? defaultPlatforms
+                  : activeKpisTab === "Category Overview"
+                  ? defaultCategory
+                  : activeKpisTab === "Month Overview"
+                  ? defaultMonths
+                  : []
+              }
+              activeKpisTab={activeKpisTab}
+            />
+            {/* defaultMonths
+defaultCategory */}
+          </Box>
+        </Box>
 
         {/* Category / SKU Tabs */}
         <Box
@@ -209,30 +281,32 @@ export default function WatchTower() {
             <Box sx={{ display: "flex", gap: 4 }}>
               <TabButton
                 label="Split by Category"
-                active={activeTab === "category"}
-                onClick={() => setActiveTab("category")}
+                active={activeTab === "Split by Category"}
+                onClick={() => setActiveTab("Split by Category")}
               />
 
               <TabButton
                 label="Split by SKUs"
-                active={activeTab === "sku"}
-                onClick={() => setActiveTab("sku")}
+                active={activeTab === "Split by SKUs"}
+                onClick={() => setActiveTab("Split by SKUs")}
               />
             </Box>
           </Box>
 
-          {/* Content */}
-          {activeTab === "category" && (
-            <Box sx={{ p: 3 }}>
-              <CategoryTable />
-            </Box>
-          )}
+          <Box sx={{ p: 3 }}>
+            <CategoryTable
+              categories={
+                activeTab === "Split by Category" ? allCategories : allProducts
+              }
+              activeTab={activeTab}
+            />
+          </Box>
 
-          {activeTab === "sku" && (
+          {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
               <SKUTable data={dashboardData.skuTable} />
             </Box>
-          )}
+          )} */}
         </Box>
       </CommonContainer>
 
