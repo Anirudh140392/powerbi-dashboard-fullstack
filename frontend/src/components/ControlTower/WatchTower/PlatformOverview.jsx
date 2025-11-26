@@ -508,7 +508,7 @@ const PlatformOverview = ({
 
   /* VERTICAL SORT */
   const [sortType, setSortType] = React.useState("default");
-  const [platformFilter, setPlatformFilter] = React.useState("all");
+  const [platformFilter, setPlatformFilter] = React.useState("blinkit");
 
   const sortedPlatforms = React.useMemo(() => {
     return data.map((platform) => {
