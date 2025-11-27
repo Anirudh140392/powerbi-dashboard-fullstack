@@ -1,0 +1,523 @@
+import React, { useMemo, useState, useEffect } from "react";
+import {
+  Box,
+  Card,
+  Typography,
+  TextField,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  IconButton,
+  Chip,
+} from "@mui/material";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Minus, ChevronUp, ChevronDown } from "lucide-react";
+
+// --------- CONSTANTS ----------
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+// --------- SAMPLE N-LEVEL DATA ----------
+const momKeywordData = {
+  title: "Keyword Analysis",
+  keywords: [
+    {
+      keyword: "Sandwich, Cakes & Others",
+      months: MONTHS.map((m, idx) => ({
+        month: m,
+        impressions: 20 + idx * 2,
+        conversion: `${2 + (idx % 3)}%`,
+        spend: 8 + idx,
+        cpm: 380 + idx * 10,
+        roas: 1 + (idx % 4),
+      })),
+      children: [
+        {
+          keyword: "Cakes",
+          months: MONTHS.map((m, idx) => ({
+            month: m,
+            impressions: 10 + idx * 3,
+            conversion: `${2 + (idx % 4)}%`,
+            spend: 4 + idx,
+            cpm: 360 + idx * 9,
+            roas: 1 + (idx % 3),
+          })),
+          children: [
+            {
+              keyword: "Birthday Cakes",
+              months: MONTHS.map((m, idx) => ({
+                month: m,
+                impressions: 6 + idx * 2,
+                conversion: `${1 + (idx % 3)}%`,
+                spend: 3 + idx,
+                cpm: 340 + idx * 7,
+                roas: 1 + (idx % 4),
+              })),
+            },
+          ],
+        },
+      ],
+    },
+
+    {
+      keyword: "ice cream cake",
+      months: MONTHS.map((m, idx) => ({
+        month: m,
+        impressions: 14 + idx,
+        conversion: `${1 + (idx % 2)}%`,
+        spend: 6 + idx,
+        cpm: 350 + idx * 12,
+        roas: 1 + (idx % 3),
+      })),
+      children: [
+        {
+          keyword: "Premium Ice Cream Cakes",
+          months: MONTHS.map((m, idx) => ({
+            month: m,
+            impressions: 9 + idx * 2,
+            conversion: `${2 + (idx % 3)}%`,
+            spend: 5 + idx,
+            cpm: 370 + idx * 10,
+            roas: 1 + (idx % 4),
+          })),
+        },
+      ],
+    },
+
+    {
+      keyword: "ice cream",
+      months: MONTHS.map((m, idx) => ({
+        month: m,
+        impressions: 10 + idx * 3,
+        conversion: `${1 + (idx % 4)}%`,
+        spend: 4 + idx,
+        cpm: 330 + idx * 8,
+        roas: 1 + (idx % 5),
+      })),
+    },
+
+    {
+      keyword: "Gourmet",
+      months: MONTHS.map((m, idx) => ({
+        month: m,
+        impressions: 8 + idx * 2,
+        conversion: `${1 + (idx % 3)}%`,
+        spend: 3 + idx,
+        cpm: 310 + idx * 9,
+        roas: 1 + (idx % 4),
+      })),
+    },
+  ],
+};
+
+// ---------- helpers ----------
+const parsePercent = (v) =>
+  typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
+
+const aggregateForMonthFilter = (keywordObj, monthFilter) => {
+  const sourceMonths = Array.isArray(keywordObj.months)
+    ? keywordObj.months
+    : [];
+
+  const months =
+    monthFilter === "All"
+      ? sourceMonths
+      : sourceMonths.filter((m) => m.month === monthFilter);
+
+  if (!months.length) {
+    return {
+      impressions: 0,
+      conversion: 0,
+      spend: 0,
+      cpm: 0,
+      roas: 0,
+    };
+  }
+
+  const sum = months.reduce(
+    (acc, m) => {
+      acc.impressions += m.impressions || 0;
+      acc.conversion += parsePercent(m.conversion);
+      acc.spend += m.spend || 0;
+      acc.cpm += m.cpm || 0;
+      acc.roas += m.roas || 0;
+      return acc;
+    },
+    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0 }
+  );
+
+  const count = months.length;
+
+  return {
+    impressions: sum.impressions,
+    conversion: sum.conversion / count,
+    spend: sum.spend,
+    cpm: sum.cpm / count,
+    roas: sum.roas / count,
+  };
+};
+
+const getHeatColor = (conv) => {
+  if (conv >= 4) return { bg: "rgba(22,163,74,0.12)", color: "#166534" };
+  if (conv >= 2) return { bg: "rgba(234,179,8,0.12)", color: "#854d0e" };
+  return { bg: "rgba(239,68,68,0.12)", color: "#991b1b" };
+};
+
+const buildAggTree = (node, monthFilter) => {
+  const agg = aggregateForMonthFilter(node, monthFilter);
+  const children = node.children
+    ? node.children.map((c) => buildAggTree(c, monthFilter))
+    : [];
+  return { ...node, agg, children };
+};
+
+const filterTree = (node, search, minImp) => {
+  const matchesSearch =
+    !search || node.keyword.toLowerCase().includes(search.toLowerCase());
+  const matchesImp = !minImp || node.agg.impressions >= minImp;
+
+  const filteredChildren = (node.children || [])
+    .map((c) => filterTree(c, search, minImp))
+    .filter(Boolean);
+
+  if (matchesSearch && matchesImp)
+    return { ...node, children: filteredChildren };
+  if (filteredChildren.length) return { ...node, children: filteredChildren };
+  return null;
+};
+
+// ---------- main component ----------
+export default function KeywordAnalysisTable() {
+  const [expanded, setExpanded] = useState({});
+  const [search, setSearch] = useState("");
+  const [monthFilter, setMonthFilter] = useState("All");
+  const [minImpressions, setMinImpressions] = useState("");
+
+  const [sortConfig, setSortConfig] = useState({
+    key: "conversion",
+    direction: "desc",
+  });
+
+  // pagination
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 5;
+
+  const processedKeywords = useMemo(() => {
+    const searchTrim = search.trim();
+    const minNum = Number(minImpressions) || 0;
+
+    let tree = momKeywordData.keywords.map((k) => buildAggTree(k, monthFilter));
+
+    tree = tree.map((n) => filterTree(n, searchTrim, minNum)).filter(Boolean);
+
+    const { key, direction } = sortConfig;
+    const dir = direction === "asc" ? 1 : -1;
+
+    tree.sort((a, b) => (a.agg[key] - b.agg[key]) * dir);
+
+    return tree;
+  }, [search, monthFilter, minImpressions, sortConfig]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, monthFilter, minImpressions, sortConfig]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * rowsPerPage;
+    return processedKeywords.slice(start, start + rowsPerPage);
+  }, [processedKeywords, page]);
+
+  const renderSortLabel = (label, key) => {
+    const active = sortConfig.key === key;
+    return (
+      <Box
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 0.5,
+          cursor: "pointer",
+        }}
+        onClick={() =>
+          setSortConfig((p) =>
+            p.key === key
+              ? { key, direction: p.direction === "asc" ? "desc" : "asc" }
+              : { key, direction: "desc" }
+          )
+        }
+      >
+        {label}
+        {active &&
+          (sortConfig.direction === "asc" ? (
+            <ChevronUp size={14} />
+          ) : (
+            <ChevronDown size={14} />
+          ))}
+      </Box>
+    );
+  };
+
+  const renderNode = (node, level = 0, path = "") => {
+    const key = path || node.keyword;
+    const isOpen = expanded[key];
+    const heat = getHeatColor(node.agg.conversion);
+
+    const monthsToShow =
+      monthFilter === "All"
+        ? node.months
+        : node.months.filter((m) => m.month === monthFilter);
+
+    return (
+      <React.Fragment key={key}>
+        <TableRow
+          component={motion.tr}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          sx={{
+            "&:hover": { backgroundColor: "#f9fafb" },
+            borderBottom: isOpen ? "none" : "1px solid #e5e7eb",
+          }}
+        >
+          <TableCell>
+            <IconButton
+              size="small"
+              onClick={() => setExpanded((p) => ({ ...p, [key]: !isOpen }))}
+              sx={{ border: "1px solid #e5e7eb", width: 26, height: 26 }}
+            >
+              {isOpen ? <Minus size={14} /> : <Plus size={14} />}
+            </IconButton>
+          </TableCell>
+
+          <TableCell>
+            <Box sx={{ ml: level * 2 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                {node.keyword}
+              </Typography>
+            </Box>
+          </TableCell>
+
+          <TableCell sx={{ fontSize: 12 }}>
+            {monthFilter === "All" ? "All Months" : monthFilter}
+          </TableCell>
+
+          <TableCell align="right">{node.agg.impressions}</TableCell>
+
+          <TableCell align="right">
+            <Box
+              sx={{
+                px: 1,
+                py: "2px",
+                borderRadius: 1,
+                background: heat.bg,
+                color: heat.color,
+                fontSize: 11,
+                fontWeight: 600,
+                display: "inline-flex",
+              }}
+            >
+              {node.agg.conversion.toFixed(1)}%
+            </Box>
+          </TableCell>
+
+          <TableCell align="right">{node.agg.spend}</TableCell>
+          <TableCell align="right">{node.agg.cpm.toFixed(0)}</TableCell>
+          <TableCell align="right">{node.agg.roas.toFixed(1)}</TableCell>
+        </TableRow>
+
+        {isOpen &&
+          monthsToShow.map((m) => {
+            const ch = getHeatColor(parsePercent(m.conversion));
+            const rowKey = `${key}-${m.month}`;
+
+            return (
+              <TableRow
+                key={rowKey}
+                component={motion.tr}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                sx={{ background: "#fff" }}
+              >
+                <TableCell />
+                <TableCell>
+                  <Box sx={{ ml: (level + 1) * 2 }}>
+                    <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
+                      {node.keyword}
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell>{m.month}</TableCell>
+                <TableCell align="right">{m.impressions}</TableCell>
+                <TableCell align="right">
+                  <Box
+                    sx={{
+                      px: 1,
+                      py: "2px",
+                      borderRadius: 1,
+                      background: ch.bg,
+                      color: ch.color,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      display: "inline-flex",
+                    }}
+                  >
+                    {m.conversion}
+                  </Box>
+                </TableCell>
+                <TableCell align="right">{m.spend}</TableCell>
+                <TableCell align="right">{m.cpm}</TableCell>
+                <TableCell align="right">{m.roas}</TableCell>
+              </TableRow>
+            );
+          })}
+
+        {isOpen &&
+          node.children?.map((c, i) =>
+            renderNode(c, level + 1, `${key}-child-${i}`)
+          )}
+      </React.Fragment>
+    );
+  };
+
+  return (
+    <Card sx={{ p: 3, borderRadius: 3 }}>
+      {/* HEADER */}
+      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        {momKeywordData.title}
+      </Typography>
+
+      {/* CONTROLS */}
+      <Box display="flex" gap={2} mt={2}>
+        <TextField
+          size="small"
+          label="Search Keyword"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ minWidth: 200 }}
+        />
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Month</InputLabel>
+          <Select
+            label="Month"
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+          >
+            <MenuItem value="All">All Months</MenuItem>
+            {MONTHS.map((m) => (
+              <MenuItem key={m} value={m}>
+                {m}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* TABLE */}
+      <TableContainer
+        component={Paper}
+        sx={{ mt: 2, maxHeight: 520, overflow: "auto" }}
+      >
+        <Table size="small" stickyHeader>
+          <TableHead>
+            <TableRow>
+              <TableCell />
+              <TableCell>Keyword</TableCell>
+              <TableCell>Month</TableCell>
+              <TableCell align="right">
+                {renderSortLabel("Impressions", "impressions")}
+              </TableCell>
+              <TableCell align="right">
+                {renderSortLabel("Conversion", "conversion")}
+              </TableCell>
+              <TableCell align="right">
+                {renderSortLabel("Spend", "spend")}
+              </TableCell>
+              <TableCell align="right">
+                {renderSortLabel("CPM", "cpm")}
+              </TableCell>
+              <TableCell align="right">
+                {renderSortLabel("ROAS", "roas")}
+              </TableCell>
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            <AnimatePresence>
+              {paginated.map((n, i) =>
+                renderNode(n, 0, `root-${(page - 1) * rowsPerPage + i}`)
+              )}
+            </AnimatePresence>
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* ➜ RIGHT-ALIGNED SIMPLE TEXT PAGINATION */}
+      <Box
+        mt={2}
+        display="flex"
+        justifyContent="flex-end"
+        alignItems="center"
+        gap={3}
+        sx={{ fontSize: 14, fontWeight: 500 }}
+      >
+        {/* PREV */}
+        <Box
+          sx={{
+            color: page === 1 ? "#9ca3af" : "#2563eb",
+            cursor: page === 1 ? "default" : "pointer",
+            userSelect: "none",
+          }}
+          onClick={() => page > 1 && setPage(page - 1)}
+        >
+          PREV
+        </Box>
+
+        {/* PAGE COUNTER */}
+        <Box sx={{ color: "#374151" }}>
+          Page {page} of {Math.ceil(processedKeywords.length / rowsPerPage)}
+        </Box>
+
+        {/* NEXT */}
+        <Box
+          sx={{
+            color:
+              page === Math.ceil(processedKeywords.length / rowsPerPage)
+                ? "#9ca3af"
+                : "#2563eb",
+            cursor:
+              page === Math.ceil(processedKeywords.length / rowsPerPage)
+                ? "default"
+                : "pointer",
+            userSelect: "none",
+          }}
+          onClick={() =>
+            page < Math.ceil(processedKeywords.length / rowsPerPage) &&
+            setPage(page + 1)
+          }
+        >
+          NEXT
+        </Box>
+      </Box>
+    </Card>
+  );
+}

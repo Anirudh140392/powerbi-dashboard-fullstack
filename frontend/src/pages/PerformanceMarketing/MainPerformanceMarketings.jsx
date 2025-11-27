@@ -196,7 +196,7 @@ export default function MainPerformanceMarketings() {
   return (
     <>
       <CommonContainer
-        title="Watch Tower"
+        title="Performace Marketing"
         filters={filters}
         onFiltersChange={setFilters}
       >
