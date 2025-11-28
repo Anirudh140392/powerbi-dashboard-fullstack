@@ -67,6 +67,12 @@ const Sidebar = ({
       { label: "Category RCA" },
      
     ],
+    'Portfolio Analysis': [
+      { label: "Portfolio Analysis"},
+      {label: "Price Per Pack"},
+      {label: "Price Analysis"}
+     
+    ],
   };
 
   const navbarContent = (
@@ -178,6 +184,19 @@ const Sidebar = ({
     // ANALYTICS
     if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
       navigate("/category-rca");
+
+    }
+    if (sectionName === "Portfolio Analysis" && item.label === "Portfolio Analysis") {
+      navigate("/volume-cohort");
+      
+    }
+     if (sectionName === "Portfolio Analysis" && item.label === "Price Per Pack") {
+      navigate("/price-per-pack");
+      
+    }
+    if (sectionName === "Portfolio Analysis" && item.label === "Price Analysis") {
+      navigate("/price-analysis");
+      
     }
   }}
   sx={{
@@ -186,6 +205,7 @@ const Sidebar = ({
     bgcolor:
       (sectionName === "Q-COMM" && activePlatform === item.label) ||
       (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
+      (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
       (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
         ? "rgba(255, 255, 255, 0.1)"
         : "transparent",
@@ -193,6 +213,7 @@ const Sidebar = ({
     borderLeft:
       (sectionName === "Q-COMM" && activePlatform === item.label) ||
       (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
+      (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
       (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
         ? "3px solid #3b82f6"
         : "3px solid transparent",

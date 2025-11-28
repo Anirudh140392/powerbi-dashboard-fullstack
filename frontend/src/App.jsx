@@ -5,6 +5,9 @@ import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import WatchTower from "./pages/ControlTower/WatchTower";
 import CategoryRca from "./pages/Analytics/CategoryRca";
+import VolumeCohort from "./pages/Analytics/PortfoliosAnalysis";
+import PricePerPack from "./pages/Analytics/PricePerPack";
+import PriceAnalysis from "./pages/Analytics/PriceAnalysis";
 
 export default function App() {
   return (
@@ -13,6 +16,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<WatchTower />} />
          <Route path="/category-rca" element={<CategoryRca />} />
+         <Route path="/volume-cohort" element={<VolumeCohort />} />
+          <Route path="/price-per-pack" element={<PricePerPack />} />
+          <Route path="/price-analysis" element={<PriceAnalysis />} />
         </Routes>
       </BrowserRouter>
     </LocalizationProvider>
