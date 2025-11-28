@@ -70,6 +70,9 @@ const Sidebar = ({
     'PERFORMANCE MARKETING': [
       { label: "Blinkit" },
     ],
+    'Content Analysis': [
+      { label: "Content Analysis" },
+    ],
   };
 
   const navbarContent = (
@@ -182,9 +185,13 @@ const Sidebar = ({
     if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
       navigate("/category-rca");
     }
-    // ANALYTICS
+    // performance marketing
     if (sectionName === "PERFORMANCE MARKETING" && item.label === "Blinkit") {
       navigate("/performance-marketing");
+    }
+    // performance marketing
+    if (sectionName === "Content Analysis" && item.label === "Content Analysis") {
+      navigate("/content-score");
     }
   }}
   sx={{
