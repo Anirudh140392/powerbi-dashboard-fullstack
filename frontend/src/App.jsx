@@ -8,6 +8,8 @@ import CategoryRca from "./pages/Analytics/CategoryRca";
 import VolumeCohort from "./pages/Analytics/PortfoliosAnalysis";
 import PricePerPack from "./pages/Analytics/PricePerPack";
 import PriceAnalysis from "./pages/Analytics/PriceAnalysis";
+import MainPerformanceMarketings from "./pages/PerformanceMarketing/MainPerformanceMarketings";
+import ContentScoreDashboards from "./pages/ContentScoreDashboard/ContentScoreDashboards";
 
 export default function App() {
   return (
@@ -19,6 +21,14 @@ export default function App() {
          <Route path="/volume-cohort" element={<VolumeCohort />} />
           <Route path="/price-per-pack" element={<PricePerPack />} />
           <Route path="/price-analysis" element={<PriceAnalysis />} />
+          <Route
+            path="/performance-marketing"
+            element={<MainPerformanceMarketings />}
+          />
+          <Route
+            path="/content-score"
+            element={<ContentScoreDashboards />}
+          />
         </Routes>
       </BrowserRouter>
     </LocalizationProvider>

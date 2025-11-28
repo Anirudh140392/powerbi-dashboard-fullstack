@@ -1,0 +1,125 @@
+import React from "react";
+import { Box, Grid, Card, Typography } from "@mui/material";
+import * as Icons from "lucide-react";
+
+// KPI DATA
+const insightKPIs = [
+  {
+    label: "All Campaign Summary",
+    value: 734,
+    description: "All Product Summary",
+    icon: "BarChart3",
+    color: "#111",
+  },
+  {
+    label: "Q1 - Performing Well",
+    value: 73,
+    description: "Continue",
+    icon: "TrendingUp",
+    color: "#E91E63",
+  },
+  {
+    label: "Q2 - Need Attention",
+    value: 230,
+    description: "Optimize",
+    icon: "AlertTriangle",
+    color: "#F4C430",
+  },
+  {
+    label: "Q3 - Experiment",
+    value: 243,
+    description: "Optimize then Scale",
+    icon: "FlaskConical",
+    color: "#E57342",
+  },
+  {
+    label: "Q4 - Opportunity",
+    value: 188,
+    description: "Scale Up Spends",
+    icon: "TrendingUp",
+    color: "#1E88E5",
+  },
+];
+
+export default function InsightHorizontalKpis() {
+  return (
+    <Card
+      sx={{
+        p: 3,
+        borderRadius: 3,
+        border: "1px solid #e2e8f0",
+      }}
+    >
+      {/* HEADER */}
+      <Typography variant="h6" fontWeight={700}>
+        Actionable & Insights
+      </Typography>
+
+      <Box sx={{ height: 1, borderBottom: "1px solid #e5e7eb", my: 2 }} />
+
+      {/* TITLE */}
+      <Typography
+        variant="subtitle1"
+        fontWeight={700}
+        sx={{
+          bgcolor: "#f8fafc",
+          p: 1.2,
+          borderRadius: 2,
+          mb: 2,
+        }}
+      >
+        All Product Summary
+      </Typography>
+
+      {/* KPI CARDS */}
+      <Grid container spacing={2}>
+        {insightKPIs.map((item, i) => {
+          const Icon = Icons[item.icon];
+
+          return (
+            <Grid item xs={12} sm={6} md={2.4} key={i}>
+              <Card
+                sx={{
+                  p: 2,
+                  height: 140,
+                  borderRadius: 3,
+                  border: "1px solid #e2e8f0",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  transition: "0.25s ease",
+                  "&:hover": {
+                    transform: "translateY(-6px)",
+                    boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
+                  },
+                }}
+              >
+                <Box display="flex" justifyContent="space-between">
+                  <Typography
+                    sx={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}
+                  >
+                    {item.label}
+                  </Typography>
+
+                  <Icon size={22} color={item.color} />
+                </Box>
+
+                <Typography
+                  variant="h4"
+                  fontWeight={700}
+                  sx={{ color: item.color }}
+                >
+                  {item.value}
+                </Typography>
+
+                <Typography sx={{ fontSize: 12, color: "#94a3b8" }}>
+                  {item.description}
+                </Typography>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
+    </Card>
+  );
+}

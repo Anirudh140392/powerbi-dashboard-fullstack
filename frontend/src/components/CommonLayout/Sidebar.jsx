@@ -65,13 +65,18 @@ const Sidebar = ({
     ],
     ANALYTICS: [
       { label: "Category RCA" },
-     
+
     ],
     'Portfolio Analysis': [
-      { label: "Portfolio Analysis"},
-      {label: "Price Per Pack"},
-      {label: "Price Analysis"}
-     
+      { label: "Portfolio Analysis" },
+      { label: "Price Per Pack" },
+      { label: "Price Analysis" }
+    ],
+    'PERFORMANCE MARKETING': [
+      { label: "Blinkit" },
+    ],
+    'Content Analysis': [
+      { label: "Content Analysis" },
     ],
   };
 
@@ -87,7 +92,7 @@ const Sidebar = ({
     >
       {/* Logo Section */}
       <Box sx={{ p: 2.5, bgcolor: "rgba(0, 0, 0, 0.3)" }}>
-        <Box
+        {/* <Box
           sx={{
             bgcolor: "#dc2626",
             color: "#fff",
@@ -101,7 +106,7 @@ const Sidebar = ({
           }}
         >
           Colgate
-        </Box>
+        </Box> */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
           <Typography
             variant="caption"
@@ -165,84 +170,92 @@ const Sidebar = ({
             <Collapse in={expandedSection === sectionName} timeout="auto">
               <List sx={{ py: 0 }}>
                 {items.map((item, index) => (
-                 <ListItemButton
-  key={index}
-  onClick={() => {
-    // CONTROL TOWER
-    if (sectionName === "CONTROL TOWER" && item.label === "Watch Tower") {
-      navigate("/"); // or your Watch Tower route
-    }
-    if (sectionName === "CONTROL TOWER" && item.label === "Account Overview") {
-      navigate("/account-overview");
-    }
+                  <ListItemButton
+                    key={index}
+                    onClick={() => {
+                      // CONTROL TOWER
+                      if (sectionName === "CONTROL TOWER" && item.label === "Watch Tower") {
+                        navigate("/"); // or your Watch Tower route
+                      }
+                      if (sectionName === "CONTROL TOWER" && item.label === "Account Overview") {
+                        navigate("/account-overview");
+                      }
 
-    // Q-COMM
-    if (sectionName === "Q-COMM") {
-      handlePlatformChange(item.label);
-    }
+                      // Q-COMM
+                      if (sectionName === "Q-COMM") {
+                        handlePlatformChange(item.label);
+                      }
 
-    // ANALYTICS
-    if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
-      navigate("/category-rca");
+                      // ANALYTICS
+                      if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
+                        navigate("/category-rca");
 
-    }
-    if (sectionName === "Portfolio Analysis" && item.label === "Portfolio Analysis") {
-      navigate("/volume-cohort");
-      
-    }
-     if (sectionName === "Portfolio Analysis" && item.label === "Price Per Pack") {
-      navigate("/price-per-pack");
-      
-    }
-    if (sectionName === "Portfolio Analysis" && item.label === "Price Analysis") {
-      navigate("/price-analysis");
-      
-    }
-  }}
-  sx={{
-    py: 1.25,
-    px: 3,
-    bgcolor:
-      (sectionName === "Q-COMM" && activePlatform === item.label) ||
-      (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
-      (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
-      (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
-        ? "rgba(255, 255, 255, 0.1)"
-        : "transparent",
+                      }
+                      if (sectionName === "Portfolio Analysis" && item.label === "Portfolio Analysis") {
+                        navigate("/volume-cohort");
 
-    borderLeft:
-      (sectionName === "Q-COMM" && activePlatform === item.label) ||
-      (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
-      (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
-      (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
-        ? "3px solid #3b82f6"
-        : "3px solid transparent",
+                      }
+                      if (sectionName === "Portfolio Analysis" && item.label === "Price Per Pack") {
+                        navigate("/price-per-pack");
 
-    "&:hover": {
-      bgcolor: "rgba(255, 255, 255, 0.08)",
-    },
-  }}
->
-  {/* Icons */}
-  {item.icon ? (
-    <Box component="span" sx={{ fontSize: "0.9rem", mr: 1.5 }}>
-      {item.icon}
-    </Box>
-  ) : (
-    <CircleIcon sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }} />
-  )}
+                      }
+                      if (sectionName === "Portfolio Analysis" && item.label === "Price Analysis") {
+                        navigate("/price-analysis");
 
-  <ListItemText
-    primary={item.label}
-    primaryTypographyProps={{
-      fontSize: "0.85rem",
-      fontWeight: 500,
-      color: "#e5e7eb",
-    }}
-  />
-</ListItemButton>
+                      }
+                      // performance marketing
+                      if (sectionName === "PERFORMANCE MARKETING" && item.label === "Blinkit") {
+                        navigate("/performance-marketing");
+                      }
+                      // performance marketing
+                      if (sectionName === "Content Analysis" && item.label === "Content Analysis") {
+                        navigate("/content-score");
+                      }
+                    }}
+                    sx={{
+                      py: 1.25,
+                      px: 3,
+                      bgcolor:
+                        (sectionName === "Q-COMM" && activePlatform === item.label) ||
+                          (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
+                          (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
+                          (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "transparent",
 
-    
+                      borderLeft:
+                        (sectionName === "Q-COMM" && activePlatform === item.label) ||
+                          (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
+                          (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
+                          (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
+                          ? "3px solid #3b82f6"
+                          : "3px solid transparent",
+
+                      "&:hover": {
+                        bgcolor: "rgba(255, 255, 255, 0.08)",
+                      },
+                    }}
+                  >
+                    {/* Icons */}
+                    {item.icon ? (
+                      <Box component="span" sx={{ fontSize: "0.9rem", mr: 1.5 }}>
+                        {item.icon}
+                      </Box>
+                    ) : (
+                      <CircleIcon sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }} />
+                    )}
+
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        fontSize: "0.85rem",
+                        fontWeight: 500,
+                        color: "#e5e7eb",
+                      }}
+                    />
+                  </ListItemButton>
+
+
                 ))}
               </List>
             </Collapse>

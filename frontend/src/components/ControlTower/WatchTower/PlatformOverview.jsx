@@ -665,7 +665,7 @@ const PlatformOverview = ({
           }}
         >
           {sortedPlatforms.map((platform) => (
-            <Box sx={{ minWidth: 340 }} key={platform.key}>
+            <Box sx={{ minWidth: 280 }} key={platform.key}>
               <Card
                 sx={{
                   p: 2,
@@ -708,7 +708,7 @@ const PlatformOverview = ({
                     </Box>
                   </Box>
 
-                  <Chip
+                  {/* <Chip
                     label="Live"
                     size="small"
                     sx={{
@@ -719,7 +719,7 @@ const PlatformOverview = ({
                       color: "#166534",
                       fontWeight: 600,
                     }}
-                  />
+                  /> */}
                 </Box>
 
                 {/* SORTED KPI CARDS (VERTICAL) */}

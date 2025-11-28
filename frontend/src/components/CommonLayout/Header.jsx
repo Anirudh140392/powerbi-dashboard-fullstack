@@ -199,7 +199,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         }}
       >
         {/* GC Labs */}
-        <Button
+        {/* <Button
           variant="contained"
           sx={{
             background: "#7c3aed",
@@ -208,7 +208,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
           }}
         >
           GC Labs
-        </Button>
+        </Button> */}
 
         {/* Data Till */}
         <Button
