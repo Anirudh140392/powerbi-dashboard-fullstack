@@ -67,6 +67,10 @@ const Sidebar = ({
       { label: "Category RCA" },
 
     ],
+    'Pricing Analysis': [
+      { label: "Pricing Analysis" },
+
+    ],
     'Portfolio Analysis': [
       { label: "Portfolio Analysis" },
       { label: "Price Per Pack" },
@@ -189,8 +193,8 @@ const Sidebar = ({
                       // ANALYTICS
                       if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
                         navigate("/category-rca");
-
                       }
+
                       if (sectionName === "Portfolio Analysis" && item.label === "Portfolio Analysis") {
                         navigate("/volume-cohort");
 
@@ -211,6 +215,10 @@ const Sidebar = ({
                       if (sectionName === "Content Analysis" && item.label === "Content Analysis") {
                         navigate("/content-score");
                       }
+                      // performance marketing
+                      if (sectionName === "Pricing Analysis" && item.label === "Pricing Analysis") {
+                        navigate("/pricing-analysis");
+                      }
                     }}
                     sx={{
                       py: 1.25,
@@ -218,7 +226,6 @@ const Sidebar = ({
                       bgcolor:
                         (sectionName === "Q-COMM" && activePlatform === item.label) ||
                           (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
-                          (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
                           (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
                           ? "rgba(255, 255, 255, 0.1)"
                           : "transparent",
@@ -226,7 +233,6 @@ const Sidebar = ({
                       borderLeft:
                         (sectionName === "Q-COMM" && activePlatform === item.label) ||
                           (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
-                          (sectionName === "ANALYTICS" && item.label === "Volume Cohort") ||
                           (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
                           ? "3px solid #3b82f6"
                           : "3px solid transparent",
