@@ -67,6 +67,10 @@ const Sidebar = ({
       { label: "Category RCA" },
      
     ],
+    'Pricing Analysis': [
+      { label: "Pricing Analysis" },
+     
+    ],
     'PERFORMANCE MARKETING': [
       { label: "Blinkit" },
     ],
@@ -192,6 +196,10 @@ const Sidebar = ({
     // performance marketing
     if (sectionName === "Content Analysis" && item.label === "Content Analysis") {
       navigate("/content-score");
+    }
+    // performance marketing
+    if (sectionName === "Pricing Analysis" && item.label === "Pricing Analysis") {
+      navigate("/pricing-analysis");
     }
   }}
   sx={{

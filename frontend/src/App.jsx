@@ -7,6 +7,7 @@ import WatchTower from "./pages/ControlTower/WatchTower";
 import CategoryRca from "./pages/Analytics/CategoryRca";
 import MainPerformanceMarketings from "./pages/PerformanceMarketing/MainPerformanceMarketings";
 import ContentScoreDashboards from "./pages/ContentScoreDashboard/ContentScoreDashboards";
+import PricingAnalysis from "./pages/AllPricingAnalysis/PricingAnalysis";
 
 export default function App() {
   return (
@@ -22,6 +23,10 @@ export default function App() {
           <Route
             path="/content-score"
             element={<ContentScoreDashboards />}
+          />
+          <Route
+            path="/pricing-analysis"
+            element={<PricingAnalysis />}
           />
         </Routes>
       </BrowserRouter>
