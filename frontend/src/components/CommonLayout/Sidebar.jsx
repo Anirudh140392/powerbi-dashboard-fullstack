@@ -79,9 +79,9 @@ const Sidebar = ({
     'PERFORMANCE MARKETING': [
       { label: "Blinkit" },
     ],
-    'Content Analysis': [
-      { label: "Content Analysis" },
-    ],
+    // 'Content Analysis': [
+    //   { label: "Content Analysis" },
+    // ],
   };
 
   const navbarContent = (
