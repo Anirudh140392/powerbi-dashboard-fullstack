@@ -73,8 +73,6 @@ const Sidebar = ({
     ],
     'Portfolio Analysis': [
       { label: "Portfolio Analysis" },
-      { label: "Price Per Pack" },
-      { label: "Price Analysis" }
     ],
     'PERFORMANCE MARKETING': [
       { label: "Blinkit" },
@@ -197,14 +195,6 @@ const Sidebar = ({
 
                       if (sectionName === "Portfolio Analysis" && item.label === "Portfolio Analysis") {
                         navigate("/volume-cohort");
-
-                      }
-                      if (sectionName === "Portfolio Analysis" && item.label === "Price Per Pack") {
-                        navigate("/price-per-pack");
-
-                      }
-                      if (sectionName === "Portfolio Analysis" && item.label === "Price Analysis") {
-                        navigate("/price-analysis");
 
                       }
                       // performance marketing
