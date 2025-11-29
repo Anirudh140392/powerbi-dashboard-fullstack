@@ -41,7 +41,6 @@
     "react-router-dom": "^7.1.1",
     "react-tooltip": "^5.28.0",
     "recharts": "^2.15.4",
-    "tailwindcss": "^4.1.17",
     "use-debounce": "^10.0.4",
     "xlsx": "^0.18.5"
   },
@@ -55,6 +54,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
+    "tailwindcss": "^4.1.17",
     "vite": "^6.0.5"
   }
 }
