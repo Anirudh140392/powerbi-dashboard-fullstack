@@ -65,16 +65,16 @@ const Sidebar = ({
       // { label: "Instamart", icon: "🟠" },
       // { label: "Zepto", icon: "🟣" },
     ],
-    ANALYTICS: [{ label: "Category RCA" }],
     "Availability Analysis": [{ label: "Availability Analysis" }],
     "Visibility Analysis": [{ label: "Visibility Analysis" }],
     "Pricing Analysis": [{ label: "Pricing Analysis" }],
     "Market Share": [{ label: "Market Share" }],
     "Portfolio Analysis": [{ label: "Portfolio Analysis" }],
+    "PERFORMANCE MARKETING": [{ label: "Blinkit" }],
     'Content Analysis': [
       { label: "Content Analysis" },
     ],
-    "PERFORMANCE MARKETING": [{ label: "Blinkit" }],
+    ANALYTICS: [{ label: "Category RCA" }],
     // PIY: [{ label: "PIY" }],
   };
 
