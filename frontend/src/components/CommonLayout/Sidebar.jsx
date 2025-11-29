@@ -29,7 +29,9 @@ const Sidebar = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
-  const [activePlatform, setActivePlatform] = useState(selectedPlatform || "Blinkit");
+  const [activePlatform, setActivePlatform] = useState(
+    selectedPlatform || "Blinkit"
+  );
 
   useEffect(() => {
     if (selectedPlatform) {
@@ -63,23 +65,17 @@ const Sidebar = ({
       // { label: "Instamart", icon: "🟠" },
       // { label: "Zepto", icon: "🟣" },
     ],
-    ANALYTICS: [
-      { label: "Category RCA" },
-
+    ANALYTICS: [{ label: "Category RCA" }],
+    "Availability Analysis": [{ label: "Availability Analysis" }],
+    "Visibility Analysis": [{ label: "Visibility Analysis" }],
+    "Pricing Analysis": [{ label: "Pricing Analysis" }],
+    "Market Share": [{ label: "Market Share" }],
+    "Portfolio Analysis": [{ label: "Portfolio Analysis" }],
+    'Content Analysis': [
+      { label: "Content Analysis" },
     ],
-    'Pricing Analysis': [
-      { label: "Pricing Analysis" },
-
-    ],
-    'Portfolio Analysis': [
-      { label: "Portfolio Analysis" },
-    ],
-    'PERFORMANCE MARKETING': [
-      { label: "Blinkit" },
-    ],
-    // 'Content Analysis': [
-    //   { label: "Content Analysis" },
-    // ],
+    "PERFORMANCE MARKETING": [{ label: "Blinkit" }],
+    // PIY: [{ label: "PIY" }],
   };
 
   const navbarContent = (
@@ -109,12 +105,19 @@ const Sidebar = ({
         >
           Colgate
         </Box> */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 0.5,
+          }}
+        >
           <Typography
             variant="caption"
             sx={{
-              color: '#9ca3af',
-              fontSize: '0.7rem',
+              color: "#9ca3af",
+              fontSize: "0.7rem",
               fontWeight: 500,
             }}
           >
@@ -123,8 +126,8 @@ const Sidebar = ({
           <Typography
             variant="caption"
             sx={{
-              color: '#fff',
-              fontSize: '0.7rem',
+              color: "#fff",
+              fontSize: "0.7rem",
               fontWeight: 700,
             }}
           >
@@ -176,10 +179,16 @@ const Sidebar = ({
                     key={index}
                     onClick={() => {
                       // CONTROL TOWER
-                      if (sectionName === "CONTROL TOWER" && item.label === "Watch Tower") {
+                      if (
+                        sectionName === "CONTROL TOWER" &&
+                        item.label === "Watch Tower"
+                      ) {
                         navigate("/"); // or your Watch Tower route
                       }
-                      if (sectionName === "CONTROL TOWER" && item.label === "Account Overview") {
+                      if (
+                        sectionName === "CONTROL TOWER" &&
+                        item.label === "Account Overview"
+                      ) {
                         navigate("/account-overview");
                       }
 
@@ -189,41 +198,87 @@ const Sidebar = ({
                       }
 
                       // ANALYTICS
-                      if (sectionName === "ANALYTICS" && item.label === "Category RCA") {
+                      if (
+                        sectionName === "ANALYTICS" &&
+                        item.label === "Category RCA"
+                      ) {
                         navigate("/category-rca");
                       }
 
-                      if (sectionName === "Portfolio Analysis" && item.label === "Portfolio Analysis") {
-                        navigate("/volume-cohort");
+                      // ANALYTICS
+                      if (
+                        sectionName === "Market Share" &&
+                        item.label === "Market Share"
+                      ) {
+                        navigate("/market-share");
+                      }
 
+                      if (
+                        sectionName === "Portfolio Analysis" &&
+                        item.label === "Portfolio Analysis"
+                      ) {
+                        navigate("/volume-cohort");
                       }
                       // performance marketing
-                      if (sectionName === "PERFORMANCE MARKETING" && item.label === "Blinkit") {
+                      if (
+                        sectionName === "PERFORMANCE MARKETING" &&
+                        item.label === "Blinkit"
+                      ) {
                         navigate("/performance-marketing");
                       }
-                      // performance marketing
-                      if (sectionName === "Content Analysis" && item.label === "Content Analysis") {
+                      // Content Analysis
+                      if (
+                        sectionName === "Content Analysis" &&
+                        item.label === "Content Analysis"
+                      ) {
                         navigate("/content-score");
                       }
-                      // performance marketing
-                      if (sectionName === "Pricing Analysis" && item.label === "Pricing Analysis") {
+                      // Pricing Analysis
+                      if (
+                        sectionName === "Pricing Analysis" &&
+                        item.label === "Pricing Analysis"
+                      ) {
                         navigate("/pricing-analysis");
+                      }
+                      // Content Analysis
+                      if (
+                        sectionName === "Availability Analysis" &&
+                        item.label === "Availability Analysis"
+                      ) {
+                        navigate("/availability-analysis");
+                      }
+                      // Pricing Analysis
+                      if (
+                        sectionName === "Visibility Analysis" &&
+                        item.label === "Visibility Analysis"
+                      ) {
+                        navigate("/visibility-anlysis");
+                      }
+                      // Pricing Analysis
+                      if (sectionName === "PIY" && item.label === "PIY") {
+                        navigate("/piy");
                       }
                     }}
                     sx={{
                       py: 1.25,
                       px: 3,
                       bgcolor:
-                        (sectionName === "Q-COMM" && activePlatform === item.label) ||
-                          (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
-                          (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
+                        (sectionName === "Q-COMM" &&
+                          activePlatform === item.label) ||
+                        (sectionName === "ANALYTICS" &&
+                          item.label === "Category RCA") ||
+                        (sectionName === "CONTROL TOWER" &&
+                          item.label === "Watch Tower")
                           ? "rgba(255, 255, 255, 0.1)"
                           : "transparent",
 
                       borderLeft:
-                        (sectionName === "Q-COMM" && activePlatform === item.label) ||
-                          (sectionName === "ANALYTICS" && item.label === "Category RCA") ||
-                          (sectionName === "CONTROL TOWER" && item.label === "Watch Tower")
+                        (sectionName === "Q-COMM" &&
+                          activePlatform === item.label) ||
+                        (sectionName === "ANALYTICS" &&
+                          item.label === "Category RCA") ||
+                        (sectionName === "CONTROL TOWER" &&
+                          item.label === "Watch Tower")
                           ? "3px solid #3b82f6"
                           : "3px solid transparent",
 
@@ -234,11 +289,16 @@ const Sidebar = ({
                   >
                     {/* Icons */}
                     {item.icon ? (
-                      <Box component="span" sx={{ fontSize: "0.9rem", mr: 1.5 }}>
+                      <Box
+                        component="span"
+                        sx={{ fontSize: "0.9rem", mr: 1.5 }}
+                      >
                         {item.icon}
                       </Box>
                     ) : (
-                      <CircleIcon sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }} />
+                      <CircleIcon
+                        sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }}
+                      />
                     )}
 
                     <ListItemText
@@ -250,8 +310,6 @@ const Sidebar = ({
                       }}
                     />
                   </ListItemButton>
-
-
                 ))}
               </List>
             </Collapse>
