@@ -648,16 +648,17 @@ const PlatformOverview = ({
           </Box>
         </Box>
 
-        {/* HORIZONTAL SCROLL - PLATFORMS */}
         <Box
           sx={{
             display: "flex",
             gap: 2,
             overflowX: "auto",
+            overflowY: "auto",
+            maxHeight: "755px",
             pb: 2,
             scrollBehavior: "smooth",
 
-            "&::-webkit-scrollbar": { height: 8 },
+            "&::-webkit-scrollbar": { width: 8, height: 8 },
             "&::-webkit-scrollbar-thumb": {
               background: "#cbd5e1",
               borderRadius: 10,
@@ -770,5 +771,3 @@ const PlatformOverview = ({
 };
 
 export default PlatformOverview;
-
-
