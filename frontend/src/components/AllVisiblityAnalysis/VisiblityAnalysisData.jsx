@@ -594,7 +594,7 @@ const VisiblityAnalysisData = () => {
                 </div>
 
                 {/* CATEGORY ACTIONS */}
-                <div className="mt-auto flex flex-wrap gap-1">
+                {/* <div className="mt-auto flex flex-wrap gap-1">
                   <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'trends', context: cat.name }) }}
                     className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
                     My Trends
@@ -611,6 +611,28 @@ const VisiblityAnalysisData = () => {
                   </button>
 
                   <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'cross', context: cat.name }) }}
+                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                    Cross Platform
+                  </button>
+                </div> */}
+
+                                <div className="mt-auto flex flex-wrap gap-1">
+                  <button onClick={{}}
+                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                    My Trends
+                  </button>
+
+                  <button onClick={{}}
+                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                    Competition Trends
+                  </button>
+
+                  <button onClick={{}}
+                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                    Key Insights
+                  </button>
+
+                  <button onClick={{}}
                     className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
                     Cross Platform
                   </button>
