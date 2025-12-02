@@ -282,7 +282,8 @@ export default function CategoryRca() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        <Insights products={products} onKnowMore={setSelectedProduct} />
+        {/* <Insights products={products} onKnowMore={setSelectedProduct} /> */}
+        <Insights />
         <RCACardMetric />
         <CategoryPlatformOverview onViewTrends={handleViewTrends} />
         <SkuLevelBreakdown/>
