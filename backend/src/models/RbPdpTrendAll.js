@@ -1,7 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js';
 
-const RbPdpOlap = sequelize.define('rb_pdp_olap', {
+const RbPdpTrendAll = sequelize.define('rb_pdp_trend_all', {
   Brand: {
     type: DataTypes.STRING,
   },
@@ -18,14 +18,11 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
     type: DataTypes.DATE,
   },
   deno_osa: {
-    type: DataTypes.STRING,
+    type: DataTypes.BIGINT,
     allowNull: false,
   },
   Discount: {
-    type: DataTypes.STRING,
-  },
-  inventory: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL,
   },
   Location: {
     type: DataTypes.STRING,
@@ -35,34 +32,29 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
     allowNull: false,
   },
   MRP: {
-    type: DataTypes.STRING,
+    type: DataTypes.DECIMAL,
   },
   MSL: {
-    type: DataTypes.STRING,
+    type: DataTypes.INTEGER,
   },
   neno_osa: {
-    type: DataTypes.STRING,
+    type: DataTypes.DECIMAL,
   },
   Platform: {
     type: DataTypes.STRING,
   },
   Platform_id: {
-    type: DataTypes.BIGINT,
+    type: DataTypes.INTEGER,
+    allowNull: false,
   },
   Product: {
     type: DataTypes.STRING,
   },
-  Qty_Sold: {
-    type: DataTypes.DECIMAL,
-  },
   Rating: {
-    type: DataTypes.STRING,
-  },
-  Sales: {
     type: DataTypes.DECIMAL,
   },
   Selling_Price: {
-    type: DataTypes.STRING,
+    type: DataTypes.DECIMAL,
   },
   Sub_Category: {
     type: DataTypes.STRING,
@@ -77,8 +69,8 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
     type: DataTypes.STRING,
   },
 }, {
-  tableName: 'rb_pdp_olap',
+  tableName: 'rb_pdp_trend_all',
   timestamps: false,
 });
 
-export default RbPdpOlap;
+export default RbPdpTrendAll;

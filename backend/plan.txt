@@ -1,0 +1,70 @@
+# PROJECT MIGRATION PLAN: Power BI → React + Node
+# GOAL: Speed & Efficiency. Migrate 1 big dashboard first (e.g., OLA Control Tower).
+
+Phase 0: Inventory & Audit
+- [ ] List all Power BI pages, visuals, filters.
+- [ ] Export all DAX measures and relationships.
+- [ ] Output: One "spec" doc per dashboard (visuals, measures, filters, drill paths).
+- Est: 1–2 days
+
+Phase 1: Data Model Check in MySQL
+- [ ] Map Power BI model to existing MySQL tables (gcpl database).
+- [ ] Confirm fact/dimension tables.
+- [ ] Output: Confirmed list of tables, columns, joins.
+- Est: 1–2 days
+
+Phase 2: Backend Skeleton Setup (Prisma + Docker + Structure)
+- [ ] Set up Node.js project (Express/Fastify).
+- [ ] **Prisma Integration**:
+    - Install & Init Prisma.
+    - Introspect `gcpl` DB (`npx prisma db pull`) to generate schema.
+    - Generate Prisma Client.
+- [ ] **Folder Structure**: Set up `src/` with `controllers/`, `routes/`, `services/`, `utils/`.
+- [ ] **Docker**: Create `Dockerfile` and `docker-compose.yml` for consistent dev environment.
+- [ ] Output: Running backend with health-check, Prisma connected, Docker ready.
+- Est: 1–2 days
+
+Phase 3: DAX → SQL Conversion (For 1st Dashboard)
+- [ ] Convert critical DAX measures to SQL aggregates (SUM, COUNT, AVG, etc.).
+- [ ] Use AI tools to translate/simplify logic.
+- [ ] Output: SQL snippets for key metrics (OLA, SOV, Trends).
+- Est: 2–4 days
+
+Phase 4: Node Service Layer
+- [ ] Wrap SQL/Prisma queries into Node service functions.
+- [ ] Implement filters (date, platform, region, brand).
+- [ ] Ensure query performance (< 300–500 ms).
+- [ ] Output: `olaService.js` with functions like `getNetworkOla`, `getPlatformPulse`.
+- Est: 2–4 days
+
+Phase 5: API Routes per Dashboard
+- [ ] Create REST endpoints (e.g., `/api/ola/summary`, `/api/ola/trend`).
+- [ ] Map routes to service functions.
+- [ ] Output: Documented API endpoints returning JSON for React.
+- Est: 2–3 days
+
+Phase 6: Frontend Wiring (React)
+- [ ] **Connection**: Configure CORS in backend.
+- [ ] **API Client**: Set up Axios instance in frontend (`src/api/axios.js`).
+- [ ] **Data Fetching**: Replace dummy data with API calls using React Query/SWR.
+- [ ] Connect UI filters to backend APIs.
+- [ ] Output: Fully functional OLA dashboard with real data.
+- Est: 3–5 days
+
+Phase 7: Performance Tuning & Caching
+- [ ] Analyze heavy queries (EXPLAIN).
+- [ ] Add composite indexes in MySQL.
+- [ ] Implement basic caching (Redis or in-memory) for common filters.
+- [ ] Est: 2–4 days
+
+Phase 8: Validation vs Power BI
+- [ ] Compare React/Node outputs with Power BI for fixed filters.
+- [ ] Fix logic mismatches (time intelligence, rounding).
+- [ ] Output: Signed-off numbers matching Power BI.
+- Est: 2–3 days
+
+Phase 9: Template & Rollout Plan
+- [ ] Extract patterns (API templates, React hooks).
+- [ ] Plan migration for next dashboards (Promo, SOV/SOS).
+- [ ] Output: Reusable playbook for rapid migration.
+- Est: 1–2 days

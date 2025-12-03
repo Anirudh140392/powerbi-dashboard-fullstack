@@ -1,11 +1,9 @@
 // app.js
-import dotenv from "dotenv";
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import AllRoutes from "./routes.js";
 import { connectDB } from "./config/db.js";
-
-dotenv.config();
 
 
 // create app or middleware

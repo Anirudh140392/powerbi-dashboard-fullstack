@@ -1,7 +1,7 @@
-import dashboardRoutes from './routes/dashboardRoutes.js';
+import controlTower from './routes/controlTower.js';
 
 export default (app) => {
-    // Dashboard routes
-    dashboardRoutes(app);
+    // Control Tower routes
+    controlTower(app);
 
 };
