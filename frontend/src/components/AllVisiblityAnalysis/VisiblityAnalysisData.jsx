@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
   Area,
   AreaChart,
@@ -17,6 +17,7 @@ import {
 import CustomPivotWorkbench from './CustomPivotWorkbench'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
+import axiosInstance from '../../api/axiosInstance'
 
 // ------------------------------
 // NO TYPES — JSX ONLY
@@ -141,10 +142,10 @@ const ChannelStackedChart = ({ data, metric, onMetricChange }) => {
     metric === 'visibility'
       ? data
       : data.map((d) => ({
-          ...d,
-          organic: metric === 'units' ? d.units * 0.65 : d.impressions * 0.6,
-          sponsored: metric === 'units' ? d.units * 0.35 : d.impressions * 0.4,
-        }))
+        ...d,
+        organic: metric === 'units' ? d.units * 0.65 : d.impressions * 0.6,
+        sponsored: metric === 'units' ? d.units * 0.35 : d.impressions * 0.4,
+      }))
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -219,9 +220,8 @@ const ProductHeatTable = ({ data }) => {
             <button
               key={key}
               onClick={() => setSortKey(key)}
-              className={`text-xs font-semibold px-2 py-1 rounded-full border ${
-                sortKey === key ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500'
-              }`}
+              className={`text-xs font-semibold px-2 py-1 rounded-full border ${sortKey === key ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500'
+                }`}
             >
               {key}
             </button>
@@ -423,6 +423,25 @@ const VisiblityAnalysisData = () => {
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchVisibilityData = async () => {
+      try {
+        const response = await axiosInstance.get('/visibility-analysis', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Visibility Analysis Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Visibility Analysis data:", error);
+      }
+    };
+
+    fetchVisibilityData();
+  }, []);
 
   const sampleData = [
     { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
@@ -549,12 +568,11 @@ const VisiblityAnalysisData = () => {
 
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             {categoryCards.map((cat) => (
-              <button
+              <div
                 key={cat.name}
                 onClick={() => setActiveCategory(cat)}
-                className={`group flex h-full flex-col gap-2 rounded-2xl border ${
-                  activeCategory.name === cat.name ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-slate-50/60'
-                } p-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg`}
+                className={`group flex h-full flex-col gap-2 rounded-2xl border ${activeCategory.name === cat.name ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-slate-50/60'
+                  } p-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg cursor-pointer`}
               >
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-800">{cat.name}</div>
@@ -616,28 +634,28 @@ const VisiblityAnalysisData = () => {
                   </button>
                 </div> */}
 
-                                <div className="mt-auto flex flex-wrap gap-1">
-                  <button onClick={{}}
+                <div className="mt-auto flex flex-wrap gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'trends', context: cat.name }) }}
                     className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
                     My Trends
                   </button>
 
-                  <button onClick={{}}
+                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'competition', context: cat.name }) }}
                     className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
                     Competition Trends
                   </button>
 
-                  <button onClick={{}}
+                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'insights', context: cat.name }) }}
                     className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
                     Key Insights
                   </button>
 
-                  <button onClick={{}}
+                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'cross', context: cat.name }) }}
                     className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
                     Cross Platform
                   </button>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -712,9 +730,8 @@ const VisiblityAnalysisData = () => {
                             else set.add(c.name)
                             setSelectedCompetitors(Array.from(set))
                           }}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                            active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
-                          }`}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
+                            }`}
                         >
                           {c.name}
                         </button>

@@ -72,6 +72,7 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
   },
   Web_Pid: {
     type: DataTypes.STRING,
+    primaryKey: true,
   },
   Weight: {
     type: DataTypes.STRING,

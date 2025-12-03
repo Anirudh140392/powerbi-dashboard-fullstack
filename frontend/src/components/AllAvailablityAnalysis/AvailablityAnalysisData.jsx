@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Area,
@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import CohortHeatmapDemo, { priceRecords, quantityRecords } from '../AllMarketShares/CohortHeatmap'
 import { cleanPriceBands, cleanQuantityBands } from '../AllMarketShares/CohortBands'
+import axiosInstance from '../../api/axiosInstance'
 
 // ---------------------------------------------------------------------------
 // Drill-down helpers
@@ -498,6 +499,26 @@ const OlaLightThemeDashboard = () => {
     city: 'Kolkata',
   })
 
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchAnalysisData = async () => {
+      try {
+        const response = await axiosInstance.get('/availability-analysis', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Availability Analysis Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Availability Analysis data:", error);
+      }
+    };
+
+    fetchAnalysisData();
+  }, []);
+
   const breadcrumbOrder = ['Platform', 'Region', 'City']
   const currentIndex = breadcrumbOrder.indexOf(level)
   const canGoBack = currentIndex > 0
@@ -616,9 +637,8 @@ const OlaLightThemeDashboard = () => {
                   setLevel('Platform')
                   selectItem(p.name)
                 }}
-                className={`relative h-36 rounded-2xl border bg-white flex flex-col items-center justify-center gap-1 px-2 transition-colors ${
-                  activeItem === p.name ? 'border-slate-900/80' : 'border-slate-100 hover:border-slate-300'
-                }`}
+                className={`relative h-36 rounded-2xl border bg-white flex flex-col items-center justify-center gap-1 px-2 transition-colors ${activeItem === p.name ? 'border-slate-900/80' : 'border-slate-100 hover:border-slate-300'
+                  }`}
               >
                 <ResponsiveContainer width="100%" height="70%">
                   <RadialBarChart
@@ -659,18 +679,16 @@ const OlaLightThemeDashboard = () => {
               <button
                 disabled={!canGoBack}
                 onClick={goBack}
-                className={`rounded-full border px-2 py-1 ${
-                  canGoBack ? 'border-slate-300 text-slate-600 hover:bg-slate-50' : 'border-slate-100 text-slate-300 cursor-not-allowed'
-                }`}
+                className={`rounded-full border px-2 py-1 ${canGoBack ? 'border-slate-300 text-slate-600 hover:bg-slate-50' : 'border-slate-100 text-slate-300 cursor-not-allowed'
+                  }`}
               >
                 ← Back
               </button>
               <button
                 disabled={!canGoForward}
                 onClick={goForward}
-                className={`rounded-full border px-2 py-1 ${
-                  canGoForward ? 'border-slate-900 text-slate-900 bg-slate-900/5 hover:bg-slate-900/10' : 'border-slate-100 text-slate-300 cursor-not-allowed'
-                }`}
+                className={`rounded-full border px-2 py-1 ${canGoForward ? 'border-slate-900 text-slate-900 bg-slate-900/5 hover:bg-slate-900/10' : 'border-slate-100 text-slate-300 cursor-not-allowed'
+                  }`}
               >
                 Forward →
               </button>
@@ -682,13 +700,12 @@ const OlaLightThemeDashboard = () => {
               <button
                 key={b}
                 onClick={() => setLevel(b)}
-                className={`rounded-full px-3 py-1 border transition-all flex items-center gap-1 ${
-                  b === level
-                    ? 'border-slate-900 bg-slate-900 text-slate-50'
-                    : idx < currentIndex
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-slate-50 text-slate-500'
-                }`}
+                className={`rounded-full px-3 py-1 border transition-all flex items-center gap-1 ${b === level
+                  ? 'border-slate-900 bg-slate-900 text-slate-50'
+                  : idx < currentIndex
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-500'
+                  }`}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 <span>{b}</span>
@@ -896,9 +913,8 @@ const MatrixPlatformFormat = () => {
 
     return {
       value,
-      label: `${selection.platform}${
-        selection.region ? ' · ' + selection.region : ''
-      }${selection.city ? ' · ' + selection.city : ''}`,
+      label: `${selection.platform}${selection.region ? ' · ' + selection.region : ''
+        }${selection.city ? ' · ' + selection.city : ''}`,
       bucket: `${quarterLabel} · ${monthLabel}`,
       quarterAvg,
       networkAvg,
@@ -1445,9 +1461,8 @@ const QuarterlyDrilldownGrid = () => {
               <motion.button
                 key={key}
                 onClick={() => setActiveKpi(key)}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${
-                  isActive ? 'text-slate-900' : 'text-slate-500'
-                }`}
+                className={`relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isActive ? 'text-slate-900' : 'text-slate-500'
+                  }`}
                 whileHover={{ y: -1 }}
               >
                 {isActive && (
@@ -1631,9 +1646,8 @@ const FormatPerformanceStudio = () => {
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
-                  isActive ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white/70 hover:bg-slate-50'
-                }`}
+                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white/70 hover:bg-slate-50'
+                  }`}
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: 'spring', stiffness: 260, damping: 20 }}
               >
@@ -1793,9 +1807,8 @@ const FormatPerformanceStudio = () => {
                   <motion.button
                     key={f.name}
                     onClick={() => setCompareName((prev) => (prev === f.name ? null : f.name))}
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
-                      isCompare ? 'border-violet-500 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
-                    }`}
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare ? 'border-violet-500 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
+                      }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
@@ -1866,11 +1879,10 @@ const FormatDrillDownTable = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 text-sm rounded-xl border transition-all ${
-                activeTab === tab
-                  ? 'border-slate-900 text-slate-900 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]'
-                  : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300'
-              }`}
+              className={`px-3 py-2 text-sm rounded-xl border transition-all ${activeTab === tab
+                ? 'border-slate-900 text-slate-900 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]'
+                : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300'
+                }`}
             >
               {tab}
             </button>
@@ -2051,9 +2063,8 @@ export const AvailablityAnalysisData = () => {
                     key={option.key}
                     type="button"
                     onClick={() => setMarketShareMode(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${
-                      marketShareMode === option.key ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${marketShareMode === option.key ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                      }`}
                     aria-pressed={marketShareMode === option.key}
                   >
                     {option.label}

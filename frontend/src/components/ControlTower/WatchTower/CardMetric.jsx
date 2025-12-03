@@ -1,54 +1,8 @@
 import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
-const CardMetric = () => {
-  // const cards = [
-  //   {
-  //     title: "Offtake",
-  //     value: "₹9.0 Cr",
-  //     sub: "for MTD",
-  //     change: "▲3.2% (₹28.8 lac)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //     extra: "#Units: 4.9 lac",
-  //     extraChange: "▲2.4%",
-  //     extraChangeColor: "green",
-  //   },
-  //   {
-  //     title: "Ad Spends",
-  //     value: "₹1.63 Cr",
-  //     sub: "for MTD",
-  //     change: "▲2.8% (₹4.6 lac)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  //   {
-  //     title: "ROAS",
-  //     value: "5.44x",
-  //     sub: "for MTD (Avg.)",
-  //     change: "▲3.1% (+0.2x)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  //   {
-  //     title: "Impressions",
-  //     value: "21.0M",
-  //     sub: "for MTD",
-  //     change: "▲4.6% (+0.9M)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  //   {
-  //     title: "Orders",
-  //     value: "16.8K",
-  //     sub: "for MTD",
-  //     change: "▲2.6% (+420)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  // ];
-
-  const cards = [
+const CardMetric = ({ data }) => {
+  const defaultCards = [
     {
       title: "Offtake",
       value: "₹14.8 Cr",
@@ -86,10 +40,30 @@ const CardMetric = () => {
     },
   ];
 
+  const cards = data && data.length > 0 ? data.map(item => ({
+    title: item.name,
+    value: item.label,
+    sub: item.subtitle,
+    change: item.trend,
+    changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
+    prevText: item.comparison,
+    extra: item.units ? `#Units: ${item.units}` : null,
+    extraChange: item.unitsTrend,
+    extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
+    chart: item.chart
+  })) : defaultCards;
+
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
   // Generate smooth data
-  const generateValues = () => {
+  const generateValues = (card) => {
+    if (card.chart && card.chart.length > 0) {
+      // Normalize chart data to 0-100 range for the mini chart if needed, 
+      // or just pass as is if the component handles it. 
+      // The current component expects values roughly between 20-80 for visual appeal.
+      // Let's just return the chart data.
+      return card.chart;
+    }
     return months.map(() => Math.floor(Math.random() * 60) + 20);
   };
 
@@ -144,14 +118,14 @@ const CardMetric = () => {
           }}
         >
           {cards.map((card, index) => {
-            const values = generateValues();
+            const values = generateValues(card);
             const color = isProfit(card.change) ? "#28a745" : "#dc3545";
 
             return (
               <MiniChartCard
                 key={index}
                 card={card}
-                months={months}
+                months={months} // Note: months are hardcoded, might not match data
                 values={values}
                 color={color}
                 scrollNeeded={scrollNeeded}

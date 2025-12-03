@@ -68,3 +68,16 @@ Phase 9: Template & Rollout Plan
 - [ ] Plan migration for next dashboards (Promo, SOV/SOS).
 - [ ] Output: Reusable playbook for rapid migration.
 - Est: 1–2 days
+
+Phase 10: ORM Optimization Strategy (Sequelize)
+- [ ] **Selective Selection**: Always use `attributes: []` to select only necessary columns. Avoid `SELECT *`.
+- [ ] **Lean Queries**: Use `{ raw: true, nest: true }` for read-only data to skip model instantiation overhead.
+- [ ] **Eager Loading Optimization**:
+    - Use `required: true` for INNER JOINs (faster than default LEFT JOIN).
+    - Limit nested includes.
+    - Use `attributes` inside `include` to fetch only needed related fields.
+- [ ] **Indexing**: Ensure all columns used in `where`, `order`, and `group` clauses have DB indexes.
+- [ ] **Aggregation**: Use `sequelize.fn` and `sequelize.col` for simple aggregates. Use Raw Queries for complex multi-table aggregations.
+- [ ] **Pagination**: Implement cursor-based pagination or standard `limit`/`offset` for large lists.
+- [ ] **Connection Pooling**: Configure `pool: { max: 10, min: 0, acquire: 30000, idle: 10000 }` in Sequelize init.
+- [ ] **Batch Operations**: Use `bulkCreate` and `bulkUpdate` for multiple record changes.

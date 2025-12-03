@@ -14,6 +14,8 @@ const ZeptoMarketShare = sequelize.define('zepto_market_share', {
   id: {
     type: DataTypes.INTEGER,
     allowNull: false,
+    primaryKey: true,
+    autoIncrement: true,
   },
   ingested_on: {
     type: DataTypes.DATE,

@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // MUI Date Picker Providers
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -21,7 +21,8 @@ export default function App() {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<WatchTower />} />
+          <Route path="/" element={<Navigate to="/watch-tower" replace />} />
+          <Route path="/watch-tower" element={<WatchTower />} />
           <Route path="/category-rca" element={<CategoryRca />} />
           <Route path="/volume-cohort" element={<VolumeCohort />} />
           <Route path="/price-per-pack" element={<PricePerPack />} />

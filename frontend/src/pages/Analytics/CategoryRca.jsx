@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import Insights from "../../components/Analytics/CategoryRca/Insights";
 import InsightsDrawer from "../../components/Analytics/CategoryRca/InsightsDrawer";
 import Sidebar from "../../components/CommonLayout/Sidebar";
@@ -15,21 +16,40 @@ import Dashboard from "../../components/Analytics/CategoryRca/SkuLevelBreakdown"
 
 export default function CategoryRca() {
   const [selectedProduct, setSelectedProduct] = useState(null);
-   const [showTrends, setShowTrends] = useState(false);
+  const calledOnce = useRef(false);
 
-   const [trendParams, setTrendParams] = useState({
-      months: 6,
-      timeStep: "Monthly",
-      cat: "All",
-    });
-    
-    
-    const [trendData, setTrendData] = useState({
-        timeSeries: [],
-        metrics: {},
-      });
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
 
-     const handleViewTrends = (card) => {
+    const fetchCategoryData = async () => {
+      try {
+        const response = await axiosInstance.get('/category-rca', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Category RCA Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Category RCA data:", error);
+      }
+    };
+
+    fetchCategoryData();
+  }, []);
+  const [showTrends, setShowTrends] = useState(false);
+
+  const [trendParams, setTrendParams] = useState({
+    months: 6,
+    timeStep: "Monthly",
+    cat: "All",
+  });
+
+
+  const [trendData, setTrendData] = useState({
+    timeSeries: [],
+    metrics: {},
+  });
+
+  const handleViewTrends = (card) => {
     console.log("card clicked", card);
 
     const series =
@@ -60,12 +80,12 @@ export default function CategoryRca() {
 
     setTrendParams((prev) => ({
       ...prev,
-    cat: card.name ?? "All",
+      cat: card.name ?? "All",
     }));
 
     setShowTrends(true);
   };
-  
+
   const [filters, setFilters] = useState({
     cat: "All",
     months: 6,
@@ -286,9 +306,9 @@ export default function CategoryRca() {
         <Insights />
         <RCACardMetric />
         <CategoryPlatformOverview onViewTrends={handleViewTrends} />
-        <SkuLevelBreakdown/>
-        <RCADashboard/>
-        
+        <SkuLevelBreakdown />
+        <RCADashboard />
+
       </CommonContainer>
 
       <InsightsDrawer
@@ -296,7 +316,7 @@ export default function CategoryRca() {
         onClose={() => setSelectedProduct(null)}
         totalProducts={products.length}
       />
-        <CategoryTrendsDrawer
+      <CategoryTrendsDrawer
         open={showTrends}
         onClose={() => setShowTrends(false)}
         trendData={trendData}
