@@ -508,7 +508,11 @@ const PlatformOverview = ({
 
   /* VERTICAL SORT */
   const [sortType, setSortType] = React.useState("default");
-  const [platformFilter, setPlatformFilter] = React.useState("blinkit");
+  const [platformFilter, setPlatformFilter] = React.useState({
+    platform: "blinkit",
+    category: "Core Tub",
+    brand: "Amul",
+  });
 
   const sortedPlatforms = React.useMemo(() => {
     return data.map((platform) => {
@@ -569,28 +573,118 @@ const PlatformOverview = ({
           <Box display="flex" alignItems="center" gap={1.2}>
             {/* FILTER DROPDOWN */}
             {activeKpisTab !== "Platform Overview" && (
-              <Select
-                size="small"
-                value={platformFilter}
-                onChange={(e) => setPlatformFilter(e.target.value)}
-                sx={{
-                  minWidth: 130,
-                  height: 36,
-                  fontSize: "0.85rem",
-                  background: "#f3f4f6",
-                  borderRadius: 1.5,
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: theme.palette.divider,
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: theme.palette.text.primary,
-                  },
-                }}
-              >
-                <MenuItem value="blinkit">Blinkit</MenuItem>
-              </Select>
-            )}
+              <>
+                {/* Platform Filter */}
+                <Select
+                  size="small"
+                  value={platformFilter.platform}
+                  onChange={(e) =>
+                    setPlatformFilter((p) => ({
+                      ...p,
+                      platform: e.target.value,
+                    }))
+                  }
+                  sx={{
+                    minWidth: 130,
+                    height: 36,
+                    fontSize: "0.85rem",
+                    background: "#f3f4f6",
+                    borderRadius: 1.5,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: theme.palette.divider,
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <MenuItem value="blinkit">Blinkit</MenuItem>
+                </Select>
 
+                {/* Category Filter – only in Brands Overview */}
+                {activeKpisTab === "Brands Overview" && (
+                  <Select
+                    size="small"
+                    value={platformFilter.category}
+                    onChange={(e) =>
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        category: e.target.value,
+                      }))
+                    }
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                      borderRadius: 1.5,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.divider,
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.text.primary,
+                      },
+                    }}
+                  >
+                    <MenuItem value="Core Tub">Core Tub</MenuItem>
+                  </Select>
+                )}
+                {activeKpisTab === "Skus Overview" && (
+                  <>
+                                    <Select
+                    size="small"
+                    value={platformFilter.category}
+                    onChange={(e) =>
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        category: e.target.value,
+                      }))
+                    }
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                      borderRadius: 1.5,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.divider,
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.text.primary,
+                      },
+                    }}
+                  >
+                    <MenuItem value="Core Tub">Core Tub</MenuItem>
+                  </Select>
+                                    <Select
+                    size="small"
+                    value={platformFilter.brand}
+                    onChange={(e) =>
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        brand: e.target.value,
+                      }))
+                    }
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                      borderRadius: 1.5,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.divider,
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.text.primary,
+                      },
+                    }}
+                  >
+                    <MenuItem value="Amul">Amul</MenuItem>
+                  </Select>
+                  </>
+                )}
+              </>
+            )}
             {/* SEARCH */}
             <Box
               display="flex"
@@ -617,7 +711,6 @@ const PlatformOverview = ({
               />
               <BsSearch size={15} color={theme.palette.text.secondary} />
             </Box>
-
             {/* SORT BUTTONS */}
             <Button
               size="small"
@@ -627,7 +720,6 @@ const PlatformOverview = ({
             >
               A → Z
             </Button>
-
             <Button
               size="small"
               variant={sortType === "desc" ? "contained" : "outlined"}
@@ -636,7 +728,6 @@ const PlatformOverview = ({
             >
               Z → A
             </Button>
-
             <Button
               size="small"
               variant={sortType === "default" ? "contained" : "outlined"}
@@ -648,16 +739,17 @@ const PlatformOverview = ({
           </Box>
         </Box>
 
-        {/* HORIZONTAL SCROLL - PLATFORMS */}
         <Box
           sx={{
             display: "flex",
             gap: 2,
             overflowX: "auto",
+            overflowY: "auto",
+            maxHeight: "755px",
             pb: 2,
             scrollBehavior: "smooth",
 
-            "&::-webkit-scrollbar": { height: 8 },
+            "&::-webkit-scrollbar": { width: 8, height: 8 },
             "&::-webkit-scrollbar-thumb": {
               background: "#cbd5e1",
               borderRadius: 10,
@@ -770,5 +862,3 @@ const PlatformOverview = ({
 };
 
 export default PlatformOverview;
-
-

@@ -39,9 +39,11 @@ import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
 import {
   allCategories,
   allProducts,
+  defaultBrands,
   defaultCategory,
   defaultMonths,
   defaultPlatforms,
+  defaultSkus,
 } from "../../utils/DataCenter";
 import PerformanceMatric from "../../components/ControlTower/WatchTower/PeformanceMatric";
 
@@ -219,7 +221,7 @@ export default function WatchTower() {
         />
 
         {/* Top Cards */}
-        <PerformanceMatric/>
+        <PerformanceMatric />
 
         {/* Platform Overview */}
         {/* Tabs */}
@@ -240,15 +242,27 @@ export default function WatchTower() {
               />
 
               <TabButton
+                label="By Month"
+                active={activeKpisTab === "Month Overview"}
+                onClick={() => setActiveKpisTab("Month Overview")}
+              />
+              
+              <TabButton
                 label="By Category"
                 active={activeKpisTab === "Category Overview"}
                 onClick={() => setActiveKpisTab("Category Overview")}
               />
 
               <TabButton
-                label="By Month"
-                active={activeKpisTab === "Month Overview"}
-                onClick={() => setActiveKpisTab("Month Overview")}
+                label="By Brands"
+                active={activeKpisTab === "Brands Overview"}
+                onClick={() => setActiveKpisTab("Brands Overview")}
+              />
+
+              <TabButton
+                label="By Skus"
+                active={activeKpisTab === "Skus Overview"}
+                onClick={() => setActiveKpisTab("Skus Overview")}
               />
             </Box>
           </Box>
@@ -262,6 +276,10 @@ export default function WatchTower() {
                   ? defaultCategory
                   : activeKpisTab === "Month Overview"
                   ? defaultMonths
+                  : activeKpisTab === "Brands Overview"
+                  ? defaultBrands
+                  : activeKpisTab === "Skus Overview"
+                  ? defaultSkus
                   : []
               }
               activeKpisTab={activeKpisTab}
@@ -281,7 +299,7 @@ defaultCategory */}
           }}
         >
           {/* Tabs */}
-          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
+          {/* <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
             <Box sx={{ display: "flex", gap: 4 }}>
               <TabButton
                 label="Split by Category"
@@ -295,16 +313,16 @@ defaultCategory */}
                 onClick={() => setActiveTab("Split by SKUs")}
               />
             </Box>
-          </Box>
+          </Box> */}
 
-          <Box sx={{ p: 3 }}>
+          {/* <Box sx={{ p: 3 }}>
             <CategoryTable
               categories={
                 activeTab === "Split by Category" ? allCategories : allProducts
               }
               activeTab={activeTab}
             />
-          </Box>
+          </Box> */}
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>

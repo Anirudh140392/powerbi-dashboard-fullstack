@@ -553,9 +553,9 @@ export function PortfolioAnalysis() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-900">
-      <div className="sticky top-0 z-40 bg-slate-100/95 backdrop-blur border-b border-slate-200/80 px-6 py-2">
+      {/* <div className="sticky top-0 z-40 bg-slate-100/95 backdrop-blur border-b border-slate-200/80 px-6 py-2">
         <StepNav activeStep={activeStep} onChange={setActiveStep} />
-      </div>
+      </div> */}
 
       <main className="flex-1 flex flex-col gap-4 px-6 py-4 overflow-hidden">
         <HeroStrip
