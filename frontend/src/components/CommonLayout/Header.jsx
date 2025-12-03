@@ -19,7 +19,6 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { AppThemeContext } from "../../utils/ThemeContext";
 
-
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [timeStart, setTimeStart] = React.useState(dayjs("2025-10-01"));
   const [timeEnd, setTimeEnd] = React.useState(dayjs("2025-10-06"));
@@ -29,7 +28,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
   const [priceMode, setPriceMode] = React.useState("MRP");
 
-  // 🎯 DARK/LIGHT MODE CONTEXT
+  // 🌗 Dark/Light Mode
   const { mode, toggleTheme } = React.useContext(AppThemeContext);
 
   return (
@@ -39,60 +38,53 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         borderBottom: "1px solid",
         borderColor: (theme) =>
           theme.palette.mode === "dark" ? "#374151" : "#e5e7eb",
-        px: 3,
+        px: { xs: 2, sm: 3 },
         py: 2,
         position: "sticky",
         top: 0,
-        zIndex: 1100,
+        zIndex: 1200,
       }}
     >
-
-      {/* ----------------------------- FIRST ROW ----------------------------- */}
+      {/* ---------------- FIRST ROW ---------------- */}
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
           flexWrap: "wrap",
           gap: 2,
+          alignItems: "center",
         }}
       >
-        {/* LEFT SECTION */}
+        {/* LEFT SIDE */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           <IconButton
             onClick={onMenuClick}
-            sx={{ display: { xs: "block", sm: "none" }, color: (theme) => theme.palette.text.primary }}
+            sx={{ display: { xs: "block", sm: "none" } }}
           >
             <MenuIcon />
           </IconButton>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <IconButton size="small" sx={{ color: (theme) => theme.palette.text.primary }}>
+            <IconButton size="small">
               <ArrowBackIcon />
             </IconButton>
 
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 700,
-                color: (theme) => theme.palette.text.primary,
-              }}
-            >
+            <Typography variant="h6" fontWeight="700">
               {title}
             </Typography>
           </Box>
         </Box>
 
-        {/* DATE PICKERS SECTION */}
-        <Box sx={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {/* DATE PICKERS */}
+        <Box sx={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
           {/* TIME PERIOD */}
           <Box>
             <Typography
               sx={{
                 fontSize: "0.7rem",
                 fontWeight: 600,
-                color: (theme) => theme.palette.text.secondary,
                 mb: 0.5,
+                opacity: 0.7,
               }}
             >
               TIME PERIOD
@@ -101,48 +93,39 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <DatePicker
                 format="DD MMM YY"
                 value={timeStart}
-                onChange={(v) => setTimeStart(v)}
+                onChange={setTimeStart}
                 slotProps={{
                   textField: {
                     size: "small",
-                    sx: {
-                      width: 135,
-                    },
+                    sx: { width: 130 },
                   },
                 }}
               />
 
-              <ArrowForwardIcon
-                sx={{
-                  color: (theme) => theme.palette.text.secondary,
-                  fontSize: 18,
-                }}
-              />
+              <ArrowForwardIcon sx={{ opacity: 0.6, fontSize: 18 }} />
 
               <DatePicker
                 format="DD MMM YY"
                 value={timeEnd}
-                onChange={(v) => setTimeEnd(v)}
+                onChange={setTimeEnd}
                 slotProps={{
                   textField: {
                     size: "small",
-                    sx: {
-                      width: 135,
-                    },
+                    sx: { width: 130 },
                   },
                 }}
               />
             </Box>
           </Box>
 
-          {/* COMPARE WITH */}
+          {/* COMPARE */}
           <Box>
             <Typography
               sx={{
                 fontSize: "0.7rem",
                 fontWeight: 600,
-                color: (theme) => theme.palette.text.secondary,
                 mb: 0.5,
+                opacity: 0.7,
               }}
             >
               COMPARE WITH
@@ -151,34 +134,25 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <DatePicker
                 format="DD MMM YY"
                 value={compareStart}
-                onChange={(v) => setCompareStart(v)}
+                onChange={setCompareStart}
                 slotProps={{
                   textField: {
                     size: "small",
-                    sx: {
-                      width: 135,
-                    },
+                    sx: { width: 130 },
                   },
                 }}
               />
 
-              <ArrowForwardIcon
-                sx={{
-                  color: (theme) => theme.palette.text.secondary,
-                  fontSize: 18,
-                }}
-              />
+              <ArrowForwardIcon sx={{ opacity: 0.6, fontSize: 18 }} />
 
               <DatePicker
                 format="DD MMM YY"
                 value={compareEnd}
-                onChange={(v) => setCompareEnd(v)}
+                onChange={setCompareEnd}
                 slotProps={{
                   textField: {
                     size: "small",
-                    sx: {
-                      width: 135,
-                    },
+                    sx: { width: 130 },
                   },
                 }}
               />
@@ -187,98 +161,62 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         </Box>
       </Box>
 
-      {/* ----------------------------- SECOND ROW ----------------------------- */}
+      {/* ---------------- SECOND ROW ---------------- */}
       <Box
         sx={{
           display: "flex",
           gap: 2,
-          alignItems: "center",
-          mt: 3,
-          flexWrap: "wrap",
           justifyContent: "flex-end",
+          flexWrap: "wrap",
+          mt: 2,
+          alignItems: "center",
         }}
       >
-        {/* GC Labs */}
-        {/* <Button
-          variant="contained"
-          sx={{
-            background: "#7c3aed",
-            textTransform: "none",
-            fontSize: "0.75rem",
-          }}
-        >
-          GC Labs
-        </Button> */}
-
-        {/* Data Till */}
+        {/* DATE INFO */}
         <Button
           variant="outlined"
           sx={{
             borderColor: (theme) =>
               theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
-            color: (theme) => theme.palette.text.primary,
             textTransform: "none",
             fontSize: "0.75rem",
           }}
         >
-          Data till 06 Oct 25
+          Data till {timeEnd.format("DD MMM YY")}
         </Button>
 
-        {/* MRP / SP Toggle */}
+        {/* PRICE MODE SWITCH */}
         <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant={priceMode === "MRP" ? "contained" : "outlined"}
-            onClick={() => setPriceMode("MRP")}
-            sx={{
-              background:
-                priceMode === "MRP" ? "#059669" : "transparent",
-              borderColor: (theme) =>
-                theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
-              textTransform: "none",
-              fontSize: "0.75rem",
-            }}
-          >
-            MRP
-          </Button>
-
-          <Button
-            variant={priceMode === "SP" ? "contained" : "outlined"}
-            onClick={() => setPriceMode("SP")}
-            sx={{
-              background:
-                priceMode === "SP" ? "#059669" : "transparent",
-              borderColor: (theme) =>
-                theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
-              textTransform: "none",
-              fontSize: "0.75rem",
-            }}
-          >
-            SP
-          </Button>
+          {["MRP", "SP"].map((label) => (
+            <Button
+              key={label}
+              variant={priceMode === label ? "contained" : "outlined"}
+              onClick={() => setPriceMode(label)}
+              sx={{
+                textTransform: "none",
+                fontSize: "0.75rem",
+                background:
+                  priceMode === label ? "#059669" : "transparent",
+                borderColor: (theme) =>
+                  theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
+              }}
+            >
+              {label}
+            </Button>
+          ))}
         </Box>
 
-        {/* 🌗 DARK/LIGHT MODE TOGGLE BUTTON */}
+        {/* 🌗 THEME TOGGLE */}
         {/* <IconButton
           onClick={toggleTheme}
           sx={{
             ml: 1,
-            background:
-              mode === "dark" ? "#374151" : "#e5e7eb",
-            color:
-              mode === "dark"
-                ? "#f9fafb"
-                : "#111827",
-            "&:hover": {
-              background:
-                mode === "dark" ? "#4b5563" : "#d1d5db",
-            },
+            border: "1px solid",
+            borderColor:
+              mode === "dark" ? "#4b5563" : "#d1d5db",
           }}
         >
-          {mode === "dark" ? (
-            <LightModeIcon fontSize="small" />
-          ) : (
-            <DarkModeIcon fontSize="small" />
-          )}
+          {mode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
         </IconButton> */}
       </Box>
     </Box>
