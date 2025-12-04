@@ -1617,7 +1617,7 @@ const FormatPerformanceStudio = () => {
       <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Format performance</h2>
+            <h2 className="text-lg font-semibold">Category performance</h2>
             <p className="text-xs text-slate-500">Hover a format to see its DNA. Click a pill below to compare.</p>
           </div>
         </div>
