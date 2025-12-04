@@ -453,6 +453,8 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+import CategoryTable from "./CategoryTable";
+import { allProducts } from "../../../utils/DataCenter";
 
 /* SMALL KPI CARD */
 const SmallCard = ({ item }) => {
@@ -531,276 +533,280 @@ const PlatformOverview = ({
 
   return (
     <Box>
-      <Card
-        sx={{
-          p: 3,
-          borderRadius: 4,
-          boxShadow: 3,
-          background: theme.palette.background.paper,
-        }}
-      >
-        {/* HEADER */}
-        <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          flexWrap="wrap"
-          mb={3}
-          gap={2}
-        >
-          {/* LEFT TITLE */}
-          <Box display="flex" alignItems="center">
-            <Box
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: "#f3f4f6",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <BsGrid3X3GapFill size={18} color={theme.palette.primary.main} />
-            </Box>
-
-            <Typography ml={1.2} fontWeight={700} fontSize="1.15rem">
-              {activeKpisTab}
-            </Typography>
-          </Box>
-
-          {/* RIGHT SECTION — SEARCH + SORTING */}
-          <Box display="flex" alignItems="center" gap={1.2}>
-            {/* FILTER DROPDOWN */}
-            {activeKpisTab !== "Platform Overview" && (
-              <>
-                {/* Platform Filter */}
-                <Select
-                  size="small"
-                  value={platformFilter.platform}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({
-                      ...p,
-                      platform: e.target.value,
-                    }))
-                  }
-                  sx={{
-                    minWidth: 130,
-                    height: 36,
-                    fontSize: "0.85rem",
-                    background: "#f3f4f6",
-                    borderRadius: 1.5,
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: theme.palette.divider,
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: theme.palette.text.primary,
-                    },
-                  }}
-                >
-                  <MenuItem value="blinkit">Blinkit</MenuItem>
-                </Select>
-
-                {/* Category Filter – only in Brands Overview */}
-                {activeKpisTab === "Brands Overview" && (
-                  <Select
-                    size="small"
-                    value={platformFilter.category}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        category: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "0.85rem",
-                      background: "#f3f4f6",
-                      borderRadius: 1.5,
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: theme.palette.divider,
-                      },
-                      "&:hover .MuiOutlinedInput-notchedOutline": {
-                        borderColor: theme.palette.text.primary,
-                      },
-                    }}
-                  >
-                    <MenuItem value="Core Tub">Core Tub</MenuItem>
-                  </Select>
-                )}
-                {activeKpisTab === "Skus Overview" && (
-                  <>
-                                    <Select
-                    size="small"
-                    value={platformFilter.category}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        category: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "0.85rem",
-                      background: "#f3f4f6",
-                      borderRadius: 1.5,
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: theme.palette.divider,
-                      },
-                      "&:hover .MuiOutlinedInput-notchedOutline": {
-                        borderColor: theme.palette.text.primary,
-                      },
-                    }}
-                  >
-                    <MenuItem value="Core Tub">Core Tub</MenuItem>
-                  </Select>
-                                    <Select
-                    size="small"
-                    value={platformFilter.brand}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        brand: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "0.85rem",
-                      background: "#f3f4f6",
-                      borderRadius: 1.5,
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: theme.palette.divider,
-                      },
-                      "&:hover .MuiOutlinedInput-notchedOutline": {
-                        borderColor: theme.palette.text.primary,
-                      },
-                    }}
-                  >
-                    <MenuItem value="Amul">Amul</MenuItem>
-                  </Select>
-                  </>
-                )}
-              </>
-            )}
-            {/* SEARCH */}
-            <Box
-              display="flex"
-              alignItems="center"
-              px={1.5}
-              sx={{
-                width: 220,
-                height: 36,
-                background: "#f3f4f6",
-                borderRadius: 5,
-                border: `1px solid ${theme.palette.divider}`,
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Search"
-                style={{
-                  flex: 1,
-                  border: "none",
-                  outline: "none",
-                  background: "transparent",
-                  fontSize: "0.85rem",
-                }}
-              />
-              <BsSearch size={15} color={theme.palette.text.secondary} />
-            </Box>
-            {/* SORT BUTTONS */}
-            <Button
-              size="small"
-              variant={sortType === "asc" ? "contained" : "outlined"}
-              sx={{ textTransform: "none" }}
-              onClick={() => setSortType("asc")}
-            >
-              A → Z
-            </Button>
-            <Button
-              size="small"
-              variant={sortType === "desc" ? "contained" : "outlined"}
-              sx={{ textTransform: "none" }}
-              onClick={() => setSortType("desc")}
-            >
-              Z → A
-            </Button>
-            <Button
-              size="small"
-              variant={sortType === "default" ? "contained" : "outlined"}
-              sx={{ textTransform: "none" }}
-              onClick={() => setSortType("default")}
-            >
-              Default
-            </Button>
-          </Box>
-        </Box>
-
-        <Box
+      {activeKpisTab !== "Skus Overview" ? (
+        <Card
           sx={{
-            display: "flex",
-            gap: 2,
-            overflowX: "auto",
-            overflowY: "auto",
-            maxHeight: "755px",
-            pb: 2,
-            scrollBehavior: "smooth",
-
-            "&::-webkit-scrollbar": { width: 8, height: 8 },
-            "&::-webkit-scrollbar-thumb": {
-              background: "#cbd5e1",
-              borderRadius: 10,
-            },
+            p: 3,
+            borderRadius: 4,
+            boxShadow: 3,
+            background: theme.palette.background.paper,
           }}
         >
-          {sortedPlatforms.map((platform) => (
-            <Box sx={{ minWidth: 280 }} key={platform.key}>
-              <Card
+          {/* HEADER */}
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            flexWrap="wrap"
+            mb={3}
+            gap={2}
+          >
+            {/* LEFT TITLE */}
+            <Box display="flex" alignItems="center">
+              <Box
                 sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  background: theme.palette.background.default,
-                  boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "#f3f4f6",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
               >
-                {/* PLATFORM HEADER */}
-                <Box
-                  display="flex"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  mb={1.5}
-                >
-                  <Box display="flex" alignItems="center" gap={1.2}>
-                    <img
-                      src={platform.logo}
-                      alt={platform.label}
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: "50%",
-                        background: "#fff",
-                        padding: 3,
-                        objectFit: "contain",
-                      }}
-                    />
-                    <Box>
-                      <Typography fontWeight={700} fontSize="0.92rem">
-                        {platform.label}
-                      </Typography>
-                      <Typography
-                        color="text.secondary"
-                        fontSize="0.75rem"
-                        mt={-0.2}
-                      >
-                        {platform.type}
-                      </Typography>
-                    </Box>
-                  </Box>
+                <BsGrid3X3GapFill
+                  size={18}
+                  color={theme.palette.primary.main}
+                />
+              </Box>
 
-                  {/* <Chip
+              <Typography ml={1.2} fontWeight={700} fontSize="1.15rem">
+                {activeKpisTab}
+              </Typography>
+            </Box>
+
+            {/* RIGHT SECTION — SEARCH + SORTING */}
+            <Box display="flex" alignItems="center" gap={1.2}>
+              {/* FILTER DROPDOWN */}
+              {activeKpisTab !== "Platform Overview" && (
+                <>
+                  {/* Platform Filter */}
+                  <Select
+                    size="small"
+                    value={platformFilter.platform}
+                    onChange={(e) =>
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        platform: e.target.value,
+                      }))
+                    }
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                      borderRadius: 1.5,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.divider,
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: theme.palette.text.primary,
+                      },
+                    }}
+                  >
+                    <MenuItem value="blinkit">Blinkit</MenuItem>
+                  </Select>
+
+                  {/* Category Filter – only in Brands Overview */}
+                  {activeKpisTab === "Brands Overview" && (
+                    <Select
+                      size="small"
+                      value={platformFilter.category}
+                      onChange={(e) =>
+                        setPlatformFilter((p) => ({
+                          ...p,
+                          category: e.target.value,
+                        }))
+                      }
+                      sx={{
+                        minWidth: 130,
+                        height: 36,
+                        fontSize: "0.85rem",
+                        background: "#f3f4f6",
+                        borderRadius: 1.5,
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: theme.palette.divider,
+                        },
+                        "&:hover .MuiOutlinedInput-notchedOutline": {
+                          borderColor: theme.palette.text.primary,
+                        },
+                      }}
+                    >
+                      <MenuItem value="Core Tub">Core Tub</MenuItem>
+                    </Select>
+                  )}
+                  {activeKpisTab === "Skus Overview" && (
+                    <>
+                      <Select
+                        size="small"
+                        value={platformFilter.category}
+                        onChange={(e) =>
+                          setPlatformFilter((p) => ({
+                            ...p,
+                            category: e.target.value,
+                          }))
+                        }
+                        sx={{
+                          minWidth: 130,
+                          height: 36,
+                          fontSize: "0.85rem",
+                          background: "#f3f4f6",
+                          borderRadius: 1.5,
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: theme.palette.divider,
+                          },
+                          "&:hover .MuiOutlinedInput-notchedOutline": {
+                            borderColor: theme.palette.text.primary,
+                          },
+                        }}
+                      >
+                        <MenuItem value="Core Tub">Core Tub</MenuItem>
+                      </Select>
+                      <Select
+                        size="small"
+                        value={platformFilter.brand}
+                        onChange={(e) =>
+                          setPlatformFilter((p) => ({
+                            ...p,
+                            brand: e.target.value,
+                          }))
+                        }
+                        sx={{
+                          minWidth: 130,
+                          height: 36,
+                          fontSize: "0.85rem",
+                          background: "#f3f4f6",
+                          borderRadius: 1.5,
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: theme.palette.divider,
+                          },
+                          "&:hover .MuiOutlinedInput-notchedOutline": {
+                            borderColor: theme.palette.text.primary,
+                          },
+                        }}
+                      >
+                        <MenuItem value="Amul">Amul</MenuItem>
+                      </Select>
+                    </>
+                  )}
+                </>
+              )}
+              {/* SEARCH */}
+              <Box
+                display="flex"
+                alignItems="center"
+                px={1.5}
+                sx={{
+                  width: 220,
+                  height: 36,
+                  background: "#f3f4f6",
+                  borderRadius: 5,
+                  border: `1px solid ${theme.palette.divider}`,
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Search"
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    fontSize: "0.85rem",
+                  }}
+                />
+                <BsSearch size={15} color={theme.palette.text.secondary} />
+              </Box>
+              {/* SORT BUTTONS */}
+              <Button
+                size="small"
+                variant={sortType === "asc" ? "contained" : "outlined"}
+                sx={{ textTransform: "none" }}
+                onClick={() => setSortType("asc")}
+              >
+                A → Z
+              </Button>
+              <Button
+                size="small"
+                variant={sortType === "desc" ? "contained" : "outlined"}
+                sx={{ textTransform: "none" }}
+                onClick={() => setSortType("desc")}
+              >
+                Z → A
+              </Button>
+              <Button
+                size="small"
+                variant={sortType === "default" ? "contained" : "outlined"}
+                sx={{ textTransform: "none" }}
+                onClick={() => setSortType("default")}
+              >
+                Default
+              </Button>
+            </Box>
+          </Box>
+
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              overflowX: "auto",
+              overflowY: "auto",
+              maxHeight: "755px",
+              pb: 2,
+              scrollBehavior: "smooth",
+
+              "&::-webkit-scrollbar": { width: 8, height: 8 },
+              "&::-webkit-scrollbar-thumb": {
+                background: "#cbd5e1",
+                borderRadius: 10,
+              },
+            }}
+          >
+            {sortedPlatforms.map((platform) => (
+              <Box sx={{ minWidth: 280 }} key={platform.key}>
+                <Card
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    background: theme.palette.background.default,
+                    boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
+                  }}
+                >
+                  {/* PLATFORM HEADER */}
+                  <Box
+                    display="flex"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    mb={1.5}
+                  >
+                    <Box display="flex" alignItems="center" gap={1.2}>
+                      <img
+                        src={platform.logo}
+                        alt={platform.label}
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          padding: 3,
+                          objectFit: "contain",
+                        }}
+                      />
+                      <Box>
+                        <Typography fontWeight={700} fontSize="0.92rem">
+                          {platform.label}
+                        </Typography>
+                        <Typography
+                          color="text.secondary"
+                          fontSize="0.75rem"
+                          mt={-0.2}
+                        >
+                          {platform.type}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* <Chip
                     label="Live"
                     size="small"
                     sx={{
@@ -812,51 +818,54 @@ const PlatformOverview = ({
                       fontWeight: 600,
                     }}
                   /> */}
-                </Box>
+                  </Box>
 
-                {/* SORTED KPI CARDS (VERTICAL) */}
-                {platform.columns.map((col, i) => (
-                  <SmallCard key={i} item={col} />
-                ))}
+                  {/* SORTED KPI CARDS (VERTICAL) */}
+                  {platform.columns.map((col, i) => (
+                    <SmallCard key={i} item={col} />
+                  ))}
 
-                {/* FOOTER BUTTONS - ADDED BACK */}
-                <Box display="flex" gap={1.2} mt={1}>
-                  <Button
-                    variant="text"
-                    size="small"
-                    sx={{
-                      flex: 1,
-                      textTransform: "none",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "#2563eb",
-                      "&:hover": { background: "#eff6ff" },
-                    }}
-                    onClick={() => onViewTrends(platform.label)}
-                  >
-                    My Trends ▶
-                  </Button>
+                  {/* FOOTER BUTTONS - ADDED BACK */}
+                  <Box display="flex" gap={1.2} mt={1}>
+                    <Button
+                      variant="text"
+                      size="small"
+                      sx={{
+                        flex: 1,
+                        textTransform: "none",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "#2563eb",
+                        "&:hover": { background: "#eff6ff" },
+                      }}
+                      onClick={() => onViewTrends(platform.label)}
+                    >
+                      My Trends ▶
+                    </Button>
 
-                  <Button
-                    variant="text"
-                    size="small"
-                    sx={{
-                      flex: 1,
-                      textTransform: "none",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "#2563eb",
-                      "&:hover": { background: "#eff6ff" },
-                    }}
-                  >
-                    Competition ▶
-                  </Button>
-                </Box>
-              </Card>
-            </Box>
-          ))}
-        </Box>
-      </Card>
+                    <Button
+                      variant="text"
+                      size="small"
+                      sx={{
+                        flex: 1,
+                        textTransform: "none",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "#2563eb",
+                        "&:hover": { background: "#eff6ff" },
+                      }}
+                    >
+                      Competition ▶
+                    </Button>
+                  </Box>
+                </Card>
+              </Box>
+            ))}
+          </Box>
+        </Card>
+      ) : (
+        <CategoryTable categories={allProducts} activeTab={activeKpisTab} />
+      )}
     </Box>
   );
 };
