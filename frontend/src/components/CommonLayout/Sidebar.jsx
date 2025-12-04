@@ -60,11 +60,7 @@ const Sidebar = ({
       { label: "Watch Tower", active: true },
       // { label: "Account Overview" },
     ],
-    "Q-COMM": [
-      { label: "Zepto", icon: "🟣" },
-      // { label: "Blinkit", icon: "🟡" },
-      // { label: "Instamart", icon: "🟠" },
-    ],
+
     "Availability Analysis": [{ label: "Availability Analysis" }],
     "Visibility Analysis": [{ label: "Visibility Analysis" }],
     "Pricing Analysis": [{ label: "Pricing Analysis" }],
@@ -192,10 +188,7 @@ const Sidebar = ({
                         navigate("/account-overview");
                       }
 
-                      // Q-COMM
-                      if (sectionName === "Q-COMM") {
-                        handlePlatformChange(item.label);
-                      }
+
 
                       // ANALYTICS
                       if (
@@ -263,20 +256,16 @@ const Sidebar = ({
                       py: 1.25,
                       px: 3,
                       bgcolor:
-                        (sectionName === "Q-COMM" &&
-                          activePlatform === item.label) ||
-                          (sectionName === "ANALYTICS" &&
-                            item.label === "Category RCA") ||
+                        (sectionName === "ANALYTICS" &&
+                          item.label === "Category RCA") ||
                           (sectionName === "CONTROL TOWER" &&
                             item.label === "Watch Tower")
                           ? "rgba(255, 255, 255, 0.1)"
                           : "transparent",
 
                       borderLeft:
-                        (sectionName === "Q-COMM" &&
-                          activePlatform === item.label) ||
-                          (sectionName === "ANALYTICS" &&
-                            item.label === "Category RCA") ||
+                        (sectionName === "ANALYTICS" &&
+                          item.label === "Category RCA") ||
                           (sectionName === "CONTROL TOWER" &&
                             item.label === "Watch Tower")
                           ? "3px solid #3b82f6"

@@ -1,4 +1,4 @@
-import { watchTowerOverview } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations } from '../controllers/watchTowerController.js';
 
 export default (app) => {
     /**
@@ -39,5 +39,71 @@ export default (app) => {
      *                   type: array
      */
     app.get('/api/watchtower', watchTowerOverview);
+
+    /**
+     * @swagger
+     * /api/watchtower/brands:
+     *   get:
+     *     summary: Get list of available brands
+     *     description: Retrieve a list of distinct brands from the database.
+     *     responses:
+     *       200:
+     *         description: Successful response with list of brands
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: string
+     */
+    app.get('/api/watchtower/brands', getBrands);
+
+    /**
+     * @swagger
+     * /api/watchtower/keywords:
+     *   get:
+     *     summary: Get list of available keywords
+     *     description: Retrieve a list of distinct keywords from the database, optionally filtered by brand.
+     *     parameters:
+     *       - in: query
+     *         name: brand
+     *         schema:
+     *           type: string
+     *         description: Filter keywords by brand
+     *     responses:
+     *       200:
+     *         description: Successful response with list of keywords
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: string
+     */
+    app.get('/api/watchtower/keywords', getKeywords);
+
+    /**
+     * @swagger
+     * /api/watchtower/locations:
+     *   get:
+     *     summary: Get list of available locations
+     *     description: Retrieve a list of distinct locations from the database, optionally filtered by brand.
+     *     parameters:
+     *       - in: query
+     *         name: brand
+     *         schema:
+     *           type: string
+     *         description: Filter locations by brand
+     *     responses:
+     *       200:
+     *         description: Successful response with list of locations
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: string
+     */
+    app.get('/api/watchtower/locations', getLocations);
 
 };

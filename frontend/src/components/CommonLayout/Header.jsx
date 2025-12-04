@@ -1,9 +1,12 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Typography,
   IconButton,
   Button,
+  Autocomplete,
+  TextField,
 } from "@mui/material";
 
 import {
@@ -18,15 +21,30 @@ import DarkModeIcon from "@mui/icons-material/DarkMode";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { AppThemeContext } from "../../utils/ThemeContext";
+import { FilterContext } from "../../utils/FilterContext";
+import DateRangeSelector from "./DateRangeSelector";
 
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
-  const [timeStart, setTimeStart] = React.useState(dayjs("2025-10-01"));
-  const [timeEnd, setTimeEnd] = React.useState(dayjs("2025-10-06"));
-
-  const [compareStart, setCompareStart] = React.useState(dayjs("2025-09-01"));
-  const [compareEnd, setCompareEnd] = React.useState(dayjs("2025-09-06"));
-
   const [priceMode, setPriceMode] = React.useState("MRP");
+
+  const {
+    brands,
+    selectedBrand,
+    setSelectedBrand,
+    keywords,
+    selectedKeyword,
+    setSelectedKeyword,
+    locations,
+    selectedLocation,
+    setSelectedLocation,
+    platform, setPlatform,
+    timeStart, setTimeStart,
+    timeEnd, setTimeEnd,
+    compareStart, setCompareStart,
+    compareEnd, setCompareEnd
+  } = React.useContext(FilterContext);
+
+  const location = useLocation();
 
   // 🌗 Dark/Light Mode
   const { mode, toggleTheme } = React.useContext(AppThemeContext);
@@ -77,8 +95,131 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
         {/* DATE PICKERS */}
         <Box sx={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-          {/* TIME PERIOD */}
+          {/* PLATFORM SELECTION */}
           <Box>
+            <Typography
+              sx={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                mb: 0.5,
+                opacity: 0.7,
+              }}
+            >
+              PLATFORM
+            </Typography>
+            <Autocomplete
+              options={["Zepto", "Blinkit"]}
+              value={platform}
+              onChange={(event, newValue) => setPlatform(newValue)}
+              disableClearable
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  sx={{ width: 160 }}
+                />
+              )}
+            />
+          </Box>
+
+          {/* BRAND SELECTION */}
+          <Box>
+            <Typography
+              sx={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                mb: 0.5,
+                opacity: 0.7,
+              }}
+            >
+              BRAND
+            </Typography>
+            <Autocomplete
+              options={brands}
+              value={selectedBrand}
+              onChange={(event, newValue) => setSelectedBrand(newValue)}
+              disableClearable
+              ListboxProps={{
+                style: {
+                  maxHeight: "160px", // Approx 4 items (assuming ~40px per item)
+                },
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  sx={{ width: 160 }}
+                />
+              )}
+            />
+          </Box>
+
+          {/* LOCATION SELECTION */}
+          <Box>
+            <Typography
+              sx={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                mb: 0.5,
+                opacity: 0.7,
+              }}
+            >
+              LOCATION
+            </Typography>
+            <Autocomplete
+              options={locations}
+              value={selectedLocation}
+              onChange={(event, newValue) => setSelectedLocation(newValue)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  size="small"
+                  sx={{ width: 160 }}
+                />
+              )}
+              ListboxProps={{
+                style: {
+                  maxHeight: "160px",
+                },
+              }}
+            />
+          </Box>
+
+          {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
+          {location.pathname === '/visibility-anlysis' && (
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  mb: 0.5,
+                  opacity: 0.7,
+                }}
+              >
+                KEYWORD
+              </Typography>
+              <Autocomplete
+                options={keywords}
+                value={selectedKeyword}
+                onChange={(event, newValue) => setSelectedKeyword(newValue)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    sx={{ width: 160 }}
+                  />
+                )}
+                ListboxProps={{
+                  style: {
+                    maxHeight: "160px",
+                  },
+                }}
+              />
+            </Box>
+          )}
+
+          {/* TIME PERIOD */}
+          <Box sx={{ width: 200 }}>
             <Typography
               sx={{
                 fontSize: "0.7rem",
@@ -89,37 +230,16 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
             >
               TIME PERIOD
             </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DatePicker
-                format="DD MMM YY"
-                value={timeStart}
-                onChange={setTimeStart}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: { width: 130 },
-                  },
-                }}
-              />
-
-              <ArrowForwardIcon sx={{ opacity: 0.6, fontSize: 18 }} />
-
-              <DatePicker
-                format="DD MMM YY"
-                value={timeEnd}
-                onChange={setTimeEnd}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: { width: 130 },
-                  },
-                }}
-              />
-            </Box>
+            <DateRangeSelector
+              startDate={timeStart}
+              endDate={timeEnd}
+              onStartDateChange={setTimeStart}
+              onEndDateChange={setTimeEnd}
+            />
           </Box>
 
           {/* COMPARE */}
-          <Box>
+          <Box sx={{ width: 200 }}>
             <Typography
               sx={{
                 fontSize: "0.7rem",
@@ -130,33 +250,12 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
             >
               COMPARE WITH
             </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DatePicker
-                format="DD MMM YY"
-                value={compareStart}
-                onChange={setCompareStart}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: { width: 130 },
-                  },
-                }}
-              />
-
-              <ArrowForwardIcon sx={{ opacity: 0.6, fontSize: 18 }} />
-
-              <DatePicker
-                format="DD MMM YY"
-                value={compareEnd}
-                onChange={setCompareEnd}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: { width: 130 },
-                  },
-                }}
-              />
-            </Box>
+            <DateRangeSelector
+              startDate={compareStart}
+              endDate={compareEnd}
+              onStartDateChange={setCompareStart}
+              onEndDateChange={setCompareEnd}
+            />
           </Box>
         </Box>
       </Box>

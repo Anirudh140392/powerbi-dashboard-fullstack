@@ -47,9 +47,12 @@ import {
   defaultSkus,
 } from "../../utils/DataCenter";
 import PerformanceMatric from "../../components/ControlTower/WatchTower/PeformanceMatric";
+import { FilterContext } from "../../utils/FilterContext";
+import Loader from "../../components/CommonLayout/Loader";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState({
     platform: "Zepto",
@@ -132,13 +135,26 @@ export default function WatchTower() {
     skuTable: [],
   });
 
-  const calledOnce = useRef(false);
+  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
+
+  // Update filters when context changes
+  useEffect(() => {
+    setFilters(prev => ({
+      ...prev,
+      platform: platform,
+      brand: selectedBrand,
+      keyword: selectedKeyword,
+      location: selectedLocation,
+      startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
+      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null,
+      compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+      compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
+    }));
+  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
   useEffect(() => {
-    if (calledOnce.current) return;
-    calledOnce.current = true;
-
     const fetchData = async () => {
+      setLoading(true);
       try {
         const response = await axiosInstance.get("/watchtower", {
           params: filters,
@@ -149,11 +165,13 @@ export default function WatchTower() {
         }
       } catch (error) {
         console.error("Error fetching Watch Tower data:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [filters]); // Refetch when filters change
 
   return (
     <>
@@ -163,10 +181,14 @@ export default function WatchTower() {
         onFiltersChange={setFilters}
       >
         {/* Top Cards */}
-        <CardMetric
-          data={dashboardData.topMetrics}
-          onViewTrends={handleViewTrends}
-        />
+        {loading ? (
+          <Loader message="Fetching Watch Tower Insights..." />
+        ) : (
+          <CardMetric
+            data={dashboardData.topMetrics}
+            onViewTrends={handleViewTrends}
+          />
+        )}
 
         {/* Top Cards */}
         <PerformanceMatric />
