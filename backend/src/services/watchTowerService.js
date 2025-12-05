@@ -549,29 +549,17 @@ const getPlatforms = async () => {
 
 const getBrands = async (platform) => {
     try {
-        let brands = [];
-        // Prioritize TbZeptoBrandSalesAnalytics for Zepto to ensure data consistency
-        if (!platform || platform === 'Zepto') {
-            const result = await TbZeptoBrandSalesAnalytics.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                order: [['brand_name', 'ASC']],
-                raw: true
-            });
-            brands = result.map(b => b.brand_name);
-        } else {
-            // Fallback to RcaSkuDim for other platforms
-            const where = {};
-            if (platform) {
-                where.platform = platform;
-            }
-            const result = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                where: where,
-                order: [['brand_name', 'ASC']],
-                raw: true
-            });
-            brands = result.map(b => b.brand_name);
+        const where = {};
+        if (platform) {
+            where.platform = platform;
         }
+        const result = await RcaSkuDim.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
+            where: where,
+            order: [['brand_name', 'ASC']],
+            raw: true
+        });
+        const brands = result.map(b => b.brand_name);
         return brands.filter(Boolean);
     } catch (error) {
         console.error("Error fetching brands:", error);
@@ -600,36 +588,20 @@ const getKeywords = async (brand) => {
 
 const getLocations = async (platform, brand) => {
     try {
-        let locations = [];
-        // Prioritize TbZeptoBrandSalesAnalytics for Zepto
-        if (!platform || platform === 'Zepto') {
-            const where = {};
-            if (brand) {
-                where.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase());
-            }
-            const result = await TbZeptoBrandSalesAnalytics.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('city')), 'city']],
-                where: where,
-                order: [['city', 'ASC']],
-                raw: true
-            });
-            locations = result.map(l => l.city);
-        } else {
-            const where = {};
-            if (platform) {
-                where.platform = platform;
-            }
-            if (brand) {
-                where.brand_name = brand;
-            }
-            const result = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('location')), 'location']],
-                where: where,
-                order: [['location', 'ASC']],
-                raw: true
-            });
-            locations = result.map(l => l.location);
+        const where = {};
+        if (platform) {
+            where.platform = platform;
         }
+        if (brand) {
+            where.brand_name = brand;
+        }
+        const result = await RcaSkuDim.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('location')), 'location']],
+            where: where,
+            order: [['location', 'ASC']],
+            raw: true
+        });
+        const locations = result.map(l => l.location);
         return locations.filter(Boolean);
     } catch (error) {
         console.error("Error fetching locations:", error);
