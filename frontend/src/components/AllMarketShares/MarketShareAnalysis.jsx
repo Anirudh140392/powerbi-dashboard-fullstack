@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Area,
@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { DualAxisDrillMatrix } from "./PowerBiDashboard";
+import axiosInstance from "../../api/axiosInstance";
 
 const stats = [
   { label: "Darkstore Count", value: "1829" },
@@ -235,6 +236,25 @@ const heatCell = (v, max = 100) => {
 export default function MarketShareAnalysis() {
   const [showFilters, setShowFilters] = useState(false);
   const [marketMode, setMarketMode] = useState("geographical");
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchMarketShareData = async () => {
+      try {
+        const response = await axiosInstance.get('/market-share', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Market Share Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Market Share data:", error);
+      }
+    };
+
+    fetchMarketShareData();
+  }, []);
 
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-6 py-5 flex flex-col gap-5">
@@ -261,11 +281,10 @@ export default function MarketShareAnalysis() {
                     key={option.key}
                     type="button"
                     onClick={() => setMarketMode(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${
-                      marketMode === option.key
+                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${marketMode === option.key
                         ? "text-slate-900"
                         : "text-slate-500 hover:text-slate-700"
-                    }`}
+                      }`}
                     aria-pressed={marketMode === option.key}
                   >
                     {option.label}
@@ -438,9 +457,8 @@ function TwoUp() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
@@ -448,11 +466,10 @@ function TwoUp() {
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -684,20 +701,18 @@ function ZoneTables() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -843,20 +858,18 @@ function CategoryTables() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -982,20 +995,18 @@ function SkuTables() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -1114,20 +1125,18 @@ function TrendCharts() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -1283,20 +1292,18 @@ function LocationStack() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -1506,9 +1513,8 @@ function MarketShareGraphView() {
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `100px repeat(${
-                months.length - 2
-              }, minmax(40px,1fr))`,
+              gridTemplateColumns: `100px repeat(${months.length - 2
+                }, minmax(40px,1fr))`,
             }}
           >
             <div className="bg-slate-50 px-2 py-2 text-[11px] font-semibold text-slate-600">
@@ -1689,20 +1695,18 @@ function ListingTable() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>
@@ -1823,20 +1827,18 @@ function PincodeLists() {
           <button
             type="button"
             onClick={() => setView("chart")}
-            className={`px-3 py-1 rounded-full ${
-              view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
-            }`}
+            className={`px-3 py-1 rounded-full ${view === "chart" ? "bg-slate-900 text-white" : "text-slate-500"
+              }`}
           >
             Chart
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-full ${
-              view === "table"
+            className={`px-3 py-1 rounded-full ${view === "table"
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-slate-500"
-            }`}
+              }`}
           >
             Table
           </button>

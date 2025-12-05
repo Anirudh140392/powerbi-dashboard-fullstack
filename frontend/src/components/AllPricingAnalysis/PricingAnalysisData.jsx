@@ -6,7 +6,7 @@
 //  + TREND / RPI TABS with Dual RPI Charts
 // --------------------------------------------------------------
 
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   Box,
   Grid,
@@ -79,7 +79,8 @@ import {
   StackedBarChart,
 } from "@mui/icons-material";
 
-import ReactECharts from "echarts-for-react";
+import EChartsWrapper from "../EChartsWrapper";
+import axiosInstance from "../../api/axiosInstance";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -152,9 +153,8 @@ const SKU_ROWS = Array.from({ length: 60 }).map((_, i) => ({
   date: `2${(i % 9) + 1} Nov 2025`,
   platform: PLATFORMS[i % PLATFORMS.length],
   brand: BRANDS[i % BRANDS.length],
-  product: `${BRANDS[i % BRANDS.length]} ${
-    ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
-  } Tub`,
+  product: `${BRANDS[i % BRANDS.length]} ${["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
+    } Tub`,
   skuType: i % 2 === 0 ? "Own" : "Competition",
   format: FORMATS[i % FORMATS.length],
   flavour: ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4],
@@ -313,9 +313,8 @@ const OWN_VS_COMP_ROWS = Array.from({ length: 10 }).map((_, i) => ({
   id: i + 1,
   brandOwn: BRANDS[i % BRANDS.length],
   brandComp: BRANDS.slice().reverse()[i % BRANDS.length],
-  product: `${BRANDS[i % BRANDS.length]} ${
-    ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
-  } Tub`,
+  product: `${BRANDS[i % BRANDS.length]} ${["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
+    } Tub`,
   platform: PLATFORMS[i % PLATFORMS.length],
   ownECP: makeRandom(120, 240),
   compECP: makeRandom(130, 260),
@@ -358,6 +357,8 @@ const SuperTable = ({
   const [anchorElColumns, setAnchorElColumns] = useState(null);
   const [selected, setSelected] = useState([]);
   const [expanded, setExpanded] = useState({});
+
+
 
   const handleSort = (col) => {
     if (!col.sortable) return;
@@ -1104,6 +1105,25 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
 
 export default function PricingAnalysisData() {
   const [chartTab, setChartTab] = useState("discount");
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchPricingData = async () => {
+      try {
+        const response = await axiosInstance.get('/pricing-analysis', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Pricing Analysis Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Pricing Analysis data:", error);
+      }
+    };
+
+    fetchPricingData();
+  }, []);
   const [filters, setFilters] = useState(defaultFilters);
   const [openPopup, setOpenPopup] = useState(false);
   const [tab, setTab] = useState("overview");
@@ -1296,8 +1316,8 @@ export default function PricingAnalysisData() {
       const areaStyle =
         chartGradient && (chartType === "area" || chartType === "line")
           ? {
-              opacity: 0.18,
-            }
+            opacity: 0.18,
+          }
           : undefined;
 
       return {
@@ -2351,11 +2371,9 @@ export default function PricingAnalysisData() {
             </Menu>
 
             <Box sx={{ mt: 1, height: 320 }}>
-              <ReactECharts
-                ref={chartRef}
+              <EChartsWrapper
                 option={discountChart}
                 style={{ height: "100%", width: "100%" }}
-                notMerge
               />
             </Box>
           </>
@@ -2366,17 +2384,15 @@ export default function PricingAnalysisData() {
           <Box sx={{ mt: 1, height: 320 }}>
             <Grid container spacing={2} sx={{ height: "100%" }}>
               <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <ReactECharts
+                <EChartsWrapper
                   option={rpiFormatChart}
                   style={{ height: "100%", width: "100%" }}
-                  notMerge
                 />
               </Grid>
               <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <ReactECharts
+                <EChartsWrapper
                   option={rpiBrandChart}
                   style={{ height: "100%", width: "100%" }}
-                  notMerge
                 />
               </Grid>
             </Grid>

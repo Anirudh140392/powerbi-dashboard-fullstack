@@ -19,7 +19,7 @@ import {
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
 
-export default function CategoryTable({ categories, activeTab }) {
+export default function CategoryTable({ categories, activeTab = "" }) {
   const platforms = Object.keys(categories[0]).filter((k) => k !== "name");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -43,45 +43,45 @@ export default function CategoryTable({ categories, activeTab }) {
   const [selectedMetric, setSelectedMetric] = useState(metricOptions[0]);
   const theme = useTheme();
 
-  /* ---------------------------------------------------------
-     🔽 FILTER DATA FOR DOWNLOAD + DISPLAY
-  --------------------------------------------------------- */
+  /* --------------------- FILTER --------------------- */
   const filteredCategories = useMemo(() => {
     return categories.filter((c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm, categories]);
 
-  /* ---------------------------------------------------------
-     🔽 CSV DOWNLOAD FUNCTION
-  --------------------------------------------------------- */
+  /* -------------------- PAGINATION -------------------- */
+  const rowsPerPage = 5;
+  const [page, setPage] = useState(0);
+
+  const paginatedRows = useMemo(() => {
+    return filteredCategories.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [filteredCategories, page]);
+
+  const totalPages = Math.ceil(filteredCategories.length / rowsPerPage);
+
+  /* --------------------- CSV DOWNLOAD --------------------- */
   const handleDownload = () => {
     let csv = [];
-
-    // Header row
     csv.push(["Category/SKU", ...platforms.map((p) => p.toUpperCase())].join(","));
-
-    // Single metric label row
     csv.push(["", selectedMetric.label]);
 
-    // Values rows
     filteredCategories.forEach((cat) => {
       const row = [cat.name];
-
       platforms.forEach((p) => {
         const main = cat[p][selectedMetric.key] || "-";
         const change = cat[p][selectedMetric.key + "_change"] || "-";
         row.push(`${main} (${change})`);
       });
-
       csv.push(row.join(","));
     });
 
-    // Convert to Blob
     const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
-    // Auto-download
     const a = document.createElement("a");
     a.href = url;
     a.download = `table_export_${selectedMetric.key}.csv`;
@@ -92,7 +92,6 @@ export default function CategoryTable({ categories, activeTab }) {
   const renderChange = (value) => {
     if (!value) return "-";
     const positive = value.startsWith("+");
-
     return (
       <span
         style={{
@@ -140,16 +139,15 @@ export default function CategoryTable({ categories, activeTab }) {
             >
               <TableChartIcon sx={{ color: theme.palette.primary.main }} />
             </Box>
+
             <Typography fontSize="1.25rem" fontWeight={700}>
               {activeTab}
             </Typography>
           </Box>
 
+          {/* RIGHT CONTROLS */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <Typography
-              variant="body2"
-              sx={{ color: "#6b7280", fontWeight: 600 }}
-            >
+            <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600 }}>
               Metrics:
             </Typography>
 
@@ -170,12 +168,15 @@ export default function CategoryTable({ categories, activeTab }) {
               ))}
             </Select>
 
-            {/* Search */}
+            {/* SEARCH */}
             <TextField
               size="small"
               placeholder="Search"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(0); // reset page on search
+              }}
               sx={{ width: 200 }}
             />
 
@@ -198,7 +199,6 @@ export default function CategoryTable({ categories, activeTab }) {
         >
           <Table stickyHeader>
             <TableHead>
-              {/* ROW 1 */}
               <TableRow>
                 <TableCell
                   sx={{
@@ -212,7 +212,7 @@ export default function CategoryTable({ categories, activeTab }) {
                     zIndex: 10,
                   }}
                 >
-                  {activeTab === "Split by Category" ? "Category" : "Sku"}
+                  {activeTab === "Split by Category" ? "Category" : "SKU"}
                 </TableCell>
 
                 {platforms.map((p) => (
@@ -232,7 +232,6 @@ export default function CategoryTable({ categories, activeTab }) {
                 ))}
               </TableRow>
 
-              {/* ROW 2 */}
               <TableRow>
                 <TableCell
                   sx={{
@@ -262,7 +261,7 @@ export default function CategoryTable({ categories, activeTab }) {
             </TableHead>
 
             <TableBody>
-              {filteredCategories.map((cat, i) => (
+              {paginatedRows.map((cat, i) => (
                 <TableRow key={i} hover>
                   <TableCell
                     sx={{
@@ -298,6 +297,37 @@ export default function CategoryTable({ categories, activeTab }) {
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* PAGINATION */}
+        <Box
+          display="flex"
+          justifyContent="flex-end"
+          alignItems="center"
+          mt={2}
+          gap={2}
+        >
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={page === 0}
+            onClick={() => setPage((prev) => prev - 1)}
+          >
+            Prev
+          </Button>
+
+          <Typography fontWeight={600}>
+            Page {page + 1} of {totalPages}
+          </Typography>
+
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={page + 1 >= totalPages}
+            onClick={() => setPage((prev) => prev + 1)}
+          >
+            Next
+          </Button>
+        </Box>
       </Card>
     </Box>
   );

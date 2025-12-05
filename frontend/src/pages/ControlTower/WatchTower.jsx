@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import { motion, AnimatePresence } from "framer-motion";
 
 function TabButton({ label, active, onClick }) {
   const theme = useTheme();
@@ -39,17 +41,23 @@ import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
 import {
   allCategories,
   allProducts,
+  defaultBrands,
   defaultCategory,
   defaultMonths,
   defaultPlatforms,
+  defaultSkus,
 } from "../../utils/DataCenter";
 import PerformanceMatric from "../../components/ControlTower/WatchTower/PeformanceMatric";
+import { FilterContext } from "../../utils/FilterContext";
+import Loader from "../../components/CommonLayout/Loader";
+import { useMemo } from "react";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: "Zepto",
     months: 6,
     timeStep: "Monthly",
   });
@@ -60,7 +68,7 @@ export default function WatchTower() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: "Zepto",
   });
 
   const [trendData, setTrendData] = useState({
@@ -108,102 +116,64 @@ export default function WatchTower() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? "Zepto",
     }));
 
     setShowTrends(true);
   };
 
-  const [dashboardData] = useState({
+  const [dashboardData, setDashboardData] = useState({
     summaryMetrics: {
-      offtakes: "₹5.1 Cr",
-      offtakesTrend: "+1.5%",
-      shareOfSearch: "39.4%",
-      shareOfSearchTrend: "-2.0%",
-      stockAvailability: "96.3%",
-      stockAvailabilityTrend: "+4.2%",
-      marketShare: "32.1%",
+      offtakes: "₹0 Cr",
+      offtakesTrend: "+0.0%",
+      shareOfSearch: "0%",
+      shareOfSearchTrend: "0%",
+      stockAvailability: "0%",
+      stockAvailabilityTrend: "0%",
+      marketShare: "0%",
     },
 
-    topMetrics: [
-      {
-        name: "Offtake",
-        label: "₹5.1 Cr",
-        subtitle: "for MTD",
-        trend: "+1.5% (₹7.3 lac)",
-        trendType: "up",
-        comparison: "vs Previous Month",
-        units: "2.9 lac",
-        unitsTrend: "-2.1%",
-        chart: [0.6, 1.2, 1.6, 2.0, 2.2, 2.0, 2.4, 2.5],
-      },
-      {
-        name: "Share of Search",
-        label: "39.4%",
-        subtitle: "for MTD",
-        trend: "-2.0% (-0.8%)",
-        trendType: "down",
-        comparison: "vs Previous Month",
-        units: "",
-        unitsTrend: "",
-        chart: [20, 28, 34, 36, 38, 39, 39.5, 39.4],
-      },
-      {
-        name: "Market Share",
-        label: "26.5%",
-        subtitle: "for MTD",
-        trend: "+62.2% (10.2%)",
-        trendType: "up",
-        comparison: "vs Previous Month",
-        units: "",
-        unitsTrend: "",
-        chart: [10, 12, 14, 16, 18, 20, 22, 26.5],
-      },
-    ],
-    skuTable: [
-      {
-        sku: "Colgate Visible White 02 Whitening Toothpaste - 100g",
-        all: { offtake: "₹8.8 lac", trend: "+3.0%" },
-        blinkit: { offtake: "₹5.3 lac", trend: "+7.6%" },
-        zepto: { offtake: "₹2.5 lac", trend: "-1.4%" },
-        instamart: { offtake: "₹3.4 lac", trend: "+5.2%" },
-      },
-      {
-        sku: "Colgate Sensitive Toothbrush (Ultra Soft) - 4 units",
-        all: { offtake: "₹8.4 lac", trend: "-1.4%" },
-        blinkit: { offtake: "₹4.0 lac", trend: "-18.9%" },
-        zepto: { offtake: "₹4.4 lac", trend: "+22.2%" },
-        instamart: { offtake: "NA", trend: "NA" },
-      },
-      {
-        sku: "Colgate Gentle Sensitive Soft Bristles Toothbrush - 1 piece",
-        all: { offtake: "₹7.9 lac", trend: "-2.0%" },
-        blinkit: { offtake: "₹3.5 lac", trend: "-12.8%" },
-        zepto: { offtake: "₹2.5 lac", trend: "+1.9%" },
-        instamart: { offtake: "₹1.9 lac", trend: "+5.1%" },
-      },
-      // scroll demo rows…
-      ...Array.from({ length: 12 }).map((_, i) => ({
-        sku: `Colgate SKU Sample ${i + 1}`,
-        all: {
-          offtake: `₹${7 - i > 0 ? 7 - i + ".0 lac" : i + 1 + ".0 lac"}`,
-          trend: `${i % 2 ? "+1.0%" : "-0.5%"}`,
-        },
-        blinkit: {
-          offtake: `₹${(i + 1) * 0.4} lac`,
-          trend: `${i % 2 ? "+0.5%" : "-0.2%"}`,
-        },
-        zepto: {
-          offtake: `₹${(i + 1) * 0.25} lac`,
-          trend: `${i % 3 ? "+0.3%" : "-0.7%"}`,
-        },
-        instamart: {
-          offtake: `₹${(i + 1) * 0.15} lac`,
-          trend: `${i % 2 ? "+0.9%" : "-0.4%"}`,
-        },
-      })),
-    ],
+    topMetrics: [],
+    skuTable: [],
   });
+
+  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
+
+  // Update filters when context changes
+  useEffect(() => {
+    setFilters(prev => ({
+      ...prev,
+      platform: platform,
+      brand: selectedBrand,
+      keyword: selectedKeyword,
+      location: selectedLocation,
+      startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
+      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null,
+      compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+      compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
+    }));
+  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await axiosInstance.get("/watchtower", {
+          params: filters,
+        });
+        if (response.data) {
+          console.log("Fetched Watch Tower data:", response.data);
+          setDashboardData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching Watch Tower data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [filters]); // Refetch when filters change
 
   return (
     <>
@@ -213,13 +183,17 @@ export default function WatchTower() {
         onFiltersChange={setFilters}
       >
         {/* Top Cards */}
-        <CardMetric
-          data={dashboardData.topMetrics}
-          onViewTrends={handleViewTrends}
-        />
+        {loading ? (
+          <Loader message="Fetching Watch Tower Insights..." />
+        ) : (
+          <CardMetric
+            data={dashboardData.topMetrics}
+            onViewTrends={handleViewTrends}
+          />
+        )}
 
         {/* Top Cards */}
-        <PerformanceMatric/>
+        <PerformanceMatric />
 
         {/* Platform Overview */}
         {/* Tabs */}
@@ -240,15 +214,27 @@ export default function WatchTower() {
               />
 
               <TabButton
+                label="By Month"
+                active={activeKpisTab === "Month Overview"}
+                onClick={() => setActiveKpisTab("Month Overview")}
+              />
+
+              <TabButton
                 label="By Category"
                 active={activeKpisTab === "Category Overview"}
                 onClick={() => setActiveKpisTab("Category Overview")}
               />
 
               <TabButton
-                label="By Month"
-                active={activeKpisTab === "Month Overview"}
-                onClick={() => setActiveKpisTab("Month Overview")}
+                label="By Brands"
+                active={activeKpisTab === "Brands Overview"}
+                onClick={() => setActiveKpisTab("Brands Overview")}
+              />
+
+              <TabButton
+                label="By Skus"
+                active={activeKpisTab === "Skus Overview"}
+                onClick={() => setActiveKpisTab("Skus Overview")}
               />
             </Box>
           </Box>
@@ -257,12 +243,14 @@ export default function WatchTower() {
               onViewTrends={handleViewTrends}
               data={
                 activeKpisTab === "Platform Overview"
-                  ? defaultPlatforms
+                  ? (dashboardData?.platformOverview || defaultPlatforms)
                   : activeKpisTab === "Category Overview"
-                  ? defaultCategory
-                  : activeKpisTab === "Month Overview"
-                  ? defaultMonths
-                  : []
+                    ? defaultCategory
+                    : activeKpisTab === "Month Overview"
+                      ? defaultMonths
+                      : activeKpisTab === "Brands Overview"
+                        ? defaultBrands
+                        : defaultSkus
               }
               activeKpisTab={activeKpisTab}
             />
@@ -281,7 +269,7 @@ defaultCategory */}
           }}
         >
           {/* Tabs */}
-          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
+          {/* <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
             <Box sx={{ display: "flex", gap: 4 }}>
               <TabButton
                 label="Split by Category"
@@ -295,16 +283,17 @@ defaultCategory */}
                 onClick={() => setActiveTab("Split by SKUs")}
               />
             </Box>
-          </Box>
+          </Box> */}
 
-          <Box sx={{ p: 3 }}>
+          {/* <Box sx={{ p: 3 }}>
             <CategoryTable
               categories={
                 activeTab === "Split by Category" ? allCategories : allProducts
               }
               activeTab={activeTab}
             />
-          </Box>
+          </Box> */}
+          <FormatPerformanceStudio />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -324,3 +313,571 @@ defaultCategory */}
     </>
   );
 }
+const FORMAT_ROWS = [
+  {
+    name: "Cassata",
+    offtakes: 4,
+    spend: 0,
+    roas: 3.2,
+    inorgSalesPct: 19,
+    conversionPct: 2.3,
+    marketSharePct: 23,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 384,
+    cpc: 4736,
+  },
+  {
+    name: "Core Tub",
+    offtakes: 61,
+    spend: 2,
+    roas: 5.5,
+    inorgSalesPct: 18,
+    conversionPct: 2.6,
+    marketSharePct: 16,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 404,
+    cpc: 51,
+  },
+  {
+    name: "Cornetto",
+    offtakes: 48,
+    spend: 1,
+    roas: 7.4,
+    inorgSalesPct: 12,
+    conversionPct: 10.7,
+    marketSharePct: 8,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 456,
+    cpc: 71,
+  },
+  {
+    name: "Cup",
+    offtakes: 4,
+    spend: 0,
+    roas: 5.2,
+    inorgSalesPct: 2,
+    conversionPct: 1.9,
+    marketSharePct: 3,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 210,
+    cpc: 15,
+  },
+  {
+    name: "KW Sticks",
+    offtakes: 9,
+    spend: 0,
+    roas: 5.7,
+    inorgSalesPct: 13,
+    conversionPct: 4.1,
+    marketSharePct: 22,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 402,
+    cpc: 96,
+  },
+  {
+    name: "Magnum",
+    offtakes: 14,
+    spend: 0,
+    roas: 9.9,
+    inorgSalesPct: 35,
+    conversionPct: 5.6,
+    marketSharePct: 22,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 428,
+    cpc: 169,
+  },
+  {
+    name: "Others",
+    offtakes: 0,
+    spend: 0,
+    roas: 14.2,
+    inorgSalesPct: 100,
+    conversionPct: 1.4,
+    marketSharePct: 0,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 337,
+    cpc: 16,
+  },
+
+  /* ---------------------- NEW 7 ROWS ---------------------- */
+
+  {
+    name: "Sandwich",
+    offtakes: 18,
+    spend: 1,
+    roas: 6.8,
+    inorgSalesPct: 22,
+    conversionPct: 3.5,
+    marketSharePct: 14,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 390,
+    cpc: 62,
+  },
+  {
+    name: "Family Pack",
+    offtakes: 33,
+    spend: 1,
+    roas: 4.9,
+    inorgSalesPct: 27,
+    conversionPct: 4.4,
+    marketSharePct: 18,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 362,
+    cpc: 85,
+  },
+  {
+    name: "Chocobar",
+    offtakes: 21,
+    spend: 0,
+    roas: 8.3,
+    inorgSalesPct: 31,
+    conversionPct: 6.1,
+    marketSharePct: 11,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 412,
+    cpc: 102,
+  },
+  {
+    name: "Kulfi",
+    offtakes: 12,
+    spend: 0,
+    roas: 6.1,
+    inorgSalesPct: 7,
+    conversionPct: 2.8,
+    marketSharePct: 6,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 298,
+    cpc: 48,
+  },
+  {
+    name: "Jelly Cups",
+    offtakes: 7,
+    spend: 0,
+    roas: 4.4,
+    inorgSalesPct: 5,
+    conversionPct: 1.7,
+    marketSharePct: 4,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 276,
+    cpc: 39,
+  },
+  {
+    name: "Brownie Tub",
+    offtakes: 26,
+    spend: 1,
+    roas: 7.9,
+    inorgSalesPct: 18,
+    conversionPct: 4.8,
+    marketSharePct: 12,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 430,
+    cpc: 121,
+  },
+  {
+    name: "Exotics",
+    offtakes: 5,
+    spend: 0,
+    roas: 12.3,
+    inorgSalesPct: 43,
+    conversionPct: 5.3,
+    marketSharePct: 2,
+    promoMyBrandPct: 100,
+    promoCompetePct: 100,
+    cpm: 389,
+    cpc: 155,
+  },
+];
+
+
+const FormatPerformanceStudio = () => {
+  const [activeName, setActiveName] = useState(FORMAT_ROWS[0]?.name);
+  const [compareName, setCompareName] = useState(null);
+
+  const active = useMemo(
+    () => FORMAT_ROWS.find((f) => f.name === activeName) ?? FORMAT_ROWS[0],
+    [activeName]
+  );
+  const compare = useMemo(
+    () =>
+      compareName
+        ? FORMAT_ROWS.find((f) => f.name === compareName) ?? null
+        : null,
+    [compareName]
+  );
+  const maxOfftakes = useMemo(
+    () => Math.max(...FORMAT_ROWS.map((f) => f.offtakes || 1)),
+    []
+  );
+  const formatNumber = (value) =>
+    Number.isFinite(value) ? value.toLocaleString("en-IN") : "NaN";
+  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+  const pct = (value) =>
+    Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
+
+  const kpiBands = [
+    {
+      key: "offtakes",
+      label: "Offtakes",
+      activeValue: active.offtakes,
+      compareValue: compare?.offtakes ?? null,
+      max: 100,
+      format: (v) => `${v}`,
+    },
+    {
+      key: "spend",
+      label: "Spend",
+      activeValue: active.spend,
+      compareValue: compare?.spend ?? null,
+      max: 20,
+      format: (v) => `₹${v}`,
+    },
+    {
+      key: "roas",
+      label: "ROAS",
+      activeValue: active.roas,
+      compareValue: compare?.roas ?? null,
+      max: 15,
+      format: (v) => `${v.toFixed(1)}x`,
+    },
+    {
+      key: "inorgSalesPct",
+      label: "Inorg Sales",
+      activeValue: active.inorgSalesPct,
+      compareValue: compare?.inorgSalesPct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "conversionPct",
+      label: "Conversion",
+      activeValue: active.conversionPct,
+      compareValue: compare?.conversionPct ?? null,
+      max: 15,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "marketSharePct",
+      label: "Market Share",
+      activeValue: active.marketSharePct,
+      compareValue: compare?.marketSharePct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "promoMyBrandPct",
+      label: "Promo My Brand",
+      activeValue: active.promoMyBrandPct,
+      compareValue: compare?.promoMyBrandPct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "promoCompetePct",
+      label: "Promo Compete",
+      activeValue: active.promoCompetePct,
+      compareValue: compare?.promoCompetePct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "cpm",
+      label: "CPM",
+      activeValue: active.cpm,
+      compareValue: compare?.cpm ?? null,
+      max: 800,
+      format: (v) => `${v}`,
+    },
+    {
+      key: "cpc",
+      label: "CPC",
+      activeValue: active.cpc,
+      compareValue: compare?.cpc ?? null,
+      max: 5000,
+      format: (v) =>
+        Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
+    },
+  ];
+
+
+  return (
+    <motion.div
+      className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+    >
+      <div className="md:col-span-2 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Category performance</h2>
+            <p className="text-xs text-slate-500">
+              Hover a format to see its DNA. Click a pill below to compare.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2 max-h-150 overflow-y-auto pr-1">
+          {FORMAT_ROWS.map((f) => {
+            const intensity = clamp01(f.offtakes / maxOfftakes);
+            const isActive = f.name === activeName;
+            return (
+              <motion.button
+                key={f.name}
+                onMouseEnter={() => setActiveName(f.name)}
+                onClick={() => setActiveName(f.name)}
+                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                  ? "border-sky-400 bg-sky-50 shadow-sm"
+                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                  }`}
+                whileHover={{ scale: 1.01 }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-[10px] flex items-center justify-center text-white shadow-md"
+                    style={{ opacity: 0.3 + intensity * 0.7 }}
+                  >
+                    {f.name
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")}
+                  </div>
+                  <div className="text-left">
+                    <div className="font-medium">{f.name}</div>
+                    <div className="text-[10px] text-slate-500">
+                      Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end text-[10px] text-slate-500">
+                  <span>MS {f.marketSharePct}%</span>
+                  <span>Conv {f.conversionPct}%</span>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="md:col-span-3 relative">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={active.name + (compare?.name ?? "")}
+            className="h-full rounded-3xl bg-gradient-to-br from-sky-100 via-white to-indigo-50 border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.35 }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-sky-500">
+                  {compare ? "Focus format · VS mode" : "Focus format"}
+                </div>
+                <div className="text-xl font-semibold">
+                  {active.name}
+                  {compare && (
+                    <span className="text-sm font-normal text-slate-500">
+                      {" "}
+                      vs {compare.name}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Offtakes, ROAS, conversion and share in one view.
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 text-right">
+                <div className="text-[10px] text-slate-500">Offtakes</div>
+                <div className="text-lg font-semibold">
+                  {formatNumber(active.offtakes)}
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500">
+                  Market share
+                </div>
+                <div className="text-sm font-medium">
+                  {active.marketSharePct}%
+                </div>
+                {compare && (
+                  <div className="mt-1 text-[10px] text-rose-500">
+                    Delta ROAS{" "}
+                    {Number.isFinite(compare.roas)
+                      ? (active.roas - compare.roas).toFixed(1)
+                      : "-"}
+                    x vs {compare.name}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="relative h-24 w-24">
+                <svg viewBox="0 0 100 100" className="h-full w-full">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="38"
+                    stroke="rgba(148,163,184,0.25)"
+                    strokeWidth="8"
+                    fill="none"
+                  />
+                  {compare && Number.isFinite(compare.roas) && (
+                    <motion.circle
+                      cx="50"
+                      cy="50"
+                      r="38"
+                      stroke="#a855f7"
+                      strokeWidth="4"
+                      fill="none"
+                      strokeLinecap="round"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: clamp01(compare.roas / 12) }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
+                      opacity={0.6}
+                    />
+                  )}
+                  <motion.circle
+                    cx="50"
+                    cy="50"
+                    r="38"
+                    stroke="url(#roasGradient)"
+                    strokeWidth="8"
+                    fill="none"
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: clamp01(active.roas / 12) }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
+                  />
+                  <defs>
+                    <linearGradient
+                      id="roasGradient"
+                      x1="0"
+                      x2="1"
+                      y1="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor="#0ea5e9" />
+                      <stop offset="100%" stopColor="#6366f1" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
+                  <div className="text-[10px] text-slate-500">ROAS</div>
+                  <div className="text-lg font-semibold">
+                    {active.roas.toFixed(1)}x
+                  </div>
+                  {compare && (
+                    <div className="text-[9px] text-violet-600 mt-0.5">
+                      vs {compare.roas.toFixed(1)}x
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-2">
+                {kpiBands.map((k) => {
+                  const activeRatio = clamp01(k.activeValue / k.max);
+                  const compareRatio =
+                    k.compareValue != null
+                      ? clamp01(k.compareValue / k.max)
+                      : null;
+                  return (
+                    <div key={k.key} className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-600">{k.label}</span>
+                        <div className="flex items-center gap-2">
+                          {compareRatio != null &&
+                            Number.isFinite(k.compareValue) && (
+                              <span className="text-[10px] text-violet-600">
+                                {k.format(k.compareValue)}
+                              </span>
+                            )}
+                          <span className="font-medium">
+                            {Number.isFinite(k.activeValue)
+                              ? k.format(k.activeValue)
+                              : "NaN"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
+                        {compareRatio != null && (
+                          <motion.div
+                            className="absolute inset-y-[3px] left-0 rounded-full bg-violet-300/70"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${compareRatio * 100}%` }}
+                            transition={{ duration: 0.45, ease: "easeOut" }}
+                          />
+                        )}
+                        <motion.div
+                          className="relative h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${activeRatio * 100}%` }}
+                          transition={{ duration: 0.5, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-2 flex flex-wrap gap-2 justify-center">
+              {FORMAT_ROWS.map((f) => {
+                const weight = clamp01(f.roas / 12);
+                const isCompare = compareName === f.name;
+                const isActive = activeName === f.name;
+                return (
+                  <motion.button
+                    key={f.name}
+                    onClick={() =>
+                      setCompareName((prev) =>
+                        prev === f.name ? null : f.name
+                      )
+                    }
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
+                      ? "border-violet-500 bg-violet-50 shadow-sm"
+                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                      }`}
+                    whileHover={{ y: -2 }}
+                  >
+                    <div
+                      className="h-2 w-10 rounded-full"
+                      style={{
+                        background: `linear-gradient(to right, rgba(14,165,233,${0.3 + weight * 0.4
+                          }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
+                      }}
+                    />
+                    <span
+                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        }`}
+                    >
+                      {f.name}
+                    </span>
+                    {isCompare && (
+                      <span className="text-[9px] text-violet-600">VS</span>
+                    )}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+};

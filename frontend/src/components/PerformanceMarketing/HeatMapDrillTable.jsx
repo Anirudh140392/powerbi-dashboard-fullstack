@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Card,
@@ -17,7 +17,7 @@ import {
 
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp } from "lucide-react";
-import ReactECharts from "echarts-for-react";
+import EChartsWrapper from "../EChartsWrapper";
 
 import performanceData from "../../utils/PerformanceMarketingData";
 
@@ -109,6 +109,7 @@ const METRICS = [
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable() {
   const { heatmapData } = performanceData;
+
 
   const [expanded, setExpanded] = useState({});
   const [formatFilter] = useState("All");
@@ -343,11 +344,11 @@ export default function HeatMapDrillTable() {
     const keywordChildren =
       !realChildren.length && !node.isKeyword
         ? KEYWORDS.map((k) => ({
-            label: k,
-            values: node.values,
-            children: [],
-            isKeyword: true,
-          }))
+          label: k,
+          values: node.values,
+          children: [],
+          isKeyword: true,
+        }))
         : [];
 
     const children = [...realChildren, ...keywordChildren];
@@ -371,13 +372,13 @@ export default function HeatMapDrillTable() {
             const sticky =
               col === 0
                 ? {
-                    position: "sticky",
-                    left: 0,
-                    zIndex: 10,
-                    backgroundColor: rowBg,
-                    minWidth: 150,
-                    borderRight: "1px solid #e5e7eb",
-                  }
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 10,
+                  backgroundColor: rowBg,
+                  minWidth: 150,
+                  borderRight: "1px solid #e5e7eb",
+                }
                 : {};
 
             if (col === level) {
@@ -584,12 +585,12 @@ export default function HeatMapDrillTable() {
                     sx={
                       i === 0
                         ? {
-                            position: "sticky",
-                            left: 0,
-                            background: "#f9fafb",
-                            zIndex: 10,
-                            minWidth: 150,
-                          }
+                          position: "sticky",
+                          left: 0,
+                          background: "#f9fafb",
+                          zIndex: 10,
+                          minWidth: 150,
+                        }
                         : {}
                     }
                   >
@@ -834,12 +835,12 @@ export default function HeatMapDrillTable() {
                 overflow: "hidden",
               }}
             >
-              <ReactECharts
-                option={getTrendOption()}
-                style={{ width: "100%", height: 330 }}
-                notMerge
-                lazyUpdate
-              />
+              <Box sx={{ mt: 1, height: 320 }}>
+                <EChartsWrapper
+                  option={getTrendOption()}
+                  style={{ height: "100%", width: "100%" }}
+                />
+              </Box>
             </Box>
           </Box>
         </Box>

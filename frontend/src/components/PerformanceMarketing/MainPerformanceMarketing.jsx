@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Box, Grid, Card, Typography, Chip } from "@mui/material";
 import * as Icons from "lucide-react";
+import axiosInstance from "../../api/axiosInstance";
 
 import performanceData from "../../utils/PerformanceMarketingData";
 import HeatMapDrillTable from "./HeatMapDrillTable";
@@ -8,6 +9,26 @@ import InsightHorizontalKpis from "./InsightHorizontalKpis";
 import KeywordAnalysisTable from "./KeywordAnalysisTable";
 
 export default function MainPerformanceMarketings() {
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchPerformanceData = async () => {
+      try {
+        const response = await axiosInstance.get('/performance-marketing', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Performance Marketing Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Performance Marketing data:", error);
+      }
+    };
+
+    fetchPerformanceData();
+  }, []);
+
   return (
     <Box>
       <Box>
