@@ -9,7 +9,7 @@ import {
   PRODUCT_MATRIX,
 } from "./availablityDataCenter";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
-import SimpleTableWithTabs from "../CommonLayout/simpleTableWithTabs";
+import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 
 // ---------------------------------------------------------------------------
