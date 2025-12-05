@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 
 const getSummaryMetrics = async (filters) => {
     try {
-        console.log("Processing Watch Tower request for Zepto with filters:", filters);
+        console.log("Processing Watch Tower request with filters:", filters);
 
         const { months = 1, startDate: qStartDate, endDate: qEndDate, brand: rawBrand, location: rawLocation } = filters;
         const brand = rawBrand?.trim();
@@ -28,20 +28,6 @@ const getSummaryMetrics = async (filters) => {
         }
 
         console.log(`Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
-
-        // Build Where Clause for TbZeptoBrandSalesAnalytics
-        const whereClause = {
-            sales_date: {
-                [Op.between]: [startDate.toDate(), endDate.toDate()]
-            }
-        };
-
-        if (brand) {
-            whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase());
-        }
-        if (location) {
-            whereClause.city = sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), location.toLowerCase());
-        }
 
         // Helper to generate month buckets
         const generateMonthBuckets = (start, end) => {
@@ -61,69 +47,40 @@ const getSummaryMetrics = async (filters) => {
 
         const monthBuckets = generateMonthBuckets(startDate, endDate);
 
-        // Build Where Clause for RbPdpOlap
+        // Build Where Clause for RbPdpOlap (Offtake)
         const offtakeWhereClause = {
             DATE: {
                 [Op.between]: [startDate.toDate(), endDate.toDate()]
             }
         };
 
-        if (brand) {
-            offtakeWhereClause.Brand = sequelize.where(sequelize.fn('LOWER', sequelize.col('Brand')), brand.toLowerCase());
+        if (brand && brand !== 'All') {
+            offtakeWhereClause.Brand = { [Op.like]: `%${brand}%` };
         }
-        if (location) {
+        if (location && location !== 'All') {
             offtakeWhereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
         }
 
-        // Default to Zepto if no platform is selected, or use the selected platform
-        const selectedPlatform = filters.platform || 'Zepto';
-        offtakeWhereClause.Platform = selectedPlatform;
+        const selectedPlatform = filters.platform;
+        if (selectedPlatform && selectedPlatform !== 'All') {
+            offtakeWhereClause.Platform = selectedPlatform;
+        }
 
-        // 3. Availability Calculation Helper
+        // 3. Availability Calculation Helper (Unified for all platforms using RbPdpOlap)
         const getAvailability = async (start, end, brandFilter, platformFilter, locationFilter) => {
-            // If Zepto, use TbZeptoInventoryData
-            if (!platformFilter || platformFilter === 'Zepto') {
-                const where = {
-                    created_on: {
-                        [Op.between]: [start.toDate(), end.toDate()]
-                    }
-                };
-                if (brandFilter) {
-                    where.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brandFilter.toLowerCase());
-                }
-                if (locationFilter) {
-                    where.city = sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), locationFilter.toLowerCase());
-                }
-
-                const result = await TbZeptoInventoryData.findOne({
-                    attributes: [
-                        [Sequelize.fn('COUNT', Sequelize.col('id')), 'total_count'],
-                        [Sequelize.literal("SUM(CASE WHEN unit > 0 THEN 1 ELSE 0 END)"), 'available_count']
-                    ],
-                    where: where,
-                    raw: true
-                });
-
-                const totalCount = parseFloat(result?.total_count || 0);
-                const availableCount = parseFloat(result?.available_count || 0);
-
-                return totalCount > 0 ? (availableCount / totalCount) * 100 : 0;
-            }
-
-            // Fallback to RbPdpOlap for other platforms
             const where = {
                 DATE: {
                     [Op.between]: [start.toDate(), end.toDate()]
                 }
             };
-            // Use LIKE for brand to handle sub-brands (e.g. Godrej -> Godrej No.1)
-            if (brandFilter) {
+
+            if (brandFilter && brandFilter !== 'All') {
                 where.Brand = {
                     [Op.like]: `%${brandFilter}%`
                 };
             }
-            if (platformFilter) where.Platform = platformFilter;
-            if (locationFilter) where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), locationFilter.toLowerCase());
+            if (platformFilter && platformFilter !== 'All') where.Platform = platformFilter;
+            if (locationFilter && locationFilter !== 'All') where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), locationFilter.toLowerCase());
 
             const result = await RbPdpOlap.findOne({
                 attributes: [
@@ -154,10 +111,7 @@ const getSummaryMetrics = async (filters) => {
                     baseWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), locationFilter.toLowerCase());
                 }
 
-                // Map platform names if necessary. RbKw might use different names.
-                // Assuming direct match for now or simple mapping.
-                if (platformFilter) {
-                    // Adjust platform name matching if needed based on RbKw data
+                if (platformFilter && platformFilter !== 'All') {
                     baseWhere.platform_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platformFilter.toLowerCase());
                 }
 
@@ -172,8 +126,6 @@ const getSummaryMetrics = async (filters) => {
                 const numeratorCount = await RbKw.count({ where: numeratorWhere });
 
                 // Denominator: Total rows for all brands (ignoring brand filter)
-                // The user said "total count of rows for all brands", which implies we should NOT filter by brand here.
-                // But we should still respect location/platform/time filters.
                 const denominatorWhere = { ...baseWhere };
 
                 const denominatorCount = await RbKw.count({ where: denominatorWhere });
@@ -194,29 +146,21 @@ const getSummaryMetrics = async (filters) => {
             currentAvailability,
             prevAvailability,
             currentShareOfSearch,
-            prevShareOfSearch
+            prevShareOfSearch,
+            availabilityTrendData,
+            shareOfSearchTrendData
         ] = await Promise.all([
-            // 1. Total Offtake (Sales) & Chart Data
-            (selectedPlatform === 'Zepto') ?
-                TbZeptoBrandSalesAnalytics.findAll({
-                    attributes: [
-                        [Sequelize.fn('DATE_FORMAT', Sequelize.col('sales_date'), '%Y-%m-01'), 'month_date'],
-                        [Sequelize.fn('SUM', Sequelize.col('gmv')), 'total_sales']
-                    ],
-                    where: whereClause,
-                    group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('sales_date'), '%Y-%m-01')],
-                    raw: true
-                }) :
-                RbPdpOlap.findAll({
-                    attributes: [
-                        [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
-                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
-                    ],
-                    where: offtakeWhereClause,
-                    group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
-                    raw: true
-                }),
-            // 2. Total Market Share & Chart Data
+            // 1. Total Offtake (Sales) & Chart Data (Using RbPdpOlap for ALL)
+            RbPdpOlap.findAll({
+                attributes: [
+                    [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
+                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
+                ],
+                where: offtakeWhereClause,
+                group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
+                raw: true
+            }),
+            // 2. Total Market Share & Chart Data (Keep ZeptoMarketShare for now as requested only Offtake/Availability change)
             ZeptoMarketShare.findAll({
                 attributes: [
                     [Sequelize.fn('DATE_FORMAT', Sequelize.col('created_on'), '%Y-%m-01'), 'month_date'],
@@ -226,8 +170,8 @@ const getSummaryMetrics = async (filters) => {
                     created_on: {
                         [Op.between]: [startDate.toDate(), endDate.toDate()]
                     },
-                    ...(brand && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                    ...(location && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
                 },
                 group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('created_on'), '%Y-%m-01')],
                 raw: true
@@ -241,19 +185,19 @@ const getSummaryMetrics = async (filters) => {
                     created_on: {
                         [Op.between]: [startDate.toDate(), endDate.toDate()]
                     },
-                    ...(brand && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                    ...(location && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
                 },
                 raw: true
             }),
-            // 3. Top SKUs by GMV
-            TbZeptoBrandSalesAnalytics.findAll({
+            // 3. Top SKUs by GMV (Using RbPdpOlap for ALL)
+            RbPdpOlap.findAll({
                 attributes: [
-                    'sku_name',
-                    [Sequelize.fn('SUM', Sequelize.col('gmv')), 'sku_gmv']
+                    ['Product', 'sku_name'],
+                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'sku_gmv']
                 ],
-                where: whereClause,
-                group: ['sku_name'],
+                where: offtakeWhereClause,
+                group: ['Product'],
                 order: [[Sequelize.literal('sku_gmv'), 'DESC']],
                 limit: 10,
                 raw: true
@@ -269,12 +213,40 @@ const getSummaryMetrics = async (filters) => {
             // 7. Previous Share of Search
             (filters.compareStartDate && filters.compareEndDate)
                 ? getShareOfSearch(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, selectedPlatform, location)
-                : Promise.resolve(0)
+                : Promise.resolve(0),
+            // 8. Availability Trend Data (Monthly)
+            RbPdpOlap.findAll({
+                attributes: [
+                    [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
+                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
+                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
+                ],
+                where: offtakeWhereClause, // Reusing the same where clause as Offtake (RbPdpOlap)
+                group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
+                raw: true
+            }),
+            // 9. Share of Search Trend Data (Monthly)
+            // Note: This might be heavy, but required.
+            (async () => {
+                const trendBuckets = [];
+                // We need to loop through buckets because doing a single GroupBy query for SOS 
+                // with complex numerator/denominator logic in one go is tricky in Sequelize without raw SQL.
+                // To be safe and accurate, we'll iterate over the month buckets.
+                for (const bucket of monthBuckets) {
+                    const mStart = dayjs(bucket.date).startOf('month');
+                    const mEnd = dayjs(bucket.date).endOf('month');
+                    const val = await getShareOfSearch(mStart, mEnd, brand, selectedPlatform, location);
+                    trendBuckets.push({ month_date: bucket.date, value: val });
+                }
+                return trendBuckets;
+            })()
         ]);
 
         // Process Offtake Data
         const offtakeChart = monthBuckets.map(bucket => {
-            const match = offtakeData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+            const match = offtakeData.find(d => {
+                return dayjs(d.month_date).isSame(dayjs(bucket.date), 'month');
+            });
             return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
         });
 
@@ -311,82 +283,82 @@ const getSummaryMetrics = async (filters) => {
         // Process Availability Data
         const formattedAvailability = currentAvailability.toFixed(1) + "%";
 
-        // Calculate Previous Availability for Trend
-        let availabilityTrend = "0%";
-        let availabilityTrendType = "neutral";
-
-        if (filters.compareStartDate && filters.compareEndDate) {
-            const diff = currentAvailability - prevAvailability;
-            const sign = diff >= 0 ? "+" : "";
-            availabilityTrend = `${sign}${diff.toFixed(1)}%`;
-            availabilityTrendType = diff >= 0 ? "up" : "down";
-        }
+        // Process Availability Chart
+        const availabilityChart = monthBuckets.map(bucket => {
+            const match = availabilityTrendData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+            if (match) {
+                const totalNeno = parseFloat(match.total_neno || 0);
+                const totalDeno = parseFloat(match.total_deno || 0);
+                return totalDeno > 0 ? (totalNeno / totalDeno) * 100 : 0;
+            }
+            return 0;
+        });
 
         // Process Share of Search Data
         const formattedShareOfSearch = currentShareOfSearch.toFixed(1) + "%";
-        let shareOfSearchTrend = "0%";
-        let shareOfSearchTrendType = "neutral";
 
-        if (filters.compareStartDate && filters.compareEndDate) {
-            const diff = currentShareOfSearch - prevShareOfSearch;
-            const sign = diff >= 0 ? "+" : "";
-            shareOfSearchTrend = `${sign}${diff.toFixed(1)}%`;
-            shareOfSearchTrendType = diff >= 0 ? "up" : "down";
-        }
+        // Process Share of Search Chart
+        const shareOfSearchChart = monthBuckets.map(bucket => {
+            const match = shareOfSearchTrendData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+            return match ? parseFloat(match.value) : 0;
+        });
 
-        // Map SKUs to frontend format
+        // Process Top SKUs
         const skuTableData = topSkus.map(sku => ({
-            sku: sku.sku_name,
-            all: { offtake: `₹${formatCurrency(sku.sku_gmv)}`, trend: "0%" }, // Mock trend for now
-            blinkit: { offtake: "NA", trend: "NA" },
-            zepto: { offtake: `₹${formatCurrency(sku.sku_gmv)}`, trend: "0%" },
-            instamart: { offtake: "NA", trend: "NA" }
+            sku_name: sku.sku_name,
+            gmv: formatCurrency(sku.sku_gmv)
         }));
 
-        // Construct Response
+        // Prepare Summary Metrics Object (Header values)
         const summaryMetrics = {
             offtakes: `₹${formattedOfftake}`,
             offtakesTrend: "+0.0%", // Placeholder
             shareOfSearch: formattedShareOfSearch,
-            shareOfSearchTrend: shareOfSearchTrend,
+            shareOfSearchTrend: "0%",
             stockAvailability: formattedAvailability,
-            stockAvailabilityTrend: availabilityTrend,
+            stockAvailabilityTrend: "0%",
             marketShare: formattedMarketShare,
         };
+
+        // Prepare Top Metrics Array (Cards with Charts)
+        const chartLabels = monthBuckets.map(b => b.label);
 
         const topMetrics = [
             {
                 name: "Offtake",
-                label: `₹${formattedOfftake}`,
+                label: formattedOfftake,
                 subtitle: `last ${monthsBack} months`,
-                trend: "+0.0%",
+                trend: "0%",
                 trendType: "neutral",
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
                 chart: offtakeChart,
+                labels: chartLabels
             },
             {
                 name: "Availability",
                 label: formattedAvailability,
-                subtitle: "MTD Coverage",
-                trend: availabilityTrend,
-                trendType: availabilityTrendType,
+                subtitle: `last ${monthsBack} months`,
+                trend: "0%",
+                trendType: "neutral",
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
-                chart: [],
+                chart: availabilityChart,
+                labels: chartLabels
             },
             {
                 name: "Share of Search",
                 label: formattedShareOfSearch,
-                subtitle: "for MTD",
-                trend: shareOfSearchTrend,
-                trendType: shareOfSearchTrendType,
-                comparison: "vs Previous Month",
+                subtitle: `last ${monthsBack} months`,
+                trend: "0%",
+                trendType: "neutral",
+                comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
-                chart: [],
+                chart: shareOfSearchChart,
+                labels: chartLabels
             },
             {
                 name: "Market Share",
@@ -398,6 +370,7 @@ const getSummaryMetrics = async (filters) => {
                 units: "",
                 unitsTrend: "",
                 chart: marketShareChart,
+                labels: chartLabels
             },
         ];
 
@@ -436,41 +409,20 @@ const getSummaryMetrics = async (filters) => {
             try {
                 let offtake = 0;
 
-                // Calculate Offtake
-                if (p.key === 'zepto') {
-                    // Use TbZeptoBrandSalesAnalytics
-                    const zeptoWhere = {
-                        sales_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
-                    };
-                    if (brand) zeptoWhere.brand_name = { [Op.like]: `%${brand}%` };
-                    if (location) zeptoWhere.city = { [Op.like]: `%${location}%` };
+                // Calculate Offtake (Unified using RbPdpOlap)
+                const platformOfftakeWhere = {
+                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                    Platform: p.label
+                };
+                if (brand) platformOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+                if (location) platformOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
 
-                    const zeptoResult = await TbZeptoBrandSalesAnalytics.sum('gmv', { where: zeptoWhere });
-                    offtake = zeptoResult || 0;
-
-                } else if (p.key === 'blinkit') {
-                    // Use TbBlinkitSalesData
-                    const blinkitWhere = {
-                        created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
-                    };
-                    // Use item_name for brand matching on Blinkit as it lacks brand_name column
-                    if (brand) blinkitWhere.item_name = { [Op.like]: `%${brand}%` };
-                    if (location) blinkitWhere.city_name = { [Op.like]: `%${location}%` };
-
-                    // Calculate GMV = qty_sold * mrp
-                    const blinkitResult = await TbBlinkitSalesData.findOne({
-                        attributes: [
-                            [Sequelize.literal('SUM(CAST(qty_sold AS UNSIGNED) * mrp)'), 'total_gmv']
-                        ],
-                        where: blinkitWhere,
-                        raw: true
-                    });
-                    offtake = parseFloat(blinkitResult?.total_gmv || 0);
-
-                } else {
-                    // Fallback to RbPdpOlap (if available)
-                    offtake = 0;
-                }
+                const platformOfftakeResult = await RbPdpOlap.findOne({
+                    attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
+                    where: platformOfftakeWhere,
+                    raw: true
+                });
+                offtake = parseFloat(platformOfftakeResult?.total_sales || 0);
 
                 // Calculate Availability
                 let availability = await getAvailability(startDate, endDate, brand, p.label, location);
@@ -549,30 +501,18 @@ const getPlatforms = async () => {
 
 const getBrands = async (platform) => {
     try {
-        let brands = [];
-        // Prioritize TbZeptoBrandSalesAnalytics for Zepto to ensure data consistency
-        if (!platform || platform === 'Zepto') {
-            const result = await TbZeptoBrandSalesAnalytics.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                order: [['brand_name', 'ASC']],
-                raw: true
-            });
-            brands = result.map(b => b.brand_name);
-        } else {
-            // Fallback to RcaSkuDim for other platforms
-            const where = {};
-            if (platform) {
-                where.platform = platform;
-            }
-            const result = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                where: where,
-                order: [['brand_name', 'ASC']],
-                raw: true
-            });
-            brands = result.map(b => b.brand_name);
+        const where = {};
+        if (platform && platform !== 'All') {
+            where.platform = platform;
         }
-        return brands.filter(Boolean);
+
+        const result = await RcaSkuDim.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
+            where: where,
+            order: [['brand_name', 'ASC']],
+            raw: true
+        });
+        return result.map(b => b.brand_name).filter(Boolean);
     } catch (error) {
         console.error("Error fetching brands:", error);
         throw error;
@@ -600,37 +540,21 @@ const getKeywords = async (brand) => {
 
 const getLocations = async (platform, brand) => {
     try {
-        let locations = [];
-        // Prioritize TbZeptoBrandSalesAnalytics for Zepto
-        if (!platform || platform === 'Zepto') {
-            const where = {};
-            if (brand) {
-                where.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase());
-            }
-            const result = await TbZeptoBrandSalesAnalytics.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('city')), 'city']],
-                where: where,
-                order: [['city', 'ASC']],
-                raw: true
-            });
-            locations = result.map(l => l.city);
-        } else {
-            const where = {};
-            if (platform) {
-                where.platform = platform;
-            }
-            if (brand) {
-                where.brand_name = brand;
-            }
-            const result = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('location')), 'location']],
-                where: where,
-                order: [['location', 'ASC']],
-                raw: true
-            });
-            locations = result.map(l => l.location);
+        const where = {};
+        if (platform && platform !== 'All') {
+            where.platform = platform;
         }
-        return locations.filter(Boolean);
+        if (brand && brand !== 'All') {
+            where.brand_name = brand;
+        }
+
+        const result = await RcaSkuDim.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('location')), 'location']],
+            where: where,
+            order: [['location', 'ASC']],
+            raw: true
+        });
+        return result.map(l => l.location).filter(Boolean);
     } catch (error) {
         console.error("Error fetching locations:", error);
         throw error;

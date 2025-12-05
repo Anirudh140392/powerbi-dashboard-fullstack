@@ -50,7 +50,8 @@ const CardMetric = ({ data }) => {
     extra: item.units ? `#Units: ${item.units}` : null,
     extraChange: item.unitsTrend,
     extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
-    chart: item.chart
+    chart: item.chart,
+    labels: item.labels
   })) : defaultCards;
 
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
@@ -120,12 +121,13 @@ const CardMetric = ({ data }) => {
           {cards.map((card, index) => {
             const values = generateValues(card);
             const color = isProfit(card.change) ? "#28a745" : "#dc3545";
+            const cardLabels = card.labels || months; // Fallback to hardcoded if missing
 
             return (
               <MiniChartCard
                 key={index}
                 card={card}
-                months={months} // Note: months are hardcoded, might not match data
+                months={cardLabels}
                 values={values}
                 color={color}
                 scrollNeeded={scrollNeeded}
