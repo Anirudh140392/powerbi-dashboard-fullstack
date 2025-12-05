@@ -185,103 +185,51 @@ const OLA_Detailed = [
   }
 ];
 
-const FORMAT_MATRIX = {
+function generateTrend(base, points = 8, variance = 8) {
+  return Array.from({ length: points }, (_, i) =>
+    Math.max(
+      0,
+      Math.min(100, Math.round(base + Math.sin(i / 2) * variance + (Math.random() * 6 - 3)))
+    )
+  );
+}
+
+    const FORMAT_MATRIX = {
+  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Virtual Store", "Swiggy"],
+
   formatColumns: [
-    "Cassata",
-    "Core Tub",
-    "Cornetto",
-    "Magnum",
-    "Premium Tub",
-    "KW Sticks",
-    "Sandwich",
+    "Cassata", "Core Tub", "Cornetto", "Magnum",
+    "Premium Tub", "KW Sticks", "Sandwich"
   ],
-  cityFormatData: [
-    {
-      platform: "Blinkit",
-      region: "East",
-      city: "Kolkata",
-      values: {
-        Cassata: 7,
-        "Core Tub": 81,
-        Cornetto: 90,
-        "KW Sticks": 97,
-        Magnum: 91,
-        "Premium Tub": 85,
-        Sandwich: 82,
-      },
-    },
-    {
-      platform: "Blinkit",
-      region: "East",
-      city: "Patna",
-      values: {
-        Cassata: 13,
-        "Core Tub": 87,
-        Cornetto: 98,
-        "KW Sticks": 100,
-        Magnum: 100,
-        "Premium Tub": 78,
-        Sandwich: 95,
-      },
-    },
-    {
-      platform: "Blinkit",
-      region: "East",
-      city: "Ranchi",
-      values: {
-        Cassata: 17,
-        "Core Tub": 99,
-        Cornetto: 99,
-        "KW Sticks": 100,
-        Magnum: 100,
-        "Premium Tub": 99,
-        Sandwich: 100,
-      },
-    },
-    {
-      platform: "Blinkit",
-      region: "West",
-      city: "Mumbai",
-      values: {
-        Cassata: 72,
-        "Core Tub": 96,
-        Cornetto: 82,
-        "KW Sticks": 94,
-        Magnum: 91,
-        "Premium Tub": 88,
-        Sandwich: 55,
-      },
-    },
-    {
-      platform: "Zepto",
-      region: "South",
-      city: "Bengaluru",
-      values: {
-        Cassata: 91,
-        "Core Tub": 93,
-        Cornetto: 88,
-        "KW Sticks": 90,
-        Magnum: 92,
-        "Premium Tub": 86,
-        Sandwich: 73,
-      },
-    },
-    {
-      platform: "Instamart",
-      region: "South",
-      city: "Hyderabad",
-      values: {
-        Cassata: 84,
-        "Core Tub": 89,
-        Cornetto: 90,
-        "KW Sticks": 87,
-        Magnum: 90,
-        "Premium Tub": 82,
-        Sandwich: 70,
-      },
-    },
+
+  CityColumns: [
+    "Ajmer", "Amritsar", "Bathinda", "Bhopal",
+    "Chandigarh", "Gwalior", "Indore", "Jaipur"
   ],
+
+  PlatformData: [
+    { kpi: "Osa", values: { Blinkit: 82, Zepto: 78, Instamart: 65, "Virtual Store": 74, Swiggy: 70 }, trend: generateTrend(78) },
+    { kpi: "Doi", values: { Blinkit: 45, Zepto: 52, Instamart: 48, "Virtual Store": 50, Swiggy: 47 }, trend: generateTrend(48) },
+    { kpi: "Fillrate", values: { Blinkit: 91, Zepto: 84, Instamart: 79, "Virtual Store": 87, Swiggy: 81 }, trend: generateTrend(85) },
+    { kpi: "Assortment", values: { Blinkit: 72, Zepto: 69, Instamart: 61, "Virtual Store": 66, Swiggy: 64 }, trend: generateTrend(66) }
+  ],
+
+  FormatData: [
+    { kpi: "Osa", values: { Cassata: 7, "Core Tub": 81, Cornetto: 90, Magnum: 91, "KW Sticks": 97, "Premium Tub": 85, Sandwich: 82 }, trend: generateTrend(75) },
+    { kpi: "Doi", values: { Cassata: 13, "Core Tub": 87, Cornetto: 98, Magnum: 100, "KW Sticks": 100, "Premium Tub": 78, Sandwich: 95 }, trend: generateTrend(85) },
+    { kpi: "Fillrate", values: { Cassata: 17, "Core Tub": 99, Cornetto: 99, Magnum: 100, "KW Sticks": 100, "Premium Tub": 99, Sandwich: 100 }, trend: generateTrend(95) },
+    { kpi: "Assortment", values: { Cassata: 72, "Core Tub": 96, Cornetto: 82, Magnum: 91, "KW Sticks": 94, "Premium Tub": 88, Sandwich: 55 }, trend: generateTrend(85) }
+  ],
+
+  CityData: [
+    { kpi: "Osa", values: { Ajmer: 72, Amritsar: 85, Bathinda: 79, Bhopal: 88, Chandigarh: 81, Gwalior: 75, Indore: 92, Jaipur: 69 }, trend: generateTrend(80) },
+    { kpi: "Doi", values: { Ajmer: 42, Amritsar: 55, Bathinda: 49, Bhopal: 60, Chandigarh: 53, Gwalior: 44, Indore: 67, Jaipur: 51 }, trend: generateTrend(52) },
+    { kpi: "Fillrate", values: { Ajmer: 91, Amritsar: 88, Bathinda: 84, Bhopal: 94, Chandigarh: 92, Gwalior: 76, Indore: 90, Jaipur: 82 }, trend: generateTrend(88) },
+    { kpi: "Assortment", values: { Ajmer: 73, Amritsar: 69, Bathinda: 71, Bhopal: 82, Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78 }, trend: generateTrend(76) }
+  ]
 };
+
+
 
 const FORMAT_ROWS = [
   {
@@ -377,4 +325,219 @@ const FORMAT_ROWS = [
   },
 ];
 
-export { FORMAT_MATRIX, FORMAT_ROWS, PRODUCT_MATRIX, OLA_Detailed };
+const ONE_VIEW_DRILL_DATA = [
+  {
+    label: "Blinkit",                               // PLATFORM
+    values: {},                                     // platform has no direct values
+    children: [
+      {
+        label: "East",                               // ZONE
+        values: {},
+        children: [
+          {
+            label: "Kolkata",                        // CITY
+            values: {},
+            children: [
+              {
+                label: "Cassata",                    // PRODUCT
+                values: {
+                  "Tdp-1": 82,
+                  "Tdp-2": 78,
+                  "Tdp-3": 80
+                },
+                trend: [72, 74, 77, 80, 82, 81],
+                children: [
+                  {
+                    label: "ID: P001",               // PRODUCT ID
+                    values: {
+                      "Tdp-1": 82,
+                      "Tdp-2": 78,
+                      "Tdp-3": 80
+                    },
+                    trend: [72, 74, 77, 80, 82, 81],
+                    children: []
+                  }
+                ]
+              },
+              {
+                label: "Cornetto",
+                values: {
+                  "Tdp-1": 91,
+                  "Tdp-2": 88,
+                  "Tdp-3": 92
+                },
+                trend: [85, 87, 88, 90, 91, 92],
+                children: [
+                  {
+                    label: "ID: P002",
+                    values: {
+                      "Tdp-1": 91,
+                      "Tdp-2": 88,
+                      "Tdp-3": 92
+                    },
+                    trend: [85, 87, 88, 90, 91, 92],
+                    children: []
+                  }
+                ]
+              }
+            ]
+          },
+
+          {
+            label: "Patna",
+            values: {},
+            children: [
+              {
+                label: "Cassata",
+                values: {
+                  "Tdp-1": 76,
+                  "Tdp-2": 73,
+                  "Tdp-3": 75
+                },
+                trend: [70, 72, 74, 76, 75, 75],
+                children: [
+                  {
+                    label: "ID: P001",
+                    values: {
+                      "Tdp-1": 76,
+                      "Tdp-2": 73,
+                      "Tdp-3": 75
+                    },
+                    trend: [70, 72, 74, 76, 75, 75],
+                    children: []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+
+      {
+        label: "West",
+        values: {},
+        children: [
+          {
+            label: "Mumbai",
+            values: {},
+            children: [
+              {
+                label: "Cornetto",
+                values: {
+                  "Tdp-1": 88,
+                  "Tdp-2": 85,
+                  "Tdp-3": 89
+                },
+                trend: [80, 82, 84, 86, 88, 89],
+                children: [
+                  {
+                    label: "ID: P002",
+                    values: {
+                      "Tdp-1": 88,
+                      "Tdp-2": 85,
+                      "Tdp-3": 89
+                    },
+                    trend: [80, 82, 84, 86, 88, 89],
+                    children: []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  // ---------------- ZEPTO ----------------
+  {
+    label: "Zepto",
+    values: {},
+    children: [
+      {
+        label: "South",
+        values: {},
+        children: [
+          {
+            label: "Bengaluru",
+            values: {},
+            children: [
+              {
+                label: "Cassata",
+                values: {
+                  "Tdp-1": 91,
+                  "Tdp-2": 93,
+                  "Tdp-3": 94
+                },
+                trend: [84, 86, 89, 91, 93, 94],
+                children: [
+                  {
+                    label: "ID: P001",
+                    values: {
+                      "Tdp-1": 91,
+                      "Tdp-2": 93,
+                      "Tdp-3": 94
+                    },
+                    trend: [84, 86, 89, 91, 93, 94],
+                    children: []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  // ---------------- INSTAMART ----------------
+  {
+    label: "Instamart",
+    values: {},
+    children: [
+      {
+        label: "South",
+        values: {},
+        children: [
+          {
+            label: "Hyderabad",
+            values: {},
+            children: [
+              {
+                label: "Premium Tub",
+                values: {
+                  "Tdp-1": 82,
+                  "Tdp-2": 84,
+                  "Tdp-3": 83
+                },
+                trend: [75, 78, 80, 81, 82, 83],
+                children: [
+                  {
+                    label: "ID: P003",
+                    values: {
+                      "Tdp-1": 82,
+                      "Tdp-2": 84,
+                      "Tdp-3": 83
+                    },
+                    trend: [75, 78, 80, 81, 82, 83],
+                    children: []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+];
+
+const DRILL_COLUMNS = [
+  { key: "Tdp-1", label: "Tdp-1", isPercent: true },
+  { key: "Tdp-2", label: "Tdp-2", isPercent: true },
+  { key: "Tdp-3", label: "Tdp-3", isPercent: true }
+];
+
+
+
+export { FORMAT_MATRIX, FORMAT_ROWS, PRODUCT_MATRIX, OLA_Detailed, ONE_VIEW_DRILL_DATA, DRILL_COLUMNS };

@@ -1,11 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  DRILL_COLUMNS,
   FORMAT_MATRIX,
   FORMAT_ROWS,
   OLA_Detailed,
+  ONE_VIEW_DRILL_DATA,
   PRODUCT_MATRIX,
 } from "./availablityDataCenter";
+import MetricCardContainer from "../CommonLayout/MetricCardContainer";
+import SimpleTableWithTabs from "../CommonLayout/simpleTableWithTabs";
+import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -86,761 +91,135 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const MatrixPlatformFormat = () => {
-  const [hoverRowKey, setHoverRowKey] = useState(null);
-  const [selection, setSelection] = useState(null);
+const TabbedHeatmapTable = () => {
+  const [activeTab, setActiveTab] = useState("platform");
 
-  const quarterDefs = useMemo(() => OLA_MATRIX.quarterColumns, []);
-
-  const [expandedPlatforms, setExpandedPlatforms] = useState(() => {
-    const initial = {};
-    OLA_MATRIX.cityMonthData.forEach((r) => {
-      initial[r.platform] = true;
-    });
-    return initial;
-  });
-
-  const [expandedRegions, setExpandedRegions] = useState({});
-  const [expandedQuarters, setExpandedQuarters] = useState(() => {
-    const init = {};
-    OLA_MATRIX.quarterColumns.forEach((q) => {
-      init[q.id] = true;
-    });
-    return init;
-  });
-
-  const platforms = useMemo(
-    () => Array.from(new Set(OLA_MATRIX.cityMonthData.map((r) => r.platform))),
-    []
-  );
-
-  const regionsFor = (p) =>
-    Array.from(
-      new Set(
-        OLA_MATRIX.cityMonthData
-          .filter((r) => r.platform === p)
-          .map((r) => r.region)
-      )
-    );
-
-  const citiesFor = (p, r) =>
-    OLA_MATRIX.cityMonthData.filter(
-      (row) => row.platform === p && row.region === r
-    );
-
-  const rowKey = (platform, region, city) =>
-    [platform, region || "-", city || "-"].join("|");
-
-  const activeColumns = useMemo(() => {
-    const cols = [];
-    quarterDefs.forEach((q) => {
-      if (expandedQuarters[q.id]) {
-        q.months.forEach((m) => cols.push({ id: `${q.id}|${m}`, label: m }));
-      } else {
-        cols.push({ id: q.id, label: q.label });
-      }
-    });
-    return cols;
-  }, [expandedQuarters, quarterDefs]);
-
-  const anyPlatformExpanded = Object.values(expandedPlatforms).some(Boolean);
-  const anyRegionExpanded = Object.entries(expandedRegions).some(
-    ([key, isOpen]) => {
-      if (!isOpen) return false;
-      const [p] = key.split("|");
-      return expandedPlatforms[p];
-    }
-  );
-  const showRegionColumn = anyPlatformExpanded;
-  const showCityColumn = anyRegionExpanded;
-  const hierarchyColSpan =
-    1 + (showRegionColumn ? 1 : 0) + (showCityColumn ? 1 : 0);
-
-  const cellValue = (rows, colId) => {
-    if (!rows.length) return 0;
-
-    if (colId.includes("|")) {
-      return avgForKeys(rows.map((r) => r.values[colId] ?? 0));
-    }
-
-    const targetQuarter = colId;
-    const keys = Object.keys(rows[0].values || {}).filter((k) =>
-      k.startsWith(`${targetQuarter}|`)
-    );
-
-    return avgForKeys(rows.flatMap((r) => keys.map((k) => r.values[k] ?? 0)));
+  // ---------------- PLATFORM LEVEL DATA ----------------
+  const platformData = {
+    columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
+    rows: (FORMAT_MATRIX.PlatformData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
   };
 
-  const rowsForSelection = (sel) =>
-    OLA_MATRIX.cityMonthData.filter(
-      (r) =>
-        r.platform === sel.platform &&
-        (!sel.region || r.region === sel.region) &&
-        (!sel.city || r.city === sel.city)
-    );
-
-  const selectionMeta = useMemo(() => {
-    if (!selection) return null;
-    const rows = rowsForSelection(selection);
-    const value = cellValue(rows, selection.colId);
-
-    const [qId, mLabelRaw] = selection.colId.includes("|")
-      ? selection.colId.split("|")
-      : [selection.colId, ""];
-    const quarterDef = quarterDefs.find((q) => q.id === qId);
-    const quarterLabel = quarterDef?.label || qId;
-    const monthLabel = mLabelRaw || "Quarter avg";
-
-    const quarterRows = OLA_MATRIX.cityMonthData.filter(
-      (r) => r.platform === selection.platform
-    );
-    const quarterAvg = cellValue(quarterRows, qId);
-    const networkRows = OLA_MATRIX.cityMonthData;
-    const networkAvg = cellValue(networkRows, selection.colId);
-
-    return {
-      value,
-      label: `${selection.platform}${
-        selection.region ? " · " + selection.region : ""
-      }${selection.city ? " · " + selection.city : ""}`,
-      bucket: `${quarterLabel} · ${monthLabel}`,
-      quarterAvg,
-      networkAvg,
-    };
-  }, [selection, quarterDefs]);
-
-  const expandAllRows = () => {
-    const pState = {};
-    const rState = {};
-    platforms.forEach((p) => {
-      pState[p] = true;
-      regionsFor(p).forEach((r) => {
-        rState[`${p}|${r}`] = true;
-      });
-    });
-    setExpandedPlatforms(pState);
-    setExpandedRegions(rState);
+  // ---------------- FORMAT LEVEL DATA ----------------
+  const formatData = {
+    columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
+    rows: (FORMAT_MATRIX.FormatData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
   };
 
-  const collapseAllRows = () => {
-    setExpandedPlatforms({});
-    setExpandedRegions({});
+  const cityData = {
+    columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
+    rows: (FORMAT_MATRIX.CityData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
   };
 
-  const expandAllColumns = () => {
-    const next = {};
-    OLA_MATRIX.quarterColumns.forEach((q) => {
-      next[q.id] = true;
-    });
-    setExpandedQuarters(next);
-  };
+  // ---------------- TAB DEFINITIONS ----------------
+  const tabs = [
+    { key: "platform", label: "Platform", data: platformData },
+    { key: "format", label: "Format", data: formatData },
+    { key: "city", label: "City", data: cityData },
+  ];
 
-  const collapseAllColumns = () => {
-    setExpandedQuarters({});
-  };
-
-  const renderRow = (platform, region, city) => {
-    const rowRows =
-      OLA_MATRIX.cityMonthData.filter(
-        (r) =>
-          r.platform === platform &&
-          (!region || r.region === region) &&
-          (!city || r.city === city)
-      ) || [];
-
-    const isPlatform = !region && !city;
-    const isRegion = !!region && !city;
-    const isCity = !!city;
-
-    const rk = rowKey(platform, region, city);
-    const platformCellColSpan =
-      showRegionColumn || showCityColumn ? 1 : hierarchyColSpan;
-
-    const avgAcrossActiveCols =
-      activeColumns.length > 0
-        ? avgForKeys(activeColumns.map((c) => cellValue(rowRows, c.id)))
-        : 0;
-
-    return (
-      <motion.tr
-        key={`${platform}-${region || ""}-${city || ""}`}
-        layout
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -4 }}
-        onMouseEnter={() => setHoverRowKey(rk)}
-        onMouseLeave={() => setHoverRowKey(null)}
-        className={[
-          "border-t border-slate-100 group",
-          isPlatform ? "bg-slate-50/60" : "",
-          isCity ? "bg-white" : "",
-          hoverRowKey === rk ? "bg-sky-50/60" : "",
-          selection &&
-          rowKey(selection.platform, selection.region, selection.city) === rk
-            ? "bg-sky-100/70"
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {/* main hierarchy cell */}
-        <td
-          className="px-3 py-2 whitespace-nowrap sticky left-0 bg-inherit z-10 border-r border-slate-100"
-          colSpan={isPlatform ? platformCellColSpan : 1}
-        >
-          <div className="flex items-center gap-2">
-            {isPlatform && (
-              <button
-                className="h-6 w-6 rounded-md border border-slate-200 bg-white text-xs text-slate-600 flex items-center justify-center shadow-sm"
-                onClick={() =>
-                  setExpandedPlatforms((prev) => ({
-                    ...prev,
-                    [platform]: !prev[platform],
-                  }))
-                }
-              >
-                {expandedPlatforms[platform] ? "-" : "+"}
-              </button>
-            )}
-            {isRegion && (
-              <button
-                className="h-5 w-5 rounded-md border border-slate-200 bg-white text-[10px] text-slate-500 flex items-center justify-center"
-                onClick={() =>
-                  setExpandedRegions((prev) => ({
-                    ...prev,
-                    [`${platform}|${region}`]: !prev[`${platform}|${region}`],
-                  }))
-                }
-              >
-                {expandedRegions[`${platform}|${region}`] ? "-" : "+"}
-              </button>
-            )}
-            {isCity && <span className="text-slate-400 text-xs">•</span>}
-            <div className="flex flex-col">
-              <span
-                className={[
-                  "truncate",
-                  isPlatform ? "font-semibold text-slate-900" : "",
-                  isRegion ? "font-semibold text-slate-700" : "",
-                  isCity ? "font-medium text-slate-700" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                {platform}
-              </span>
-              {(isRegion || isCity) && (
-                <span className="text-[10px] text-slate-400">
-                  {isRegion && "Region"}
-                  {isCity && `${region ? region + " · " : ""}City`}
-                </span>
-              )}
-            </div>
-          </div>
-        </td>
-
-        {/* region & city sticky columns */}
-        {showRegionColumn && (
-          <td className="px-3 py-2 whitespace-nowrap sticky left-[10.5rem] bg-inherit z-10 border-r border-slate-100 text-xs text-slate-700">
-            {region || (isPlatform ? "—" : platform)}
-          </td>
-        )}
-        {showCityColumn && (
-          <td className="px-3 py-2 whitespace-nowrap sticky left-[16rem] bg-inherit z-10 border-r border-slate-100 text-xs text-slate-700">
-            {city || "—"}
-          </td>
-        )}
-
-        {/* data cells */}
-        {activeColumns.map((c) => {
-          const val = cellValue(rowRows, c.id);
-          const isSelectedCell =
-            selection &&
-            selection.colId === c.id &&
-            selection.platform === platform &&
-            selection.region === region &&
-            selection.city === city;
-
-          return (
-            <td key={c.id} className="px-2 py-1 text-center align-middle">
-              <button
-                type="button"
-                onClick={() =>
-                  setSelection({
-                    platform,
-                    region,
-                    city,
-                    colId: c.id,
-                  })
-                }
-                className={[
-                  "w-full px-2 py-1 rounded-md text-[11px] font-semibold border transition-all",
-                  cellHeat(val),
-                  isSelectedCell
-                    ? "border-sky-500 shadow-[0_0_0_1px_rgba(56,189,248,0.5)]"
-                    : "border-transparent hover:border-sky-300 hover:shadow-sm",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                {val ? `${val}%` : "—"}
-              </button>
-            </td>
-          );
-        })}
-
-        {/* small row avg pill at the end */}
-        <td className="px-3 py-1 text-right text-[10px] text-slate-500 whitespace-nowrap">
-          {avgAcrossActiveCols ? `avg ${avgAcrossActiveCols}%` : ""}
-        </td>
-      </motion.tr>
-    );
-  };
+  const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.05, duration: 0.45 }}
-      className="col-span-12 xl:col-span-12 rounded-2xl bg-white shadow-sm border border-slate-100 p-4"
-    >
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
-            Platform Level OLA Across Platform
-          </p>
-          <p className="text-xs text-slate-500">
-            Compact matrix with subtle band for OLA strength.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 text-[10px] text-slate-500">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-0.5 rounded-full bg-emerald-600" /> ≥ 96%
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-0.5 rounded-full bg-lime-500" /> 90–95%
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-0.5 rounded-full bg-amber-500" /> 80–89%
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-0.5 rounded-full bg-rose-500" /> &lt; 80%
-          </span>
-        </div>
-      </div>
-
-      {/* selection summary bar */}
-      {selectionMeta && (
-        <motion.div
-          layout
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-2 flex flex-wrap items-center gap-3 text-xs"
-        >
-          <div className="flex flex-col">
-            <span className="text-[11px] uppercase tracking-[0.16em] text-sky-500">
-              Focus cell
-            </span>
-            <span className="font-semibold text-slate-900">
-              {selectionMeta.label}
-            </span>
-            <span className="text-[11px] text-slate-500">
-              {selectionMeta.bucket}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-1 text-slate-900">
-            <span className="text-[11px] text-slate-500 mr-1">OLA</span>
-            <span className="text-xl font-semibold">
-              {selectionMeta.value}%
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
-            <span className="px-2 py-1 rounded-full bg-white border border-slate-200">
-              Platform quarter avg: {selectionMeta.quarterAvg}%
-            </span>
-            <span className="px-2 py-1 rounded-full bg-white border border-slate-200">
-              Network avg: {selectionMeta.networkAvg}%
-            </span>
-          </div>
+    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {tabs.map((t) => (
           <button
-            className="ml-auto px-3 py-1 rounded-full border border-slate-200 bg-white text-[11px] text-slate-600 hover:border-slate-300"
-            onClick={() => setSelection(null)}
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2 rounded-full text-sm border transition ${
+              activeTab === t.key
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-700 border-slate-300"
+            }`}
           >
-            Clear selection
+            {t.label}
           </button>
-        </motion.div>
-      )}
-
-      {/* main table */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-100 mt-3">
-        <table className="min-w-full text-[12px]">
-          <thead className="bg-slate-50">
-            <tr>
-              <th
-                className="px-3 py-2 text-left font-semibold text-slate-600 w-40 sticky left-0 z-20 bg-slate-50 border-r border-slate-100"
-                colSpan={hierarchyColSpan}
-              >
-                Platform / Region / City
-              </th>
-              {quarterDefs.map((q) => (
-                <th
-                  key={q.id}
-                  className="px-3 py-2 text-center font-semibold text-slate-600 border-l border-slate-100"
-                  colSpan={expandedQuarters[q.id] ? q.months.length : 1}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      className="h-6 w-6 rounded-md border border-slate-200 bg-white text-slate-600 flex items-center justify-center"
-                      onClick={() =>
-                        setExpandedQuarters((prev) => ({
-                          ...prev,
-                          [q.id]: !prev[q.id],
-                        }))
-                      }
-                    >
-                      {expandedQuarters[q.id] ? "-" : "+"}
-                    </button>
-                    <span>{q.label}</span>
-                  </div>
-                </th>
-              ))}
-              <th className="px-3 py-2 text-right font-semibold text-slate-600">
-                Row avg
-              </th>
-            </tr>
-            <tr className="bg-slate-50 border-t border-slate-100">
-              <th className="px-3 py-1 text-left text-slate-500 font-medium sticky left-0 z-20 bg-slate-50 border-r border-slate-100">
-                Day bucket
-              </th>
-              {showRegionColumn && (
-                <th className="px-3 py-1 text-left text-slate-500 font-medium sticky left-[10.5rem] z-20 bg-slate-50 border-r border-slate-100">
-                  Region
-                </th>
-              )}
-              {showCityColumn && (
-                <th className="px-3 py-1 text-left text-slate-500 font-medium sticky left-[16rem] z-20 bg-slate-50 border-r border-slate-100">
-                  City
-                </th>
-              )}
-              {activeColumns.map((c) => (
-                <th
-                  key={c.id}
-                  className="px-2 py-1 text-center text-slate-500 font-medium"
-                >
-                  {c.label}
-                </th>
-              ))}
-              <th className="px-3 py-1 text-right text-slate-500 font-medium">
-                Avg
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <AnimatePresence initial={false}>
-              {platforms.map((p) => {
-                const pExpanded = expandedPlatforms[p];
-                return (
-                  <React.Fragment key={p}>
-                    {renderRow(p)}
-                    {pExpanded &&
-                      regionsFor(p).map((r) => {
-                        const rKey = `${p}|${r}`;
-                        const rExpanded = expandedRegions[rKey];
-                        return (
-                          <React.Fragment key={rKey}>
-                            {renderRow(p, r)}
-                            {rExpanded &&
-                              citiesFor(p, r).map((c) =>
-                                renderRow(p, r, c.city)
-                              )}
-                          </React.Fragment>
-                        );
-                      })}
-                  </React.Fragment>
-                );
-              })}
-            </AnimatePresence>
-          </tbody>
-        </table>
+        ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs mt-3">
-        <button
-          onClick={expandAllRows}
-          className="px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:border-slate-300"
-        >
-          Expand rows
-        </button>
-        <button
-          onClick={collapseAllRows}
-          className="px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:border-slate-300"
-        >
-          Collapse rows
-        </button>
-        <button
-          onClick={expandAllColumns}
-          className="px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:border-slate-300"
-        >
-          Expand columns
-        </button>
-        <button
-          onClick={collapseAllColumns}
-          className="px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:border-slate-300"
-        >
-          Collapse columns
-        </button>
-      </div>
-    </motion.div>
+      <SimpleTableWithTabs
+        title={active.label}
+        subtitle="Heatmap View"
+        data={active.data}
+        cellHeat={cellHeat}
+        trendKey="trend" // ← REQUIRED
+      />
+    </div>
   );
 };
 
-// ---------------------------------------------------------------------------
-// Power hierarchy – dynamic via FORMAT_MATRIX
-// ---------------------------------------------------------------------------
-
 const PowerHierarchyHeat = () => {
-  const [expandedPlatforms, setExpandedPlatforms] = useState({});
-  const [expandedRegions, setExpandedRegions] = useState({});
-
-  const platforms = useMemo(
-    () =>
-      Array.from(new Set(FORMAT_MATRIX.cityFormatData.map((r) => r.platform))),
-    []
-  );
-
-  const regionsForPlatform = (p) =>
-    Array.from(
-      new Set(
-        FORMAT_MATRIX.cityFormatData
-          .filter((r) => r.platform === p)
-          .map((r) => r.region)
-      )
-    );
-
-  const citiesFor = (p, r) =>
-    FORMAT_MATRIX.cityFormatData.filter(
-      (row) => row.platform === p && row.region === r
-    );
-
-  const expandAll = () => {
-    const pState = {};
-    const rState = {};
-    platforms.forEach((p) => {
-      pState[p] = true;
-      regionsForPlatform(p).forEach((r) => {
-        rState[`${p}|${r}`] = true;
-      });
-    });
-    setExpandedPlatforms(pState);
-    setExpandedRegions(rState);
-  };
-
-  const collapseAll = () => {
-    setExpandedPlatforms({});
-    setExpandedRegions({});
-  };
-
-  const anyPlatformExpanded = Object.values(expandedPlatforms).some(Boolean);
-  const anyRegionExpanded = Object.entries(expandedRegions).some(
-    ([key, isOpen]) => {
-      if (!isOpen) return false;
-      const [platformFromKey] = key.split("|");
-      return expandedPlatforms[platformFromKey];
-    }
-  );
-  const showRegionColumn = anyPlatformExpanded;
-  const showCityColumn = anyRegionExpanded;
-  const hierarchyColSpan =
-    1 + (showRegionColumn ? 1 : 0) + (showCityColumn ? 1 : 0);
-
   return (
     <div className="rounded-3xl bg-white border border-slate-100 shadow-[0_12px_40px_rgba(15,23,42,0.08)] p-5 flex flex-col gap-3">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-            Platform Level Across Category
+            Platform-Level Format Heatmap
           </p>
           <p className="text-sm text-slate-600">
-            Platform → Region → City across formats with inline heat.
+            Flat table without hierarchy (Platform → Region → City).
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={expandAll}
-            className="px-3 py-2 rounded-full text-sm border border-slate-200 bg-white hover:border-slate-300"
-          >
-            Expand all
-          </button>
-          <button
-            onClick={collapseAll}
-            className="px-3 py-2 rounded-full text-sm border border-slate-200 bg-white hover:border-slate-300"
-          >
-            Collapse all
-          </button>
-        </div>
       </div>
+
+      {/* Table */}
       <div className="overflow-x-auto rounded-2xl border border-slate-100">
         <table className="min-w-full text-[12px]">
           <thead className="bg-slate-50">
             <tr className="text-left">
-              <th className="px-3 py-2 font-semibold text-slate-600 w-32">
+              <th className="px-3 py-2 font-semibold text-slate-600">
                 Platform
               </th>
-              {showRegionColumn && (
-                <th className="px-3 py-2 font-semibold text-slate-600 w-28">
-                  Region
-                </th>
-              )}
-              {showCityColumn && (
-                <th className="px-3 py-2 font-semibold text-slate-600 w-28">
-                  City
-                </th>
-              )}
+              <th className="px-3 py-2 font-semibold text-slate-600">Region</th>
+              <th className="px-3 py-2 font-semibold text-slate-600">City</th>
+
               {FORMAT_MATRIX.formatColumns.map((f) => (
                 <th
                   key={f}
-                  className="px-3 py-2 font-semibold text-slate-600 text-center whitespace-nowrap"
+                  className="px-3 py-2 font-semibold text-center text-slate-600 whitespace-nowrap"
                 >
                   {f}
                 </th>
               ))}
             </tr>
           </thead>
+
           <tbody>
-            {platforms.map((platform) => {
-              const platformExpanded = expandedPlatforms[platform];
-              const platformRows = FORMAT_MATRIX.cityFormatData.filter(
-                (r) => r.platform === platform
-              );
-              const platformAvg = {};
-              FORMAT_MATRIX.formatColumns.forEach((f) => {
-                const vals = platformRows.map((r) => r.values[f] ?? 0);
-                platformAvg[f] = vals.length ? Math.round(average(vals)) : 0;
-              });
-              return (
-                <React.Fragment key={platform}>
-                  <tr className="border-t border-slate-100 bg-slate-50/70">
-                    <td
-                      className="px-3 py-2 font-semibold text-slate-800"
-                      colSpan={hierarchyColSpan}
-                    >
-                      <button
-                        onClick={() =>
-                          setExpandedPlatforms((prev) => ({
-                            ...prev,
-                            [platform]: !prev[platform],
-                          }))
-                        }
-                        className="mr-2 text-slate-600"
-                      >
-                        {platformExpanded ? "-" : "+"}
-                      </button>
-                      {platform}
+            {FORMAT_MATRIX.cityFormatData.map((row, idx) => (
+              <tr key={idx} className="border-t border-slate-100">
+                <td className="px-3 py-2 text-slate-800">{row.platform}</td>
+                <td className="px-3 py-2 text-slate-700">{row.region}</td>
+                <td className="px-3 py-2 text-slate-800 font-medium">
+                  {row.city}
+                </td>
+
+                {FORMAT_MATRIX.formatColumns.map((f) => {
+                  const val = row.values[f] ?? 0;
+                  return (
+                    <td key={f} className="px-3 py-2 text-center">
+                      <span className={`px-2 py-1 rounded ${cellHeat(val)}`}>
+                        {val}%
+                      </span>
                     </td>
-                    {FORMAT_MATRIX.formatColumns.map((f) => (
-                      <td key={f} className="px-3 py-2 text-center">
-                        <span
-                          className={`px-2 py-1 rounded ${cellHeat(
-                            platformAvg[f]
-                          )}`}
-                        >
-                          {platformAvg[f]}%
-                        </span>
-                      </td>
-                    ))}
-                  </tr>
-                  {platformExpanded &&
-                    regionsForPlatform(platform).map((region) => {
-                      const regionKey = `${platform}|${region}`;
-                      const regionRows = citiesFor(platform, region);
-                      const avg = {};
-                      FORMAT_MATRIX.formatColumns.forEach((f) => {
-                        const vals = regionRows.map((c) => c.values[f] ?? 0);
-                        avg[f] = vals.length ? Math.round(average(vals)) : 0;
-                      });
-                      const isOpen = expandedRegions[regionKey];
-                      return (
-                        <React.Fragment key={regionKey}>
-                          <tr className="border-t border-slate-100">
-                            <td className="px-3 py-2 text-slate-500">
-                              {platform}
-                            </td>
-                            {showRegionColumn && (
-                              <td className="px-3 py-2 font-semibold text-slate-700">
-                                <button
-                                  onClick={() =>
-                                    setExpandedRegions((prev) => ({
-                                      ...prev,
-                                      [regionKey]: !prev[regionKey],
-                                    }))
-                                  }
-                                  className="mr-2 text-slate-500"
-                                >
-                                  {isOpen ? "-" : "+"}
-                                </button>
-                                {region}
-                              </td>
-                            )}
-                            {showCityColumn && (
-                              <td className="px-3 py-2 text-slate-300">-</td>
-                            )}
-                            {FORMAT_MATRIX.formatColumns.map((f) => (
-                              <td key={f} className="px-3 py-2 text-center">
-                                <span
-                                  className={`px-2 py-1 rounded ${cellHeat(
-                                    avg[f]
-                                  )}`}
-                                >
-                                  {avg[f]}%
-                                </span>
-                              </td>
-                            ))}
-                          </tr>
-                          {isOpen &&
-                            regionRows.map((row) => (
-                              <tr
-                                key={`${regionKey}-${row.city}`}
-                                className="border-t border-slate-100 bg-slate-50/60"
-                              >
-                                <td className="px-3 py-2 text-slate-500 pl-8">
-                                  {platform}
-                                </td>
-                                {showRegionColumn && (
-                                  <td className="px-3 py-2 text-slate-600 pl-4">
-                                    {region}
-                                  </td>
-                                )}
-                                {showCityColumn && (
-                                  <td className="px-3 py-2 text-slate-800 pl-4 font-medium">
-                                    {row.city}
-                                  </td>
-                                )}
-                                {FORMAT_MATRIX.formatColumns.map((f) => {
-                                  const val = row.values[f] ?? 0;
-                                  return (
-                                    <td
-                                      key={f}
-                                      className="px-3 py-2 text-center"
-                                    >
-                                      <span
-                                        className={`px-2 py-1 rounded ${cellHeat(
-                                          val
-                                        )}`}
-                                      >
-                                        {val}%
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                        </React.Fragment>
-                      );
-                    })}
-                </React.Fragment>
-              );
-            })}
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -1600,6 +979,53 @@ const FormatPerformanceStudio = () => {
   );
 };
 
+const cards = [
+  {
+    title: "Assortments",
+    value: "96 on 30 Nov'25",
+    sub: "Active SKUs in store",
+    change: "▲4.3% (+4 SKUs)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "New launches this month: 7",
+    extraChange: "▲12.5%",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Stock Availability",
+    value: "52.4%",
+    sub: "MTD on-shelf coverage",
+    change: "▼8.6 pts (from 61.0%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "High risk stores: 18",
+    extraChange: "▲5 stores",
+    extraChangeColor: "red",
+  },
+  {
+    title: "Days of Inventory (DOI)",
+    value: "68.3",
+    sub: "Network average days of cover",
+    change: "▲19.5% (from 57.1)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Slightly above target",
+    extraChangeColor: "orange",
+  },
+  {
+    title: "Wt. OSA",
+    value: "76.9%",
+    sub: "Weighted on-shelf availability (MTD)",
+    change: "▲1.2 pts (from 75.7%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Top 50 SKUs: 82.3%",
+    extraChange: "▲0.9 pts",
+    extraChangeColor: "green",
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
@@ -1612,9 +1038,31 @@ export const AvailablityAnalysisData = () => {
         <div className="space-y-4">
           <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
           {/* <DualAxisDrillMatrix /> */}
-          <PowerHierarchyHeat />
-          <ProductLevelHeat />
-          <OLADrillTable />
+          <MetricCardContainer title="Availability Overview" cards={cards} />
+          {/* <SimpleTableWithTabs
+            title="Platform Level Across Category"
+            subtitle="Platform"
+            data={tableData}
+            cellHeat={cellHeat}
+          /> */}
+          <TabbedHeatmapTable />
+
+          {/* <PowerHierarchyHeat /> */}
+          {/* <ProductLevelHeat />
+          <OLADrillTable /> */}
+          <DrillHeatTable
+            title="One View Drilldown"
+            data={ONE_VIEW_DRILL_DATA}
+            columns={DRILL_COLUMNS}
+            computeQuarterValues={(vals) => vals}
+            computeRowAvg={() => 0}
+            getHeatStyle={(v) => ({
+              bg: v > 85 ? "#c6f6d5" : "#fed7d7",
+              color: "#111",
+            })}
+            levels={["Platform", "Zone", "City", "Product", "ID"]}
+          />
+
           {/* <FormatPerformanceStudio /> */}
         </div>
       </div>

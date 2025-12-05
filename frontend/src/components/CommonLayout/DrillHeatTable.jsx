@@ -12,31 +12,25 @@ import {
   TableRow,
   Paper,
   IconButton,
-  Chip,
 } from "@mui/material";
 
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 
-//
-// --------------------------------------------------
-// REUSABLE DRILL HEATMAP TABLE
-// --------------------------------------------------
-//
-
 export default function DrillHeatTable({
-  data,                      // ← hierarchical rows
-  columns,                   // ← column definitions [{ key, label, isPercent }]
-  computeQuarterValues,      // ← function(values, quarter)
-  computeRowAvg,             // ← function(values)
-  getHeatStyle,              // ← coloring logic
+  data,
+  columns,
+  computeQuarterValues,
+  getHeatStyle,
   title = "Drill Table",
-  levels = ["Level 1", "Level 2", "Level 3"], // dynamic level headers
+  levels = ["Platform", "Zone", "City", "Product", "ID"],
   rowsPerPage = 5,
   enableTrend = true,
 }) {
-  // ------------------ state ------------------
+  // ============================================================
+  // STATE
+  // ============================================================
   const [expanded, setExpanded] = useState({});
   const [selectedQuarter, setSelectedQuarter] = useState("Q1");
   const [page, setPage] = useState(0);
@@ -47,60 +41,56 @@ export default function DrillHeatTable({
     columns.map((c) => c.key)
   );
 
-  // ----------------- max depth -----------------
-  const getMaxDepth = (nodes, depth = 0) =>
-    nodes.reduce(
-      (max, n) =>
-        Math.max(
-          max,
-          n.children?.length
-            ? getMaxDepth(n.children, depth + 1)
-            : depth
-        ),
-      depth
-    );
+  // ============================================================
+  // DYNAMIC LEVEL VISIBILITY (auto shrink hierarchy columns)
+  // ============================================================
+  const computeVisibleLevels = (nodes, visible = []) => {
+    visible[0] = true; // root level always visible
 
-  const maxDepth = getMaxDepth(data);
-  const totalHierarchyCols = maxDepth + 1;
+    const walk = (node, lvl, path = []) => {
+      const key = [...path, node.label].join(">");
 
-  // ---------------- expand / collapse all ----------------
-  const expandAll = () => {
-    const s = {};
-    const walk = (nodes, path = []) => {
-      nodes.forEach((n) => {
-        const k = [...path, n.label].join(">");
-        if (n.children?.length) {
-          s[k] = true;
-          walk(n.children, [...path, n.label]);
-        }
-      });
+      if (expanded[key]) visible[lvl + 1] = true;
+
+      node.children?.forEach((ch) =>
+        walk(ch, lvl + 1, [...path, node.label])
+      );
     };
 
-    walk(data);
-    setExpanded(s);
+    nodes.forEach((n) => walk(n, 0));
+    return visible.map((v, i) => (v ? levels[i] : null));
+  };
+
+  const visibleLevels = computeVisibleLevels(data);
+
+  // ============================================================
+  // Expand / Collapse All
+  // ============================================================
+  const expandAll = () => {
+    const map = {};
+    const walk = (node, path = []) => {
+      const key = [...path, node.label].join(">");
+      if (node.children?.length) {
+        map[key] = true;
+        node.children.forEach((c) => walk(c, [...path, node.label]));
+      }
+    };
+    data.forEach((row) => walk(row));
+    setExpanded(map);
   };
 
   const collapseAll = () => setExpanded({});
 
-  // ---------------- build trend dataset ----------------
+  // ============================================================
+  // TREND DATA
+  // ============================================================
   const buildTrendData = (node) => {
-    if (!node?.values) return [];
-
-    const quarters = ["Q1", "Q2", "Q3", "Q4"];
-
-    return quarters.map((q) => {
-      const qvals = computeQuarterValues(node.values, q);
+    return ["Q1", "Q2", "Q3", "Q4"].map((q) => {
+      const vals = computeQuarterValues(node.values, q);
       const row = { quarter: q };
 
-      columns.forEach((c, idx) => {
-        const raw = qvals[idx];
-        if (raw == null) {
-          row[c.key] = null;
-        } else {
-          row[c.key] = c.isPercent
-            ? parseFloat(String(raw).replace("%", ""))
-            : Number(String(raw).replace(/,/g, ""));
-        }
+      columns.forEach((c) => {
+        row[c.key] = vals[c.key] ?? null;
       });
 
       return row;
@@ -112,8 +102,8 @@ export default function DrillHeatTable({
 
   const getTrendOption = () => ({
     tooltip: { trigger: "axis" },
-    legend: { top: 0 },
-    grid: { left: 40, right: 40, bottom: 40 },
+    legend: { top: 10, data: selectedMetrics },
+    color: ["#4f46e5", "#22c55e", "#ef4444", "#eab308", "#06b6d4"],
     xAxis: {
       type: "category",
       data: trendData.map((d) => d.quarter),
@@ -121,23 +111,25 @@ export default function DrillHeatTable({
     yAxis: [{ type: "value" }],
     series: selectedMetrics.map((m) => ({
       name: m,
-      type: chartType,
+      type: chartType === "area" ? "line" : chartType,
       smooth: true,
       data: trendData.map((d) => d[m]),
-      areaStyle: chartType === "area" ? { opacity: 0.15 } : undefined,
+      areaStyle: chartType === "area" ? { opacity: 0.25 } : undefined,
+      lineStyle: { width: 3 },
+      symbolSize: 8,
     })),
   });
 
-  // ---------------- render one row ----------------
+  // ============================================================
+  // RENDER ROW (Recursive)
+  // ============================================================
   const renderRow = (node, level = 0, path = []) => {
     const fullPath = [...path, node.label];
     const key = fullPath.join(">");
 
-    const isOpen = expanded[key];
+    const isOpen = expanded[key] ?? false;
     const hasChildren = node.children?.length > 0;
-
-    const qvals = computeQuarterValues(node.values, selectedQuarter);
-    const avg = computeRowAvg(qvals);
+    const vals = computeQuarterValues(node.values, selectedQuarter);
 
     return (
       <React.Fragment key={key}>
@@ -146,16 +138,28 @@ export default function DrillHeatTable({
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          {Array.from({ length: totalHierarchyCols }).map((_, idx) => {
-            if (idx === level) {
-              return (
-                <TableCell key={idx}>
-                  <Box display="flex" alignItems="center" gap={1.2}>
+          {/* HIERARCHY COLUMNS */}
+          {visibleLevels.map((lvl, idx) => {
+            if (lvl == null) return <TableCell key={idx}></TableCell>;
+
+            const isThisLevel = idx === level;
+
+            return (
+              <TableCell
+                key={idx}
+                sx={{
+                  width: 150,
+                  background: "#fff",
+                  borderBottom: "1px solid #eee",
+                }}
+              >
+                {isThisLevel && (
+                  <Box display="flex" alignItems="center" gap={1}>
                     {hasChildren ? (
                       <IconButton
                         size="small"
                         onClick={() =>
-                          setExpanded((p) => ({ ...p, [key]: !p[key] }))
+                          setExpanded((p) => ({ ...p, [key]: !isOpen }))
                         }
                       >
                         {isOpen ? <Minus size={14} /> : <Plus size={14} />}
@@ -166,77 +170,78 @@ export default function DrillHeatTable({
 
                     {node.label}
                   </Box>
-                </TableCell>
-              );
-            }
-            return <TableCell key={idx}>–</TableCell>;
-          })}
-
-          {qvals.map((v, i) => {
-            const style =
-              columns[i].isPercent && v ? getHeatStyle(v) : {};
-
-            return (
-              <TableCell key={i} align="right">
-                <Box
-                  sx={{
-                    px: 1,
-                    py: 0.4,
-                    borderRadius: 1,
-                    backgroundColor: style.bg || "#f3f4f6",
-                    color: style.color || "#111",
-                    display: "inline-block",
-                  }}
-                >
-                  {v ?? "–"}
-                </Box>
+                )}
               </TableCell>
             );
           })}
 
-          {/* Row Avg */}
-          <TableCell align="right">{avg}</TableCell>
+          {/* DATA CELLS */}
+          {columns.map((col) => {
+            const v = vals[col.key] ?? "-";
+            const heat = v !== "-" ? getHeatStyle(v) : {};
 
-          {/* Trend */}
+            return (
+              <TableCell key={col.key} align="right">
+                {v !== "-" ? (
+                  <Box
+                    sx={{
+                      px: 1,
+                      py: 0.4,
+                      borderRadius: 1,
+                      background: heat.bg || "#f3f4f6",
+                      color: heat.color || "#222",
+                      display: "inline-block",
+                    }}
+                  >
+                    {v}
+                  </Box>
+                ) : (
+                  "-"
+                )}
+              </TableCell>
+            );
+          })}
+
+          {/* TREND BUTTON */}
           {enableTrend && (
             <TableCell align="right">
-              <IconButton
-                size="small"
-                onClick={() =>
-                  setTrendState({ node, path: fullPath })
-                }
-              >
-                <TrendingUp size={16} />
-              </IconButton>
+              {node.values && Object.keys(node.values).length > 0 && (
+                <IconButton
+                  size="small"
+                  onClick={() => setTrendState({ node, path: fullPath })}
+                >
+                  <TrendingUp size={16} />
+                </IconButton>
+              )}
             </TableCell>
           )}
         </TableRow>
 
+        {/* CHILD NODES */}
         {isOpen &&
-          node.children?.map((ch) =>
-            renderRow(ch, level + 1, fullPath)
+          node.children?.map((child) =>
+            renderRow(child, level + 1, fullPath)
           )}
       </React.Fragment>
     );
   };
 
-  // =============== UI Rendering ================
+  // ============================================================
+  // RENDER UI
+  // ============================================================
   return (
     <>
       <Card sx={{ p: 3 }}>
-        {/* Header */}
+        {/* HEADER */}
         <Box display="flex" justifyContent="space-between">
           <Box>
-            <Typography sx={{ fontSize: 11, color: "gray" }}>
-              Drill Table
-            </Typography>
-
+            <Typography sx={{ fontSize: 11, color: "gray" }}>Drill Table</Typography>
             <Typography sx={{ fontSize: 18, fontWeight: 700 }}>
               {title}
             </Typography>
           </Box>
 
-          {/* Quarter Selector */}
+          {/* QUARTER SELECTOR */}
           <Box>
             {["Q1", "Q2", "Q3", "Q4"].map((q) => (
               <Button
@@ -255,36 +260,26 @@ export default function DrillHeatTable({
           </Box>
         </Box>
 
-        {/* Expand / Collapse */}
+        {/* EXPAND / COLLAPSE */}
         <Box my={1} display="flex" gap={1}>
-          <Button size="small" onClick={expandAll}>
-            Expand All
-          </Button>
-          <Button size="small" onClick={collapseAll}>
-            Collapse All
-          </Button>
+          <Button size="small" onClick={expandAll}>Expand All</Button>
+          <Button size="small" onClick={collapseAll}>Collapse All</Button>
         </Box>
 
-        {/* Table */}
+        {/* TABLE */}
         <TableContainer component={Paper} sx={{ maxHeight: 460 }}>
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                {Array.from({ length: totalHierarchyCols }).map(
-                  (_, i) => (
-                    <TableCell key={i}>
-                      {levels[i] ?? `Level ${i + 1}`}
-                    </TableCell>
-                  )
-                )}
+                {visibleLevels.map((lvl, i) => (
+                  <TableCell key={i}>{lvl ?? ""}</TableCell>
+                ))}
 
                 {columns.map((col) => (
-                  <TableCell align="right" key={col.key}>
+                  <TableCell key={col.key} align="right">
                     {col.label} ({selectedQuarter})
                   </TableCell>
                 ))}
-
-                <TableCell align="right">Avg</TableCell>
 
                 {enableTrend && <TableCell align="right">Trend</TableCell>}
               </TableRow>
@@ -293,12 +288,12 @@ export default function DrillHeatTable({
             <TableBody>
               {data
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((row) => renderRow(row))}
+                .map((root) => renderRow(root))}
             </TableBody>
           </Table>
         </TableContainer>
 
-        {/* Pagination */}
+        {/* PAGINATION */}
         <Box mt={2} textAlign="right">
           <Button
             size="small"
@@ -307,47 +302,104 @@ export default function DrillHeatTable({
           >
             Prev
           </Button>
-          <Button
-            size="small"
-            onClick={() => setPage(page + 1)}
-          >
+          <Button size="small" onClick={() => setPage(page + 1)}>
             Next
           </Button>
         </Box>
       </Card>
 
-      {/* Trend Drawer */}
-      {trendState && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: "45vw",
-            background: "white",
-            p: 2,
-            zIndex: 2000,
-          }}
-        >
-          <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
-            {trendTitle}
-          </Typography>
+      {/* ============================================================
+           TREND POWER DRAWER
+      ============================================================ */}
+{trendState && (
+  <Box
+    sx={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.45)",
+      backdropFilter: "blur(4px)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 4000,
+      p: 2
+    }}
+  >
+    <Box
+      component={motion.div}
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.9, opacity: 0 }}
+      sx={{
+        width: "70vw",
+        maxWidth: "900px",
+        background: "white",
+        borderRadius: 3,
+        p: 3,
+        boxShadow: "0px 10px 40px rgba(0,0,0,0.25)"
+      }}
+    >
+      {/* HEADER */}
+      <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Typography sx={{ fontSize: 18, fontWeight: 700 }}>
+          Trend – {trendTitle}
+        </Typography>
 
-          <ReactECharts
-            option={getTrendOption()}
-            style={{ height: 300, marginTop: 20 }}
-          />
+        <Button variant="outlined" onClick={() => setTrendState(null)}>
+          Close
+        </Button>
+      </Box>
 
+      {/* CHART TYPE SELECTOR */}
+      <Box mt={2} display="flex" gap={1}>
+        {["line", "bar", "area"].map((t) => (
           <Button
-            onClick={() => setTrendState(null)}
-            sx={{ mt: 2 }}
-            fullWidth
+            key={t}
+            size="small"
+            variant={chartType === t ? "contained" : "outlined"}
+            onClick={() => setChartType(t)}
           >
-            Close
+            {t.toUpperCase()}
           </Button>
+        ))}
+      </Box>
+
+      {/* METRIC SELECTOR */}
+      <Box mt={3}>
+        <Typography sx={{ fontSize: 14, mb: 1 }}>Select Metrics</Typography>
+
+        <Box display="flex" flexWrap="wrap" gap={1}>
+          {columns.map((c) => (
+            <Button
+              key={c.key}
+              size="small"
+              variant={selectedMetrics.includes(c.key) ? "contained" : "outlined"}
+              onClick={() =>
+                setSelectedMetrics((prev) =>
+                  prev.includes(c.key)
+                    ? prev.filter((x) => x !== c.key)
+                    : [...prev, c.key]
+                )
+              }
+            >
+              {c.label}
+            </Button>
+          ))}
         </Box>
-      )}
+      </Box>
+
+      {/* CHART */}
+      <ReactECharts
+        option={getTrendOption()}
+        style={{ height: 400, marginTop: 20 }}
+      />
+    </Box>
+  </Box>
+)}
+
     </>
   );
 }
