@@ -140,10 +140,10 @@ const ChannelStackedChart = ({ data, metric, onMetricChange }) => {
     metric === 'visibility'
       ? data
       : data.map((d) => ({
-          ...d,
-          organic: metric === 'units' ? d.units * 0.65 : d.impressions * 0.6,
-          sponsored: metric === 'units' ? d.units * 0.35 : d.impressions * 0.4,
-        }))
+        ...d,
+        organic: metric === 'units' ? d.units * 0.65 : d.impressions * 0.6,
+        sponsored: metric === 'units' ? d.units * 0.35 : d.impressions * 0.4,
+      }))
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -218,9 +218,8 @@ const ProductHeatTable = ({ data }) => {
             <button
               key={key}
               onClick={() => setSortKey(key)}
-              className={`text-xs font-semibold px-2 py-1 rounded-full border ${
-                sortKey === key ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500'
-              }`}
+              className={`text-xs font-semibold px-2 py-1 rounded-full border ${sortKey === key ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500'
+                }`}
             >
               {key}
             </button>
@@ -507,9 +506,8 @@ const VisiblityAnalysisData = () => {
                             else set.add(c.name)
                             setSelectedCompetitors(Array.from(set))
                           }}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                            active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
-                          }`}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
+                            }`}
                         >
                           {c.name}
                         </button>

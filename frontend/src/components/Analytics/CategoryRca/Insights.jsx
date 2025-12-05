@@ -35,7 +35,7 @@
 //         <Typography variant="h6" fontWeight={600}>
 //           Insights
 //         </Typography>
-   
+
 //       </Box>
 
 //       <Box sx={{ display: "flex", gap: 1, mb: 3, flexWrap: "wrap" }}>
@@ -93,7 +93,7 @@
 
 // components/KpiDrillDownTable.jsx
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   Box,
   Card,
@@ -113,7 +113,7 @@ import {
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp } from "lucide-react";
-import ReactECharts from "echarts-for-react";
+import EChartsWrapper from "../../EChartsWrapper";
 import { TABS_META, KPI_HEADERS, kpiDrillDataByTab } from "./DataRcaCenter";
 
 // --------- HELPERS ---------
@@ -219,6 +219,7 @@ export default function Insights() {
   const [activeTabKey, setActiveTabKey] = useState("gainers");
   const [expanded, setExpanded] = useState({});
   const [page, setPage] = useState(0);
+
 
   // Trend drawer state
   const [trendState, setTrendState] = useState(null); // { node, path }
@@ -445,13 +446,13 @@ export default function Insights() {
             const sticky =
               col === 0
                 ? {
-                    position: "sticky",
-                    left: 0,
-                    zIndex: 10,
-                    backgroundColor: rowBg,
-                    minWidth: 180,
-                    borderRight: "1px solid #e5e7eb",
-                  }
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 10,
+                  backgroundColor: rowBg,
+                  minWidth: 180,
+                  borderRight: "1px solid #e5e7eb",
+                }
                 : {};
 
             if (col === level) {
@@ -704,12 +705,12 @@ export default function Insights() {
                     sx={
                       i === 0
                         ? {
-                            position: "sticky",
-                            left: 0,
-                            background: "#f9fafb",
-                            zIndex: 10,
-                            minWidth: 180,
-                          }
+                          position: "sticky",
+                          left: 0,
+                          background: "#f9fafb",
+                          zIndex: 10,
+                          minWidth: 180,
+                        }
                         : {}
                     }
                   >
@@ -954,12 +955,12 @@ export default function Insights() {
                 overflow: "hidden",
               }}
             >
-              <ReactECharts
-                option={getTrendOption()}
-                style={{ width: "100%", height: 330 }}
-                notMerge
-                lazyUpdate
-              />
+              <Box sx={{ mt: 1, height: 320 }}>
+                <EChartsWrapper
+                  option={getTrendOption()}
+                  style={{ height: "100%", width: "100%" }}
+                />
+              </Box>
             </Box>
           </Box>
         </Box>

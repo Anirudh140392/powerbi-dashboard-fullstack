@@ -56,10 +56,9 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
           <button
             onClick={() => setOlaMode("absolute")}
             className={`rounded-full px-3 py-1 font-medium shadow-sm 
-              ${
-                olaMode === "absolute"
-                  ? "bg-slate-900 text-slate-50"
-                  : "bg-slate-100 text-slate-700 border border-slate-200"
+              ${olaMode === "absolute"
+                ? "bg-slate-900 text-slate-50"
+                : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
             Absolute OLA
@@ -68,10 +67,9 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
           <button
             onClick={() => setOlaMode("weighted")}
             className={`rounded-full px-3 py-1 font-medium 
-              ${
-                olaMode === "weighted"
-                  ? "bg-slate-900 text-slate-50 shadow-sm"
-                  : "bg-slate-100 text-slate-700 border border-slate-200"
+              ${olaMode === "weighted"
+                ? "bg-slate-900 text-slate-50 shadow-sm"
+                : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
             Weighted OLA
@@ -731,11 +729,10 @@ const FormatPerformanceStudio = () => {
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
-                  isActive
-                    ? "border-sky-400 bg-sky-50 shadow-sm"
-                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                }`}
+                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                  ? "border-sky-400 bg-sky-50 shadow-sm"
+                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                  }`}
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
               >
@@ -943,25 +940,22 @@ const FormatPerformanceStudio = () => {
                         prev === f.name ? null : f.name
                       )
                     }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
-                      isCompare
-                        ? "border-violet-500 bg-violet-50 shadow-sm"
-                        : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                    }`}
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
+                      ? "border-violet-500 bg-violet-50 shadow-sm"
+                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                      }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
                       className="h-2 w-10 rounded-full"
                       style={{
-                        background: `linear-gradient(to right, rgba(14,165,233,${
-                          0.3 + weight * 0.4
-                        }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
+                        background: `linear-gradient(to right, rgba(14,165,233,${0.3 + weight * 0.4
+                          }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
                       }}
                     />
                     <span
-                      className={`truncate ${
-                        isActive ? "font-semibold" : "font-normal"
-                      }`}
+                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        }`}
                     >
                       {f.name}
                     </span>

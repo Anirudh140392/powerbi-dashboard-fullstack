@@ -2,6 +2,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import swaggerJsdoc from "swagger-jsdoc";
 import AllRoutes from "./routes.js";
 import { connectDB } from "./config/db.js";
 
@@ -10,6 +12,27 @@ import { connectDB } from "./config/db.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Swagger configuration
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Trailytics API",
+      version: "1.0.0",
+      description: "API documentation for Trailytics Dashboard",
+    },
+    servers: [
+      {
+        url: "http://localhost:5000",
+      },
+    ],
+  },
+  apis: ["./src/routes/*.js"], // Path to the API docs
+};
+
+const swaggerDocs = swaggerJsdoc(swaggerOptions);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 
 // 🚫 Disable caching for API responses
