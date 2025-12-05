@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, BarChart2 } from "lucide-react";
 import SimpleTrendPopup from "../AllAvailablityAnalysis/SimpleTrendPopup";
+import ComparisonPopup from "../AllAvailablityAnalysis/ComparisonPopup";
 
 export default function SimpleTableWithTabs({
   data = {},
@@ -10,6 +11,7 @@ export default function SimpleTableWithTabs({
   trendKey = "trend",
 }) {
   const [openTrend, setOpenTrend] = useState(false);
+  const [openCompare, setOpenCompare] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
 
   if (!data.columns || !data.rows) {
@@ -20,7 +22,7 @@ export default function SimpleTableWithTabs({
 
   return (
     <div className="rounded-3xl bg-white border border-slate-100 shadow-[0_12px_40px_rgba(15,23,42,0.08)] p-5 flex flex-col gap-3">
-      
+
       {/* Header */}
       <div>
         <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{title}</p>
@@ -29,7 +31,7 @@ export default function SimpleTableWithTabs({
       {/* Table */}
       <div className="overflow-x-auto rounded-2xl border border-slate-100">
         <table className="min-w-full text-[12px] table-fixed">
-          
+
           {/* Header */}
           <thead className="bg-slate-50">
             <tr>
@@ -42,9 +44,9 @@ export default function SimpleTableWithTabs({
                 </th>
               ))}
 
-              {/* Trend */}
-              <th className="px-3 py-2 font-semibold text-slate-600 text-center w-[60px]">
-                Trend
+              {/* Trend+Compare */}
+              <th className="px-3 py-2 font-semibold text-slate-600 text-center w-[80px]">
+                Actions
               </th>
             </tr>
           </thead>
@@ -53,7 +55,7 @@ export default function SimpleTableWithTabs({
           <tbody>
             {rows.map((row, idx) => (
               <tr key={idx} className="border-t border-slate-100">
-                
+
                 {columns.map((col) => {
                   const value = row[col];
                   const isNumeric =
@@ -73,11 +75,13 @@ export default function SimpleTableWithTabs({
                   );
                 })}
 
-                {/* Trend button */}
-                <td className="px-3 py-2 text-center w-[60px]">
-                  {row[trendKey] ? (
+                {/* Trend + Compare Buttons */}
+                <td className="px-3 py-2 text-center w-[80px]">
+                  <div className="flex items-center justify-center gap-3">
+
+                    {/* Trend */}
                     <button
-                      className="text-blue-600 hover:text-blue-800 flex justify-center items-center mx-auto"
+                      className="text-blue-600 hover:text-blue-800"
                       onClick={() => {
                         setSelectedRow(row);
                         setOpenTrend(true);
@@ -85,9 +89,19 @@ export default function SimpleTableWithTabs({
                     >
                       <TrendingUp size={18} />
                     </button>
-                  ) : (
-                    <span className="text-slate-400">–</span>
-                  )}
+
+                    {/* Compare */}
+                    <button
+                      className="text-purple-600 hover:text-purple-800"
+                      onClick={() => {
+                        setSelectedRow(row);
+                        setOpenCompare(true);
+                      }}
+                    >
+                      <BarChart2 size={18} />
+                    </button>
+
+                  </div>
                 </td>
 
               </tr>
@@ -103,6 +117,13 @@ export default function SimpleTableWithTabs({
         row={selectedRow}
         trendKey={trendKey}
         onClose={() => setOpenTrend(false)}
+      />
+
+      {/* Comparison Popup */}
+      <ComparisonPopup
+        open={openCompare}
+        row={selectedRow}
+        onClose={() => setOpenCompare(false)}
       />
 
     </div>
