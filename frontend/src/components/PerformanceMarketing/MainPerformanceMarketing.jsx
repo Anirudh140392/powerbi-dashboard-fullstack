@@ -7,6 +7,59 @@ import performanceData from "../../utils/PerformanceMarketingData";
 import HeatMapDrillTable from "./HeatMapDrillTable";
 import InsightHorizontalKpis from "./InsightHorizontalKpis";
 import KeywordAnalysisTable from "./KeywordAnalysisTable";
+import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
+import MetricCardContainer from "../CommonLayout/MetricCardContainer";
+
+const kpi_cards = [
+  {
+    title: "Impressions",
+    value: "1.2M",
+    sub: "Total ad impressions",
+    change: "▲3.5%",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Campaign reach improving",
+    extraChange: "▲3.5%",
+    extraChangeColor: "green",
+    icon: "BarChart3",
+  },
+  {
+    title: "Direct Conv.",
+    value: "3.5%",
+    sub: "Conversion rate (direct)",
+    change: "▲0.8%",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Steady improvement in funnel",
+    extraChange: "▲0.8%",
+    extraChangeColor: "green",
+    icon: "TrendingUp",
+  },
+  {
+    title: "Spend",
+    value: "₹9.4M",
+    sub: "Advertising spend (MTD)",
+    change: "▼1.2%",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Cost efficiency improving",
+    extraChange: "▼1.2%",
+    extraChangeColor: "red",
+    icon: "ShoppingCart",
+  },
+  {
+    title: "New Users",
+    value: "22.9k",
+    sub: "New customers acquired",
+    change: "▲4.1%",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Strong user acquisition",
+    extraChange: "▲4.1%",
+    extraChangeColor: "green",
+    icon: "Users",
+  },
+];
 
 export default function MainPerformanceMarketings() {
   const calledOnce = useRef(false);
@@ -31,62 +84,11 @@ export default function MainPerformanceMarketings() {
 
   return (
     <Box>
-      <Box>
-        <Card
-          sx={{
-            p: 3,
-            borderRadius: 3,
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          {/* HEADER */}
-          <Typography variant="h6" fontWeight={700}>
-            kpis overview
-          </Typography>
-          <Box sx={{ height: 1, borderBottom: "1px solid #e5e7eb", my: 2 }} />
-          <Grid container spacing={3}>
-            {performanceData.kpi_cards.map((kpi, i) => {
-              const Icon = Icons[kpi.icon];
-              return (
-                <Grid item xs={12} sm={6} md={3} key={i}>
-                  <Card
-                    sx={{
-                      p: 3,
-                      height: 135,
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                      transition: "0.3s",
-                      "&:hover": {
-                        transform: "translateY(-6px)",
-                        boxShadow: "0 12px 35px rgba(0,0,0,0.12)",
-                      },
-                    }}
-                  >
-                    <Box display="flex" justifyContent="space-between">
-                      <Typography variant="subtitle2" color="text.secondary">
-                        {kpi.label}
-                      </Typography>
-                      <Icon size={22} color="#6366F1" />
-                    </Box>
 
-                    <Typography variant="h4" fontWeight={700}>
-                      {kpi.value}
-                    </Typography>
 
-                    <Chip
-                      label={`${kpi.change} vs last month`}
-                      color={kpi.positive ? "success" : "error"}
-                      size="small"
-                      sx={{ alignSelf: "flex-start" }}
-                    />
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-        </Card>
-      </Box>
+          {/* 👉 Replace KPI Grid with the new CardMetric */}
+          <MetricCardContainer title="Performance Overview" cards={kpi_cards} />
+
       <Box sx={{ mt: 4 }}>
         <InsightHorizontalKpis />
       </Box>

@@ -40,18 +40,33 @@ const CardMetric = ({ data }) => {
     },
   ];
 
-  const cards = data && data.length > 0 ? data.map(item => ({
-    title: item.name,
-    value: item.label,
-    sub: item.subtitle,
-    change: item.trend,
-    changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
-    prevText: item.comparison,
-    extra: item.units ? `#Units: ${item.units}` : null,
-    extraChange: item.unitsTrend,
-    extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
-    chart: item.chart
-  })) : defaultCards;
+  // const cards = data && data.length > 0 ? data.map(item => ({
+  //   title: item.name,
+  //   value: item.label,
+  //   sub: item.subtitle,
+  //   change: item.trend,
+  //   changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
+  //   prevText: item.comparison,
+  //   extra: item.units ? `#Units: ${item.units}` : null,
+  //   extraChange: item.unitsTrend,
+  //   extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
+  //   chart: item.chart
+  // })) : defaultCards;
+
+  const cards =
+  data && data.length > 0
+    ? data.map(item => ({
+        title: item.label,          // 👈 KPI title
+        value: item.value,          // 👈 KPI value
+        sub: item.description,      // 👈 KPI subtext
+        change: item.change,        // 👈 `+6.4%` etc.
+        changeColor: item.positive ? "green" : "red",
+        prevText: "vs last month",  // 👈 static or dynamic
+        extra: null,                // no units here
+        extraChange: null,
+        chart: item.chart || []     // if available
+      }))
+    : defaultCards;
 
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
