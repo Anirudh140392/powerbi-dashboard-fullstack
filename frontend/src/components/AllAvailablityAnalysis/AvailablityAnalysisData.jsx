@@ -9,7 +9,7 @@ import {
   PRODUCT_MATRIX,
 } from "./availablityDataCenter";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
-import SimpleTableWithTabs from "../CommonLayout/simpleTableWithTabs";
+import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 
 // ---------------------------------------------------------------------------
@@ -138,11 +138,10 @@ const TabbedHeatmapTable = () => {
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-2 rounded-full text-sm border transition ${
-              activeTab === t.key
+            className={`px-4 py-2 rounded-full text-sm border transition ${activeTab === t.key
                 ? "bg-slate-900 text-white"
                 : "bg-slate-100 text-slate-700 border-slate-300"
-            }`}
+              }`}
           >
             {t.label}
           </button>
