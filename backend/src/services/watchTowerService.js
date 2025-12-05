@@ -2,8 +2,10 @@ import TbZeptoBrandSalesAnalytics from '../models/TbZeptoBrandSalesAnalytics.js'
 import TbZeptoInventoryData from '../models/TbZeptoInventoryData.js';
 import TbBlinkitSalesData from '../models/TbBlinkitSalesData.js';
 import RbPdpOlap from '../models/RbPdpOlap.js';
+
 import RbKw from '../models/RbKw.js';
-import ZeptoMarketShare from '../models/ZeptoMarketShare.js';
+import RbBrandMs from '../models/RbBrandMs.js';
+import ZeptoMarketShare from '../models/ZeptoMarketShare.js'; // Keeping for reference if needed, but primary is now RbBrandMs
 import RcaSkuDim from '../models/RcaSkuDim.js';
 import { Op, Sequelize } from 'sequelize';
 import sequelize from '../config/db.js';
@@ -47,6 +49,19 @@ const getSummaryMetrics = async (filters) => {
 
         const monthBuckets = generateMonthBuckets(startDate, endDate);
 
+        // Helper for currency formatting
+        const formatCurrency = (value) => {
+            const val = parseFloat(value);
+            if (isNaN(val)) return "0";
+
+            if (val >= 1000000000) return `₹${(val / 1000000000).toFixed(2)} B`;
+            if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+            if (val >= 1000000) return `₹${(val / 1000000).toFixed(2)} M`;
+            if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
+            if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+            return `₹${val.toFixed(2)}`;
+        };
+
         // Build Where Clause for RbPdpOlap (Offtake)
         const offtakeWhereClause = {
             DATE: {
@@ -63,7 +78,7 @@ const getSummaryMetrics = async (filters) => {
 
         const selectedPlatform = filters.platform;
         if (selectedPlatform && selectedPlatform !== 'All') {
-            offtakeWhereClause.Platform = selectedPlatform;
+            offtakeWhereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase());
         }
 
         // 3. Availability Calculation Helper (Unified for all platforms using RbPdpOlap)
@@ -79,7 +94,7 @@ const getSummaryMetrics = async (filters) => {
                     [Op.like]: `%${brandFilter}%`
                 };
             }
-            if (platformFilter && platformFilter !== 'All') where.Platform = platformFilter;
+            if (platformFilter && platformFilter !== 'All') where.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platformFilter.toLowerCase());
             if (locationFilter && locationFilter !== 'All') where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), locationFilter.toLowerCase());
 
             const result = await RbPdpOlap.findOne({
@@ -160,8 +175,8 @@ const getSummaryMetrics = async (filters) => {
                 group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
                 raw: true
             }),
-            // 2. Total Market Share & Chart Data (Keep ZeptoMarketShare for now as requested only Offtake/Availability change)
-            ZeptoMarketShare.findAll({
+            // 2. Total Market Share & Chart Data (Using RbBrandMs)
+            RbBrandMs.findAll({
                 attributes: [
                     [Sequelize.fn('DATE_FORMAT', Sequelize.col('created_on'), '%Y-%m-01'), 'month_date'],
                     [Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_market_share']
@@ -171,22 +186,27 @@ const getSummaryMetrics = async (filters) => {
                         [Op.between]: [startDate.toDate(), endDate.toDate()]
                     },
                     ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
                 },
                 group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('created_on'), '%Y-%m-01')],
                 raw: true
             }),
             // Total Market Share Average
-            ZeptoMarketShare.findOne({
+            RbBrandMs.findOne({
                 attributes: [
-                    [Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_market_share']
+                    [Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_market_share'],
+                    [Sequelize.fn('COUNT', Sequelize.col('id')), 'count'],
+                    [Sequelize.fn('MIN', Sequelize.col('market_share')), 'min_val'],
+                    [Sequelize.fn('MAX', Sequelize.col('market_share')), 'max_val']
                 ],
                 where: {
                     created_on: {
                         [Op.between]: [startDate.toDate(), endDate.toDate()]
                     },
                     ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
                 },
                 raw: true
             }),
@@ -250,23 +270,7 @@ const getSummaryMetrics = async (filters) => {
             return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
         });
 
-        // Helper for currency formatting
-        const formatCurrency = (value) => {
-            const val = parseFloat(value);
-            if (isNaN(val)) return "0";
 
-            if (val >= 1000000000) {
-                return (val / 1000000000).toFixed(2) + " B";
-            } else if (val >= 10000000) {
-                return (val / 10000000).toFixed(2) + " Cr";
-            } else if (val >= 1000000) {
-                return (val / 1000000).toFixed(2) + " M";
-            } else if (val >= 1000) {
-                return (val / 1000).toFixed(2) + " K";
-            } else {
-                return val.toFixed(0);
-            }
-        };
 
         const totalOfftake = offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales), 0);
         const formattedOfftake = formatCurrency(totalOfftake);
@@ -323,11 +327,17 @@ const getSummaryMetrics = async (filters) => {
         // Prepare Top Metrics Array (Cards with Charts)
         const chartLabels = monthBuckets.map(b => b.label);
 
+        // Determine subtitle based on filters
+        let subtitle = `last ${monthsBack} months`;
+        if (qStartDate && qEndDate) {
+            subtitle = `${dayjs(qStartDate).format('DD MMM')} - ${dayjs(qEndDate).format('DD MMM')}`;
+        }
+
         const topMetrics = [
             {
                 name: "Offtake",
                 label: formattedOfftake,
-                subtitle: `last ${monthsBack} months`,
+                subtitle: subtitle,
                 trend: "0%",
                 trendType: "neutral",
                 comparison: "vs Previous Period",
@@ -339,7 +349,7 @@ const getSummaryMetrics = async (filters) => {
             {
                 name: "Availability",
                 label: formattedAvailability,
-                subtitle: `last ${monthsBack} months`,
+                subtitle: subtitle,
                 trend: "0%",
                 trendType: "neutral",
                 comparison: "vs Previous Period",
@@ -351,7 +361,7 @@ const getSummaryMetrics = async (filters) => {
             {
                 name: "Share of Search",
                 label: formattedShareOfSearch,
-                subtitle: `last ${monthsBack} months`,
+                subtitle: subtitle,
                 trend: "0%",
                 trendType: "neutral",
                 comparison: "vs Previous Period",
@@ -363,7 +373,7 @@ const getSummaryMetrics = async (filters) => {
             {
                 name: "Market Share",
                 label: formattedMarketShare,
-                subtitle: `last ${monthsBack} months`,
+                subtitle: subtitle,
                 trend: "0%",
                 trendType: "neutral",
                 comparison: "vs Previous Period",
@@ -389,16 +399,18 @@ const getSummaryMetrics = async (filters) => {
         let allSosSum = 0;
         let allSosCount = 0;
 
+
+
         // Helper to generate columns structure
-        const generateColumns = (offtake, availability, sos) => [
-            { title: "Offtakes", value: `₹${(offtake / 10000000).toFixed(2)} Cr`, change: { text: "0%", positive: true }, meta: { units: "units", change: "0%" } },
+        const generateColumns = (offtake, availability, sos, marketShare = 0) => [
+            { title: "Offtakes", value: formatCurrency(offtake), change: { text: "0%", positive: true }, meta: { units: "units", change: "0%" } },
             { title: "Spend", value: "₹0 Cr", change: { text: "0%", positive: true }, meta: { units: "₹0", change: "0%" } },
             { title: "ROAS", value: "0x", change: { text: "0%", positive: true }, meta: { units: "₹0 return", change: "0%" } },
             { title: "Inorg Sales", value: "₹0 Cr", change: { text: "0%", positive: true }, meta: { units: "0 units", change: "0%" } },
             { title: "Conversion", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "0 conversions", change: "0 pp" } },
             { title: "Availability", value: `${availability.toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "stores", change: "0 pp" } },
             { title: "SOS", value: `${sos.toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "index", change: "0 pp" } },
-            { title: "Market Share", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "Category", change: "0 pp" } },
+            { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "Category", change: "0 pp" } },
             { title: "Promo My Brand", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "Depth", change: "0 pp" } },
             { title: "Promo Compete", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "Depth", change: "0 pp" } },
             { title: "CPM", value: "₹0", change: { text: "0%", positive: true }, meta: { units: "impressions", change: "0%" } },
@@ -412,10 +424,10 @@ const getSummaryMetrics = async (filters) => {
                 // Calculate Offtake (Unified using RbPdpOlap)
                 const platformOfftakeWhere = {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    Platform: p.label
+                    Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase())
                 };
-                if (brand) platformOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
-                if (location) platformOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                if (brand && brand !== 'All') platformOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+                if (location && location !== 'All') platformOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
 
                 const platformOfftakeResult = await RbPdpOlap.findOne({
                     attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
@@ -429,6 +441,20 @@ const getSummaryMetrics = async (filters) => {
 
                 // Calculate Share of Search
                 let sos = await getShareOfSearch(startDate, endDate, brand, p.label, location);
+
+                // Calculate Market Share
+                let marketShare = 0;
+                const msResult = await RbBrandMs.findOne({
+                    attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
+                    where: {
+                        created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                        Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase()),
+                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    },
+                    raw: true
+                });
+                marketShare = parseFloat(msResult?.avg_ms || 0);
 
                 // Accumulate
                 allOfftake += offtake;
@@ -446,7 +472,7 @@ const getSummaryMetrics = async (filters) => {
                     label: p.label,
                     type: p.type,
                     logo: p.logo,
-                    columns: generateColumns(offtake, availability, sos)
+                    columns: generateColumns(offtake, availability, sos, marketShare)
                 });
             } catch (err) {
                 console.error(`Error processing platform ${p.key}:`, err);
@@ -456,7 +482,7 @@ const getSummaryMetrics = async (filters) => {
                     label: p.label,
                     type: p.type,
                     logo: p.logo,
-                    columns: generateColumns(0, 0, 0) // Fallback
+                    columns: generateColumns(0, 0, 0, 0) // Fallback
                 });
             }
         }
@@ -470,7 +496,7 @@ const getSummaryMetrics = async (filters) => {
             label: 'All',
             type: 'Overall',
             logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
-            columns: generateColumns(allOfftake, allAvailability, allSos)
+            columns: generateColumns(allOfftake, allAvailability, allSos, 0) // Market Share for 'All' is tricky to average without weights, leaving 0 for now or simple average if needed
         });
 
         return {
