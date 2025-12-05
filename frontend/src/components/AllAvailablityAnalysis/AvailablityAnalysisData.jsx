@@ -1061,19 +1061,9 @@ export const AvailablityAnalysisData = ({ apiData }) => {
       <div className="max-w-7xl mx-auto space-y-5">
         <div className="space-y-4">
           <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
-          {/* <DualAxisDrillMatrix /> */}
           <MetricCardContainer title="Availability Overview" cards={cards} />
-          {/* <SimpleTableWithTabs
-            title="Platform Level Across Category"
-            subtitle="Platform"
-            data={tableData}
-            cellHeat={cellHeat}
-          /> */}
-          <TabbedHeatmapTable apiData={apiData} />
+          <TabbedHeatmapTable />
 
-          {/* <PowerHierarchyHeat /> */}
-          {/* <ProductLevelHeat />
-          <OLADrillTable /> */}
           <DrillHeatTable
             title="One View Drilldown"
             data={ONE_VIEW_DRILL_DATA}
@@ -1086,8 +1076,6 @@ export const AvailablityAnalysisData = ({ apiData }) => {
             })}
             levels={["Platform", "Zone", "City", "Product", "ID"]}
           />
-
-          {/* <FormatPerformanceStudio /> */}
         </div>
       </div>
     </div>
