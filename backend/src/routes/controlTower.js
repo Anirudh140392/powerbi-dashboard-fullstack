@@ -106,6 +106,25 @@ export default (app) => {
      */
     app.get('/api/watchtower/locations', getLocations);
 
+    /**
+     * @swagger
+     * /api/watchtower/platforms:
+     *   get:
+     *     summary: Get list of available platforms
+     *     description: Retrieve a list of distinct platforms from the database.
+     *     responses:
+     *       200:
+     *         description: Successful response with list of platforms
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: string
+     *     tags: [WatchTower]
+     */
+    app.get('/api/watchtower/platforms', getPlatforms);
+
     app.get('/api/watchtower/debug', debugAvailability);
 
 };

@@ -89,18 +89,45 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = () => {
+const TabbedHeatmapTable = ({ apiData }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // ---------------- PLATFORM LEVEL DATA ----------------
-  const platformData = {
-    columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
-    rows: (FORMAT_MATRIX.PlatformData ?? []).map((r) => ({
+  const platformData = useMemo(() => {
+    const baseRows = (FORMAT_MATRIX.PlatformData ?? []).map((r) => ({
       kpi: r.kpi,
       ...r.values,
-      trend: r.trend, // ← FIXED
-    })),
-  };
+      trend: r.trend,
+    }));
+
+    if (apiData?.metrics?.assortment?.breakdown) {
+      const assortmentRow = baseRows.find((r) => r.kpi === "Assortment");
+      if (assortmentRow) {
+        // Iterate over ALL columns to ensure we overwrite hardcoded values
+        FORMAT_MATRIX.PlatformColumns.forEach((platform) => {
+          const apiValue = apiData.metrics.assortment.breakdown[platform];
+          // Check for exact match or case-insensitive match if needed
+
+          if (apiValue !== undefined) {
+            assortmentRow[platform] = apiValue;
+          } else {
+            // Try case-insensitive lookup
+            const lowerPlatform = platform.toLowerCase();
+            const matchKey = Object.keys(apiData.metrics.assortment.breakdown).find(k => k && k.toLowerCase() === lowerPlatform);
+            if (matchKey) {
+              assortmentRow[platform] = apiData.metrics.assortment.breakdown[matchKey];
+            } else {
+              assortmentRow[platform] = 0;
+            }
+          }
+        });
+      }
+    }
+
+    return {
+      columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
+      rows: baseRows,
+    };
+  }, [apiData]);
 
   // ---------------- FORMAT LEVEL DATA ----------------
   const formatData = {
@@ -139,8 +166,8 @@ const TabbedHeatmapTable = () => {
             key={t.key}
             onClick={() => setActiveTab(t.key)}
             className={`px-4 py-2 rounded-full text-sm border transition ${activeTab === t.key
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-700 border-slate-300"
+              ? "bg-slate-900 text-white"
+              : "bg-slate-100 text-slate-700 border-slate-300"
               }`}
           >
             {t.label}
@@ -972,58 +999,62 @@ const FormatPerformanceStudio = () => {
   );
 };
 
-const cards = [
-  {
-    title: "Assortments",
-    value: "96 on 30 Nov'25",
-    sub: "Active SKUs in store",
-    change: "▲4.3% (+4 SKUs)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "New launches this month: 7",
-    extraChange: "▲12.5%",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Stock Availability",
-    value: "52.4%",
-    sub: "MTD on-shelf coverage",
-    change: "▼8.6 pts (from 61.0%)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "High risk stores: 18",
-    extraChange: "▲5 stores",
-    extraChangeColor: "red",
-  },
-  {
-    title: "Days of Inventory (DOI)",
-    value: "68.3",
-    sub: "Network average days of cover",
-    change: "▲19.5% (from 57.1)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Target band: 55–65 days",
-    extraChange: "Slightly above target",
-    extraChangeColor: "orange",
-  },
-  {
-    title: "Wt. OSA",
-    value: "76.9%",
-    sub: "Weighted on-shelf availability (MTD)",
-    change: "▲1.2 pts (from 75.7%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Top 50 SKUs: 82.3%",
-    extraChange: "▲0.9 pts",
-    extraChangeColor: "green",
-  },
-];
+
 
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = () => {
+export const AvailablityAnalysisData = ({ apiData }) => {
   const [olaMode, setOlaMode] = useState("absolute");
+
+  const cards = useMemo(() => [
+    {
+      title: "Assortments",
+      value: (apiData?.metrics?.assortment?.total !== undefined && apiData?.metrics?.assortment?.total !== null)
+        ? `${apiData.metrics.assortment.total} on ${apiData.metrics.assortment.date ? new Date(apiData.metrics.assortment.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : 'Unknown Date'}`
+        : "Loading...",
+      sub: "Active SKUs in store",
+      change: "▲4.3% (+4 SKUs)", // Placeholder for trend
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "New launches this month: 7", // Placeholder
+      extraChange: "▲12.5%",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Stock Availability",
+      value: "52.4%",
+      sub: "MTD on-shelf coverage",
+      change: "▼8.6 pts (from 61.0%)",
+      changeColor: "red",
+      prevText: "vs Comparison Period",
+      extra: "Top 50 SKUs: 82.3%",
+      extraChange: "▲0.9 pts",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Days of Inventory (DOI)",
+      value: "68.3",
+      sub: "Network average days of cover",
+      change: "▲19.5% (from 57.1)",
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "Target band: 55–65 days",
+      extraChange: "Slightly above target",
+      extraChangeColor: "orange",
+    },
+    {
+      title: "Wt. OSA",
+      value: "76.9%",
+      sub: "Weighted on-shelf availability (MTD)",
+      change: "▲1.2 pts (from 75.7%)",
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "Top 50 SKUs: 82.3%",
+      extraChange: "▲0.9 pts",
+      extraChangeColor: "green",
+    },
+  ], [apiData]);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-amber-50 via-white to-sky-50 text-slate-900 px-4 py-6">
@@ -1038,7 +1069,7 @@ export const AvailablityAnalysisData = () => {
             data={tableData}
             cellHeat={cellHeat}
           /> */}
-          <TabbedHeatmapTable />
+          <TabbedHeatmapTable apiData={apiData} />
 
           {/* <PowerHierarchyHeat /> */}
           {/* <ProductLevelHeat />
