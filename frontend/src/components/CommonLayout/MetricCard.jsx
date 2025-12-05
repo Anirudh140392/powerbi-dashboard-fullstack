@@ -1,5 +1,5 @@
 import { Card, CardContent, Typography, Box } from "@mui/material";
-import MiniSparkline from "./MiniSparkline";
+import MiniSparkline from "./MiniSparkLine";
 
 const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
