@@ -243,14 +243,14 @@ export default function WatchTower() {
               onViewTrends={handleViewTrends}
               data={
                 activeKpisTab === "Platform Overview"
-                  ? defaultPlatforms
+                  ? (dashboardData?.platformOverview || defaultPlatforms)
                   : activeKpisTab === "Category Overview"
-                  ? defaultCategory
-                  : activeKpisTab === "Month Overview"
-                  ? defaultMonths
-                  : activeKpisTab === "Brands Overview"
-                  ? defaultBrands
-                  : []
+                    ? defaultCategory
+                    : activeKpisTab === "Month Overview"
+                      ? defaultMonths
+                      : activeKpisTab === "Brands Overview"
+                        ? defaultBrands
+                        : defaultSkus
               }
               activeKpisTab={activeKpisTab}
             />
@@ -527,89 +527,89 @@ const FormatPerformanceStudio = () => {
   const pct = (value) =>
     Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
 
-const kpiBands = [
-  {
-    key: "offtakes",
-    label: "Offtakes",
-    activeValue: active.offtakes,
-    compareValue: compare?.offtakes ?? null,
-    max: 100, 
-    format: (v) => `${v}`,
-  },
-  {
-    key: "spend",
-    label: "Spend",
-    activeValue: active.spend,
-    compareValue: compare?.spend ?? null,
-    max: 20,
-    format: (v) => `₹${v}`,
-  },
-  {
-    key: "roas",
-    label: "ROAS",
-    activeValue: active.roas,
-    compareValue: compare?.roas ?? null,
-    max: 15,
-    format: (v) => `${v.toFixed(1)}x`,
-  },
-  {
-    key: "inorgSalesPct",
-    label: "Inorg Sales",
-    activeValue: active.inorgSalesPct,
-    compareValue: compare?.inorgSalesPct ?? null,
-    max: 100,
-    format: (v) => `${v}%`,
-  },
-  {
-    key: "conversionPct",
-    label: "Conversion",
-    activeValue: active.conversionPct,
-    compareValue: compare?.conversionPct ?? null,
-    max: 15,
-    format: (v) => `${v}%`,
-  },
-  {
-    key: "marketSharePct",
-    label: "Market Share",
-    activeValue: active.marketSharePct,
-    compareValue: compare?.marketSharePct ?? null,
-    max: 100,
-    format: (v) => `${v}%`,
-  },
-  {
-    key: "promoMyBrandPct",
-    label: "Promo My Brand",
-    activeValue: active.promoMyBrandPct,
-    compareValue: compare?.promoMyBrandPct ?? null,
-    max: 100,
-    format: (v) => `${v}%`,
-  },
-  {
-    key: "promoCompetePct",
-    label: "Promo Compete",
-    activeValue: active.promoCompetePct,
-    compareValue: compare?.promoCompetePct ?? null,
-    max: 100,
-    format: (v) => `${v}%`,
-  },
-  {
-    key: "cpm",
-    label: "CPM",
-    activeValue: active.cpm,
-    compareValue: compare?.cpm ?? null,
-    max: 800,
-    format: (v) => `${v}`,
-  },
-  {
-    key: "cpc",
-    label: "CPC",
-    activeValue: active.cpc,
-    compareValue: compare?.cpc ?? null,
-    max: 5000,
-    format: (v) =>
-      Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
-  },
-];
+  const kpiBands = [
+    {
+      key: "offtakes",
+      label: "Offtakes",
+      activeValue: active.offtakes,
+      compareValue: compare?.offtakes ?? null,
+      max: 100,
+      format: (v) => `${v}`,
+    },
+    {
+      key: "spend",
+      label: "Spend",
+      activeValue: active.spend,
+      compareValue: compare?.spend ?? null,
+      max: 20,
+      format: (v) => `₹${v}`,
+    },
+    {
+      key: "roas",
+      label: "ROAS",
+      activeValue: active.roas,
+      compareValue: compare?.roas ?? null,
+      max: 15,
+      format: (v) => `${v.toFixed(1)}x`,
+    },
+    {
+      key: "inorgSalesPct",
+      label: "Inorg Sales",
+      activeValue: active.inorgSalesPct,
+      compareValue: compare?.inorgSalesPct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "conversionPct",
+      label: "Conversion",
+      activeValue: active.conversionPct,
+      compareValue: compare?.conversionPct ?? null,
+      max: 15,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "marketSharePct",
+      label: "Market Share",
+      activeValue: active.marketSharePct,
+      compareValue: compare?.marketSharePct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "promoMyBrandPct",
+      label: "Promo My Brand",
+      activeValue: active.promoMyBrandPct,
+      compareValue: compare?.promoMyBrandPct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "promoCompetePct",
+      label: "Promo Compete",
+      activeValue: active.promoCompetePct,
+      compareValue: compare?.promoCompetePct ?? null,
+      max: 100,
+      format: (v) => `${v}%`,
+    },
+    {
+      key: "cpm",
+      label: "CPM",
+      activeValue: active.cpm,
+      compareValue: compare?.cpm ?? null,
+      max: 800,
+      format: (v) => `${v}`,
+    },
+    {
+      key: "cpc",
+      label: "CPC",
+      activeValue: active.cpc,
+      compareValue: compare?.cpc ?? null,
+      max: 5000,
+      format: (v) =>
+        Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
+    },
+  ];
 
 
   return (
@@ -638,11 +638,10 @@ const kpiBands = [
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
-                  isActive
-                    ? "border-sky-400 bg-sky-50 shadow-sm"
-                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                }`}
+                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                  ? "border-sky-400 bg-sky-50 shadow-sm"
+                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                  }`}
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
               >
@@ -850,25 +849,22 @@ const kpiBands = [
                         prev === f.name ? null : f.name
                       )
                     }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
-                      isCompare
-                        ? "border-violet-500 bg-violet-50 shadow-sm"
-                        : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                    }`}
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
+                      ? "border-violet-500 bg-violet-50 shadow-sm"
+                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                      }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
                       className="h-2 w-10 rounded-full"
                       style={{
-                        background: `linear-gradient(to right, rgba(14,165,233,${
-                          0.3 + weight * 0.4
-                        }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
+                        background: `linear-gradient(to right, rgba(14,165,233,${0.3 + weight * 0.4
+                          }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
                       }}
                     />
                     <span
-                      className={`truncate ${
-                        isActive ? "font-semibold" : "font-normal"
-                      }`}
+                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        }`}
                     >
                       {f.name}
                     </span>

@@ -58,7 +58,7 @@ const DateRangeSelector = ({ startDate, endDate, onChange }) => {
                 InputProps={{
                     readOnly: true,
                 }}
-                sx={{ width: 220, cursor: "pointer", "& .MuiInputBase-input": { cursor: "pointer" } }}
+                sx={{ width: "100%", cursor: "pointer", "& .MuiInputBase-input": { cursor: "pointer" } }}
             />
             <Popover
                 id={id}

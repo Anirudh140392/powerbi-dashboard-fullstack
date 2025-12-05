@@ -37,6 +37,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     locations,
     selectedLocation,
     setSelectedLocation,
+    platforms,
     platform, setPlatform,
     timeStart, setTimeStart,
     timeEnd, setTimeEnd,
@@ -94,7 +95,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         </Box>
 
         {/* DATE PICKERS */}
-        <Box sx={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
           {/* PLATFORM SELECTION */}
           <Box>
             <Typography
@@ -108,15 +109,15 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               PLATFORM
             </Typography>
             <Autocomplete
-              options={["Zepto", "Blinkit"]}
+              disableClearable
+              options={platforms}
               value={platform}
               onChange={(event, newValue) => setPlatform(newValue)}
-              disableClearable
               renderInput={(params) => (
                 <TextField
                   {...params}
                   size="small"
-                  sx={{ width: 160 }}
+                  sx={{ width: 130 }}
                 />
               )}
             />
@@ -148,7 +149,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 <TextField
                   {...params}
                   size="small"
-                  sx={{ width: 160 }}
+                  sx={{ width: 130 }}
                 />
               )}
             />
@@ -167,6 +168,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               LOCATION
             </Typography>
             <Autocomplete
+              disableClearable
               options={locations}
               value={selectedLocation}
               onChange={(event, newValue) => setSelectedLocation(newValue)}
@@ -174,7 +176,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 <TextField
                   {...params}
                   size="small"
-                  sx={{ width: 160 }}
+                  sx={{ width: 130 }}
                 />
               )}
               ListboxProps={{
@@ -206,7 +208,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   <TextField
                     {...params}
                     size="small"
-                    sx={{ width: 160 }}
+                    sx={{ width: 130 }}
                   />
                 )}
                 ListboxProps={{
@@ -219,7 +221,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
           )}
 
           {/* TIME PERIOD */}
-          <Box sx={{ width: 200 }}>
+          <Box sx={{ width: 190 }}>
             <Typography
               sx={{
                 fontSize: "0.7rem",
@@ -233,13 +235,15 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
             <DateRangeSelector
               startDate={timeStart}
               endDate={timeEnd}
-              onStartDateChange={setTimeStart}
-              onEndDateChange={setTimeEnd}
+              onChange={(start, end) => {
+                setTimeStart(start);
+                setTimeEnd(end);
+              }}
             />
           </Box>
 
-          {/* COMPARE */}
-          <Box sx={{ width: 200 }}>
+          {/* COMPARE WITH */}
+          <Box sx={{ width: 190 }}>
             <Typography
               sx={{
                 fontSize: "0.7rem",
@@ -253,8 +257,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
             <DateRangeSelector
               startDate={compareStart}
               endDate={compareEnd}
-              onStartDateChange={setCompareStart}
-              onEndDateChange={setCompareEnd}
+              onChange={(start, end) => {
+                setCompareStart(start);
+                setCompareEnd(end);
+              }}
             />
           </Box>
         </Box>

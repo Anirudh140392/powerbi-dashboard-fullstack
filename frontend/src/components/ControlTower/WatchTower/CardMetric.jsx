@@ -152,6 +152,8 @@ const MiniChartCard = ({
 
   // Create a smooth Bezier curve path
   const createSmoothPath = () => {
+    if (values.length < 2) return ""; // Not enough points for a path
+
     const points = values.map((v, i) => ({
       x: (i / (values.length - 1)) * 100,
       y: 100 - v,
@@ -227,7 +229,7 @@ const MiniChartCard = ({
           {/* Dots layer - positioned absolutely to maintain circular shape */}
           {/* Dots + Tooltip */}
           {values.map((v, i) => {
-            const xPercent = (i / (values.length - 1)) * 100;
+            const xPercent = values.length > 1 ? (i / (values.length - 1)) * 100 : 50;
             const yPercent = 100 - v;
 
             return (

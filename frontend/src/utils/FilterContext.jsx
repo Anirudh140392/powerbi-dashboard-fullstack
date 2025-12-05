@@ -12,7 +12,23 @@ export const FilterProvider = ({ children }) => {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [locations, setLocations] = useState([]);
     const [selectedLocation, setSelectedLocation] = useState(null);
+    const [platforms, setPlatforms] = useState([]);
     const [platform, setPlatform] = useState("Zepto");
+
+    useEffect(() => {
+        const fetchPlatforms = async () => {
+            try {
+                const response = await axiosInstance.get("/watchtower/platforms");
+                const fetchedPlatforms = response.data;
+                setPlatforms(fetchedPlatforms);
+
+                // Optional: Set default platform if needed, but keeping "Zepto" as default for now
+            } catch (error) {
+                console.error("Error fetching platforms:", error);
+            }
+        };
+        fetchPlatforms();
+    }, []);
 
     // Date Ranges
     const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
@@ -21,7 +37,23 @@ export const FilterProvider = ({ children }) => {
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
 
     useEffect(() => {
+        const fetchPlatforms = async () => {
+            try {
+                const response = await axiosInstance.get("/watchtower/platforms");
+                const fetchedPlatforms = response.data;
+                // setPlatforms(fetchedPlatforms); // Assuming you want to store this, but for now we just need to know it's dynamic. 
+                // Actually, we need to expose platforms to the UI.
+                // Let's add a state for it.
+            } catch (error) {
+                console.error("Error fetching platforms:", error);
+            }
+        };
+        fetchPlatforms();
+    }, []);
+
+    useEffect(() => {
         const fetchBrands = async () => {
+            if (!platform) return;
             try {
                 const response = await axiosInstance.get("/watchtower/brands", {
                     params: { platform: platform }
@@ -67,10 +99,13 @@ export const FilterProvider = ({ children }) => {
         };
 
         const fetchLocations = async () => {
-            if (!selectedBrand) return;
+            if (!selectedBrand || !platform) return;
             try {
                 const response = await axiosInstance.get("/watchtower/locations", {
-                    params: { brand: selectedBrand }
+                    params: {
+                        platform: platform,
+                        brand: selectedBrand
+                    }
                 });
                 const fetchedLocations = response.data;
                 setLocations(fetchedLocations);
@@ -88,7 +123,7 @@ export const FilterProvider = ({ children }) => {
 
         fetchKeywords();
         fetchLocations();
-    }, [selectedBrand]);
+    }, [selectedBrand, platform]);
 
     return (
         <FilterContext.Provider value={{
@@ -101,6 +136,7 @@ export const FilterProvider = ({ children }) => {
             locations,
             selectedLocation,
             setSelectedLocation,
+            platforms,
             platform, setPlatform,
             timeStart, setTimeStart,
             timeEnd, setTimeEnd,
