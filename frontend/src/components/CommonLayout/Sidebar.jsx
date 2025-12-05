@@ -30,7 +30,7 @@ const Sidebar = ({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
   const [activePlatform, setActivePlatform] = useState(
-    selectedPlatform || "Blinkit"
+    selectedPlatform || "Zepto"
   );
 
   useEffect(() => {
@@ -60,11 +60,7 @@ const Sidebar = ({
       { label: "Watch Tower", active: true },
       // { label: "Account Overview" },
     ],
-    "Q-COMM": [
-      { label: "Blinkit", icon: "🟡" },
-      // { label: "Instamart", icon: "🟠" },
-      // { label: "Zepto", icon: "🟣" },
-    ],
+
     "Availability Analysis": [{ label: "Availability Analysis" }],
     "Visibility Analysis": [{ label: "Visibility Analysis" }],
     "Pricing Analysis": [{ label: "Pricing Analysis" }],
@@ -183,7 +179,7 @@ const Sidebar = ({
                         sectionName === "CONTROL TOWER" &&
                         item.label === "Watch Tower"
                       ) {
-                        navigate("/"); // or your Watch Tower route
+                        navigate("/watch-tower"); // or your Watch Tower route
                       }
                       if (
                         sectionName === "CONTROL TOWER" &&
@@ -192,10 +188,7 @@ const Sidebar = ({
                         navigate("/account-overview");
                       }
 
-                      // Q-COMM
-                      if (sectionName === "Q-COMM") {
-                        handlePlatformChange(item.label);
-                      }
+
 
                       // ANALYTICS
                       if (
@@ -263,22 +256,18 @@ const Sidebar = ({
                       py: 1.25,
                       px: 3,
                       bgcolor:
-                        (sectionName === "Q-COMM" &&
-                          activePlatform === item.label) ||
                         (sectionName === "ANALYTICS" &&
                           item.label === "Category RCA") ||
-                        (sectionName === "CONTROL TOWER" &&
-                          item.label === "Watch Tower")
+                          (sectionName === "CONTROL TOWER" &&
+                            item.label === "Watch Tower")
                           ? "rgba(255, 255, 255, 0.1)"
                           : "transparent",
 
                       borderLeft:
-                        (sectionName === "Q-COMM" &&
-                          activePlatform === item.label) ||
                         (sectionName === "ANALYTICS" &&
                           item.label === "Category RCA") ||
-                        (sectionName === "CONTROL TOWER" &&
-                          item.label === "Watch Tower")
+                          (sectionName === "CONTROL TOWER" &&
+                            item.label === "Watch Tower")
                           ? "3px solid #3b82f6"
                           : "3px solid transparent",
 
