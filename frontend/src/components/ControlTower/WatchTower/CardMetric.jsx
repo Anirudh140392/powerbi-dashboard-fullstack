@@ -45,7 +45,7 @@ const CardMetric = ({ data }) => {
     value: item.label,
     sub: item.subtitle,
     change: item.trend,
-    changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
+    changeColor: (item.trendType === 'positive' || item.trendType === 'up') ? '#22c55e' : (item.trendType === 'negative' || item.trendType === 'down') ? '#ef4444' : 'grey',
     prevText: item.comparison,
     extra: item.units ? `#Units: ${item.units}` : null,
     extraChange: item.unitsTrend,

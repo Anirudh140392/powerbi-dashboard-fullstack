@@ -56,19 +56,30 @@ export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
+
   const [filters, setFilters] = useState({
-    platform: "Zepto",
+    platform: platform || "Zepto",
     months: 6,
     timeStep: "Monthly",
+    brand: selectedBrand,
+    location: selectedLocation,
+    keyword: selectedKeyword,
+    startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
+    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null,
+    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
   });
 
   const [activeTab, setActiveTab] = useState("Split by Category");
   const [activeKpisTab, setActiveKpisTab] = useState("Platform Overview");
 
   const [trendParams, setTrendParams] = useState({
-    months: 6,
-    timeStep: "Monthly",
+    months: "3M",
+    timeStep: "Weekly",
     platform: "Zepto",
+    startDate: null,
+    endDate: null
   });
 
   const [trendData, setTrendData] = useState({
@@ -76,49 +87,42 @@ export default function WatchTower() {
     metrics: {},
   });
 
-  const handleViewTrends = (card) => {
-    console.log("card clicked", card);
+  // Fetch Trend Data when params change
+  useEffect(() => {
+    const fetchTrendData = async () => {
+      if (!showTrends) return;
 
-    const series =
-      card.chart?.map((v, i) => {
-        let date;
+      try {
+        const params = {
+          brand: selectedBrand || "Aer",
+          location: selectedLocation || "Agra",
+          platform: trendParams.platform,
+          period: trendParams.months,
+          timeStep: trendParams.timeStep,
+          startDate: trendParams.startDate ? trendParams.startDate.format('YYYY-MM-DD') : null,
+          endDate: trendParams.endDate ? trendParams.endDate.format('YYYY-MM-DD') : null
+        };
 
-        if (trendParams.timeStep === "Monthly") {
-          const d = new Date();
-          d.setMonth(d.getMonth() - (card.chart.length - 1 - i));
-          date = d.toLocaleString("default", {
-            month: "short",
-            year: "2-digit",
-          });
-        } else if (trendParams.timeStep === "Weekly") {
-          const d = new Date();
-          d.setDate(d.getDate() - 7 * (card.chart.length - 1 - i));
-          date = d.toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-          });
-        } else {
-          const d = new Date();
-          d.setDate(d.getDate() - (card.chart.length - 1 - i));
-          date = d.toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-          });
+        console.log("Fetching trend data with params:", params);
+        const response = await axiosInstance.get("/watchtower/trend", { params });
+
+        if (response.data) {
+          setTrendData(response.data);
         }
+      } catch (error) {
+        console.error("Error fetching trend data:", error);
+      }
+    };
 
-        return { date, offtake: v };
-      }) ?? [];
+    fetchTrendData();
+  }, [showTrends, trendParams, selectedBrand, selectedLocation]);
 
-    setTrendData({
-      timeSeries: series,
-      metrics: {},
-    });
-
-    setTrendParams((prev) => ({
+  const handleViewTrends = (platformName) => {
+    console.log("View trends for:", platformName);
+    setTrendParams(prev => ({
       ...prev,
-      platform: card.name ?? "Zepto",
+      platform: platformName
     }));
-
     setShowTrends(true);
   };
 
@@ -137,25 +141,37 @@ export default function WatchTower() {
     skuTable: [],
   });
 
-  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
+
 
   // Update filters when context changes
   useEffect(() => {
-    setFilters(prev => ({
-      ...prev,
-      platform: platform,
-      brand: selectedBrand,
-      keyword: selectedKeyword,
-      location: selectedLocation,
-      startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
-      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null,
-      compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
-      compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
-    }));
+    setFilters(prev => {
+      const newFilters = {
+        ...prev,
+        platform: platform || prev.platform,
+        brand: selectedBrand || prev.brand,
+        keyword: selectedKeyword || prev.keyword,
+        location: selectedLocation || prev.location,
+        startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
+        endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null,
+        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
+      };
+
+      // Simple shallow comparison to avoid unnecessary updates
+      const isSame = Object.keys(newFilters).every(key => newFilters[key] === prev[key]);
+      return isSame ? prev : newFilters;
+    });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
   useEffect(() => {
     const fetchData = async () => {
+      // Prevent fetching if critical filters are missing (initial load state)
+      if (!filters.brand || !filters.location) {
+        console.log("Skipping fetch: Brand or Location missing");
+        return;
+      }
+
       setLoading(true);
       try {
         const response = await axiosInstance.get("/watchtower", {
@@ -193,7 +209,7 @@ export default function WatchTower() {
         )}
 
         {/* Top Cards */}
-        <PerformanceMatric />
+        <PerformanceMatric data={dashboardData.performanceMarketing} />
 
         {/* Platform Overview */}
         {/* Tabs */}
@@ -309,6 +325,7 @@ defaultCategory */}
         onClose={() => setShowTrends(false)}
         trendData={trendData}
         trendParams={trendParams}
+        onParamsChange={setTrendParams}
       />
     </>
   );

@@ -5,20 +5,31 @@ import {
   Chip,
   Typography,
   Avatar,
+  Tooltip,
+  IconButton
 } from "@mui/material";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { TrendingUpIcon } from "lucide-react";
 
-export default function PerformanceMatric() {
-  const metrics = [
+export default function PerformanceMatric({ data }) {
+  const defaultMetrics = [
     { title: "Share of Search", value: "25%", mom: "-1.3%", momUp: false, yoy: "0.0%", yoyUp: true, data: [5, 8, 6, 10, 7, 9, 6] },
     { title: "Inorganic Sales", value: "11%", mom: "5.4%", momUp: true, yoy: "0.0%", yoyUp: true, data: [2, 4, 5, 6, 8, 7, 9] },
     { title: "Conversion", value: "0.6%", mom: "28.0%", momUp: true, yoy: "0.0%", yoyUp: true, data: [1, 2, 1, 3, 2, 4, 3] },
     { title: "ROAS", value: "2.1", mom: "10.5%", momUp: true, yoy: "0.0%", yoyUp: true, data: [4, 6, 5, 7, 8, 7, 9] },
     { title: "BMI / Sales Ratio", value: "5%", mom: "-4.6%", momUp: false, yoy: "-81.3%", yoyUp: false, data: [10, 8, 7, 6, 5, 4, 3] },
   ];
+
+  // Merge dynamic data with default metrics
+  const metrics = defaultMetrics.map(defaultMetric => {
+    const dynamicMetric = data?.find(d => d.title === defaultMetric.title);
+    return dynamicMetric || defaultMetric;
+  });
+
+  if (metrics.length === 0) return null;
 
   return (
     <Card
@@ -56,6 +67,7 @@ export default function PerformanceMatric() {
           width: "100%",
           overflowX: "auto",
           paddingTop: "20px",
+          pb: 1
         }}
       >
         {metrics.map((m, index) => (
@@ -150,6 +162,14 @@ export default function PerformanceMatric() {
               ) : (
                 <ArrowDownwardIcon sx={{ fontSize: 16, color: "red" }} />
               )}
+            </Box>
+
+            {/* Calculation Info */}
+            <Box mt={2} pt={1} borderTop="1px solid #eee" display="flex" alignItems="center" gap={0.5}>
+              <InfoOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '10px' }}>
+                MoM: vs Prev Month | YoY: vs Last Year
+              </Typography>
             </Box>
           </Card>
         ))}

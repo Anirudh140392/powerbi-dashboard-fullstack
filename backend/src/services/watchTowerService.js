@@ -163,7 +163,9 @@ const getSummaryMetrics = async (filters) => {
             currentShareOfSearch,
             prevShareOfSearch,
             availabilityTrendData,
-            shareOfSearchTrendData
+            shareOfSearchTrendData,
+            prevOfftakeResult,
+            prevMarketShareResult
         ] = await Promise.all([
             // 1. Total Offtake (Sales) & Chart Data (Using RbPdpOlap for ALL)
             RbPdpOlap.findAll({
@@ -259,7 +261,31 @@ const getSummaryMetrics = async (filters) => {
                     trendBuckets.push({ month_date: bucket.date, value: val });
                 }
                 return trendBuckets;
-            })()
+            })(),
+            // 10. Previous Offtake (Total Sales)
+            (filters.compareStartDate && filters.compareEndDate)
+                ? RbPdpOlap.sum('Sales', {
+                    where: {
+                        DATE: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
+                        ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                        ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                    }
+                })
+                : Promise.resolve(0),
+            // 11. Previous Market Share
+            (filters.compareStartDate && filters.compareEndDate)
+                ? RbBrandMs.findOne({
+                    attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
+                    where: {
+                        created_on: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
+                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                        ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                    },
+                    raw: true
+                })
+                : Promise.resolve(null)
         ]);
 
         // Process Offtake Data
@@ -270,10 +296,18 @@ const getSummaryMetrics = async (filters) => {
             return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
         });
 
-
-
         const totalOfftake = offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales), 0);
         const formattedOfftake = formatCurrency(totalOfftake);
+
+        // Calculate Offtake Trend
+        const prevOfftakeVal = parseFloat(prevOfftakeResult || 0);
+        let offtakeChange = 0;
+        if (prevOfftakeVal > 0) {
+            offtakeChange = ((totalOfftake - prevOfftakeVal) / prevOfftakeVal) * 100;
+        } else if (totalOfftake > 0) {
+            offtakeChange = 100; // Treat as 100% growth if previous was 0 and current is > 0
+        }
+        const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(1) + "%";
 
         // Process Market Share Data
         const marketShareChart = monthBuckets.map(bucket => {
@@ -284,8 +318,27 @@ const getSummaryMetrics = async (filters) => {
         const totalMarketShare = totalMarketShareResult?.avg_market_share || 0;
         const formattedMarketShare = parseFloat(totalMarketShare).toFixed(1) + "%";
 
+        // Calculate Market Share Trend
+        const prevMarketShareVal = parseFloat(prevMarketShareResult?.avg_ms || 0);
+        let marketShareChange = 0;
+        if (prevMarketShareVal > 0) {
+            marketShareChange = ((totalMarketShare - prevMarketShareVal) / prevMarketShareVal) * 100;
+        } else if (totalMarketShare > 0) {
+            marketShareChange = 100;
+        }
+        const marketShareTrendStr = (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(1) + "%";
+
         // Process Availability Data
         const formattedAvailability = currentAvailability.toFixed(1) + "%";
+
+        // Calculate Availability Trend
+        let availabilityChange = 0;
+        if (prevAvailability > 0) {
+            availabilityChange = ((currentAvailability - prevAvailability) / prevAvailability) * 100;
+        } else if (currentAvailability > 0) {
+            availabilityChange = 100;
+        }
+        const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + "%";
 
         // Process Availability Chart
         const availabilityChart = monthBuckets.map(bucket => {
@@ -300,6 +353,15 @@ const getSummaryMetrics = async (filters) => {
 
         // Process Share of Search Data
         const formattedShareOfSearch = currentShareOfSearch.toFixed(1) + "%";
+
+        // Calculate SOS Trend
+        let sosChange = 0;
+        if (prevShareOfSearch > 0) {
+            sosChange = ((currentShareOfSearch - prevShareOfSearch) / prevShareOfSearch) * 100;
+        } else if (currentShareOfSearch > 0) {
+            sosChange = 100;
+        }
+        const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + "%";
 
         // Process Share of Search Chart
         const shareOfSearchChart = monthBuckets.map(bucket => {
@@ -316,11 +378,11 @@ const getSummaryMetrics = async (filters) => {
         // Prepare Summary Metrics Object (Header values)
         const summaryMetrics = {
             offtakes: `₹${formattedOfftake}`,
-            offtakesTrend: "+0.0%", // Placeholder
+            offtakesTrend: offtakeTrendStr,
             shareOfSearch: formattedShareOfSearch,
-            shareOfSearchTrend: "0%",
+            shareOfSearchTrend: sosTrendStr,
             stockAvailability: formattedAvailability,
-            stockAvailabilityTrend: "0%",
+            stockAvailabilityTrend: availabilityTrendStr,
             marketShare: formattedMarketShare,
         };
 
@@ -338,8 +400,8 @@ const getSummaryMetrics = async (filters) => {
                 name: "Offtake",
                 label: formattedOfftake,
                 subtitle: subtitle,
-                trend: "0%",
-                trendType: "neutral",
+                trend: offtakeTrendStr,
+                trendType: offtakeChange >= 0 ? "positive" : "negative",
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
@@ -350,8 +412,8 @@ const getSummaryMetrics = async (filters) => {
                 name: "Availability",
                 label: formattedAvailability,
                 subtitle: subtitle,
-                trend: "0%",
-                trendType: "neutral",
+                trend: availabilityTrendStr,
+                trendType: availabilityChange >= 0 ? "positive" : "negative",
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
@@ -362,8 +424,8 @@ const getSummaryMetrics = async (filters) => {
                 name: "Share of Search",
                 label: formattedShareOfSearch,
                 subtitle: subtitle,
-                trend: "0%",
-                trendType: "neutral",
+                trend: sosTrendStr,
+                trendType: sosChange >= 0 ? "positive" : "negative",
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
@@ -374,8 +436,8 @@ const getSummaryMetrics = async (filters) => {
                 name: "Market Share",
                 label: formattedMarketShare,
                 subtitle: subtitle,
-                trend: "0%",
-                trendType: "neutral",
+                trend: marketShareTrendStr,
+                trendType: marketShareChange >= 0 ? "positive" : "negative",
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
@@ -393,13 +455,6 @@ const getSummaryMetrics = async (filters) => {
         ];
 
         const platformOverview = [];
-        let allOfftake = 0;
-        let allAvailabilitySum = 0;
-        let allAvailabilityCount = 0;
-        let allSosSum = 0;
-        let allSosCount = 0;
-
-
 
         // Helper to generate columns structure
         const generateColumns = (offtake, availability, sos, marketShare = 0) => [
@@ -416,6 +471,66 @@ const getSummaryMetrics = async (filters) => {
             { title: "CPM", value: "₹0", change: { text: "0%", positive: true }, meta: { units: "impressions", change: "0%" } },
             { title: "CPC", value: "₹0", change: { text: "0%", positive: true }, meta: { units: "clicks", change: "0%" } },
         ];
+
+        // Calculate "All" Metrics (Global Aggregate)
+        // Note: For "All", we ignore the specific platform loop but respect the global filters (Brand, Location, Date)
+        // However, if the user *selected* a platform in the main filter, "All" usually means "All Platforms" ignoring the platform filter?
+        // Or does it mean "All Platforms" *within* the selected context?
+        // Usually "Platform Overview" shows comparison across platforms, so "All" should likely be the aggregate of ALL platforms, regardless of the single platform filter.
+        // But if the user selected "Zepto", the "All" column in a table comparing Zepto vs Blinkit vs Swiggy usually represents the Total of those rows.
+        // Let's assume "All" means "All Platforms" (ignoring the platform filter for this specific column calculation).
+
+        let allOfftake = 0;
+        let allAvailability = 0;
+        let allSos = 0;
+        let allMarketShare = 0;
+
+        try {
+            // 1. All Offtake
+            const allOfftakeWhere = {
+                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
+            };
+            if (brand && brand !== 'All') allOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+            if (location && location !== 'All') allOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            // Intentionally NOT filtering by Platform here to get the "All Platforms" total
+
+            const allOfftakeResult = await RbPdpOlap.findOne({
+                attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
+                where: allOfftakeWhere,
+                raw: true
+            });
+            allOfftake = parseFloat(allOfftakeResult?.total_sales || 0);
+
+            // 2. All Availability
+            allAvailability = await getAvailability(startDate, endDate, brand, null, location); // Pass null for platform to get aggregate
+
+            // 3. All SOS
+            allSos = await getShareOfSearch(startDate, endDate, brand, null, location); // Pass null for platform
+
+            // 4. All Market Share
+            const allMsResult = await RbBrandMs.findOne({
+                attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
+                where: {
+                    created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                    ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    // No Platform filter
+                },
+                raw: true
+            });
+            allMarketShare = parseFloat(allMsResult?.avg_ms || 0);
+
+        } catch (err) {
+            console.error("Error calculating All metrics:", err);
+        }
+
+        platformOverview.push({
+            key: 'all',
+            label: 'All',
+            type: 'Overall',
+            logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
+            columns: generateColumns(allOfftake, allAvailability, allSos, allMarketShare)
+        });
 
         for (const p of platformDefinitions) {
             try {
@@ -456,17 +571,6 @@ const getSummaryMetrics = async (filters) => {
                 });
                 marketShare = parseFloat(msResult?.avg_ms || 0);
 
-                // Accumulate
-                allOfftake += offtake;
-                if (availability > 0) {
-                    allAvailabilitySum += availability;
-                    allAvailabilityCount++;
-                }
-                if (sos > 0) {
-                    allSosSum += sos;
-                    allSosCount++;
-                }
-
                 platformOverview.push({
                     key: p.key,
                     label: p.label,
@@ -487,23 +591,54 @@ const getSummaryMetrics = async (filters) => {
             }
         }
 
-        // Add "All" platform
-        const allAvailability = allAvailabilityCount > 0 ? allAvailabilitySum / allAvailabilityCount : 0;
-        const allSos = allSosCount > 0 ? allSosSum / allSosCount : 0;
+        // 5. Performance Marketing Metrics (SOS Focus)
+        const performanceMarketing = [];
 
-        platformOverview.unshift({
-            key: 'all',
-            label: 'All',
-            type: 'Overall',
-            logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
-            columns: generateColumns(allOfftake, allAvailability, allSos, 0) // Market Share for 'All' is tricky to average without weights, leaving 0 for now or simple average if needed
-        });
+        try {
+            // Current SOS
+            const currentSosVal = currentShareOfSearch || 0;
+
+            // MoM SOS
+            const momStartDate = startDate.clone().subtract(1, 'month');
+            const momEndDate = endDate.clone().subtract(1, 'month');
+            const momSos = await getShareOfSearch(momStartDate, momEndDate, brand, selectedPlatform, location);
+            const momChange = momSos > 0 ? ((currentSosVal - momSos) / momSos) * 100 : 0;
+
+            // YoY SOS
+            const yoyStartDate = startDate.clone().subtract(1, 'year');
+            const yoyEndDate = endDate.clone().subtract(1, 'year');
+            const yoySos = await getShareOfSearch(yoyStartDate, yoyEndDate, brand, selectedPlatform, location);
+            const yoyChange = yoySos > 0 ? ((currentSosVal - yoySos) / yoySos) * 100 : 0;
+
+            // Trend (Last 6 Months ending at endDate)
+            const sosTrendData = [];
+            for (let i = 6; i >= 0; i--) {
+                const mStart = endDate.clone().subtract(i, 'month').startOf('month');
+                const mEnd = endDate.clone().subtract(i, 'month').endOf('month');
+                const val = await getShareOfSearch(mStart, mEnd, brand, selectedPlatform, location);
+                sosTrendData.push(val);
+            }
+
+            performanceMarketing.push({
+                title: "Share of Search",
+                value: `${currentSosVal.toFixed(1)}%`,
+                mom: `${momChange.toFixed(1)}%`,
+                momUp: momChange >= 0,
+                yoy: `${yoyChange.toFixed(1)}%`,
+                yoyUp: yoyChange >= 0,
+                data: sosTrendData
+            });
+
+        } catch (err) {
+            console.error("Error calculating Performance Marketing metrics:", err);
+        }
 
         return {
             topMetrics,
             summaryMetrics,
             skuTable: skuTableData,
-            platformOverview
+            platformOverview,
+            performanceMarketing
         };
 
     } catch (error) {
@@ -587,10 +722,123 @@ const getLocations = async (platform, brand) => {
     }
 };
 
+/**
+ * Get Trend Data for My Trends Graph
+ * @param {Object} filters - { brand, location, platform, period, timeStep }
+ */
+const getTrendData = async (filters) => {
+    try {
+        const { brand, location, platform, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
+
+        // 1. Determine Date Range
+        let endDate = dayjs();
+        let startDate = dayjs();
+
+        if (period === 'Custom' && customStart && customEnd) {
+            startDate = dayjs(customStart);
+            endDate = dayjs(customEnd);
+        } else {
+            switch (period) {
+                case '1M': startDate = startDate.subtract(1, 'month'); break;
+                case '3M': startDate = startDate.subtract(3, 'month'); break;
+                case '6M': startDate = startDate.subtract(6, 'month'); break;
+                case '1Y': startDate = startDate.subtract(1, 'year'); break;
+                default: startDate = startDate.subtract(3, 'month'); // Default 3M
+            }
+        }
+
+        console.log(`getTrendData: period=${period}, start=${startDate.format()}, end=${endDate.format()}`);
+
+        // 2. Determine Grouping
+        let groupCol;
+        let dateFormat;
+
+        if (timeStep === 'Monthly') {
+            groupCol = sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m-01');
+            dateFormat = 'MMM YY';
+        } else if (timeStep === 'Weekly') {
+            // MySQL YEARWEEK mode 1 (Monday first)
+            groupCol = sequelize.fn('YEARWEEK', sequelize.col('DATE'), 1);
+            dateFormat = 'Week'; // We'll format in JS
+        } else { // Daily
+            groupCol = sequelize.col('DATE');
+            dateFormat = 'DD MMM';
+        }
+
+        // 3. Query Data
+        const whereClause = {
+            DATE: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) })
+        };
+
+        const trendResults = await RbPdpOlap.findAll({
+            attributes: [
+                [groupCol, 'date_group'],
+                [sequelize.fn('MAX', sequelize.col('DATE')), 'ref_date'], // To help formatting
+                [sequelize.fn('SUM', sequelize.col('Sales')), 'offtake'],
+                [sequelize.fn('SUM', sequelize.col('neno_osa')), 'total_neno'],
+                [sequelize.fn('SUM', sequelize.col('deno_osa')), 'total_deno']
+            ],
+            where: whereClause,
+            group: [groupCol],
+            order: [[sequelize.col('ref_date'), 'ASC']],
+            raw: true,
+            logging: console.log
+        });
+
+        // 4. Format Data
+        const timeSeries = trendResults.map(row => {
+            let dateLabel;
+            const refDate = dayjs(row.ref_date);
+
+            if (timeStep === 'Monthly') {
+                dateLabel = refDate.format('MMM YY');
+            } else if (timeStep === 'Weekly') {
+                // Format as "DD MMM" (Start of week)
+                // Since we grouped by YEARWEEK, ref_date is likely the max date in that week.
+                // Let's just use the ref_date for simplicity or calculate start of week.
+                dateLabel = refDate.format('DD MMM');
+            } else {
+                dateLabel = refDate.format('DD MMM');
+            }
+
+            const neno = parseFloat(row.total_neno || 0);
+            const deno = parseFloat(row.total_deno || 0);
+            const osa = deno > 0 ? (neno / deno) * 100 : 0;
+
+            return {
+                date: dateLabel,
+                offtake: parseFloat(row.offtake || 0), // Raw value, formatted in frontend
+                osa: parseFloat(osa.toFixed(1))
+            };
+        });
+
+        return {
+            timeSeries,
+            metrics: {
+                offtake: true,
+                osa: true
+            }
+        };
+
+    } catch (error) {
+        console.error("Error in getTrendData:", error);
+        throw error;
+    }
+};
+
 export default {
     getSummaryMetrics,
     getBrands,
     getKeywords,
     getLocations,
-    getPlatforms
+    getPlatforms,
+    getTrendData
 };

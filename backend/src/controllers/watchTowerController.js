@@ -18,6 +18,18 @@ export const watchTowerOverview = async (req, res) => {
     }
 }
 
+export const getTrendData = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log("trend data api call received", filters);
+        const data = await watchTowerService.getTrendData(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching trend data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getPlatforms = async (req, res) => {
     try {
         const platforms = await watchTowerService.getPlatforms();

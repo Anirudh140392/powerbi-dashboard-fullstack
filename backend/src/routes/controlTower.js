@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData } from '../controllers/watchTowerController.js';
 
 export default (app) => {
     /**
@@ -126,5 +126,6 @@ export default (app) => {
     app.get('/api/watchtower/platforms', getPlatforms);
 
     app.get('/api/watchtower/debug', debugAvailability);
+    app.get('/api/watchtower/trend', getTrendData);
 
 };

@@ -503,7 +503,7 @@ const SmallCard = ({ item }) => {
 /* MAIN COMPONENT */
 const PlatformOverview = ({
   data = [],
-  onViewTrends = () => {},
+  onViewTrends = () => { },
   activeKpisTab = "Platform Overview",
 }) => {
   const theme = useTheme();
