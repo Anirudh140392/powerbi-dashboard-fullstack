@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from "react";
+import { Sparkles, Plus, Check, X } from "lucide-react";
 
 const CSS = `
 /* ================= DRAWER ================= */
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.35);
-  backdrop-filter: blur(2px);
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: flex-end;
   z-index: 9999;
@@ -16,24 +17,24 @@ const CSS = `
   width: 1000px;
   max-width: 90vw;
   height: 100vh;
-  background: white;
-  box-shadow: -4px 0px 14px rgba(0,0,0,0.15);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: -8px 0px 32px rgba(15,23,42,0.2);
   transform: translateX(100%);
-  animation: slideIn 0.3s ease-out forwards;
+  animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   display: flex;
   flex-direction: column;
 }
 
 @keyframes slideIn {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0%); }
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0%); opacity: 1; }
 }
 
-/* ================= ORIGINAL UI ================= */
+/* ================= PREMIUM UI ================= */
 .add-sku-root {
-  font-family: system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   height: 100%;
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
 }
 
 .add-sku-modal {
@@ -45,166 +46,355 @@ const CSS = `
 
 /* HEADER */
 .add-sku-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 24px;
+  background: linear-gradient(135deg, #0F172A 0%, #1e293b 100%);
+  color: white;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(15,23,42,0.15);
+}
+
+.add-sku-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
 .add-sku-close {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: #f3f4f6;
-  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 20px;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.add-sku-close:hover {
+  background: rgba(255,255,255,0.25);
+  transform: rotate(90deg);
 }
 
 /* BODY */
 .add-sku-body {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 280px 1fr;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* FILTERS */
 .filters-panel {
-  padding: 16px;
-  border-right: 1px solid #e5e7eb;
+  padding: 20px;
+  border-right: 1px solid #e2e8f0;
   overflow-y: auto;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
 .filter-section {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  margin-top: 10px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.05);
+  transition: all 0.2s;
+}
+
+.filter-section:hover {
+  box-shadow: 0 4px 12px rgba(15,23,42,0.1);
 }
 
 .filter-section-header {
-  padding: 10px;
+  padding: 12px 14px;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 1px solid #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #0f172a;
 }
 
 .filter-section-body {
-  padding: 10px;
-  border-top: 1px solid #e5e7eb;
+  padding: 10px 8px;
 }
 
 .filter-checkbox,
 .filter-pill {
   display: flex;
-  gap: 8px;
-  padding: 6px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
   cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s;
+  margin-bottom: 4px;
 }
 
 .filter-checkbox:hover,
 .filter-pill:hover {
-  background: #f3f4ff;
+  background: #f1f5f9;
 }
 
 .filter-checkbox-box,
 .filter-pill-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 2px solid #ddd;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 2px solid #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: all 0.2s;
 }
 
 .filter-checkbox-box.checked,
 .filter-pill-icon.checked {
-  border-color: #2563eb;
-  background: #2563eb;
+  border-color: #0ea5e9;
+  background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
   color: white;
+  box-shadow: 0 2px 8px rgba(14,165,233,0.3);
+}
+
+.filter-checkbox, .filter-pill {
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
 }
 
 /* RIGHT PANEL */
 .sku-panel {
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
 }
 
 .search-input {
   width: 100%;
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid #ddd;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+  transition: all 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14,165,233,0.1), 0 2px 8px rgba(15,23,42,0.08);
 }
 
 .sku-list-scroll {
-  margin-top: 12px;
+  margin-top: 14px;
   flex: 1;
   overflow-y: auto;
-  border: 1px solid #e5e7eb;
   border-radius: 12px;
+  padding: 4px;
+}
+
+.sku-list-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sku-list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sku-list-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.sku-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .sku-card {
-  padding: 12px;
+  padding: 14px;
   display: grid;
-  grid-template-columns: 50px 1fr 90px;
+  grid-template-columns: 56px 1fr 110px;
+  gap: 12px;
   cursor: pointer;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  align-items: center;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .sku-card:hover {
-  background: #f9fafb;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+  border-color: #cbd5e1;
 }
 
 .sku-card.selected {
-  background: #e8f0ff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+  border-color: #0ea5e9;
+  box-shadow: 0 4px 16px rgba(14,165,233,0.15);
 }
 
 .sku-thumb {
-  width: 50px;
-  height: 50px;
+  width: 56px;
+  height: 56px;
   border-radius: 12px;
-  border: 1px solid #a3d2ff;
+  border: 2px solid #e2e8f0;
   display: flex;
   justify-content: center;
   align-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.sku-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sku-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sku-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sku-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
 }
 
 .add-sku-btn {
-  padding: 6px 12px;
-  border-radius: 99px;
-  border: 1px dashed #2563eb;
-  background: #f0f8ff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: white;
   cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.add-sku-btn:hover {
+  border-color: #0ea5e9;
+  color: #0ea5e9;
+  background: #f0f9ff;
 }
 
 .add-sku-btn.added {
-  background: #e8fff0;
-  border-color: #16a34a;
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border-color: #22c55e;
+  color: #166534;
 }
 
 /* FOOTER */
 .add-sku-footer {
-  padding: 12px;
-  border-top: 1px solid #ddd;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
 }
+
 .apply-btn {
-  padding: 10px 24px;
-  border-radius: 999px;
-  background: #2563eb;
+  padding: 12px 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
   color: white;
   border: none;
   cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(14,165,233,0.3);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apply-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(14,165,233,0.4);
+}
+
+.cancel-btn {
+  padding: 12px 32px;
+  border-radius: 10px;
+  background: white;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 `;
 
 /* ================= JSON ================= */
+
+// Premium color palette for random backgrounds
+const COLOR_PALETTE = [
+  { bg: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #4ECDC4 0%, #44B7B4 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #FFE66D 0%, #FFD93D 100%)', text: '#663c00' },
+  { bg: 'linear-gradient(135deg, #95E1D3 0%, #75D4C1 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #A8E6CF 0%, #7FD8BE 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #FF8B94 0%, #FF6B7A 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #B4A7FF 0%, #9B7EFF 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #FFB6B9 0%, #FF9BA9 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #A8D8EA 0%, #7BC4D8 100%)', text: 'white' },
+  { bg: 'linear-gradient(135deg, #FFAFAF 0%, #FF8E9F 100%)', text: 'white' },
+];
+
+const getRandomColor = (id) => {
+  return COLOR_PALETTE[id % COLOR_PALETTE.length];
+};
+
 const PLATFORMS = [
   { id: "blinkit", label: "Blinkit" },
   { id: "instamart", label: "Instamart" },
@@ -377,9 +567,12 @@ export default function AddSkuDrawer({ open, onClose }) {
               <div className="add-sku-modal">
                 {/* HEADER */}
                 <div className="add-sku-header">
-                  <h3>Add SKU</h3>
+                  <div className="add-sku-header-title">
+                    <Sparkles size={24} style={{ color: '#FBBF24' }} />
+                    Add SKU
+                  </div>
                   <button className="add-sku-close" onClick={onClose}>
-                    ×
+                    <X size={20} />
                   </button>
                 </div>
 
@@ -535,26 +728,26 @@ export default function AddSkuDrawer({ open, onClose }) {
                             className={`sku-card ${selected ? "selected" : ""}`}
                             onClick={() => toggleSku(sku.id)}
                           >
-                            <div className="sku-thumb">
+                            <div 
+                              className="sku-thumb"
+                              style={{
+                                background: getRandomColor(sku.id).bg,
+                                color: getRandomColor(sku.id).text
+                              }}
+                            >
                               {sku.brand?.charAt(0).toUpperCase()}
                             </div>
 
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                            <div className="sku-info">
+                              <div className="sku-name">
                                 {sku.name}
                               </div>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: 4,
-                                  marginTop: 4,
-                                }}
-                              >
+                              <div className="sku-meta">
                                 <span className="sku-chip">
                                   {sku.grammage} g
                                 </span>
-                                <span className="sku-chip secondary">
-                                  Toothpaste
+                                <span className="sku-chip brand">
+                                  {sku.brand}
                                 </span>
                               </div>
                             </div>
@@ -565,7 +758,17 @@ export default function AddSkuDrawer({ open, onClose }) {
                                   selected ? "added" : ""
                                 }`}
                               >
-                                {selected ? "Added" : "+ Add SKU"}
+                                {selected ? (
+                                  <>
+                                    <Check size={14} />
+                                    Added
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus size={14} />
+                                    Add
+                                  </>
+                                )}
                               </button>
                             </div>
                           </div>
