@@ -603,7 +603,7 @@ const TabbedHeatmapTable = () => {
 
         </div> */}
         <MetricCardContainer title="Visibility Overview" cards={cards} />
-        <TabbedHeatmapTable />
+        {/* <TabbedHeatmapTable /> */}
 
         {/* MODAL SECTION */}
         {modal && (
