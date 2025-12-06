@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityCompetitionDrawer";
 
 export default function SimpleTableWithTabs({
   data = {},
@@ -123,14 +124,21 @@ export default function SimpleTableWithTabs({
           </tbody>
         </table>
       </div>
-
-      {/* Trend Drawer */}
-      <TrendsCompetitionDrawer
-        open={openTrend}
-        onClose={() => setOpenTrend(false)}
-        compMeta={compMetaForDrawer}
-        selectedColumn={selectedColumn}
-      />
+      {subtitle !== "Visibility View" ? (
+        <TrendsCompetitionDrawer
+          open={openTrend}
+          onClose={() => setOpenTrend(false)}
+          compMeta={compMetaForDrawer}
+          selectedColumn={selectedColumn}
+        />
+      ) : (
+        <VisibilityCompetitionDrawer
+          open={openTrend}
+          onClose={() => setOpenTrend(false)}
+          compMeta={compMetaForDrawer}
+          selectedColumn={selectedColumn}
+        />
+      )}
     </div>
   );
 }
