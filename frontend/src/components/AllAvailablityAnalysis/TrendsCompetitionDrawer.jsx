@@ -21,6 +21,7 @@ import {
 } from "@mui/material";
 import { ChevronDown, X, Search, Filter } from "lucide-react";
 import ReactECharts from "echarts-for-react";
+import AddSkuDrawer from "./AddSkuDrawer";
 
 /**
  * ---------------------------------------------------------------------------
@@ -744,7 +745,7 @@ export default function TrendsCompetitionDrawer({
               flexWrap="wrap"
             >
               <Box display="flex" gap={1.5} alignItems="center">
-                <Button
+                {/* <Button
                   variant="outlined"
                   startIcon={<Filter size={14} />}
                   sx={{
@@ -755,6 +756,18 @@ export default function TrendsCompetitionDrawer({
                   onClick={() => setFiltersOpen((prev) => !prev)}
                 >
                   Filters
+                </Button> */}
+                <Button
+                  variant="outlined"
+                  startIcon={<Filter size={14} />}
+                  sx={{
+                    textTransform: "none",
+                    borderRadius: "999px",
+                    borderColor: "#E5E7EB"
+                  }}
+                  onClick={() => setFiltersOpen((prev) => !prev)}
+                >
+                  Add sku
                 </Button>
               </Box>
               <Box display="flex" gap={1.5} alignItems="center">
@@ -775,7 +788,7 @@ export default function TrendsCompetitionDrawer({
             </Box>
 
             {/* Filters panel */}
-            {filtersOpen && (
+            {/* {filtersOpen && (
               <Paper
                 elevation={0}
                 sx={{
@@ -902,7 +915,13 @@ export default function TrendsCompetitionDrawer({
                   </Box>
                 </Box>
               </Paper>
-            )}
+            )} */}
+
+<AddSkuDrawer 
+  open={filtersOpen} 
+  onClose={() => setFiltersOpen(false)} 
+/>
+
 
             {/* Table */}
             <Paper
