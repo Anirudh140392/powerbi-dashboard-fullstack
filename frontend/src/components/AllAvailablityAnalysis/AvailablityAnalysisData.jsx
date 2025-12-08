@@ -9,7 +9,7 @@ import {
   PRODUCT_MATRIX,
 } from "./availablityDataCenter";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
-import SimpleTableWithTabs from "../CommonLayout/simpleTableWithTabs";
+import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 
 // ---------------------------------------------------------------------------
@@ -1031,19 +1031,9 @@ export const AvailablityAnalysisData = () => {
       <div className="max-w-7xl mx-auto space-y-5">
         <div className="space-y-4">
           <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
-          {/* <DualAxisDrillMatrix /> */}
           <MetricCardContainer title="Availability Overview" cards={cards} />
-          {/* <SimpleTableWithTabs
-            title="Platform Level Across Category"
-            subtitle="Platform"
-            data={tableData}
-            cellHeat={cellHeat}
-          /> */}
           <TabbedHeatmapTable />
 
-          {/* <PowerHierarchyHeat /> */}
-          {/* <ProductLevelHeat />
-          <OLADrillTable /> */}
           <DrillHeatTable
             title="One View Drilldown"
             data={ONE_VIEW_DRILL_DATA}
@@ -1056,8 +1046,6 @@ export const AvailablityAnalysisData = () => {
             })}
             levels={["Platform", "Zone", "City", "Product", "ID"]}
           />
-
-          {/* <FormatPerformanceStudio /> */}
         </div>
       </div>
     </div>
