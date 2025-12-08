@@ -1,4 +1,4 @@
-// TrendStudio.jsx
+// TrendStudio.jsx — FINAL PRO VERSION (Fully Dynamic)
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactECharts from "echarts-for-react";
@@ -7,73 +7,107 @@ import { X, Download, RefreshCcw, Percent } from "lucide-react";
 export default function SimpleTrendPopup({ open, onClose, row, trendKey }) {
   if (!open || !row) return null;
 
-  const metrics = row[trendKey] || {};
+  // ---------------------------------------------
+  // 1️⃣ CLEAN & NORMALIZE TREND DATA
+  // ---------------------------------------------
+  let raw = row[trendKey];
 
-  const chartTypes = ["Line", "Area", "Bar"];
+  if (!raw) raw = {};
+  if (Array.isArray(raw)) raw = { Value: raw };
+
+  // Format:
+  // { Spend: [...], "M-1 Spend":[...], Conversion:[...] }
+  const metrics = Object.fromEntries(
+    Object.entries(raw).map(([k, arr]) => {
+      if (Array.isArray(arr)) {
+        return [k, arr.map((v) => Number(v) || 0)];
+      }
+      return [k, []];
+    })
+  );
+
   const metricTabs = Object.keys(metrics);
-
-  // ---------------------------------------------
-  // 🔥 RESET state whenever popup opens OR row changes
-  // ---------------------------------------------
+  const [activeMetric, setActiveMetric] = useState(metricTabs[0]);
   const [chartType, setChartType] = useState("Line");
-  const [activeMetric, setActiveMetric] = useState(metricTabs[0] || "");
 
   useEffect(() => {
-    if (open) {
-      setChartType("Line");                  // reset chart type
-      setActiveMetric(metricTabs[0] || "");  // reset metric tab
-    }
+    setActiveMetric(metricTabs[0]);
+    setChartType("Line");
   }, [open, row]);
 
+  const values = metrics[activeMetric] || [];
+
   // ---------------------------------------------
-  // 🔥 Chart builder (auto updates whenever filters change)
+  // 2️⃣ PRO LABEL GENERATION
+  // ---------------------------------------------
+  let labels = [];
+
+  const len = values.length;
+
+  if (len <= 1) {
+    labels = ["No Data"];
+  }
+  else if (len === 4) {
+    labels = ["Q1", "Q2", "Q3", "Q4"]; // Quarter case
+  }
+  else if (len === 12) {
+    labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  }
+  else if (len === 8) {
+    labels = ["P1","P2","P3","P4","P5","P6","P7","P8"];
+  }
+  else {
+    labels = Array.from({ length: len }, (_, i) => `P${i + 1}`);
+  }
+
+  // ---------------------------------------------
+  // 3️⃣ ECHARTS OPTIONS (PRO LOOK)
   // ---------------------------------------------
   const chartOptions = useMemo(() => {
-    if (!metrics || !activeMetric) return {};
-
     return {
       tooltip: { trigger: "axis" },
-      legend: {
-        data: metricTabs,
-        top: 0
-      },
+      grid: { left: 50, right: 30, top: 40, bottom: 40 },
       xAxis: {
         type: "category",
-        data: ["Q1", "Q2", "Q3", "Q4"],
-        axisLabel: { color: "#6b7280" }
+        data: labels,
+        axisLabel: { fontSize: 12, color: "#6b7280" },
       },
       yAxis: {
         type: "value",
-        axisLabel: { color: "#6b7280" }
+        axisLabel: { fontSize: 12, color: "#6b7280" },
+        splitLine: { lineStyle: { color: "#e5e7eb" } }
       },
-      series: metricTabs.map((metric) => ({
-        name: metric,
-        type: chartType.toLowerCase(),
-        smooth: true,
-        data: metrics[metric],
-        symbolSize: 8,
-        lineStyle: { width: 3 },
-        areaStyle:
-          chartType === "Area"
-            ? { opacity: 0.25 }
-            : undefined
-      }))
+      series: [
+        {
+          name: activeMetric,
+          type: chartType.toLowerCase(),
+          smooth: true,
+          data: values,
+          symbolSize: 8,
+          lineStyle: { width: 3, color: "#2563eb" },
+          itemStyle: { color: "#2563eb" },
+          areaStyle: chartType === "Area" ? { opacity: 0.25, color: "#93c5fd" } : undefined
+        }
+      ]
     };
-  }, [chartType, activeMetric, metrics]);
+  }, [chartType, activeMetric, values, labels]);
 
+  // ---------------------------------------------
+  // RENDER UI
+  // ---------------------------------------------
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 bg-black/40 backdrop-blur-md flex justify-center items-center z-50"
+        className="fixed inset-0 bg-black/40 backdrop-blur-md flex justify-center items-center z-[999]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
         <motion.div
-          className="bg-white rounded-3xl p-6 w-[900px] max-h-[90vh] shadow-xl relative overflow-hidden border"
-          initial={{ scale: 0.8, opacity: 0 }}
+          className="bg-white rounded-3xl p-6 w-[950px] max-h-[90vh] shadow-xl relative overflow-auto border border-slate-200"
+          initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.8, opacity: 0 }}
+          exit={{ scale: 0.85, opacity: 0 }}
         >
           {/* Close */}
           <button
@@ -84,22 +118,19 @@ export default function SimpleTrendPopup({ open, onClose, row, trendKey }) {
           </button>
 
           {/* Title */}
-          <h3 className="text-xs tracking-[0.25em] text-slate-400">TREND STUDIO</h3>
-          <h1 className="text-2xl font-semibold text-slate-800 mt-1">{row.kpi}</h1>
-          <p className="text-sm text-slate-500 mb-4">
-            Visualise Spend, Conversion, ROAS across quarters.
-          </p>
+          <h3 className="text-xs tracking-[0.25em] text-slate-400 mb-1">TREND STUDIO</h3>
+          <h1 className="text-2xl font-semibold text-slate-800">{row.kpi}</h1>
 
           {/* Chart Type Tabs */}
-          <div className="flex gap-2 mb-3">
-            {chartTypes.map((t) => (
+          <div className="flex gap-2 my-4">
+            {["Line", "Area", "Bar"].map((t) => (
               <button
                 key={t}
                 onClick={() => setChartType(t)}
-                className={`px-3 py-1 rounded-full text-sm border transition ${
+                className={`px-4 py-1 rounded-full text-sm border ${
                   chartType === t
                     ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-slate-100 text-slate-600 border-slate-300"
+                    : "bg-slate-100 text-slate-700 border-slate-300"
                 }`}
               >
                 {t}
@@ -108,16 +139,16 @@ export default function SimpleTrendPopup({ open, onClose, row, trendKey }) {
           </div>
 
           {/* Metric Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-3">
             {metricTabs.map((m) => (
               <button
                 key={m}
-                onClick={() => setActiveMetric(m)}
-                className={`px-3 py-1 rounded-full text-sm border transition ${
+                className={`px-4 py-1 rounded-full text-sm border whitespace-nowrap ${
                   activeMetric === m
                     ? "bg-blue-700 text-white border-blue-700"
-                    : "bg-slate-100 text-slate-600 border-slate-300"
+                    : "bg-slate-100 text-slate-700 border-slate-300"
                 }`}
+                onClick={() => setActiveMetric(m)}
               >
                 {m}
               </button>
@@ -126,17 +157,17 @@ export default function SimpleTrendPopup({ open, onClose, row, trendKey }) {
 
           {/* Chart */}
           <div className="bg-slate-50 mt-4 rounded-2xl p-4 border">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-slate-600 font-medium">Value</span>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm text-slate-600 font-medium">Trend</span>
 
               <div className="flex gap-3 text-slate-500">
-                <Download size={18} className="cursor-pointer hover:text-black" />
-                <RefreshCcw size={18} className="cursor-pointer hover:text-black" />
-                <Percent size={18} className="cursor-pointer hover:text-black" />
+                <Download size={18} />
+                <RefreshCcw size={18} />
+                <Percent size={18} />
               </div>
             </div>
 
-            <ReactECharts option={chartOptions} style={{ height: 320 }} />
+            <ReactECharts option={chartOptions} style={{ height: 340 }} />
           </div>
         </motion.div>
       </motion.div>

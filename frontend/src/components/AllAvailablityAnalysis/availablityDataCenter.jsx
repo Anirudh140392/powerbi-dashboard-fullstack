@@ -331,7 +331,99 @@ const FORMAT_MATRIX = {
   ]
 };
 
+const FORMAT_MATRIX_Visibility = {
+  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Virtual Store", "Swiggy"],
 
+  formatColumns: [
+    "Cassata", "Core Tub", "Cornetto", "Magnum",
+    "Premium Tub", "KW Sticks", "Sandwich"
+  ],
+
+  CityColumns: [
+    "Ajmer", "Amritsar", "Bathinda", "Bhopal",
+    "Chandigarh", "Gwalior", "Indore", "Jaipur"
+  ],
+
+  // ------------------------------------------------------------
+  // PLATFORM LEVEL – ALL KPIs
+  // ------------------------------------------------------------
+  PlatformData: [
+    {
+      kpi: "Overall Weighted SOS",
+      values: { Blinkit: 82, Zepto: 78, Instamart: 65, "Virtual Store": 74, Swiggy: 70 },
+      trend: generateTrendMulti(78)
+    },
+    {
+      kpi: "Sponsored Weighted SOS",
+      values: { Blinkit: 45, Zepto: 52, Instamart: 48, "Virtual Store": 50, Swiggy: 47 },
+      trend: generateTrendMulti(48)
+    },
+    {
+      kpi: "Organic Weighted SOS",
+      values: { Blinkit: 91, Zepto: 84, Instamart: 79, "Virtual Store": 87, Swiggy: 81 },
+      trend: generateTrendMulti(85)
+    },
+    {
+      kpi: "Display SOS",
+      values: { Blinkit: 72, Zepto: 69, Instamart: 61, "Virtual Store": 66, Swiggy: 64 },
+      trend: generateTrendMulti(66)
+    },
+
+  ],
+
+  // ------------------------------------------------------------
+  // FORMAT LEVEL – ALL KPIs
+  // ------------------------------------------------------------
+  FormatData: [
+    {
+      kpi: "Overall Weighted SOS",
+      values: { Cassata: 7, "Core Tub": 81, Cornetto: 90, Magnum: 91, "KW Sticks": 97, "Premium Tub": 85, Sandwich: 82 },
+      trend: generateTrendMulti(75)
+    },
+    {
+      kpi: "Sponsored Weighted SOS",
+      values: { Cassata: 13, "Core Tub": 87, Cornetto: 98, Magnum: 100, "KW Sticks": 100, "Premium Tub": 78, Sandwich: 95 },
+      trend: generateTrendMulti(85)
+    },
+    {
+      kpi: "Organic Weighted SOS",
+      values: { Cassata: 17, "Core Tub": 99, Cornetto: 99, Magnum: 100, "KW Sticks": 100, "Premium Tub": 99, Sandwich: 100 },
+      trend: generateTrendMulti(95)
+    },
+    {
+      kpi: "Display SOS",
+      values: { Cassata: 72, "Core Tub": 96, Cornetto: 82, Magnum: 91, "KW Sticks": 94, "Premium Tub": 88, Sandwich: 55 },
+      trend: generateTrendMulti(85)
+    },
+ 
+  ],
+
+  // ------------------------------------------------------------
+  // CITY LEVEL – KPIs MAPPED (Non SOS KPIs already exist)
+  // ------------------------------------------------------------
+  CityData: [
+    {
+      kpi: "Overall Weighted SOS",
+      values: { Ajmer: 72, Amritsar: 85, Bathinda: 79, Bhopal: 88, Chandigarh: 81, Gwalior: 75, Indore: 92, Jaipur: 69 },
+      trend: generateTrendMulti(80)
+    },
+    {
+      kpi: "Sponsored Weighted SOS",
+      values: { Ajmer: 42, Amritsar: 55, Bathinda: 49, Bhopal: 60, Chandigarh: 53, Gwalior: 44, Indore: 67, Jaipur: 51 },
+      trend: generateTrendMulti(52)
+    },
+    {
+      kpi: "Organic Weighted SOS",
+      values: { Ajmer: 91, Amritsar: 88, Bathinda: 84, Bhopal: 94, Chandigarh: 92, Gwalior: 76, Indore: 90, Jaipur: 82 },
+      trend: generateTrendMulti(88)
+    },
+    {
+      kpi: "Display SOS",
+      values: { Ajmer: 73, Amritsar: 69, Bathinda: 71, Bhopal: 82, Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78 },
+      trend: generateTrendMulti(76)
+    }
+  ]
+};
 
 
 const FORMAT_ROWS = [
@@ -643,4 +735,4 @@ const DRILL_COLUMNS = [
 
 
 
-export { FORMAT_MATRIX, FORMAT_ROWS, PRODUCT_MATRIX, OLA_Detailed, ONE_VIEW_DRILL_DATA, DRILL_COLUMNS };
+export { FORMAT_MATRIX, FORMAT_ROWS, PRODUCT_MATRIX, OLA_Detailed, ONE_VIEW_DRILL_DATA, DRILL_COLUMNS, FORMAT_MATRIX_Visibility };

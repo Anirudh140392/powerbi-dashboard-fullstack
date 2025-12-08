@@ -16,6 +16,9 @@ import {
 } from 'recharts'
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
+import MetricCardContainer from '../CommonLayout/MetricCardContainer'
+import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
+import { FORMAT_MATRIX_Visibility } from '../AllAvailablityAnalysis/availablityDataCenter'
 
 // ------------------------------
 // NO TYPES — JSX ONLY
@@ -416,6 +419,130 @@ const VisiblityAnalysisData = () => {
     },
   ];
 
+const cards = [
+  {
+    title: "Overall Weighted SOS",
+    value: "19.6%",
+    sub: "Share of shelf across all active SKUs",
+    change: "▲4.3 pts (from 15.3%)",
+    changeColor: "green",
+    prevText: "vs Previous Period",
+    extra: "New launches contributing: 7 SKUs",
+    extraChange: "▲12.5%",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Sponsored Weighted SOS",
+    value: "17.6%",
+    sub: "Share of shelf for sponsored placements",
+    change: "▼8.6 pts (from 26.2%)",
+    changeColor: "red",
+    prevText: "vs Previous Period",
+    extra: "High-risk stores: 18",
+    extraChange: "+5 stores",
+    extraChangeColor: "red",
+  },
+  {
+    title: "Organic Weighted SOS",
+    value: "20.7%",
+    sub: "Natural shelf share without sponsorship",
+    change: "▲19.5% (from 17.3%)",
+    changeColor: "green",
+    prevText: "vs Previous Period",
+    extra: "Benchmark range: 18–22%",
+    extraChange: "Slightly above benchmark",
+    extraChangeColor: "orange",
+  },
+  {
+    title: "Display SOS",
+    value: "26.9%",
+    sub: "Share of shelf from display-led visibility",
+    change: "▲1.2 pts (from 25.7%)",
+    changeColor: "green",
+    prevText: "vs Previous Period",
+    extra: "Top 50 SKUs Display SOS: 82.3%",
+    extraChange: "▲0.9 pts",
+    extraChangeColor: "green",
+  },
+];
+const cellHeat = (value) => {
+  if (value >= 95) return "bg-emerald-100 text-emerald-900";
+  if (value >= 85) return "bg-emerald-50 text-emerald-800";
+  if (value >= 75) return "bg-amber-50 text-amber-800";
+  return "bg-rose-50 text-rose-800";
+};
+const TabbedHeatmapTable = () => {
+  const [activeTab, setActiveTab] = useState("platform");
+
+  // ---------------- PLATFORM LEVEL DATA ----------------
+  const platformData = {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+    rows: (FORMAT_MATRIX_Visibility.PlatformData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
+  };
+
+  // ---------------- FORMAT LEVEL DATA ----------------
+  const formatData = {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+    rows: (FORMAT_MATRIX_Visibility.FormatData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
+  };
+
+  const cityData = {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+    rows: (FORMAT_MATRIX_Visibility.CityData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
+  };
+
+  // ---------------- TAB DEFINITIONS ----------------
+  const tabs = [
+    { key: "platform", label: "Platform", data: platformData },
+    { key: "category", label: "Format", data: formatData },
+    { key: "city", label: "City", data: cityData },
+  ];
+
+  const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+  return (
+    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+      {/* Tabs */}
+      <div className="flex gap-2">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2 rounded-full text-sm border transition ${
+              activeTab === t.key
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-700 border-slate-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <SimpleTableWithTabs
+        title={active.label}
+        subtitle="Visibility View"
+        data={active.data}
+        cellHeat={cellHeat}
+        trendKey="trend" // ← REQUIRED
+      />
+    </div>
+  );
+};
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-6 text-slate-900">
       <div className="mx-auto max-w-7xl space-y-4">
@@ -437,7 +564,7 @@ const VisiblityAnalysisData = () => {
         </div>
 
         {/* PULSEBOARD */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
             data={sampleData}
             title="Keyword level Sos"
@@ -474,7 +601,9 @@ const VisiblityAnalysisData = () => {
             getHeatStyle={(v) => ({ bg: "#d1fae5", color: "#065f46" })}
           />
 
-        </div>
+        </div> */}
+        <MetricCardContainer title="Visibility Overview" cards={cards} />
+        {/* <TabbedHeatmapTable /> */}
 
         {/* MODAL SECTION */}
         {modal && (
