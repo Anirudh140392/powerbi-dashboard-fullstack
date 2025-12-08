@@ -143,6 +143,10 @@ export default function WatchTower() {
 
 
 
+  const [monthOverviewPlatform, setMonthOverviewPlatform] = useState(platform || "Blinkit");
+  const [monthOverviewData, setMonthOverviewData] = useState([]);
+  const [monthOverviewLoading, setMonthOverviewLoading] = useState(false);
+
   // Update filters when context changes
   useEffect(() => {
     setFilters(prev => {
@@ -164,7 +168,9 @@ export default function WatchTower() {
     });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
+  // Fetch Main Data (excluding Month Overview specific changes)
   useEffect(() => {
+    let ignore = false;
     const fetchData = async () => {
       // Prevent fetching if critical filters are missing (initial load state)
       if (!filters.brand || !filters.location) {
@@ -175,21 +181,70 @@ export default function WatchTower() {
       setLoading(true);
       try {
         const response = await axiosInstance.get("/watchtower", {
-          params: filters,
+          params: { ...filters, monthOverviewPlatform }, // Pass it initially
         });
-        if (response.data) {
+        if (!ignore && response.data) {
           console.log("Fetched Watch Tower data:", response.data);
           setDashboardData(response.data);
+          if (response.data.monthOverview) {
+            setMonthOverviewData(response.data.monthOverview);
+          }
         }
       } catch (error) {
-        console.error("Error fetching Watch Tower data:", error);
+        if (!ignore) console.error("Error fetching Watch Tower data:", error);
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     };
 
     fetchData();
-  }, [filters]); // Refetch when filters change
+    return () => { ignore = true; };
+  }, [filters]); // Refetch when main filters change
+
+  // Fetch ONLY Month Overview when monthOverviewPlatform changes
+  useEffect(() => {
+    let ignore = false;
+    console.log("monthOverviewPlatform changed to:", monthOverviewPlatform);
+    console.log("Current loading state:", loading);
+
+    const fetchMonthOverview = async () => {
+      if (!filters.brand || !filters.location) {
+        console.log("Skipping Month Overview fetch: Brand or Location missing");
+        return;
+      }
+
+      console.log("Fetching Month Overview for:", monthOverviewPlatform);
+      setMonthOverviewLoading(true);
+      try {
+        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+          params: { ...filters, monthOverviewPlatform }
+        });
+        if (!ignore && response.data && response.data.monthOverview) {
+          console.log("Received Month Overview data:", response.data.monthOverview);
+          setMonthOverviewData(response.data.monthOverview);
+          // Update dashboardData.monthOverview to keep it in sync if needed, 
+          // but we will use monthOverviewData state for the component
+          setDashboardData(prev => ({
+            ...prev,
+            monthOverview: response.data.monthOverview
+          }));
+        }
+      } catch (error) {
+        if (!ignore) console.error("Error fetching Month Overview:", error);
+      } finally {
+        if (!ignore) setMonthOverviewLoading(false);
+      }
+    };
+
+    // Only fetch if we are not in the initial full load (which handles everything)
+    // But simpler to just let it fetch or check if loading is false
+    if (!loading) {
+      fetchMonthOverview();
+    } else {
+      console.log("Skipping Month Overview fetch because main loading is true");
+    }
+    return () => { ignore = true; };
+  }, [monthOverviewPlatform]);
 
   return (
     <>
@@ -254,16 +309,18 @@ export default function WatchTower() {
               />
             </Box>
           </Box>
-          <Box sx={{ p: 3 }}>
+          <Box sx={{ p: 3, opacity: monthOverviewLoading && activeKpisTab === "Month Overview" ? 0.5 : 1, transition: 'opacity 0.2s' }}>
             <PlatformOverview
               onViewTrends={handleViewTrends}
+              monthOverviewPlatform={monthOverviewPlatform}
+              onPlatformChange={setMonthOverviewPlatform}
               data={
                 activeKpisTab === "Platform Overview"
                   ? (dashboardData?.platformOverview || defaultPlatforms)
                   : activeKpisTab === "Category Overview"
                     ? defaultCategory
                     : activeKpisTab === "Month Overview"
-                      ? defaultMonths
+                      ? (monthOverviewData || defaultMonths)
                       : activeKpisTab === "Brands Overview"
                         ? defaultBrands
                         : defaultSkus

@@ -39,6 +39,7 @@ export default (app) => {
      *                   type: array
      */
     app.get('/api/watchtower', watchTowerOverview);
+    app.get('/api/watchtower/summary-metrics', watchTowerOverview);
 
     /**
      * @swagger

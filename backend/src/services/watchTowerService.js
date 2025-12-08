@@ -10,6 +10,11 @@ import RcaSkuDim from '../models/RcaSkuDim.js';
 import { Op, Sequelize } from 'sequelize';
 import sequelize from '../config/db.js';
 import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek.js';
+import weekOfYear from 'dayjs/plugin/weekOfYear.js';
+
+dayjs.extend(isoWeek);
+dayjs.extend(weekOfYear);
 
 const getSummaryMetrics = async (filters) => {
     try {
@@ -633,12 +638,97 @@ const getSummaryMetrics = async (filters) => {
             console.error("Error calculating Performance Marketing metrics:", err);
         }
 
+        // 6. Month Overview Calculation
+        // const monthOverview = []; // Removed sequential array
+        const moPlatform = filters.monthOverviewPlatform || 'Blinkit';
+        console.log("Calculating Month Overview for Platform:", moPlatform);
+
+        // Generate columns helper for Month Overview (similar to generateColumns but for a single month row)
+        const generateMonthColumns = (offtake, availability, sos, marketShare) => [
+            { title: "Offtakes", value: formatCurrency(offtake), meta: { units: "", change: "▲0.0%" } },
+            { title: "Spend", value: "₹0", meta: { units: "", change: "▲0.0%" } }, // Mock
+            { title: "ROAS", value: "0x", meta: { units: "", change: "▲0.0%" } }, // Mock
+            { title: "Inorg Sales", value: "₹0", meta: { units: "", change: "▲0.0%" } }, // Mock
+            { title: "Conversion", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
+            { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
+            { title: "SOS", value: `${sos.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
+            { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
+            { title: "Promo My Brand", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
+            { title: "Promo Compete", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
+            { title: "CPM", value: "₹0", meta: { units: "", change: "▲0.0%" } }, // Mock
+            { title: "CPC", value: "₹0", meta: { units: "", change: "▲0.0%" } }  // Mock
+        ];
+
+        const monthOverviewPromises = monthBuckets.map(async (bucket) => {
+            try {
+                const mStart = dayjs(bucket.date).startOf('month');
+                const mEnd = dayjs(bucket.date).endOf('month');
+
+                // Offtake
+                const moOfftakeWhere = {
+                    DATE: { [Op.between]: [mStart.toDate(), mEnd.toDate()] },
+                    Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), moPlatform.toLowerCase())
+                };
+                if (brand && brand !== 'All') moOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+                if (location && location !== 'All') moOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+
+                const moOfftakeResult = await RbPdpOlap.findOne({
+                    attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
+                    where: moOfftakeWhere,
+                    raw: true
+                });
+                const moOfftake = parseFloat(moOfftakeResult?.total_sales || 0);
+
+                // Availability
+                const moAvailability = await getAvailability(mStart, mEnd, brand, moPlatform, location);
+
+                // SOS
+                const moSos = await getShareOfSearch(mStart, mEnd, brand, moPlatform, location);
+
+                // Market Share
+                let moMarketShare = 0;
+                const moMsResult = await RbBrandMs.findOne({
+                    attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
+                    where: {
+                        created_on: { [Op.between]: [mStart.toDate(), mEnd.toDate()] },
+                        Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), moPlatform.toLowerCase()),
+                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    },
+                    raw: true
+                });
+                moMarketShare = parseFloat(moMsResult?.avg_ms || 0);
+
+                return {
+                    key: bucket.label,
+                    label: bucket.label, // e.g. "Nov"
+                    type: bucket.label,  // Reuse label as type for UI consistency
+                    logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png", // Generic calendar icon
+                    columns: generateMonthColumns(moOfftake, moAvailability, moSos, moMarketShare)
+                };
+
+            } catch (err) {
+                console.error(`Error calculating Month Overview for ${bucket.label}:`, err);
+                return {
+                    key: bucket.label,
+                    label: bucket.label,
+                    type: bucket.label,
+                    logo: "",
+                    columns: generateMonthColumns(0, 0, 0, 0)
+                };
+            }
+        });
+
+        const monthOverview = await Promise.all(monthOverviewPromises);
+        // monthOverview.push(...monthOverviewResults); // Removed push to undefined variable
+
         return {
             topMetrics,
             summaryMetrics,
             skuTable: skuTableData,
             platformOverview,
-            performanceMarketing
+            performanceMarketing,
+            monthOverview // Add this
         };
 
     } catch (error) {
@@ -723,9 +813,82 @@ const getLocations = async (platform, brand) => {
 };
 
 /**
- * Get Trend Data for My Trends Graph
- * @param {Object} filters - { brand, location, platform, period, timeStep }
+ * Generate time buckets based on start/end date and time step
  */
+const generateTimeBuckets = (startDate, endDate, timeStep) => {
+    const buckets = [];
+    let current = startDate.clone();
+
+    // Remove strict startOf alignment to respect user's "today to 1M back" request
+    // But we still need to align Daily to start of day
+    current = current.startOf('day');
+
+    const end = endDate.clone().endOf('day');
+
+    while (current.isBefore(end) || current.isSame(end, 'day')) {
+        let label;
+        let groupKey;
+
+        if (timeStep === 'Monthly') {
+            // Label: DD MMM YY to show exact date (e.g., 08 Nov 25)
+            label = current.format('DD MMM YY');
+            groupKey = current.format('YYYY-MM-01'); // Matches DB DATE_FORMAT (Calendar Month)
+            current = current.add(1, 'month');
+        } else if (timeStep === 'Weekly') {
+            label = current.format('DD MMM');
+            // Matches DB YEARWEEK mode 1
+            const year = current.year();
+            const week = current.isoWeek();
+            groupKey = year * 100 + week;
+            current = current.add(1, 'week');
+        } else { // Daily
+            label = current.format('DD MMM');
+            groupKey = current.format('YYYY-MM-DD'); // Matches DB DATE
+            current = current.add(1, 'day');
+        }
+
+        buckets.push({
+            label,
+            groupKey,
+            date: current.clone().subtract(1, timeStep === 'Daily' ? 'day' : timeStep === 'Weekly' ? 'week' : 'month').toDate()
+        });
+    }
+
+    // Ensure the last bucket covers the endDate
+    // If the loop finished but the last bucket's interval doesn't include endDate, add one more.
+    // Actually, we can check if the last bucket's groupKey matches the endDate's groupKey.
+    // If not, we add the endDate's bucket.
+
+    if (buckets.length > 0) {
+        const lastBucket = buckets[buckets.length - 1];
+        let endGroupKey;
+        let endLabel;
+
+        if (timeStep === 'Monthly') {
+            endGroupKey = endDate.format('YYYY-MM-01');
+            endLabel = endDate.format('DD MMM YY');
+        } else if (timeStep === 'Weekly') {
+            const year = endDate.year();
+            const week = endDate.isoWeek();
+            endGroupKey = year * 100 + week;
+            endLabel = endDate.format('DD MMM');
+        } else {
+            endGroupKey = endDate.format('YYYY-MM-DD');
+            endLabel = endDate.format('DD MMM');
+        }
+
+        // If the last bucket is NOT the same group as the end date, add the end date bucket
+        if (String(lastBucket.groupKey) !== String(endGroupKey)) {
+            buckets.push({
+                label: endLabel,
+                groupKey: endGroupKey,
+                date: endDate.toDate()
+            });
+        }
+    }
+
+    return buckets;
+};
 const getTrendData = async (filters) => {
     try {
         const { brand, location, platform, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
@@ -751,21 +914,30 @@ const getTrendData = async (filters) => {
 
         // 2. Determine Grouping
         let groupCol;
+        let groupColMs; // For RbBrandMs
+        let groupColKw; // For RbKw
         let dateFormat;
 
         if (timeStep === 'Monthly') {
             groupCol = sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m-01');
+            groupColMs = sequelize.fn('DATE_FORMAT', sequelize.col('created_on'), '%Y-%m-01');
+            groupColKw = sequelize.fn('DATE_FORMAT', sequelize.col('kw_crawl_date'), '%Y-%m-01');
             dateFormat = 'MMM YY';
         } else if (timeStep === 'Weekly') {
             // MySQL YEARWEEK mode 1 (Monday first)
             groupCol = sequelize.fn('YEARWEEK', sequelize.col('DATE'), 1);
-            dateFormat = 'Week'; // We'll format in JS
+            groupColMs = sequelize.fn('YEARWEEK', sequelize.col('created_on'), 1);
+            groupColKw = sequelize.fn('YEARWEEK', sequelize.col('kw_crawl_date'), 1);
+            dateFormat = 'Week';
         } else { // Daily
+            // Use simple column reference for Daily grouping as verified by debug script
             groupCol = sequelize.col('DATE');
+            groupColMs = sequelize.col('created_on');
+            groupColKw = sequelize.col('kw_crawl_date');
             dateFormat = 'DD MMM';
         }
 
-        // 3. Query Data
+        // 3. Query Data - Offtake, OSA, Discount
         const whereClause = {
             DATE: {
                 [Op.between]: [
@@ -784,47 +956,147 @@ const getTrendData = async (filters) => {
                 [sequelize.fn('MAX', sequelize.col('DATE')), 'ref_date'], // To help formatting
                 [sequelize.fn('SUM', sequelize.col('Sales')), 'offtake'],
                 [sequelize.fn('SUM', sequelize.col('neno_osa')), 'total_neno'],
-                [sequelize.fn('SUM', sequelize.col('deno_osa')), 'total_deno']
+                [sequelize.fn('SUM', sequelize.col('deno_osa')), 'total_deno'],
+                // Calculate Discount components only for valid MRP rows
+                [sequelize.fn('SUM', sequelize.literal('CASE WHEN CAST(REPLACE(MRP, ",", "") AS DECIMAL(10,2)) > 0 THEN Sales ELSE 0 END')), 'sales_with_mrp'],
+                [sequelize.fn('SUM', sequelize.literal('CASE WHEN CAST(REPLACE(MRP, ",", "") AS DECIMAL(10,2)) > 0 THEN CAST(REPLACE(MRP, ",", "") AS DECIMAL(10,2)) * Qty_Sold ELSE 0 END')), 'mrp_sales_valid']
             ],
             where: whereClause,
             group: [groupCol],
             order: [[sequelize.col('ref_date'), 'ASC']],
-            raw: true,
-            logging: console.log
+            raw: true
         });
 
-        // 4. Format Data
-        const timeSeries = trendResults.map(row => {
-            let dateLabel;
-            const refDate = dayjs(row.ref_date);
+        // 4. Query Market Share (Est. Category Share)
+        const msWhereClause = {
+            created_on: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) })
+        };
 
-            if (timeStep === 'Monthly') {
-                dateLabel = refDate.format('MMM YY');
-            } else if (timeStep === 'Weekly') {
-                // Format as "DD MMM" (Start of week)
-                // Since we grouped by YEARWEEK, ref_date is likely the max date in that week.
-                // Let's just use the ref_date for simplicity or calculate start of week.
-                dateLabel = refDate.format('DD MMM');
-            } else {
-                dateLabel = refDate.format('DD MMM');
-            }
+        const msResults = await RbBrandMs.findAll({
+            attributes: [
+                [groupColMs, 'date_group'],
+                [sequelize.fn('AVG', sequelize.col('market_share')), 'avg_ms']
+            ],
+            where: msWhereClause,
+            group: [groupColMs],
+            raw: true
+        });
 
+        // 5. Query Share of Search (SOV)
+        // Numerator: Brand matches + Not Sponsored
+        const sosNumWhere = {
+            kw_crawl_date: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            spons_flag: { [Op.ne]: 1 },
+            ...(brand && brand !== 'All' && { brand_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase()) }),
+            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+        };
+
+        const sosNumerator = await RbKw.findAll({
+            attributes: [
+                [groupColKw, 'date_group'],
+                [sequelize.fn('COUNT', sequelize.col('keyword')), 'count']
+            ],
+            where: sosNumWhere,
+            group: [groupColKw],
+            raw: true
+        });
+
+        // Denominator: All Brands (No Brand Filter) + Not Sponsored
+        const sosDenomWhere = {
+            kw_crawl_date: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            spons_flag: { [Op.ne]: 1 },
+            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+        };
+
+        const sosDenominator = await RbKw.findAll({
+            attributes: [
+                [groupColKw, 'date_group'],
+                [sequelize.fn('COUNT', sequelize.col('keyword')), 'count']
+            ],
+            where: sosDenomWhere,
+            group: [groupColKw],
+            raw: true
+        });
+
+
+        // 6. Merge and Format Data
+        const buckets = generateTimeBuckets(startDate, endDate, timeStep);
+
+        const timeSeries = buckets.map(bucket => {
+            // Find matching data in results
+            // We need to match bucket.groupKey with row.date_group
+            // For Weekly: bucket.groupKey is int (202548), row.date_group is int
+            // For Monthly: bucket.groupKey is string (2025-11-01), row.date_group is string
+            // For Daily: bucket.groupKey is string (2025-11-25), row.date_group is string
+
+            const row = trendResults.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+
+            // OSA
             const neno = parseFloat(row.total_neno || 0);
             const deno = parseFloat(row.total_deno || 0);
             const osa = deno > 0 ? (neno / deno) * 100 : 0;
 
+            // Discount
+            const salesWithMrp = parseFloat(row.sales_with_mrp || 0);
+            const mrpSalesValid = parseFloat(row.mrp_sales_valid || 0);
+            let discount = 0;
+            if (mrpSalesValid > 0) {
+                discount = (1 - (salesWithMrp / mrpSalesValid)) * 100;
+            }
+            discount = Math.max(0, Math.min(100, discount));
+
+            // Market Share
+            const msMatch = msResults.find(m => String(m.date_group) === String(bucket.groupKey));
+            const categoryShare = parseFloat(msMatch?.avg_ms || 0);
+
+            // SOV
+            const sosNum = sosNumerator.find(s => String(s.date_group) === String(bucket.groupKey));
+            const sosDen = sosDenominator.find(s => String(s.date_group) === String(bucket.groupKey));
+            const numCount = parseInt(sosNum?.count || 0, 10);
+            const denCount = parseInt(sosDen?.count || 0, 10);
+            const sov = denCount > 0 ? (numCount / denCount) * 100 : 0;
+
             return {
-                date: dateLabel,
-                offtake: parseFloat(row.offtake || 0), // Raw value, formatted in frontend
-                osa: parseFloat(osa.toFixed(1))
+                date: bucket.label,
+                offtake: parseFloat(row.offtake || 0),
+                osa: parseFloat(osa.toFixed(1)),
+                categoryShare: parseFloat(categoryShare.toFixed(1)),
+                discount: parseFloat(discount.toFixed(1)),
+                sov: parseFloat(sov.toFixed(1))
             };
         });
+
+        // If timeStep is Monthly, we might want to ensure all months in range are present?
+        // But for now, returning what we have is fine.
 
         return {
             timeSeries,
             metrics: {
                 offtake: true,
-                osa: true
+                estCategoryShare: true,
+                osa: true,
+                discount: true,
+                overallSOV: true
             }
         };
 

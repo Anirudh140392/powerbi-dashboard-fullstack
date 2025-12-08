@@ -168,10 +168,10 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
               bgcolor: theme.palette.primary.main,
               boxShadow: theme.palette.mode === 'dark' ? '0 0 0 3px rgba(255,255,255,0.04)' : '0 0 0 3px rgba(59, 130, 246, 0.08)'
             }}></Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '1.125rem', color: theme.palette.text.primary }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '1.125rem', color: '#111827' }}>
               My Trends
             </Typography>
-            <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', mx: 0.5 }}>
+            <Typography sx={{ color: '#6b7280', fontSize: '0.875rem', mx: 0.5 }}>
               at
             </Typography>
             <Chip
@@ -186,7 +186,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                 '& .MuiChip-label': { px: 1.5 }
               }}
             />
-            <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', mx: 0.5 }}>
+            <Typography sx={{ color: '#6b7280', fontSize: '0.875rem', mx: 0.5 }}>
               for
             </Typography>
             <Chip
@@ -234,19 +234,20 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                     textTransform: 'none',
                     borderRadius: '6px',
                     ...(selectedPeriod === period ? {
-                      bgcolor: theme.palette.primary.main,
+                      bgcolor: '#3b82f6',
+                      color: '#ffffff',
                       boxShadow: 'none',
                       '&:hover': {
-                        bgcolor: theme.palette.primary.dark,
+                        bgcolor: '#2563eb',
                         boxShadow: 'none'
                       }
                     } : {
-                      color: theme.palette.text.secondary,
-                      borderColor: theme.palette.divider,
+                      color: '#6b7280',
+                      borderColor: '#e5e7eb',
                       bgcolor: 'transparent',
                       '&:hover': {
-                        bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f9fafb',
-                        borderColor: theme.palette.divider
+                        bgcolor: '#f9fafb',
+                        borderColor: '#e5e7eb'
                       }
                     })
                   }}
@@ -269,7 +270,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                 />
               }
               label={
-                <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.primary, fontWeight: 500 }}>
+                <Typography sx={{ fontSize: '0.8rem', color: '#111827', fontWeight: 500 }}>
                   Custom
                 </Typography>
               }
@@ -296,7 +297,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
             )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 'auto' }}>
-              <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.secondary, fontWeight: 500 }}>
+              <Typography sx={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 500 }}>
                 Time Step:
               </Typography>
               <FormControl size="small">
@@ -314,10 +315,10 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                       fontWeight: 500
                     },
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.divider
+                      borderColor: '#e5e7eb'
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: theme.palette.divider
+                      borderColor: '#e5e7eb'
                     }
                   }}
                 >
@@ -354,7 +355,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                       borderRadius: '50%',
                       bgcolor: metric.color
                     }}></Box>
-                    <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.primary, fontWeight: 500 }}>
+                    <Typography sx={{ fontSize: '0.8rem', color: '#111827', fontWeight: 500 }}>
                       {metric.label}
                     </Typography>
                   </Box>

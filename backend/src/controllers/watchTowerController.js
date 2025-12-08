@@ -73,6 +73,45 @@ export const getLocations = async (req, res) => {
     }
 };
 
+export const getWatchTowerData = async (req, res) => {
+    try {
+        const {
+            platform,
+            months,
+            timeStep,
+            brand,
+            location,
+            keyword,
+            startDate,
+            endDate,
+            compareStartDate,
+            compareEndDate,
+            monthOverviewPlatform // Extract it
+        } = req.query;
+
+        console.log("Processing Watch Tower request with filters:", req.query);
+        console.log("Extracted monthOverviewPlatform:", monthOverviewPlatform);
+
+        const data = await watchTowerService.getSummaryMetrics({
+            platform,
+            months,
+            timeStep,
+            brand,
+            location,
+            keyword,
+            startDate,
+            endDate,
+            compareStartDate,
+            compareEndDate,
+            monthOverviewPlatform // Pass it
+        });
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching watch tower data:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 export const debugAvailability = async (req, res) => {
     try {
         const { brand, location, platform, startDate, endDate } = req.query;

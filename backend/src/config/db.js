@@ -11,6 +11,15 @@ const sequelize = new Sequelize(
     dialect: "mysql",
     port: process.env.DB_PORT || 3306,
     logging: false, // set true if you want SQL logs
+    pool: {
+      max: 10,
+      min: 0,
+      acquire: 60000,
+      idle: 10000
+    },
+    dialectOptions: {
+      connectTimeout: 60000
+    }
   }
 );
 

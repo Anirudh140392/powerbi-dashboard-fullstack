@@ -505,6 +505,8 @@ const PlatformOverview = ({
   data = [],
   onViewTrends = () => { },
   activeKpisTab = "Platform Overview",
+  monthOverviewPlatform,
+  onPlatformChange
 }) => {
   const theme = useTheme();
 
@@ -578,7 +580,33 @@ const PlatformOverview = ({
             {/* RIGHT SECTION — SEARCH + SORTING */}
             <Box display="flex" alignItems="center" gap={1.2}>
               {/* FILTER DROPDOWN */}
-              {activeKpisTab !== "Platform Overview" && (
+              {activeKpisTab === "Month Overview" && (
+                <Select
+                  size="small"
+                  value={monthOverviewPlatform || "Blinkit"}
+                  onChange={(e) => onPlatformChange && onPlatformChange(e.target.value)}
+                  sx={{
+                    minWidth: 130,
+                    height: 36,
+                    fontSize: "0.85rem",
+                    background: "#f3f4f6",
+                    borderRadius: 1.5,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: theme.palette.divider,
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <MenuItem value="Zepto">Zepto</MenuItem>
+                  <MenuItem value="Blinkit">Blinkit</MenuItem>
+                  <MenuItem value="Swiggy">Swiggy</MenuItem>
+                  <MenuItem value="Amazon">Amazon</MenuItem>
+                </Select>
+              )}
+
+              {activeKpisTab !== "Platform Overview" && activeKpisTab !== "Month Overview" && (
                 <>
                   {/* Platform Filter */}
                   <Select
@@ -606,7 +634,6 @@ const PlatformOverview = ({
                   >
                     <MenuItem value="blinkit">Blinkit</MenuItem>
                   </Select>
-
                   {/* Category Filter – only in Brands Overview */}
                   {activeKpisTab === "Brands Overview" && (
                     <Select
