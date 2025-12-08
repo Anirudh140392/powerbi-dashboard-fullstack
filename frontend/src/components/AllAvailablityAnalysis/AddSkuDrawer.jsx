@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Sparkles, Plus, Check, X } from "lucide-react";
 
 const CSS = `
@@ -373,22 +373,37 @@ const CSS = `
   background: #f8fafc;
   border-color: #cbd5e1;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.apply-btn:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+.apply-btn:disabled:hover {
+  transform: none !important;
+  box-shadow: 0 4px 16px rgba(14,165,233,0.3);
+}
 `;
 
 /* ================= JSON ================= */
 
 // Premium color palette for random backgrounds
 const COLOR_PALETTE = [
-  { bg: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #4ECDC4 0%, #44B7B4 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #FFE66D 0%, #FFD93D 100%)', text: '#663c00' },
-  { bg: 'linear-gradient(135deg, #95E1D3 0%, #75D4C1 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #A8E6CF 0%, #7FD8BE 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #FF8B94 0%, #FF6B7A 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #B4A7FF 0%, #9B7EFF 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #FFB6B9 0%, #FF9BA9 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #A8D8EA 0%, #7BC4D8 100%)', text: 'white' },
-  { bg: 'linear-gradient(135deg, #FFAFAF 0%, #FF8E9F 100%)', text: 'white' },
+  { bg: "linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #4ECDC4 0%, #44B7B4 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #FFE66D 0%, #FFD93D 100%)", text: "#663c00" },
+  { bg: "linear-gradient(135deg, #95E1D3 0%, #75D4C1 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #A8E6CF 0%, #7FD8BE 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #FF8B94 0%, #FF6B7A 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #B4A7FF 0%, #9B7EFF 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #FFB6B9 0%, #FF9BA9 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #A8D8EA 0%, #7BC4D8 100%)", text: "white" },
+  { bg: "linear-gradient(135deg, #FFAFAF 0%, #FF8E9F 100%)", text: "white" },
 ];
 
 const getRandomColor = (id) => {
@@ -424,7 +439,7 @@ const GRAMMAGE_BANDS = [
   { id: "250+", label: "250+ g" },
 ];
 
-const SKU_DATA = [
+export const SKU_DATA = [
   {
     id: 1,
     name: "Colgate Strong Teeth (150 g)",
@@ -509,7 +524,12 @@ function grammageBand(g) {
 }
 
 /* ================= COMPONENT ================= */
-export default function AddSkuDrawer({ open, onClose }) {
+export default function AddSkuDrawer({
+  open,
+  onClose,
+  onApply,
+  selectedIds = [],
+}) {
   /* 🔥 HOOKS ALWAYS ON TOP — fixed ordering */
   const [search, setSearch] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState("blinkit");
@@ -519,7 +539,8 @@ export default function AddSkuDrawer({ open, onClose }) {
   const [selectedBrands, setSelectedBrands] = useState(new Set());
   const [selectedPPU, setSelectedPPU] = useState("all");
   const [selectedGrammage, setSelectedGrammage] = useState("all");
-  const [selectedSkuIds, setSelectedSkuIds] = useState(new Set([1]));
+  const [selectedSkuIds, setSelectedSkuIds] = useState(new Set(selectedIds));
+  const [isApplying, setIsApplying] = useState(false);
 
   /* FILTERING */
   const filtered = useMemo(() => {
@@ -545,6 +566,9 @@ export default function AddSkuDrawer({ open, onClose }) {
     selectedPPU,
     selectedGrammage,
   ]);
+  useEffect(() => {
+    setSelectedSkuIds(new Set(selectedIds));
+  }, [selectedIds, open]);
 
   /* Toggle SKU */
   const toggleSku = (id) => {
@@ -553,6 +577,27 @@ export default function AddSkuDrawer({ open, onClose }) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const handleApply = async () => {
+    if (selectedSkuIds.size === 0) return;
+    setIsApplying(true);
+
+    const selectedSkus = SKU_DATA.filter((s) => selectedSkuIds.has(s.id));
+
+    try {
+      if (onApply) {
+        await onApply(Array.from(selectedSkuIds), selectedSkus);
+      }
+      // Visual feedback: button shows success state briefly
+      setTimeout(() => {
+        setIsApplying(false);
+        onClose();
+      }, 500);
+    } catch (error) {
+      console.error("Error applying SKUs:", error);
+      setIsApplying(false);
+    }
   };
 
   /* RETURN — drawer is conditionally shown, NOT hooks */
@@ -568,7 +613,7 @@ export default function AddSkuDrawer({ open, onClose }) {
                 {/* HEADER */}
                 <div className="add-sku-header">
                   <div className="add-sku-header-title">
-                    <Sparkles size={24} style={{ color: '#FBBF24' }} />
+                    <Sparkles size={24} style={{ color: "#FBBF24" }} />
                     Add SKU
                   </div>
                   <button className="add-sku-close" onClick={onClose}>
@@ -728,20 +773,18 @@ export default function AddSkuDrawer({ open, onClose }) {
                             className={`sku-card ${selected ? "selected" : ""}`}
                             onClick={() => toggleSku(sku.id)}
                           >
-                            <div 
+                            <div
                               className="sku-thumb"
                               style={{
                                 background: getRandomColor(sku.id).bg,
-                                color: getRandomColor(sku.id).text
+                                color: getRandomColor(sku.id).text,
                               }}
                             >
                               {sku.brand?.charAt(0).toUpperCase()}
                             </div>
 
                             <div className="sku-info">
-                              <div className="sku-name">
-                                {sku.name}
-                              </div>
+                              <div className="sku-name">{sku.name}</div>
                               <div className="sku-meta">
                                 <span className="sku-chip">
                                   {sku.grammage} g
@@ -780,7 +823,30 @@ export default function AddSkuDrawer({ open, onClose }) {
 
                 {/* FOOTER */}
                 <div className="add-sku-footer">
-                  <button className="apply-btn">Apply</button>
+                  <button
+                    className="apply-btn"
+                    onClick={handleApply}
+                    disabled={selectedSkuIds.size === 0 || isApplying}
+                    style={{
+                      opacity: selectedSkuIds.size === 0 ? 0.5 : 1,
+                      cursor:
+                        selectedSkuIds.size === 0 || isApplying
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                  >
+                    {isApplying ? (
+                      <>
+                        <Sparkles
+                          size={16}
+                          style={{ animation: "spin 1s linear infinite" }}
+                        />
+                        Applying...
+                      </>
+                    ) : (
+                      `Apply (${selectedSkuIds.size} selected)`
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

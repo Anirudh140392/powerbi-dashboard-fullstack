@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+// TrendsCompetitionDrawer.jsx
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -19,9 +20,9 @@ import {
   TableHead,
   TableRow
 } from "@mui/material";
-import { ChevronDown, X, Search, Filter } from "lucide-react";
+import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
-import AddSkuDrawer from "./AddSkuDrawer";
+import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 
 /**
  * ---------------------------------------------------------------------------
@@ -29,11 +30,50 @@ import AddSkuDrawer from "./AddSkuDrawer";
  * ---------------------------------------------------------------------------
  */
 
+// brand colors for SKU pills
+const BRAND_COLORS = {
+  Colgate: "#EF4444",
+  Sensodyne: "#8B5CF6",
+  Dabur: "#22C55E",
+  Pepsodent: "#0EA5E9",
+  Closeup: "#F97316"
+};
+
+// base compare-SKU X axis + base trend (we'll offset per SKU)
+const COMPARE_X = [
+  "01 Sep",
+  "02 Sep",
+  "03 Sep",
+  "04 Sep",
+  "05 Sep",
+  "06 Sep",
+  "07 Sep",
+  "08 Sep",
+  "09 Sep",
+  "10 Sep"
+];
+
+const BASE_COMPARE_TRENDS = {
+  Osa: [100, 100, 100, 99, 99, 98, 98, 97, 97, 96],
+  Doi: [80, 81, 79, 80, 79, 78, 78, 77, 76, 77],
+  Fillrate: [92, 92, 91, 91, 90, 90, 89, 89, 88, 88],
+  Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51]
+};
+
+function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
+  return {
+    Osa: BASE_COMPARE_TRENDS.Osa.map((v) => v + osaOffset),
+    Doi: BASE_COMPARE_TRENDS.Doi.map((v) => v + doiOffset),
+    Fillrate: BASE_COMPARE_TRENDS.Fillrate.map((v) => v + fillOffset),
+    Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset)
+  };
+}
+
 const DASHBOARD_DATA = {
   trends: {
     context: {
       level: "MRP",
-      audience: "All",
+      audience: "All"
     },
 
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
@@ -48,32 +88,31 @@ const DASHBOARD_DATA = {
         label: "Osa",
         color: "#F97316",
         axis: "left",
-        default: true,
+        default: true
       },
       {
         id: "Doi",
         label: "Doi",
         color: "#7C3AED",
         axis: "right",
-        default: true,
+        default: true
       },
       {
         id: "Fillrate",
         label: "Fillrate",
         color: "#6366F1",
         axis: "left",
-        default: false,
+        default: false
       },
       {
         id: "Assortment",
         label: "Assortment",
         color: "#22C55E",
         axis: "left",
-        default: false,
-      },
+        default: false
+      }
     ],
 
-    // DAILY KPI TREND MOCK DATA
     points: [
       { date: "06 Sep'25", Osa: 57, Doi: 41, Fillrate: 72, Assortment: 65 },
       { date: "07 Sep'25", Osa: 54, Doi: 42, Fillrate: 70, Assortment: 66 },
@@ -89,7 +128,7 @@ const DASHBOARD_DATA = {
       { date: "17 Sep'25", Osa: 51, Doi: 31, Fillrate: 68, Assortment: 58 },
       { date: "18 Sep'25", Osa: 51, Doi: 31, Fillrate: 67, Assortment: 58 },
       { date: "19 Sep'25", Osa: 51, Doi: 32, Fillrate: 66, Assortment: 57 },
-      { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68 }, // spike
+      { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68 },
       { date: "21 Sep'25", Osa: 50, Doi: 34, Fillrate: 67, Assortment: 55 },
       { date: "22 Sep'25", Osa: 49, Doi: 33, Fillrate: 66, Assortment: 54 },
       { date: "23 Sep'25", Osa: 48, Doi: 32, Fillrate: 65, Assortment: 54 },
@@ -103,32 +142,61 @@ const DASHBOARD_DATA = {
       { date: "01 Oct'25", Osa: 44, Doi: 36, Fillrate: 61, Assortment: 50 },
       { date: "02 Oct'25", Osa: 45, Doi: 37, Fillrate: 62, Assortment: 51 },
       { date: "03 Oct'25", Osa: 46, Doi: 39, Fillrate: 63, Assortment: 52 },
-      { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53 },
-    ],
+      { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53 }
+    ]
   },
 
-  // --------------------------------------------------
-  // COMPETITION BLOCK (UNCHANGED)
-  // --------------------------------------------------
+  // compare SKUs with per-SKU trend
+  compareSkus: {
+    context: {
+      level: "MRP"
+    },
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Daily",
+
+    metrics: [
+      { id: "Osa", label: "Osa", color: "#F97316", default: true },
+      { id: "Doi", label: "Doi", color: "#7C3AED", default: true },
+      { id: "Fillrate", label: "Fillrate", color: "#6366F1", default: false },
+      { id: "Assortment", label: "Assortment", color: "#22C55E", default: false }
+    ],
+
+    x: COMPARE_X,
+
+    // keyed by SKU_DATA IDs (1..8)
+    trendsBySku: {
+      1: makeSkuTrend(0, 0, 0, 0),
+      2: makeSkuTrend(-2, -1, -1, 0),
+      3: makeSkuTrend(-3, -2, -2, -1),
+      4: makeSkuTrend(-4, -3, -3, -1),
+      5: makeSkuTrend(+2, +3, +2, +2),
+      6: makeSkuTrend(+1, +2, +1, +1),
+      7: makeSkuTrend(-1, -2, -1, -1),
+      8: makeSkuTrend(+3, +1, +2, +1)
+    }
+  },
+
   competition: {
     context: {
       level: "MRP",
-      region: "All × Chennai",
+      region: "All × Chennai"
     },
 
     tabs: ["Brands", "SKUs"],
 
     periodToggle: {
       primary: "MTD",
-      compare: "Previous Month",
+      compare: "Previous Month"
     },
 
     columns: [
       { id: "brand", label: "Brand", type: "text" },
       { id: "Osa", label: "Osa", type: "metric" },
-      { id: "Doi", label: "Doi", type: "metric", group: "Impressions" },
-      { id: "Fillrate", label: "Fillrate", type: "metric", group: "Impressions" },
-      { id: "Assortment", label: "Assortment", type: "metric", group: "Impressions" },
+      { id: "Doi", label: "Doi", type: "metric" },
+      { id: "Fillrate", label: "Fillrate", type: "metric" },
+      { id: "Assortment", label: "Assortment", type: "metric" }
     ],
 
     brands: [
@@ -137,50 +205,29 @@ const DASHBOARD_DATA = {
         Osa: { value: 32.9, delta: -4.5 },
         Doi: { value: 74.6, delta: -16.3 },
         Fillrate: { value: 20.0, delta: -8.5 },
-        Assortment: { value: 18.8, delta: 0.4 },
+        Assortment: { value: 18.8, delta: 0.4 }
       },
       {
         brand: "Sensodyne",
         Osa: { value: 19.6, delta: 2.2 },
         Doi: { value: 94.2, delta: 3.9 },
         Fillrate: { value: 19.3, delta: 2.7 },
-        Assortment: { value: 18.5, delta: -3.1 },
+        Assortment: { value: 18.5, delta: -3.1 }
       },
       {
         brand: "Oral-B",
         Osa: { value: 11.7, delta: -0.9 },
         Doi: { value: 86.7, delta: -4.2 },
         Fillrate: { value: 16.2, delta: -2.9 },
-        Assortment: { value: 20.8, delta: -5.6 },
+        Assortment: { value: 20.8, delta: -5.6 }
       },
       {
         brand: "Dabur",
         Osa: { value: 8.6, delta: 0.2 },
         Doi: { value: 90.6, delta: -1.2 },
         Fillrate: { value: 7.2, delta: 0.3 },
-        Assortment: { value: 7.4, delta: 2.9 },
-      },
-      {
-        brand: "Listerine",
-        Osa: { value: 4.3, delta: 0.6 },
-        Doi: { value: 91.8, delta: 6.5 },
-        Fillrate: { value: 2.8, delta: 0.6 },
-        Assortment: { value: 3.1, delta: 1.2 },
-      },
-      {
-        brand: "Closeup",
-        Osa: { value: 3.6, delta: 0.2 },
-        Doi: { value: 90.9, delta: 8.9 },
-        Fillrate: { value: 6.5, delta: 3.0 },
-        Assortment: { value: 13.8, delta: 4.9 },
-      },
-      {
-        brand: "Perfora",
-        Osa: { value: 3.6, delta: -0.7 },
-        Doi: { value: 89.8, delta: 2.5 },
-        Fillrate: { value: 4.7, delta: 1.7 },
-        Assortment: { value: 4.7, delta: -1.4 },
-      },
+        Assortment: { value: 7.4, delta: 2.9 }
+      }
     ],
 
     skus: [
@@ -189,19 +236,18 @@ const DASHBOARD_DATA = {
         Osa: { value: 8.2, delta: -1.0 },
         Doi: { value: 76.1, delta: -8.0 },
         Fillrate: { value: 4.5, delta: -0.9 },
-        Assortment: { value: 3.2, delta: 0.2 },
+        Assortment: { value: 3.2, delta: 0.2 }
       },
       {
         brand: "Sensodyne Rapid Relief 40g",
         Osa: { value: 4.4, delta: 0.7 },
         Doi: { value: 95.0, delta: 2.0 },
         Fillrate: { value: 5.1, delta: 1.3 },
-        Assortment: { value: 4.9, delta: -0.5 },
-      },
-    ],
-  },
+        Assortment: { value: 4.9, delta: -0.5 }
+      }
+    ]
+  }
 };
-
 
 /**
  * ---------------------------------------------------------------------------
@@ -232,7 +278,6 @@ const RANGE_TO_DAYS = {
 };
 
 const parseTrendDate = (label) => {
-  // "06 Sep'25"
   try {
     const [dayStr, monthYear] = label.split(" ");
     const day = parseInt(dayStr, 10);
@@ -310,7 +355,6 @@ const MetricChip = ({ active, label, color, onClick }) => (
 export default function TrendsCompetitionDrawer({
   open = true,
   onClose = () => {},
-  // compMeta,
   selectedColumn
 }) {
   const [view, setView] = useState("Trends");
@@ -325,15 +369,26 @@ export default function TrendsCompetitionDrawer({
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
 
-  // competition filter states
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [metricFilter, setMetricFilter] = useState("estCategoryShare");
-  const [valueMin, setValueMin] = useState("");
-  const [valueMax, setValueMax] = useState("");
-  const [deltaSign, setDeltaSign] = useState("all"); // all | positive | negative
+  // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
+  const [addSkuOpen, setAddSkuOpen] = useState(false);
+  const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
+  const [compareInitialized, setCompareInitialized] = useState(false);
 
   const trendMeta = DASHBOARD_DATA.trends;
   const compMeta = DASHBOARD_DATA.competition;
+  const compareMeta = DASHBOARD_DATA.compareSkus;
+
+  // ⭐ Auto-select first SKU + only Osa when opening Compare SKUs first time
+  useEffect(() => {
+    if (view === "compare skus" && !compareInitialized) {
+      const firstSku = SKU_DATA && SKU_DATA.length > 0 ? SKU_DATA[0] : null;
+      if (firstSku) {
+        setSelectedCompareSkus([firstSku]);
+      }
+      setActiveMetrics(["Osa"]);
+      setCompareInitialized(true);
+    }
+  }, [view, compareInitialized]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
@@ -363,12 +418,6 @@ export default function TrendsCompetitionDrawer({
 
   const trendOption = useMemo(() => {
     const xData = trendPoints.map((p) => p.date);
-    const leftMetrics = trendMeta.metrics.filter(
-      (m) => activeMetrics.includes(m.id) && m.axis === "left"
-    );
-    const rightMetrics = trendMeta.metrics.filter(
-      (m) => activeMetrics.includes(m.id) && m.axis === "right"
-    );
 
     const series = trendMeta.metrics
       .filter((m) => activeMetrics.includes(m.id))
@@ -380,21 +429,15 @@ export default function TrendsCompetitionDrawer({
         symbolSize: 6,
         showSymbol: true,
         yAxisIndex: m.axis === "right" ? 1 : 0,
-        lineStyle: {
-          width: 2
-        },
+        lineStyle: { width: 2 },
         emphasis: { focus: "series" },
         data: trendPoints.map((p) => p[m.id] ?? null),
-        itemStyle: {
-          color: m.color
-        }
+        itemStyle: { color: m.color }
       }));
 
     return {
       grid: { left: 60, right: 80, top: 32, bottom: 40 },
-      tooltip: {
-        trigger: "axis"
-      },
+      tooltip: { trigger: "axis" },
       xAxis: {
         type: "category",
         data: xData,
@@ -406,10 +449,6 @@ export default function TrendsCompetitionDrawer({
         {
           type: "value",
           position: "left",
-          name:
-            leftMetrics.length === 1
-              ? leftMetrics[0].unit
-              : leftMetrics.map((m) => m.unit).join(""),
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } }
@@ -417,7 +456,6 @@ export default function TrendsCompetitionDrawer({
         {
           type: "value",
           position: "right",
-          name: rightMetrics.length ? rightMetrics[0].unit : "",
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
@@ -430,53 +468,63 @@ export default function TrendsCompetitionDrawer({
     };
   }, [trendMeta, activeMetrics, trendPoints]);
 
-  const metricColumns = useMemo(
-    () => compMeta.columns.filter((c) => c.type === "metric"),
-    [compMeta]
-  );
-
   const competitionRows = useMemo(() => {
     const baseRows =
       compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands;
 
-    return baseRows
-      .filter((r) =>
-        search.trim()
-          ? r.brand.toLowerCase().includes(search.toLowerCase())
-          : true
-      )
-      .filter((r) => {
-        const metricKey = metricFilter;
-        const metric = r[metricKey];
+    return baseRows.filter((r) =>
+      search.trim()
+        ? r.brand.toLowerCase().includes(search.toLowerCase())
+        : true
+    );
+  }, [compMeta, compTab, search]);
 
-        if (!metric) return true;
+  // Compare SKUs chart option (multi-KPI, multi-SKU)
+  const compareOption = useMemo(() => {
+    const x = compareMeta.x;
+    const series = [];
 
-        const value = metric.value;
-        const delta = metric.delta;
+    selectedCompareSkus.forEach((sku) => {
+      const trend = compareMeta.trendsBySku[sku.id];
+      if (!trend) return;
 
-        // value range filter
-        if (valueMin !== "" && !isNaN(parseFloat(valueMin))) {
-          if (value < parseFloat(valueMin)) return false;
-        }
-        if (valueMax !== "" && !isNaN(parseFloat(valueMax))) {
-          if (value > parseFloat(valueMax)) return false;
-        }
+      compareMeta.metrics
+        .filter((m) => activeMetrics.includes(m.id))
+        .forEach((m) => {
+          series.push({
+            name: `${sku.name} · ${m.label}`,
+            type: "line",
+            smooth: true,
+            symbol: "circle",
+            symbolSize: 6,
+            lineStyle: { width: 1 },
+            itemStyle: { color: m.color },
+            data: trend[m.id] || []
+          });
+        });
+    });
 
-        // delta sign filter
-        if (deltaSign === "positive" && delta <= 0) return false;
-        if (deltaSign === "negative" && delta >= 0) return false;
+    return {
+      tooltip: { trigger: "axis" },
+      grid: { left: 40, right: 20, top: 20, bottom: 40 },
+      xAxis: { type: "category", data: x },
+      yAxis: {
+        type: "value",
+        min: 0,
+        max: 120,
+        axisLabel: { formatter: "{value}%" }
+      },
+      series
+    };
+  }, [compareMeta, activeMetrics, selectedCompareSkus]);
 
-        return true;
-      });
-  }, [
-    compMeta,
-    compTab,
-    search,
-    metricFilter,
-    valueMin,
-    valueMax,
-    deltaSign
-  ]);
+  // keep selection fully in sync with drawer & deletion
+  const handleSkuApply = (ids, skus) => {
+    const mapById = Object.fromEntries(SKU_DATA.map((s) => [s.id, s]));
+    const finalList = ids.map((id) => mapById[id]).filter(Boolean);
+    setSelectedCompareSkus(finalList);
+    setAddSkuOpen(false);
+  };
 
   if (!open) return null;
 
@@ -533,6 +581,7 @@ export default function TrendsCompetitionDrawer({
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
             <ToggleButton value="Competition">Competition</ToggleButton>
+            <ToggleButton value="compare skus">Compare SKUs</ToggleButton>
           </ToggleButtonGroup>
 
           <IconButton onClick={onClose} size="small">
@@ -540,12 +589,12 @@ export default function TrendsCompetitionDrawer({
           </IconButton>
         </Box>
 
-        {/* CONTENT */}
+        {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             <Box display="flex" alignItems="center" gap={1.5}>
               <Typography variant="h6" fontWeight={600}>
-                {selectedColumn}
+                {selectedColumn || "KPI Trends"}
               </Typography>
               <Typography variant="body2">at</Typography>
               <Chip
@@ -614,19 +663,19 @@ export default function TrendsCompetitionDrawer({
                 mb={2}
               >
                 <Box display="flex" gap={1} flexWrap="wrap">
-                  {trendMeta.metrics.slice(0, 4).map((m) => (
+                  {trendMeta.metrics.map((m) => (
                     <MetricChip
                       key={m.id}
                       label={m.label}
                       color={m.color}
                       active={activeMetrics.includes(m.id)}
-                      onClick={() => {
+                      onClick={() =>
                         setActiveMetrics((prev) =>
                           prev.includes(m.id)
                             ? prev.filter((x) => x !== m.id)
                             : [...prev, m.id]
-                        );
-                      }}
+                        )
+                      }
                     />
                   ))}
                 </Box>
@@ -640,18 +689,6 @@ export default function TrendsCompetitionDrawer({
                     borderColor: "#E5E7EB"
                   }}
                   variant="outlined"
-                  onClick={() => {
-                    const extraIds = trendMeta.metrics.slice(4).map((m) => m.id);
-                    setActiveMetrics((prev) => {
-                      const hasAnyExtra = prev.some((id) =>
-                        extraIds.includes(id)
-                      );
-                      if (hasAnyExtra) {
-                        return prev.filter((id) => !extraIds.includes(id));
-                      }
-                      return [...prev, ...extraIds];
-                    });
-                  }}
                 >
                   +{Math.max(trendMeta.metrics.length - 4, 0)} more
                 </Button>
@@ -669,9 +706,9 @@ export default function TrendsCompetitionDrawer({
           </Box>
         )}
 
+        {/* COMPETITION VIEW */}
         {view === "Competition" && (
           <Box display="flex" flexDirection="column" gap={2}>
-            {/* header line */}
             <Box display="flex" justifyContent="space-between" gap={2}>
               <Box display="flex" flexDirection="column" gap={1}>
                 <Tabs
@@ -718,7 +755,6 @@ export default function TrendsCompetitionDrawer({
                 </Box>
               </Box>
 
-              {/* right side controls */}
               <Box
                 display="flex"
                 flexDirection="column"
@@ -736,7 +772,7 @@ export default function TrendsCompetitionDrawer({
               </Box>
             </Box>
 
-            {/* Filters + search */}
+            {/* search */}
             <Box
               display="flex"
               justifyContent="space-between"
@@ -744,32 +780,6 @@ export default function TrendsCompetitionDrawer({
               gap={2}
               flexWrap="wrap"
             >
-              <Box display="flex" gap={1.5} alignItems="center">
-                {/* <Button
-                  variant="outlined"
-                  startIcon={<Filter size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB"
-                  }}
-                  onClick={() => setFiltersOpen((prev) => !prev)}
-                >
-                  Filters
-                </Button> */}
-                <Button
-                  variant="outlined"
-                  startIcon={<Filter size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB"
-                  }}
-                  onClick={() => setFiltersOpen((prev) => !prev)}
-                >
-                  Add sku
-                </Button>
-              </Box>
               <Box display="flex" gap={1.5} alignItems="center">
                 <TextField
                   size="small"
@@ -786,142 +796,6 @@ export default function TrendsCompetitionDrawer({
                 />
               </Box>
             </Box>
-
-            {/* Filters panel */}
-            {/* {filtersOpen && (
-              <Paper
-                elevation={0}
-                sx={{
-                  borderRadius: 2,
-                  border: "1px solid #E5E7EB",
-                  p: 2,
-                  backgroundColor: "#F9FAFB"
-                }}
-              >
-                <Box
-                  display="flex"
-                  flexWrap="wrap"
-                  alignItems="center"
-                  gap={2}
-                >
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ fontWeight: 600, mb: 0.5, display: "block" }}
-                    >
-                      Metric
-                    </Typography>
-                    <ToggleButtonGroup
-                      exclusive
-                      size="small"
-                      value={metricFilter}
-                      onChange={(_, val) => val && setMetricFilter(val)}
-                      sx={{
-                        "& .MuiToggleButton-root": {
-                          textTransform: "none",
-                          borderRadius: "999px",
-                          px: 1.5,
-                          py: 0.25,
-                          border: "1px solid #E5E7EB",
-                          "&.Mui-selected": {
-                            backgroundColor: "#0F172A",
-                            color: "#fff",
-                            borderColor: "#0F172A"
-                          }
-                        }
-                      }}
-                    >
-                      {metricColumns.map((col) => (
-                        <ToggleButton key={col.id} value={col.id}>
-                          <Typography variant="caption">
-                            {col.label}
-                          </Typography>
-                        </ToggleButton>
-                      ))}
-                    </ToggleButtonGroup>
-                  </Box>
-
-                  <Box display="flex" gap={1.5} alignItems="center">
-                    <TextField
-                      label="Min %"
-                      size="small"
-                      type="number"
-                      value={valueMin}
-                      onChange={(e) => setValueMin(e.target.value)}
-                      InputProps={{ inputProps: { min: 0 } }}
-                    />
-                    <TextField
-                      label="Max %"
-                      size="small"
-                      type="number"
-                      value={valueMax}
-                      onChange={(e) => setValueMax(e.target.value)}
-                      InputProps={{ inputProps: { min: 0 } }}
-                    />
-                  </Box>
-
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ fontWeight: 600, mb: 0.5, display: "block" }}
-                    >
-                      Change vs prev
-                    </Typography>
-                    <ToggleButtonGroup
-                      exclusive
-                      size="small"
-                      value={deltaSign}
-                      onChange={(_, val) => val && setDeltaSign(val)}
-                      sx={{
-                        "& .MuiToggleButton-root": {
-                          textTransform: "none",
-                          borderRadius: "999px",
-                          px: 1.5,
-                          py: 0.25,
-                          border: "1px solid #E5E7EB",
-                          "&.Mui-selected": {
-                            backgroundColor: "#0F172A",
-                            color: "#fff",
-                            borderColor: "#0F172A"
-                          }
-                        }
-                      }}
-                    >
-                      <ToggleButton value="all">
-                        <Typography variant="caption">All</Typography>
-                      </ToggleButton>
-                      <ToggleButton value="positive">
-                        <Typography variant="caption">Positive</Typography>
-                      </ToggleButton>
-                      <ToggleButton value="negative">
-                        <Typography variant="caption">Negative</Typography>
-                      </ToggleButton>
-                    </ToggleButtonGroup>
-                  </Box>
-
-                  <Box flexGrow={1} textAlign="right">
-                    <Button
-                      size="small"
-                      sx={{ textTransform: "none" }}
-                      onClick={() => {
-                        setValueMin("");
-                        setValueMax("");
-                        setDeltaSign("all");
-                        setMetricFilter("estCategoryShare");
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </Box>
-                </Box>
-              </Paper>
-            )} */}
-
-<AddSkuDrawer 
-  open={filtersOpen} 
-  onClose={() => setFiltersOpen(false)} 
-/>
-
 
             {/* Table */}
             <Paper
@@ -1018,6 +892,144 @@ export default function TrendsCompetitionDrawer({
             </Paper>
           </Box>
         )}
+
+        {/* COMPARE SKUs VIEW */}
+        {view === "compare skus" && (
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Typography variant="h6" fontWeight={600}>
+                Compare SKUs
+              </Typography>
+              <Chip
+                size="small"
+                label={compareMeta.context.level}
+                sx={{
+                  borderRadius: "999px",
+                  backgroundColor: "#DCFCE7",
+                  color: "#166534",
+                  fontWeight: 500
+                }}
+              />
+            </Box>
+
+            {/* Range + Timestep */}
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+              <PillToggleGroup
+                value={range}
+                onChange={setRange}
+                options={compareMeta.rangeOptions}
+              />
+              <Box display="flex" alignItems="center" gap={1}>
+                <Typography variant="body2">Time Step:</Typography>
+                <PillToggleGroup
+                  value={timeStep}
+                  onChange={setTimeStep}
+                  options={compareMeta.timeSteps}
+                />
+              </Box>
+            </Box>
+
+            {/* SKU pills + Add SKUs button row */}
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              gap={2}
+              flexWrap="wrap"
+            >
+              <Box display="flex" gap={1} flexWrap="wrap" flex={1}>
+                {selectedCompareSkus.map((sku) => {
+                  const color =
+                    BRAND_COLORS[sku.brand] || "rgba(37,99,235,0.3)";
+                  return (
+                    <Chip
+                      key={sku.id}
+                      label={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: "999px",
+                              backgroundColor: color
+                            }}
+                          />
+                          <Typography variant="body2" noWrap>
+                            {sku.name}
+                          </Typography>
+                        </Box>
+                      }
+                      onDelete={() =>
+                        setSelectedCompareSkus((prev) =>
+                          prev.filter((s) => s.id !== sku.id)
+                        )
+                      }
+                      sx={{
+                        borderRadius: "999px",
+                        backgroundColor: "#F9FAFB",
+                        borderColor: "transparent",
+                        maxWidth: 260
+                      }}
+                    />
+                  );
+                })}
+              </Box>
+
+              <Button
+                variant="contained"
+                startIcon={<Plus size={14} />}
+                sx={{
+                  backgroundColor: "#2563EB",
+                  textTransform: "none",
+                  borderRadius: "999px",
+                  minWidth: 140
+                }}
+                onClick={() => setAddSkuOpen(true)}
+              >
+                Add SKUs
+              </Button>
+            </Box>
+
+            {/* Metric Chips */}
+            <Box display="flex" gap={1.5} flexWrap="wrap">
+              {compareMeta.metrics.map((m) => (
+                <MetricChip
+                  key={m.id}
+                  label={m.label}
+                  color={m.color}
+                  active={activeMetrics.includes(m.id)}
+                  onClick={() =>
+                    setActiveMetrics((prev) =>
+                      prev.includes(m.id)
+                        ? prev.filter((x) => x !== m.id)
+                        : [...prev, m.id]
+                    )
+                  }
+                />
+              ))}
+            </Box>
+
+            {/* Chart */}
+            <Paper sx={{ p: 2, borderRadius: 3, border: "1px solid #E5E7EB" }}>
+              <Box sx={{ height: 350 }}>
+                <ReactECharts
+                  key={selectedCompareSkus.map((s) => s.id).join("-")}
+                  option={compareOption}
+                  notMerge={true}
+                  style={{ height: "100%", width: "100%" }}
+                />
+              </Box>
+            </Paper>
+          </Box>
+        )}
+
+        {/* Shared Add SKU drawer for both Competition + Compare SKUs */}
+        <AddSkuDrawer
+          open={addSkuOpen}
+          onClose={() => setAddSkuOpen(false)}
+          onApply={handleSkuApply}
+          selectedIds={selectedCompareSkus.map((s) => s.id)}
+        />
       </Box>
     </Box>
   );
