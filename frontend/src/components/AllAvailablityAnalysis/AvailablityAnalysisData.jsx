@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   DRILL_COLUMNS,
   FORMAT_MATRIX,
@@ -133,16 +134,18 @@ const TabbedHeatmapTable = () => {
   return (
     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-2 rounded-full text-sm border transition ${
-              activeTab === t.key
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-700 border-slate-300"
-            }`}
+            className={`
+  px-4 py-1.5 text-sm rounded-full transition-all
+  ${activeTab === t.key
+    ? "bg-white text-slate-900 shadow-sm"
+    : "text-slate-500 hover:text-slate-700"
+  }
+`}
           >
             {t.label}
           </button>
@@ -975,50 +978,51 @@ const FormatPerformanceStudio = () => {
 
 const cards = [
   {
-    title: "Assortments",
-    value: "96 on 30 Nov'25",
-    sub: "Active SKUs in store",
-    change: "▲4.3% (+4 SKUs)",
+    title: "Stock Availability",
+    value: "85.2%",
+    sub: "MTD on-shelf coverage",
+    change: "▲3.1 pts (from 82.1%)",
     changeColor: "green",
     prevText: "vs Comparison Period",
-    extra: "New launches this month: 7",
-    extraChange: "▲12.5%",
+    extra: "High risk stores: 12",
+    extraChange: "▼4 stores",
     extraChangeColor: "green",
-  },
-  {
-    title: "Stock Availability",
-    value: "52.4%",
-    sub: "MTD on-shelf coverage",
-    change: "▼8.6 pts (from 61.0%)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "High risk stores: 18",
-    extraChange: "▲5 stores",
-    extraChangeColor: "red",
   },
   {
     title: "Days of Inventory (DOI)",
-    value: "68.3",
+    value: "62.4",
     sub: "Network average days of cover",
-    change: "▲19.5% (from 57.1)",
-    changeColor: "green",
+    change: "▼5.3% (from 65.9)",
+    changeColor: "red",
     prevText: "vs Comparison Period",
     extra: "Target band: 55–65 days",
-    extraChange: "Slightly above target",
-    extraChangeColor: "orange",
-  },
-  {
-    title: "Wt. OSA",
-    value: "76.9%",
-    sub: "Weighted on-shelf availability (MTD)",
-    change: "▲1.2 pts (from 75.7%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Top 50 SKUs: 82.3%",
-    extraChange: "▲0.9 pts",
+    extraChange: "Within target range",
     extraChangeColor: "green",
   },
+  {
+    title: "Fill Rate",
+    value: "93.7%",
+    sub: "Supplier fulfillment rate",
+    change: "▲1.8 pts (from 91.9%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Orders delayed: 6%",
+    extraChange: "▼1.2 pts",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Metro City Stock Availability",
+    value: "78.5%",
+    sub: "MTD availability across metro cities",
+    change: "▼2.0 pts (from 80.5%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Top 10 stores: 84.2%",
+    extraChange: "▲0.6 pts",
+    extraChangeColor: "green",
+  }
 ];
+
 
 // ---------------------------------------------------------------------------
 // Root dashboard
@@ -1033,7 +1037,7 @@ export const AvailablityAnalysisData = () => {
           <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
           <MetricCardContainer title="Availability Overview" cards={cards} />
           <TabbedHeatmapTable />
-
+          <CityKpiTrendShowcase />
           <DrillHeatTable
             title="One View Drilldown"
             data={ONE_VIEW_DRILL_DATA}
