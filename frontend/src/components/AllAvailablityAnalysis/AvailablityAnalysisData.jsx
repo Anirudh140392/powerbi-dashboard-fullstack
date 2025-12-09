@@ -93,72 +93,69 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 const TabbedHeatmapTable = () => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // ---------------- PLATFORM LEVEL DATA ----------------
+  // ---------------- PLATFORM DATA ----------------
   const platformData = {
     columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
-    rows: (FORMAT_MATRIX.PlatformData ?? []).map((r) => ({
-      kpi: r.kpi,
-      ...r.values,
-      trend: r.trend, // ← FIXED
+
+    rows: FORMAT_MATRIX.PlatformData.map((item) => ({
+      kpi: item.kpi,
+      ...item.values,        // expands Blinkit, Zepto, Instamart etc
+      trend: item.trend       // trend[col] already matches column names
     })),
   };
 
-  // ---------------- FORMAT LEVEL DATA ----------------
+  // ---------------- FORMAT DATA ----------------
   const formatData = {
     columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
-    rows: (FORMAT_MATRIX.FormatData ?? []).map((r) => ({
-      kpi: r.kpi,
-      ...r.values,
-      trend: r.trend, // ← FIXED
+
+    rows: FORMAT_MATRIX.FormatData.map((item) => ({
+      kpi: item.kpi,
+      ...item.values,
+      trend: item.trend
     })),
   };
 
+  // ---------------- CITY DATA ----------------
   const cityData = {
     columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
-    rows: (FORMAT_MATRIX.CityData ?? []).map((r) => ({
-      kpi: r.kpi,
-      ...r.values,
-      trend: r.trend, // ← FIXED
+
+    rows: FORMAT_MATRIX.CityData.map((item) => ({
+      kpi: item.kpi,
+      ...item.values,
+      trend: item.trend
     })),
   };
 
-  // ---------------- TAB DEFINITIONS ----------------
+  // ---------------- TABS ARRAY ----------------
   const tabs = [
     { key: "platform", label: "Platform", data: platformData },
     { key: "format", label: "Format", data: formatData },
     { key: "city", label: "City", data: cityData },
   ];
 
-  const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
-
+  const active = tabs.find((t) => t.key === activeTab);
   return (
     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
-      {/* Tabs */}
+
+      {/* TABS */}
       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`
-  px-4 py-1.5 text-sm rounded-full transition-all
-  ${activeTab === t.key
-    ? "bg-white text-slate-900 shadow-sm"
-    : "text-slate-500 hover:text-slate-700"
-  }
-`}
+            className={`px-4 py-1.5 text-sm rounded-full transition-all ${
+              activeTab === t.key
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      <SimpleTableWithTabs
-        title={active.label}
-        subtitle="Heatmap View"
-        data={active.data}
-        cellHeat={cellHeat}
-        trendKey="trend" // ← REQUIRED
-      />
+      {/* MATRIX TABLE */}
+      <CityKpiTrendShowcase data={active.data} title={active.label} />
     </div>
   );
 };
