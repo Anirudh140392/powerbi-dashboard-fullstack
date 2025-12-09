@@ -51,6 +51,7 @@ import PerformanceMatric from "../../components/ControlTower/WatchTower/Peforman
 import { FilterContext } from "../../utils/FilterContext";
 import Loader from "../../components/CommonLayout/Loader";
 import { useMemo } from "react";
+import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -293,6 +294,7 @@ defaultCategory */}
               activeTab={activeTab}
             />
           </Box> */}
+          <TopActionsLayoutsShowcase />
           <FormatPerformanceStudio />
 
           {/* {activeTab === "sku" && (
