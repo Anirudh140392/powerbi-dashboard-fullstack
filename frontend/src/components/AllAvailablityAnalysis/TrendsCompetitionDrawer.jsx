@@ -23,6 +23,7 @@ import {
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
+import KpiTrendShowcase from "./KpiTrendShowcase";
 
 /**
  * ---------------------------------------------------------------------------
@@ -354,7 +355,7 @@ const MetricChip = ({ active, label, color, onClick }) => (
 
 export default function TrendsCompetitionDrawer({
   open = true,
-  onClose = () => {},
+  onClose = () => { },
   selectedColumn
 }) {
   const [view, setView] = useState("Trends");
@@ -581,7 +582,7 @@ export default function TrendsCompetitionDrawer({
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
             <ToggleButton value="Competition">Competition</ToggleButton>
-            <ToggleButton value="compare skus">Compare SKUs</ToggleButton>
+            {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
           <IconButton onClick={onClose} size="small">
@@ -708,189 +709,7 @@ export default function TrendsCompetitionDrawer({
 
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
-          <Box display="flex" flexDirection="column" gap={2}>
-            <Box display="flex" justifyContent="space-between" gap={2}>
-              <Box display="flex" flexDirection="column" gap={1}>
-                <Tabs
-                  value={compTab}
-                  onChange={(_, v) => setCompTab(v)}
-                  sx={{
-                    minHeight: 0,
-                    "& .MuiTab-root": {
-                      textTransform: "none",
-                      minHeight: 0,
-                      fontSize: 14
-                    }
-                  }}
-                >
-                  <Tab value="Brands" label="Brands" />
-                  <Tab value="SKUs" label="SKUs" />
-                </Tabs>
-                <Box display="flex" alignItems="center" gap={1.25}>
-                  <Typography variant="h6" fontWeight={600}>
-                    Competition Benchmarking
-                  </Typography>
-                  <Typography variant="body2">at</Typography>
-                  <Chip
-                    size="small"
-                    label={compMeta.context.level}
-                    sx={{
-                      borderRadius: "999px",
-                      backgroundColor: "#DCFCE7",
-                      color: "#166534",
-                      fontWeight: 500
-                    }}
-                  />
-                  <Typography variant="body2">for</Typography>
-                  <Chip
-                    size="small"
-                    label={compMeta.context.region}
-                    sx={{
-                      borderRadius: "999px",
-                      backgroundColor: "#E0F2FE",
-                      color: "#075985",
-                      fontWeight: 500
-                    }}
-                  />
-                </Box>
-              </Box>
-
-              <Box
-                display="flex"
-                flexDirection="column"
-                alignItems="flex-end"
-                gap={1}
-              >
-                <PillToggleGroup
-                  value={periodMode}
-                  onChange={setPeriodMode}
-                  options={[
-                    compMeta.periodToggle.primary,
-                    `vs ${compMeta.periodToggle.compare}`
-                  ]}
-                />
-              </Box>
-            </Box>
-
-            {/* search */}
-            <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-              gap={2}
-              flexWrap="wrap"
-            >
-              <Box display="flex" gap={1.5} alignItems="center">
-                <TextField
-                  size="small"
-                  placeholder="Search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search size={16} />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Box>
-            </Box>
-
-            {/* Table */}
-            <Paper
-              elevation={0}
-              sx={{
-                borderRadius: 3,
-                border: "1px solid #E5E7EB",
-                overflow: "hidden"
-              }}
-            >
-              <TableContainer sx={{ maxHeight: 480 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      {compMeta.columns.map((col) => (
-                        <TableCell
-                          key={col.id}
-                          sx={{
-                            backgroundColor: "#F9FAFB",
-                            borderBottom: "1px solid #E5E7EB",
-                            fontWeight: 600,
-                            fontSize: 12
-                          }}
-                        >
-                          {col.label}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {competitionRows.map((row) => (
-                      <TableRow
-                        key={row.brand}
-                        hover
-                        sx={{
-                          "&:nth-of-type(odd)": {
-                            backgroundColor: "#F9FAFB"
-                          }
-                        }}
-                      >
-                        {compMeta.columns.map((col) => {
-                          if (col.type === "text") {
-                            return (
-                              <TableCell
-                                key={col.id}
-                                sx={{ fontSize: 13, fontWeight: 500 }}
-                              >
-                                {row[col.id]}
-                              </TableCell>
-                            );
-                          }
-                          const metric = row[col.id];
-                          if (!metric) {
-                            return (
-                              <TableCell key={col.id} sx={{ fontSize: 13 }}>
-                                –
-                              </TableCell>
-                            );
-                          }
-                          const value = metric.value;
-                          const delta = metric.delta;
-                          const isPositive = delta >= 0;
-                          return (
-                            <TableCell key={col.id} sx={{ fontSize: 13 }}>
-                              <Box
-                                display="flex"
-                                flexDirection="column"
-                                alignItems="flex-start"
-                              >
-                                <Typography
-                                  variant="body2"
-                                  sx={{ fontWeight: 500 }}
-                                >
-                                  {value.toFixed(1)}%
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isPositive ? "#16A34A" : "#DC2626"
-                                  }}
-                                >
-                                  {isPositive ? "+" : ""}
-                                  {delta.toFixed(1)}%
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Box>
+          <KpiTrendShowcase />
         )}
 
         {/* COMPARE SKUs VIEW */}

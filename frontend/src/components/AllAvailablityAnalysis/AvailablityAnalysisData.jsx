@@ -1034,7 +1034,6 @@ export const AvailablityAnalysisData = () => {
           <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
           <MetricCardContainer title="Availability Overview" cards={cards} />
           <TabbedHeatmapTable />
-          <CityKpiTrendShowcase />
           <DrillHeatTable
             title="One View Drilldown"
             data={ONE_VIEW_DRILL_DATA}
@@ -1047,7 +1046,6 @@ export const AvailablityAnalysisData = () => {
             })}
             levels={["Platform", "Zone", "City", "Product", "ID"]}
           />
-          <KpiTrendShowcase />
         </div>
       </div>
     </div>
