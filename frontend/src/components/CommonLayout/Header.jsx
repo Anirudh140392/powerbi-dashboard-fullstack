@@ -15,8 +15,6 @@ import {
 } from "@mui/icons-material";
 
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import LightModeIcon from "@mui/icons-material/LightMode";
-import DarkModeIcon from "@mui/icons-material/DarkMode";
 
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
@@ -48,15 +46,14 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const location = useLocation();
 
   // 🌗 Dark/Light Mode
-  const { mode, toggleTheme } = React.useContext(AppThemeContext);
+  const { mode } = React.useContext(AppThemeContext);
 
   return (
     <Box
       sx={{
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
-        borderColor: (theme) =>
-          theme.palette.mode === "dark" ? "#374151" : "#e5e7eb",
+        borderColor: (theme) => "#e5e7eb",
         px: { xs: 2, sm: 3 },
         py: 2,
         position: "sticky",
@@ -281,8 +278,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         <Button
           variant="outlined"
           sx={{
-            borderColor: (theme) =>
-              theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
+            borderColor: "#d1d5db",
             textTransform: "none",
             fontSize: "0.75rem",
           }}
@@ -302,8 +298,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 fontSize: "0.75rem",
                 background:
                   priceMode === label ? "#059669" : "transparent",
-                borderColor: (theme) =>
-                  theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
+                borderColor: "#d1d5db",
               }}
             >
               {label}
@@ -312,17 +307,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         </Box>
 
         {/* 🌗 THEME TOGGLE */}
-        {/* <IconButton
-          onClick={toggleTheme}
-          sx={{
-            ml: 1,
-            border: "1px solid",
-            borderColor:
-              mode === "dark" ? "#4b5563" : "#d1d5db",
-          }}
-        >
-          {mode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
-        </IconButton> */}
+        {/* 🌗 THEME TOGGLE REMOVED - Static Light Mode Enforced */}
       </Box>
     </Box>
   );
