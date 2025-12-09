@@ -94,40 +94,53 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 const TabbedHeatmapTable = () => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // ---------------- PLATFORM DATA ----------------
+  // 🔥 Utility to compute unified trend + series for ANY item
+  const buildRows = (dataArray, columnList) => {
+    return dataArray.map((item) => {
+      const primaryTrendSeries = item.trend?.["Spend"] || [];
+      const valid = primaryTrendSeries.length >= 2;
+
+      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+      const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+      const trendObj = {};
+      const seriesObj = {};
+
+      columnList.forEach((col) => {
+        trendObj[col] = globalDelta;              // 🔥 apply SAME delta to every column
+        seriesObj[col] = primaryTrendSeries;      // 🔥 sparkline same for each column
+      });
+
+      return {
+        kpi: item.kpi,
+        ...item.values,
+        trend: trendObj,
+        series: seriesObj,
+      };
+    });
+  };
+
+  // ---------------- PLATFORM ----------------
   const platformData = {
     columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
-
-    rows: FORMAT_MATRIX.PlatformData.map((item) => ({
-      kpi: item.kpi,
-      ...item.values,        // expands Blinkit, Zepto, Instamart etc
-      trend: item.trend       // trend[col] already matches column names
-    })),
+    rows: buildRows(FORMAT_MATRIX.PlatformData, FORMAT_MATRIX.PlatformColumns),
   };
 
-  // ---------------- FORMAT DATA ----------------
+  // ---------------- FORMAT ----------------
   const formatData = {
     columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
-
-    rows: FORMAT_MATRIX.FormatData.map((item) => ({
-      kpi: item.kpi,
-      ...item.values,
-      trend: item.trend
-    })),
+    rows: buildRows(FORMAT_MATRIX.FormatData, FORMAT_MATRIX.formatColumns),
   };
 
-  // ---------------- CITY DATA ----------------
+  // ---------------- CITY ----------------
   const cityData = {
     columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
-
-    rows: FORMAT_MATRIX.CityData.map((item) => ({
-      kpi: item.kpi,
-      ...item.values,
-      trend: item.trend
-    })),
+    rows: buildRows(FORMAT_MATRIX.CityData, FORMAT_MATRIX.CityColumns),
   };
 
-  // ---------------- TABS ARRAY ----------------
+  // ---------------- TABS ----------------
   const tabs = [
     { key: "platform", label: "Platform", data: platformData },
     { key: "format", label: "Format", data: formatData },
@@ -135,30 +148,30 @@ const TabbedHeatmapTable = () => {
   ];
 
   const active = tabs.find((t) => t.key === activeTab);
+
   return (
     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
 
-      {/* TABS */}
+      {/* -------- TABS -------- */}
       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-1.5 text-sm rounded-full transition-all ${activeTab === t.key
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-              }`}
+            className={`px-4 py-1.5 text-sm rounded-full transition-all 
+              ${activeTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* MATRIX TABLE */}
+      {/* -------- MATRIX TABLE -------- */}
       <CityKpiTrendShowcase data={active.data} title={active.label} />
     </div>
   );
 };
+
 
 const PowerHierarchyHeat = () => {
   return (

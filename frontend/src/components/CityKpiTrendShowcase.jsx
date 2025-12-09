@@ -131,26 +131,31 @@ function getCellClasses(value) {
 }
 
 function getTrendMeta(trend) {
-  const num = typeof trend === "number" ? trend : 0; // fallback
+  const num = Number(trend || 0);
 
-  if (num > 0)
+  if (num > 0) {
     return {
       pill: "border-green-200 bg-green-50 text-green-700",
-      icon: LineChartIcon,
-      display: `+${num}`
+      icon: TrendingUp,
+      iconColor: "text-green-700",
+      display: `+${num.toFixed(1)}`,
     };
+  }
 
-  if (num < 0)
+  if (num < 0) {
     return {
       pill: "border-red-200 bg-red-50 text-red-700",
-      icon: LineChartIcon,
-      display: `${num}`
+      icon: TrendingDown,
+      iconColor: "text-red-700",
+      display: num.toFixed(1),
     };
+  }
 
   return {
     pill: "border-slate-200 bg-slate-50 text-slate-600",
-    icon: null,
-    display: "0"
+    icon: Minus,
+    iconColor: "text-slate-600",
+    display: "0.0",
   };
 }
 
@@ -178,13 +183,15 @@ function TrendSparkline({ series }) {
 function TrendIcon({ trend }) {
   const meta = getTrendMeta(trend);
   const Icon = meta.icon;
+
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${meta.color}`}>
-      <Icon className="h-3 w-3" />
-      <span>{trend > 0 ? `+${trend.toFixed(1)}` : trend.toFixed(1)}</span>
+    <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${meta.iconColor}`}>
+      {Icon && <Icon className="h-3 w-3" />}
+      <span>{meta.display}</span>
     </span>
   );
 }
+
 
 
 

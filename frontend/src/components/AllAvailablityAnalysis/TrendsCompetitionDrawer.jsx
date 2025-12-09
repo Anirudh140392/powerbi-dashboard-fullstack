@@ -1,5 +1,5 @@
 // TrendsCompetitionDrawer.jsx
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -372,6 +372,23 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
+  const [showPlatformPills, setShowPlatformPills] = useState(false);
+
+  const platformRef = useRef(null);
+
+  // close on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (platformRef.current && !platformRef.current.contains(e.target)) {
+        setShowPlatformPills(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
@@ -593,11 +610,70 @@ export default function TrendsCompetitionDrawer({
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
-            <Box display="flex" alignItems="center" gap={1.5}>
+
+            {/* HEADER + PLATFORM FILTER */}
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+
+              {/* Title */}
               <Typography variant="h6" fontWeight={600}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
-              <Typography variant="body2">at</Typography>
+
+              {/* PLATFORM FILTER WRAPPER */}
+              <Box display="flex" alignItems="center" gap={1} ref={platformRef}>
+
+                {/* CLICKABLE LABEL */}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ cursor: "pointer", userSelect: "none" }}
+                  onClick={() => setShowPlatformPills((prev) => !prev)}
+                >
+                  Platform:
+                </Typography>
+
+                {/* PLATFORM PILLS */}
+                {showPlatformPills && (
+                  <Box display="flex" gap={0.5}>
+                    {["Blinkit", "Zepto", "Instamart", "Swiggy", "Virtual Store"].map(
+                      (p) => (
+                        <Box
+                          key={p}
+                          onClick={() => {
+                            setSelectedPlatform(p);
+                            setShowPlatformPills(true); // ALWAYS CLOSE
+                          }}
+                          sx={{
+                            px: 1.5,
+                            py: 0.7,
+                            borderRadius: "999px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            border: "1px solid #E5E7EB",
+                            backgroundColor:
+                              selectedPlatform === p ? "#0ea5e9" : "white",
+                            color: selectedPlatform === p ? "white" : "#0f172a",
+                            boxShadow:
+                              selectedPlatform === p
+                                ? "0 2px 6px rgba(0,0,0,0.15)"
+                                : "none",
+                            transition: "0.15s",
+                            "&:hover": {
+                              backgroundColor:
+                                selectedPlatform === p ? "#0284c7" : "#f1f5f9",
+                            },
+                          }}
+                        >
+                          {p}
+                        </Box>
+                      )
+                    )}
+                  </Box>
+                )}
+              </Box>
+
+              {/* LEVEL CHIP */}
               <Chip
                 size="small"
                 label={trendMeta.context.level}
@@ -605,10 +681,11 @@ export default function TrendsCompetitionDrawer({
                   borderRadius: "999px",
                   backgroundColor: "#DCFCE7",
                   color: "#166534",
-                  fontWeight: 500
+                  fontWeight: 500,
                 }}
               />
-              <Typography variant="body2">for</Typography>
+
+              {/* AUDIENCE CHIP */}
               <Chip
                 size="small"
                 label={trendMeta.context.audience}
@@ -616,12 +693,12 @@ export default function TrendsCompetitionDrawer({
                   borderRadius: "999px",
                   backgroundColor: "#E0F2FE",
                   color: "#075985",
-                  fontWeight: 500
+                  fontWeight: 500,
                 }}
               />
             </Box>
 
-            {/* Range + timestep */}
+            {/* RANGE + TIMESTEP */}
             <Box
               display="flex"
               justifyContent="space-between"
@@ -634,6 +711,7 @@ export default function TrendsCompetitionDrawer({
                 onChange={setRange}
                 options={trendMeta.rangeOptions}
               />
+
               <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
@@ -644,17 +722,17 @@ export default function TrendsCompetitionDrawer({
               </Box>
             </Box>
 
-            {/* Chart card */}
+            {/* CHART */}
             <Paper
               elevation={0}
               sx={{
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5
+                p: 2.5,
               }}
             >
-              {/* Metric toggles row */}
+              {/* Metric Row */}
               <Box
                 display="flex"
                 alignItems="center"
@@ -687,7 +765,7 @@ export default function TrendsCompetitionDrawer({
                   sx={{
                     textTransform: "none",
                     borderRadius: "999px",
-                    borderColor: "#E5E7EB"
+                    borderColor: "#E5E7EB",
                   }}
                   variant="outlined"
                 >
@@ -706,6 +784,8 @@ export default function TrendsCompetitionDrawer({
             </Paper>
           </Box>
         )}
+
+
 
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
