@@ -17,9 +17,9 @@ import {
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
 import MetricCardContainer from '../CommonLayout/MetricCardContainer'
+
 import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
 import { FORMAT_MATRIX_Visibility } from '../AllAvailablityAnalysis/availablityDataCenter'
-
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -373,6 +373,52 @@ const competitorSeries = [
 // ------------------------------
 // MAIN COMPONENT — JSX ONLY
 // ------------------------------
+const cards = [
+  {
+    title: "Mother Dairy",
+    value: "96 on 30 Nov'25",
+    sub: "Active SKUs in store",
+    change: "▲4.3% (+4 SKUs)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "New launches this month: 7",
+    extraChange: "▲12.5%",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Amul",
+    value: "52.4%",
+    sub: "MTD on-shelf coverage",
+    change: "▼8.6 pts (from 61.0%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "High risk stores: 18",
+    extraChange: "▲5 stores",
+    extraChangeColor: "red",
+  },
+  {
+    title: "Godrej",
+    value: "68.3",
+    sub: "Network average days of cover",
+    change: "▲19.5% (from 57.1)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Slightly above target",
+    extraChangeColor: "orange",
+  },
+  {
+    title: "ITC",
+    value: "76.9%",
+    sub: "Weighted on-shelf availability (MTD)",
+    change: "▲1.2 pts (from 75.7%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Top 50 SKUs: 82.3%",
+    extraChange: "▲0.9 pts",
+    extraChangeColor: "green",
+  },
+];
 
 const VisiblityAnalysisData = () => {
   const [metric, setMetric] = useState('visibility')
@@ -399,25 +445,79 @@ const VisiblityAnalysisData = () => {
   //   { Country: 'United States', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 340, InStock: 580, SoldAmount: 240 },
   //   { Country: 'United States', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 390, InStock: 600, SoldAmount: 260 },
   // ]
+  // const sampleData = [
+  //   {
+  //     label: "Format A",
+  //     values: [1200, 1100, 1300, "2.5%", "2.8%", "3.1%"],
+  //     children: [
+  //       {
+  //         label: "Region North",
+  //         values: [400, 350, 500, "2.8%", "3.1%", "3.4%"],
+  //         children: [
+  //           {
+  //             label: "City Delhi",
+  //             values: [200, 180, 260, "3.0%", "3.4%", "3.8%"],
+  //             children: [],
+  //           },
+  //         ],
+  //       },
+  //     ],
+  //   },
+  // ];
   const sampleData = [
-    {
-      label: "Format A",
-      values: [1200, 1100, 1300, "2.5%", "2.8%", "3.1%"],
-      children: [
-        {
-          label: "Region North",
-          values: [400, 350, 500, "2.8%", "3.1%", "3.4%"],
-          children: [
-            {
-              label: "City Delhi",
-              values: [200, 180, 260, "3.0%", "3.4%", "3.8%"],
-              children: [],
-            },
-          ],
-        },
-      ],
+  {
+    label: "Grocery",
+    values: {
+      spend: 120000,
+      m1: 105000,
+      m2: 98000,
+      conv: 0.082,
+      m1c: 0.075,
+      m2c: 0.071,
     },
-  ];
+    children: [
+      {
+        label: "North",
+        values: {
+          spend: 48000,
+          m1: 43000,
+          m2: 41000,
+          conv: 0.091,
+          m1c: 0.085,
+          m2c: 0.079,
+        },
+        children: [
+          {
+            label: "Delhi",
+            values: {
+              spend: 22000,
+              m1: 20000,
+              m2: 19000,
+              conv: 0.094,
+              m1c: 0.088,
+              m2c: 0.083,
+            },
+            children: []
+          },
+          {
+            label: "Chandigarh",
+            values: {
+              spend: 18000,
+              m1: 16000,
+              m2: 15000,
+              conv: 0.087,
+              m1c: 0.081,
+              m2c: 0.076,
+            },
+            children: []
+          }
+        ]
+      }
+    ]
+  }
+];
+
+
 
 const cards = [
   {
@@ -563,8 +663,12 @@ const TabbedHeatmapTable = () => {
           </div>
         </div>
 
+        {/* MODAL SECTION */}
+        <MetricCardContainer title="Visibility Overview" cards={cards} />
+        <TabbedHeatmapTable />
+
         {/* PULSEBOARD */}
-        {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
             data={sampleData}
             title="Keyword level Sos"
@@ -601,11 +705,10 @@ const TabbedHeatmapTable = () => {
             getHeatStyle={(v) => ({ bg: "#d1fae5", color: "#065f46" })}
           />
 
-        </div> */}
-        <MetricCardContainer title="Visibility Overview" cards={cards} />
-        {/* <TabbedHeatmapTable /> */}
+        // </div>
+        {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
 
-        {/* MODAL SECTION */}
+
         {modal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
             <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
