@@ -500,13 +500,21 @@ const SmallCard = ({ item }) => {
   );
 };
 
+import axiosInstance from "../../../api/axiosInstance";
+
 /* MAIN COMPONENT */
 const PlatformOverview = ({
   data = [],
   onViewTrends = () => { },
   activeKpisTab = "Platform Overview",
   monthOverviewPlatform,
-  onPlatformChange
+  onPlatformChange,
+  categoryOverviewPlatform,
+  onCategoryPlatformChange,
+  brandsOverviewPlatform,
+  onBrandsPlatformChange,
+  brandsOverviewCategory,
+  onBrandsCategoryChange
 }) => {
   const theme = useTheme();
 
@@ -518,8 +526,55 @@ const PlatformOverview = ({
     brand: "Amul",
   });
 
+  const [platformList, setPlatformList] = React.useState([]);
+  const [categoryList, setCategoryList] = React.useState([]);
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  // Fetch Platforms
+  React.useEffect(() => {
+    const fetchPlatforms = async () => {
+      try {
+        const response = await axiosInstance.get("/watchtower/platforms");
+        if (response.data) {
+          setPlatformList(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching platforms:", error);
+      }
+    };
+    fetchPlatforms();
+  }, []);
+
+  // Fetch Categories when brandsOverviewPlatform changes
+  React.useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axiosInstance.get("/watchtower/categories", {
+          params: { platform: brandsOverviewPlatform }
+        });
+        if (response.data) {
+          setCategoryList(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+    if (activeKpisTab === "Brands Overview") {
+      fetchCategories();
+    }
+  }, [brandsOverviewPlatform, activeKpisTab]);
+
   const sortedPlatforms = React.useMemo(() => {
-    return data.map((platform) => {
+    let filteredData = data;
+
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      filteredData = data.filter(item =>
+        (item.label || "").toLowerCase().includes(lowerTerm)
+      );
+    }
+
+    return filteredData.map((platform) => {
       let sortedColumns = [...platform.columns];
 
       if (sortType === "asc") {
@@ -531,7 +586,7 @@ const PlatformOverview = ({
 
       return { ...platform, columns: sortedColumns };
     });
-  }, [sortType, data]);
+  }, [sortType, data, searchTerm]);
 
   return (
     <Box>
@@ -606,18 +661,49 @@ const PlatformOverview = ({
                 </Select>
               )}
 
-              {activeKpisTab !== "Platform Overview" && activeKpisTab !== "Month Overview" && (
+              {/* Category Overview Platform Filter */}
+              {activeKpisTab === "Category Overview" && (
+                <Select
+                  size="small"
+                  value={categoryOverviewPlatform || "Zepto"}
+                  onChange={(e) => onCategoryPlatformChange && onCategoryPlatformChange(e.target.value)}
+                  sx={{
+                    minWidth: 130,
+                    height: 36,
+                    fontSize: "0.85rem",
+                    background: "#f3f4f6",
+                    borderRadius: 1.5,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: theme.palette.divider,
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: theme.palette.text.primary,
+                    },
+                  }}
+                >
+                  <MenuItem value="Zepto">Zepto</MenuItem>
+                  <MenuItem value="Blinkit">Blinkit</MenuItem>
+                  <MenuItem value="Swiggy">Swiggy</MenuItem>
+                  <MenuItem value="Amazon">Amazon</MenuItem>
+                </Select>
+              )}
+
+              {activeKpisTab !== "Platform Overview" && activeKpisTab !== "Month Overview" && activeKpisTab !== "Category Overview" && (
                 <>
                   {/* Platform Filter */}
                   <Select
                     size="small"
-                    value={platformFilter.platform}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        platform: e.target.value,
-                      }))
-                    }
+                    value={activeKpisTab === "Brands Overview" ? (brandsOverviewPlatform || "") : platformFilter.platform}
+                    onChange={(e) => {
+                      if (activeKpisTab === "Brands Overview") {
+                        onBrandsPlatformChange && onBrandsPlatformChange(e.target.value);
+                      } else {
+                        setPlatformFilter((p) => ({
+                          ...p,
+                          platform: e.target.value,
+                        }));
+                      }
+                    }}
                     sx={{
                       minWidth: 130,
                       height: 36,
@@ -632,19 +718,21 @@ const PlatformOverview = ({
                       },
                     }}
                   >
-                    <MenuItem value="blinkit">Blinkit</MenuItem>
+                    {activeKpisTab === "Brands Overview" ? (
+                      platformList.map((p) => (
+                        <MenuItem key={p} value={p}>{p}</MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem value="blinkit">Blinkit</MenuItem>
+                    )}
                   </Select>
+
                   {/* Category Filter – only in Brands Overview */}
                   {activeKpisTab === "Brands Overview" && (
                     <Select
                       size="small"
-                      value={platformFilter.category}
-                      onChange={(e) =>
-                        setPlatformFilter((p) => ({
-                          ...p,
-                          category: e.target.value,
-                        }))
-                      }
+                      value={brandsOverviewCategory || "All"}
+                      onChange={(e) => onBrandsCategoryChange && onBrandsCategoryChange(e.target.value)}
                       sx={{
                         minWidth: 130,
                         height: 36,
@@ -659,7 +747,10 @@ const PlatformOverview = ({
                         },
                       }}
                     >
-                      <MenuItem value="Core Tub">Core Tub</MenuItem>
+                      <MenuItem value="All">All Categories</MenuItem>
+                      {categoryList.map((c) => (
+                        <MenuItem key={c} value={c}>{c}</MenuItem>
+                      ))}
                     </Select>
                   )}
                   {activeKpisTab === "Skus Overview" && (
@@ -734,6 +825,8 @@ const PlatformOverview = ({
                 <input
                   type="text"
                   placeholder="Search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   style={{
                     flex: 1,
                     border: "none",
@@ -807,7 +900,7 @@ const PlatformOverview = ({
                     mb={1.5}
                   >
                     <Box display="flex" alignItems="center" gap={1.2}>
-                      <img
+                      {/* <img
                         src={platform.logo}
                         alt={platform.label}
                         style={{
@@ -818,7 +911,21 @@ const PlatformOverview = ({
                           padding: 3,
                           objectFit: "contain",
                         }}
-                      />
+                      /> */}
+                      {platform.logo && (
+                        <img
+                          src={platform.logo}
+                          alt={platform.label}
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            padding: 3,
+                            objectFit: "contain",
+                          }}
+                        />
+                      )}
                       <Box>
                         <Typography fontWeight={700} fontSize="0.92rem">
                           {platform.label}

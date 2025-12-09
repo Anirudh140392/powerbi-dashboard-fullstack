@@ -14,10 +14,11 @@ const runDebug = async () => {
 
         const filters = {
             months: 6,
-            brand: 'Aer',
-            location: 'Agra',
+            brand: 'Godrej No.1',
+            location: 'Yamunanagar',
             platform: 'Zepto', // Main filter
             monthOverviewPlatform: 'Zepto', // Month Overview filter
+            categoryOverviewPlatform: 'Zepto', // Category Overview filter
             startDate: '2025-10-01',
             endDate: '2025-12-08'
         };
@@ -25,6 +26,11 @@ const runDebug = async () => {
         console.log("Filters:", filters);
 
         const data = await watchTowerService.getSummaryMetrics(filters);
+
+        if (data.monthOverview && data.monthOverview.length > 0) {
+            console.log("\n--- Month Overview Data Sample (First Month) ---");
+            console.log(JSON.stringify(data.monthOverview[0], null, 2));
+        }
 
         console.log("\n--- Month Overview Data (Zepto) ---");
         if (data.monthOverview && data.monthOverview.length > 0) {
@@ -36,6 +42,20 @@ const runDebug = async () => {
             });
         } else {
             console.log("No Month Overview data found.");
+        }
+
+        console.log("\n--- Category Overview Data (Zepto) ---");
+        if (data.categoryOverview && data.categoryOverview.length > 0) {
+            data.categoryOverview.forEach(cat => {
+                console.log(`\nCategory: ${cat.label}`);
+                if (cat.columns) {
+                    cat.columns.forEach(col => {
+                        console.log(`  ${col.title}: ${col.value}`);
+                    });
+                }
+            });
+        } else {
+            console.log("No Category Overview data found.");
         }
 
     } catch (error) {

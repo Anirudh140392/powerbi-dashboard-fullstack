@@ -1,0 +1,25 @@
+[dotenv@17.2.3] injecting env (5) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+Starting Brands Overview Debug...
+Database connected.
+Calling getSummaryMetrics with: {
+  months: 1,
+  brand: 'All',
+  platform: 'Zepto',
+  location: 'All',
+  brandsOverviewPlatform: 'Zepto',
+  brandsOverviewCategory: 'All'
+}
+Processing Watch Tower request with filters: {
+  months: 1,
+  brand: 'All',
+  platform: 'Zepto',
+  location: 'All',
+  brandsOverviewPlatform: 'Zepto',
+  brandsOverviewCategory: 'All'
+}
+Date Range: 2025-11-09 to 2025-12-09
+Calculating Month Overview for Platform: Blinkit
+--- Brands Overview Result ---
+Error: TypeError: Cannot read properties of undefined (reading 'brandsOverview')
+    at runDebug (file:///home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/debug_brands_overview.js:29:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)

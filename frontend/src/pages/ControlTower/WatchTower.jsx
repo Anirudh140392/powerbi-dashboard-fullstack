@@ -3,6 +3,7 @@ import axiosInstance from "../../api/axiosInstance";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
+import dayjs from "dayjs";
 
 function TabButton({ label, active, onClick }) {
   const theme = useTheme();
@@ -99,6 +100,7 @@ export default function WatchTower() {
           platform: trendParams.platform,
           period: trendParams.months,
           timeStep: trendParams.timeStep,
+          category: trendParams.category, // Pass category
           startDate: trendParams.startDate ? trendParams.startDate.format('YYYY-MM-DD') : null,
           endDate: trendParams.endDate ? trendParams.endDate.format('YYYY-MM-DD') : null
         };
@@ -117,12 +119,47 @@ export default function WatchTower() {
     fetchTrendData();
   }, [showTrends, trendParams, selectedBrand, selectedLocation]);
 
-  const handleViewTrends = (platformName) => {
-    console.log("View trends for:", platformName);
-    setTrendParams(prev => ({
-      ...prev,
-      platform: platformName
-    }));
+  const handleViewTrends = (label) => {
+    console.log("View trends for:", label);
+    console.log("Current activeKpisTab:", activeKpisTab);
+    console.log("Current monthOverviewData:", monthOverviewData);
+
+    if (activeKpisTab === "Month Overview") {
+      // Find the month data to get the date
+      const monthItem = monthOverviewData.find(m => m.label === label);
+      console.log("Found monthItem:", monthItem);
+      if (monthItem && monthItem.date) {
+        const mDate = dayjs(monthItem.date);
+        setTrendParams(prev => ({
+          ...prev,
+          platform: monthOverviewPlatform, // Use the selected platform for Month Overview
+          months: "Custom",
+          timeStep: "Daily",
+          startDate: mDate.startOf('month'),
+          endDate: mDate.endOf('month')
+        }));
+      }
+    } else if (activeKpisTab === "Category Overview") {
+      // Category Overview behavior
+      setTrendParams(prev => ({
+        ...prev,
+        platform: categoryOverviewPlatform, // Use the selected platform for Category Overview
+        category: label, // The label is the Category Name
+        months: "3M",
+        startDate: null,
+        endDate: null
+      }));
+    } else {
+      // Default Platform Overview behavior
+      setTrendParams(prev => ({
+        ...prev,
+        platform: label,
+        category: null, // Reset category
+        months: "3M", // Reset to default or keep previous? Let's reset to 3M for platform view
+        startDate: null,
+        endDate: null
+      }));
+    }
     setShowTrends(true);
   };
 
@@ -146,6 +183,10 @@ export default function WatchTower() {
   const [monthOverviewPlatform, setMonthOverviewPlatform] = useState(platform || "Blinkit");
   const [monthOverviewData, setMonthOverviewData] = useState([]);
   const [monthOverviewLoading, setMonthOverviewLoading] = useState(false);
+
+  const [categoryOverviewPlatform, setCategoryOverviewPlatform] = useState(platform || "Zepto");
+  const [categoryOverviewData, setCategoryOverviewData] = useState([]);
+  const [categoryOverviewLoading, setCategoryOverviewLoading] = useState(false);
 
   // Update filters when context changes
   useEffect(() => {
@@ -181,13 +222,16 @@ export default function WatchTower() {
       setLoading(true);
       try {
         const response = await axiosInstance.get("/watchtower", {
-          params: { ...filters, monthOverviewPlatform }, // Pass it initially
+          params: { ...filters, monthOverviewPlatform, categoryOverviewPlatform }, // Pass it initially
         });
         if (!ignore && response.data) {
           console.log("Fetched Watch Tower data:", response.data);
           setDashboardData(response.data);
           if (response.data.monthOverview) {
             setMonthOverviewData(response.data.monthOverview);
+          }
+          if (response.data.categoryOverview) {
+            setCategoryOverviewData(response.data.categoryOverview);
           }
         }
       } catch (error) {
@@ -245,6 +289,78 @@ export default function WatchTower() {
     }
     return () => { ignore = true; };
   }, [monthOverviewPlatform]);
+
+  // Fetch ONLY Category Overview when categoryOverviewPlatform changes
+  useEffect(() => {
+    let ignore = false;
+    const fetchCategoryOverview = async () => {
+      if (!filters.brand || !filters.location) return;
+
+      setCategoryOverviewLoading(true);
+      try {
+        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+          params: { ...filters, categoryOverviewPlatform }
+        });
+        if (!ignore && response.data && response.data.categoryOverview) {
+          setCategoryOverviewData(response.data.categoryOverview);
+          setDashboardData(prev => ({
+            ...prev,
+            categoryOverview: response.data.categoryOverview
+          }));
+        }
+      } catch (error) {
+        if (!ignore) console.error("Error fetching Category Overview:", error);
+      } finally {
+        if (!ignore) setCategoryOverviewLoading(false);
+      }
+    };
+
+    if (!loading) {
+      fetchCategoryOverview();
+    }
+    return () => { ignore = true; };
+  }, [categoryOverviewPlatform, filters]);
+
+  const [brandsOverviewPlatform, setBrandsOverviewPlatform] = useState(platform || "Zepto");
+  const [brandsOverviewCategory, setBrandsOverviewCategory] = useState("All");
+  const [brandsOverviewData, setBrandsOverviewData] = useState([]);
+  const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
+
+  // Reset category when platform changes to avoid invalid filters
+  useEffect(() => {
+    setBrandsOverviewCategory("All");
+  }, [brandsOverviewPlatform]);
+
+  // Fetch ONLY Brands Overview when brandsOverviewPlatform or brandsOverviewCategory changes
+  useEffect(() => {
+    let ignore = false;
+    const fetchBrandsOverview = async () => {
+      if (!filters.brand || !filters.location) return;
+
+      setBrandsOverviewLoading(true);
+      try {
+        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+          params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory }
+        });
+        if (!ignore && response.data && response.data.brandsOverview) {
+          setBrandsOverviewData(response.data.brandsOverview);
+          setDashboardData(prev => ({
+            ...prev,
+            brandsOverview: response.data.brandsOverview
+          }));
+        }
+      } catch (error) {
+        if (!ignore) console.error("Error fetching Brands Overview:", error);
+      } finally {
+        if (!ignore) setBrandsOverviewLoading(false);
+      }
+    };
+
+    if (!loading) {
+      fetchBrandsOverview();
+    }
+    return () => { ignore = true; };
+  }, [brandsOverviewPlatform, brandsOverviewCategory, filters]);
 
   return (
     <>
@@ -318,13 +434,19 @@ export default function WatchTower() {
                 activeKpisTab === "Platform Overview"
                   ? (dashboardData?.platformOverview || defaultPlatforms)
                   : activeKpisTab === "Category Overview"
-                    ? defaultCategory
+                    ? (categoryOverviewData || defaultCategory)
                     : activeKpisTab === "Month Overview"
                       ? (monthOverviewData || defaultMonths)
                       : activeKpisTab === "Brands Overview"
-                        ? defaultBrands
+                        ? (brandsOverviewData || defaultBrands)
                         : defaultSkus
               }
+              categoryOverviewPlatform={categoryOverviewPlatform}
+              onCategoryPlatformChange={setCategoryOverviewPlatform}
+              brandsOverviewPlatform={brandsOverviewPlatform}
+              onBrandsPlatformChange={setBrandsOverviewPlatform}
+              brandsOverviewCategory={brandsOverviewCategory}
+              onBrandsCategoryChange={setBrandsOverviewCategory}
               activeKpisTab={activeKpisTab}
             />
             {/* defaultMonths

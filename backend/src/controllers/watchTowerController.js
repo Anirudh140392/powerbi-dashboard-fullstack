@@ -73,6 +73,17 @@ export const getLocations = async (req, res) => {
     }
 };
 
+export const getBrandCategories = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const categories = await watchTowerService.getBrandCategories(platform);
+        res.json(categories);
+    } catch (error) {
+        console.error('Error fetching brand categories:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getWatchTowerData = async (req, res) => {
     try {
         const {

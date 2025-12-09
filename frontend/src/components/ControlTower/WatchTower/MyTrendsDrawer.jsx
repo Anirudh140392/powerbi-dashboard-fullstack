@@ -34,7 +34,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
   const theme = useTheme();
   const hasRemoteData = Array.isArray(trendData.timeSeries) && trendData.timeSeries.length > 0;
 
-  const { months: selectedPeriod, timeStep, platform } = trendParams;
+  const { months: selectedPeriod, timeStep, platform, category } = trendParams;
 
   const [selectedMetrics, setSelectedMetrics] = useState({
     offtake: true,
@@ -190,7 +190,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
               for
             </Typography>
             <Chip
-              label={platform}
+              label={category || platform}
               size="small"
               sx={{
                 bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#dbeafe',

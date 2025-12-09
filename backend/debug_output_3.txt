@@ -1,0 +1,1380 @@
+[dotenv@17.2.3] injecting env (5) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+Starting Brands Overview Debug...
+Database connected.
+Calling getSummaryMetrics with: {
+  months: 1,
+  brand: 'Cinthol',
+  platform: 'Zepto',
+  location: 'All',
+  brandsOverviewPlatform: 'Zepto',
+  brandsOverviewCategory: 'Bath & Body'
+}
+Processing Watch Tower request with filters: {
+  months: 1,
+  brand: 'Cinthol',
+  platform: 'Zepto',
+  location: 'All',
+  brandsOverviewPlatform: 'Zepto',
+  brandsOverviewCategory: 'Bath & Body'
+}
+Date Range: 2025-11-09 to 2025-12-09
+Calculating Month Overview for Platform: Blinkit
+--- Brands Overview Result ---
+Found 6 brands.
+Performance Marketing: [
+  {
+    "title": "Share of Search",
+    "value": "11.2%",
+    "mom": "0.0%",
+    "momUp": true,
+    "yoy": "0.0%",
+    "yoyUp": true,
+    "data": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      10.107267081248935,
+      12.036161985234786
+    ]
+  },
+  {
+    "title": "ROAS",
+    "value": "0.59x",
+    "mom": "0.0%",
+    "momUp": true,
+    "yoy": "0.0%",
+    "yoyUp": true,
+    "data": [
+      0.459704700087,
+      0.864322510685
+    ]
+  },
+  {
+    "title": "Conversion",
+    "value": "2.19%",
+    "mom": "0.0%",
+    "momUp": true,
+    "yoy": "0.0%",
+    "yoyUp": true,
+    "data": [
+      2.137718375566393,
+      2.340886782897551
+    ]
+  },
+  {
+    "title": "Inorganic Sales",
+    "value": "89.35%",
+    "mom": "0.0%",
+    "momUp": true,
+    "yoy": "0.0%",
+    "yoyUp": true,
+    "data": [
+      89.14034885466594,
+      89.64915526413903
+    ]
+  }
+]
+Platform Overview: [
+  {
+    "key": "all",
+    "label": "All",
+    "type": "Overall",
+    "logo": "https://cdn-icons-png.flaticon.com/512/711/711284.png",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹6.22 M",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0 Cr",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.59x",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0 return",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "89.35%",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "2.19%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 conversions",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "72.6%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "stores",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "12.4%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "index",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Category",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "impressions",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "clicks",
+          "change": "0%"
+        }
+      }
+    ]
+  },
+  {
+    "key": "zepto",
+    "label": "Zepto",
+    "type": "Q-commerce",
+    "logo": "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹6.22 M",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹3.26 Lac",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.59x",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0 return",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "89.35%",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "2.19%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 conversions",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "72.6%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "stores",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "11.2%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "index",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Category",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "impressions",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "clicks",
+          "change": "0%"
+        }
+      }
+    ]
+  },
+  {
+    "key": "blinkit",
+    "label": "Blinkit",
+    "type": "Q-commerce",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹0.00",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0 return",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "0.00%",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 conversions",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "stores",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "16.8%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "index",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Category",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "impressions",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "clicks",
+          "change": "0%"
+        }
+      }
+    ]
+  },
+  {
+    "key": "swiggy",
+    "label": "Swiggy",
+    "type": "Marketplace",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹0.00",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0 return",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "0.00%",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 conversions",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "stores",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "index",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Category",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "impressions",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "clicks",
+          "change": "0%"
+        }
+      }
+    ]
+  },
+  {
+    "key": "amazon",
+    "label": "Amazon",
+    "type": "Marketplace",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹0.00",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "₹0 return",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "0.00%",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 units",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "0 conversions",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "stores",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "index",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Category",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0%",
+        "change": {
+          "text": "0 pp",
+          "positive": true
+        },
+        "meta": {
+          "units": "Depth",
+          "change": "0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "impressions",
+          "change": "0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0",
+        "change": {
+          "text": "0%",
+          "positive": true
+        },
+        "meta": {
+          "units": "clicks",
+          "change": "0%"
+        }
+      }
+    ]
+  }
+]
+Month Overview: [
+  {
+    "key": "Nov",
+    "label": "Nov",
+    "type": "Nov",
+    "logo": "",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "0.00%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      }
+    ]
+  },
+  {
+    "key": "Dec",
+    "label": "Dec",
+    "type": "Dec",
+    "logo": "",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "0.00%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      }
+    ]
+  }
+]
+Category Overview: [
+  {
+    "key": "Bath & Body",
+    "label": "Bath & Body",
+    "type": "Category",
+    "logo": "",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "0.00%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "0.0%",
+        "meta": {
+          "units": "",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0.00",
+        "meta": {
+          "units": "",
+          "change": "▲0.0%"
+        }
+      }
+    ]
+  }
+]
+Brands Overview: [
+  {
+    "key": "Godrej No.1",
+    "label": "Godrej No.1",
+    "type": "Brand",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹5.18 M",
+        "meta": {
+          "units": "51.83 L",
+          "change": "▲100.0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹0.00",
+        "meta": {
+          "units": "₹0.00",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Ad Sales",
+        "value": "₹0.00",
+        "meta": {
+          "units": "₹0.00",
+          "change": "▲100.0%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.00x",
+        "meta": {
+          "units": "₹0.00",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "100.00%",
+        "meta": {
+          "units": "100.00%",
+          "change": "▲100.0 pp"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "0.00%",
+        "meta": {
+          "units": "0.00%",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "47.8%",
+        "meta": {
+          "units": "104832",
+          "change": "▲47.8 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "meta": {
+          "units": "0",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "meta": {
+          "units": "₹Infinity B",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "10.6%",
+        "meta": {
+          "units": "10.6%",
+          "change": "▲10.6 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "19.1%",
+        "meta": {
+          "units": "19.1%",
+          "change": "▲19.1 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹0.00",
+        "meta": {
+          "units": "₹0.00",
+          "change": "▲0.0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹0.00",
+        "meta": {
+          "units": "₹0.00",
+          "change": "▲0.0%"
+        }
+      }
+    ]
+  },
+  {
+    "key": "Cinthol",
+    "label": "Cinthol",
+    "type": "Brand",
+    "columns": [
+      {
+        "title": "Offtakes",
+        "value": "₹6.22 M",
+        "meta": {
+          "units": "62.15 L",
+          "change": "▲100.0%"
+        }
+      },
+      {
+        "title": "Spend",
+        "value": "₹3.26 Lac",
+        "meta": {
+          "units": "₹3.26 Lac",
+          "change": "▲100.0%"
+        }
+      },
+      {
+        "title": "Ad Sales",
+        "value": "₹6.62 Lac",
+        "meta": {
+          "units": "₹6.62 Lac",
+          "change": "▲89.3%"
+        }
+      },
+      {
+        "title": "ROAS",
+        "value": "0.59x",
+        "meta": {
+          "units": "₹6.62 Lac",
+          "change": "▲100.0%"
+        }
+      },
+      {
+        "title": "Inorg Sales",
+        "value": "89.35%",
+        "meta": {
+          "units": "89.35%",
+          "change": "▲89.3 pp"
+        }
+      },
+      {
+        "title": "Conversion",
+        "value": "2.19%",
+        "meta": {
+          "units": "2.19%",
+          "change": "▲2.2 pp"
+        }
+      },
+      {
+        "title": "Availability",
+        "value": "72.6%",
+        "meta": {
+          "units": "222768",
+          "change": "▲72.6 pp"
+        }
+      },
+      {
+        "title": "SOS",
+        "value": "0.0%",
+        "meta": {
+          "units": "0",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Market Share",
+        "value": "0.0%",
+        "meta": {
+          "units": "₹Infinity B",
+          "change": "▲0.0 pp"
+        }
+      },
+      {
+        "title": "Promo My Brand",
+        "value": "6.1%",
+        "meta": {
+          "units": "6.1%",
+          "change": "▲6.1 pp"
+        }
+      },
+      {
+        "title": "Promo Compete",
+        "value": "19.8%",
+        "meta": {
+          "units": "19.8%",
+          "change": "▲19.8 pp"
+        }
+      },
+      {
+        "title": "CPM",
+        "value": "₹757.78",
+        "meta": {
+          "units": "₹757.78",
+          "change": "▲100.0%"
+        }
+      },
+      {
+        "title": "CPC",
+        "value": "₹34.56",
+        "meta": {
+          "units": "₹34.56",
+          "change": "▲100.0%"
+        }
+      }
+    ]
+  }
+]

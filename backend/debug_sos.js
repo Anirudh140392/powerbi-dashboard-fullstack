@@ -1,57 +1,71 @@
+import dotenv from 'dotenv';
+dotenv.config();
 
-import { Sequelize, Op } from 'sequelize';
+console.log("DB_HOST:", process.env.DB_HOST);
 
-const sequelize = new Sequelize('gcpl', 'readonly_user', 'Readonly@123', {
-    host: '15.207.197.27',
-    dialect: 'mysql',
-    logging: false
-});
-
-const RbKw = sequelize.define('rb_kw', {
-    kw_id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
-    keyword: { type: Sequelize.STRING },
-    platform_name: { type: Sequelize.STRING },
-    brand_name: { type: Sequelize.STRING },
-    location_name: { type: Sequelize.STRING },
-    kw_crawl_date: { type: Sequelize.DATEONLY },
-    spons_flag: { type: Sequelize.INTEGER }
-}, {
-    tableName: 'rb_kw',
-    timestamps: false
-});
-
-const checkSos = async () => {
+const runDebug = async () => {
     try {
+        const { default: sequelize } = await import('./src/config/db.js');
+        const { default: watchTowerService } = await import('./src/services/watchTowerService.js');
+
+        console.log("Starting Debug...");
         await sequelize.authenticate();
-        console.log('Connected to DB');
+        console.log("Database connected.");
 
-        const startDate = '2025-10-01';
-        const endDate = '2025-10-06';
-        const location = 'Ahmedabad';
-        const platform = 'Zepto';
-        const brand = 'Aer';
-
-        const baseWhere = {
-            kw_crawl_date: { [Op.between]: [startDate, endDate] },
-            location_name: location
+        const filters = {
+            months: 1,
+            brand: 'Aer',
+            platform: 'Zepto',
+            location: 'All'
         };
 
-        // Check total rows matching base filters
-        const totalRows = await RbKw.count({ where: baseWhere });
-        console.log('Total Rows (Location + Date):', totalRows);
+        console.log("Calling getSummaryMetrics with:", filters);
 
-        const platforms = await RbKw.findAll({
-            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('platform_name')), 'platform_name']],
-            where: baseWhere,
-            raw: true
-        });
-        console.log('Available Platforms:', platforms);
+        // Manual debug of the query
+        const { Op } = await import('sequelize');
+        const { default: RbKw } = await import('./src/models/RbKw.js');
+        const dayjs = (await import('dayjs')).default;
+
+        const startDate = dayjs().subtract(1, 'month').startOf('day');
+        const endDate = dayjs().endOf('day');
+
+        console.log(`Manual Debug Date Range: ${startDate.format()} to ${endDate.format()}`);
+
+        const where = {
+            kw_crawl_date: {
+                [Op.between]: [startDate.toDate(), endDate.toDate()]
+            },
+            platform_name: 'Zepto' // Try exact match first
+        };
+
+        const count = await RbKw.count({ where });
+        console.log("Manual Count (Exact Platform):", count);
+
+        const whereLower = {
+            kw_crawl_date: {
+                [Op.between]: [startDate.toDate(), endDate.toDate()]
+            },
+            platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), 'zepto')
+        };
+
+        const countLower = await RbKw.count({ where: whereLower });
+        console.log("Manual Count (Lower Platform):", countLower);
+
+        const result = await watchTowerService.getSummaryMetrics(filters);
+
+        console.log("Result:", JSON.stringify(result, null, 2));
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error("Debug Error:", error);
     } finally {
-        await sequelize.close();
+        // We can't easily close sequelize here if we don't have the instance in scope, 
+        // but the script will exit anyway.
+        // To be clean:
+        try {
+            const { default: sequelize } = await import('./src/config/db.js');
+            await sequelize.close();
+        } catch (e) { }
     }
 };
 
-checkSos();
+runDebug();
