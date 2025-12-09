@@ -26,6 +26,7 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
+import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -184,6 +185,7 @@ function TrendIcon({ trend }) {
     </span>
   );
 }
+
 
 
 // --- Variant 1: Scrollable matrix with per-cell trend popover ----------------
@@ -641,7 +643,7 @@ function MatrixVariant({ data, title }) {
 
   return (
     <Card className="border-slate-200 bg-white shadow-sm">
-      
+
       {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
@@ -793,6 +795,7 @@ function MatrixVariant({ data, title }) {
         compMeta={compMetaForDrawer}
         selectedColumn={selectedColumn}
       />
+
     </Card>
   );
 }
@@ -1060,7 +1063,7 @@ function MatrixVariant({ data, title }) {
 // // --- Main showcase ----------------------------------------------------------
 
 export default function CityKpiTrendShowcase({ data, title }) {
-    if (!data || !data.columns || !data.rows) {
+  if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }

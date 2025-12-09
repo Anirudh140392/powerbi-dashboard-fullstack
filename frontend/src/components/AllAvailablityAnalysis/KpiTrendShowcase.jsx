@@ -320,88 +320,236 @@ const SelectItem = ({ value, children }) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                               Domain constants                             */
+/*                             Data & dynamic config                          */
 /* -------------------------------------------------------------------------- */
 
-const CITIES = ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"];
-const CATEGORIES = ["Body Lotion", "Face Cream", "Soap"];
-const BRANDS = [
-    "My Brand",
-    "Vaseline",
-    "Nivea",
-    "Parachute Advanced",
-    "Boroplus",
-    "Cetaphil",
-    "Joy",
-    "Biotique",
-];
-const SKUS = [
-    "Vaseline 100ml",
-    "Vaseline 200ml",
-    "Nivea Soft 100ml",
-    "Parachute Dry Skin 150ml",
-    "Boroplus Aloe 100ml",
-];
-
+/** Base days for trend charts */
 const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
 
-const buildSeries = (name, base) =>
-    DAYS.map((d, idx) => ({
-        date: d,
-        brand: name,
-        wtOsa: base + Math.sin(idx / 3) * 3,
-        estCatShare: base / 3 + Math.cos(idx / 4) * 2,
-        overallSov: base / 2 + Math.sin(idx / 5) * 4,
-        adSov: base / 2 + Math.cos(idx / 6) * 5,
-    }));
+/** Raw config – you can change this and UI will adapt */
+const RAW_DATA = {
+    cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
+    categories: ["Body Lotion", "Face Cream", "Soap"],
+    brands: [
+        { id: "my-brand", name: "My Brand", category: "Body Lotion" },
+        { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
+        { id: "nivea", name: "Nivea", category: "Body Lotion" },
+        { id: "parachute-adv", name: "Parachute Advanced", category: "Body Lotion" },
+        { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
+        { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
+        { id: "joy", name: "Joy", category: "Body Lotion" },
+        { id: "biotique", name: "Biotique", category: "Face Cream" },
+    ],
+    skus: [
+        { id: "vas-100", name: "Vaseline 100ml", brandId: "vaseline", category: "Body Lotion" },
+        { id: "vas-200", name: "Vaseline 200ml", brandId: "vaseline", category: "Body Lotion" },
+        { id: "niv-soft-100", name: "Nivea Soft 100ml", brandId: "nivea", category: "Body Lotion" },
+        { id: "para-dry-150", name: "Parachute Dry Skin 150ml", brandId: "parachute-adv", category: "Body Lotion" },
+        { id: "boro-aloe-100", name: "Boroplus Aloe 100ml", brandId: "boroplus", category: "Body Lotion" },
+    ],
+};
 
-const BRAND_SERIES = [
-    buildSeries("My Brand", 10),
-    buildSeries("Vaseline", 95),
-    buildSeries("Nivea", 90),
-    buildSeries("Parachute Advanced", 92),
-];
+/** Derived option lists for filters */
+const CITIES = RAW_DATA.cities;
+const CATEGORY_OPTIONS = RAW_DATA.categories;
+const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
+const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
+
+/** ID <-> Name maps */
+const BRAND_ID_TO_NAME = {};
+const BRAND_NAME_TO_ID = {};
+RAW_DATA.brands.forEach((b) => {
+    BRAND_ID_TO_NAME[b.id] = b.name;
+    BRAND_NAME_TO_ID[b.name] = b.id;
+});
+
+const SKU_ID_TO_NAME = {};
+const SKU_NAME_TO_ID = {};
+RAW_DATA.skus.forEach((s) => {
+    SKU_ID_TO_NAME[s.id] = s.name;
+    SKU_NAME_TO_ID[s.name] = s.id;
+});
+
+/** SKU group by brand */
+const SKUS_BY_BRAND_ID = {};
+RAW_DATA.skus.forEach((s) => {
+    if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
+    SKUS_BY_BRAND_ID[s.brandId].push(s);
+});
+
+/** Build mock metrics and trends – all UI reads from this single data model */
+const buildDataModel = () => {
+    const days = DAYS;
+    const brandSummaryByCity = {};
+    const skuSummaryByCity = {};
+    const brandTrendsByCity = {};
+    const skuTrendsByCity = {};
+
+    RAW_DATA.cities.forEach((city, cityIdx) => {
+        // BRAND SUMMARY
+        brandSummaryByCity[city] = RAW_DATA.brands.map((brand, brandIdx) => {
+            const base = 20 + brandIdx * 1.5 + cityIdx * 0.7;
+
+            return {
+                id: brand.id,
+                name: brand.name,
+                category: brand.category,
+
+                // existing KPIs
+                estCatShare: base,
+                wtOsa: 88 + brandIdx * 0.7 + cityIdx * 0.8,
+                overallSov: 30 + brandIdx * 1.1 + cityIdx * 0.9,
+                adSov: 22 + brandIdx * 0.9 + cityIdx * 0.6,
+
+                // NEW REQUIRED KPI FIELDS
+                Osa: 80 + brandIdx * 1.2 + cityIdx * 0.5,
+                Doi: 40 + brandIdx * 1.3 + cityIdx * 0.6,
+                Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
+                Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
+            };
+        });
+
+        // SKU SUMMARY
+        skuSummaryByCity[city] = RAW_DATA.skus.map((sku, skuIdx) => {
+            const brandIdx = RAW_DATA.brands.findIndex((b) => b.id === sku.brandId);
+
+            return {
+                id: sku.id,
+                name: sku.name,
+                brandId: sku.brandId,
+                brandName: BRAND_ID_TO_NAME[sku.brandId],
+                category: sku.category,
+
+                // existing KPIs
+                wtOsa: 86 + skuIdx * 0.8 + cityIdx * 0.6,
+                overallSov: 28 + skuIdx * 1.0 + cityIdx * 0.7 + brandIdx * 0.3,
+                adSov: 20 + skuIdx * 0.7 + cityIdx * 0.5,
+
+                // NEW REQUIRED KPI FIELDS
+                Osa: 78 + skuIdx * 1.1 + cityIdx * 0.5,
+                Doi: 42 + skuIdx * 1.0 + cityIdx * 0.4,
+                Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
+                Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
+            };
+        });
+
+        // BRAND TRENDS
+        brandTrendsByCity[city] = {};
+        RAW_DATA.brands.forEach((brand, brandIdx) => {
+            const base = 85 + brandIdx * 2.0 + cityIdx * 1.5;
+
+            brandTrendsByCity[city][brand.id] = days.map((date, idx) => ({
+                date,
+
+                // existing KPIs
+                wtOsa: base + Math.sin(idx / 3 + brandIdx) * 3,
+                estCatShare: 20 + brandIdx * 1.3 + Math.cos(idx / 4 + cityIdx) * 2,
+                overallSov: 30 + brandIdx * 1.0 + Math.sin(idx / 5 + cityIdx) * 4,
+                adSov: 22 + brandIdx * 0.9 + Math.cos(idx / 6 + brandIdx) * 5,
+
+                // NEW KPI TREND LINES
+                Osa: 78 + brandIdx * 1.2 + Math.sin(idx / 3) * 2,
+                Doi: 40 + brandIdx * 1.0 + Math.cos(idx / 5) * 1.5,
+                Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
+                Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
+            }));
+        });
+
+        // SKU TRENDS
+        skuTrendsByCity[city] = {};
+        RAW_DATA.skus.forEach((sku, skuIdx) => {
+            const brandIdx = RAW_DATA.brands.findIndex((b) => b.id === sku.brandId);
+
+            skuTrendsByCity[city][sku.id] = days.map((date, idx) => ({
+                date,
+
+                // existing KPI trend lines
+                wtOsa: 84 + skuIdx * 1.8 + Math.sin(idx / 3 + brandIdx) * 3,
+                estCatShare: 18 + skuIdx * 1.2 + Math.cos(idx / 4) * 2,
+                overallSov: 28 + skuIdx * 0.9 + Math.sin(idx / 5) * 4,
+                adSov: 19 + skuIdx * 0.8 + Math.cos(idx / 6) * 5,
+
+                // NEW KPI trend lines
+                Osa: 76 + skuIdx * 1.1 + Math.sin(idx / 3) * 2,
+                Doi: 41 + skuIdx * 1.0 + Math.cos(idx / 5) * 1.5,
+                Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
+                Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
+            }));
+        });
+
+    });
+
+    return {
+        days,
+        brandSummaryByCity,
+        skuSummaryByCity,
+        brandTrendsByCity,
+        skuTrendsByCity,
+    };
+};
+
+const DATA_MODEL = buildDataModel();
 
 /* -------------------------------------------------------------------------- */
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
 const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
+    // initial tab: brand view starts with category, sku view starts with sku
     const [activeTab, setActiveTab] = useState(
         mode === "brand" ? "category" : "sku"
     );
     const [search, setSearch] = useState("");
 
-    const handleToggle = (type, item) => {
-        const current = new Set(value[type]);
-        if (current.has(item)) current.delete(item);
-        else current.add(item);
-        onChange({ ...value, [type]: Array.from(current) });
+    // strict dependency: Category -> Brand -> SKU
+    // helpers to build dependent option lists
+
+    const getBrandOptions = () => {
+        let brands = RAW_DATA.brands;
+
+        // if categories selected, only brands from those categories
+        if (value.categories.length) {
+            brands = brands.filter((b) => value.categories.includes(b.category));
+        }
+
+        return brands.map((b) => b.name);
     };
 
-    const handleSelectAll = (type, items) => {
-        const allSelected = items.every((i) => value[type].includes(i));
-        onChange({ ...value, [type]: allSelected ? [] : items });
+    const getSkuOptions = () => {
+        let skus = RAW_DATA.skus;
+
+        // filter by categories (if selected)
+        if (value.categories.length) {
+            skus = skus.filter((s) => value.categories.includes(s.category));
+        }
+
+        // filter by brands (if selected)
+        if (value.brands.length) {
+            const allowedBrandIds = new Set(
+                value.brands
+                    .map((name) => BRAND_NAME_TO_ID[name])
+                    .filter(Boolean)
+            );
+            skus = skus.filter((s) => allowedBrandIds.has(s.brandId));
+        }
+
+        return skus.map((s) => s.name);
     };
 
-    const tabOptions = useMemo(
-        () => (mode === "sku" ? ["sku"] : ["category", "brand", "sku"]),
-        [mode]
-    );
+    const tabOptions = ["category", "brand", "sku"]; // always show all three
 
     const getListForTab = () => {
-        if (activeTab === "category") return CATEGORIES;
-        if (activeTab === "brand") return BRANDS;
-        return SKUS;
+        if (activeTab === "category") return CATEGORY_OPTIONS;
+        if (activeTab === "brand") return getBrandOptions();
+        return getSkuOptions();
     };
 
-    const list = useMemo(
-        () =>
-            getListForTab().filter((item) =>
-                item.toLowerCase().includes(search.toLowerCase())
-            ),
-        [activeTab, search]
-    );
+    const list = useMemo(() => {
+        const base = getListForTab() || [];
+        return base.filter((item) =>
+            item.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [activeTab, search, value]); // value drives dependencies
 
     const currentKey =
         activeTab === "category"
@@ -409,6 +557,47 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
             : activeTab === "brand"
                 ? "brands"
                 : "skus";
+
+    // strict dependency: parent change clears children
+    const handleToggle = (type, item) => {
+        const current = new Set(value[type]);
+        if (current.has(item)) current.delete(item);
+        else current.add(item);
+
+        const next = { ...value, [type]: Array.from(current) };
+
+        if (type === "categories") {
+            // changing categories resets brands & skus
+            next.brands = [];
+            next.skus = [];
+        } else if (type === "brands") {
+            // changing brands resets skus
+            next.skus = [];
+        }
+
+        onChange(next);
+    };
+
+    const handleSelectAll = (type, items) => {
+        const allSelected =
+            items.length > 0 && items.every((i) => value[type].includes(i));
+
+        const next = { ...value, [type]: allSelected ? [] : items.slice() };
+
+        if (type === "categories") {
+            next.brands = [];
+            next.skus = [];
+        } else if (type === "brands") {
+            next.skus = [];
+        }
+
+        onChange(next);
+    };
+
+    const allItemsForCurrentTab = getListForTab();
+    const allSelectedForCurrentTab =
+        allItemsForCurrentTab.length > 0 &&
+        allItemsForCurrentTab.every((i) => value[currentKey].includes(i));
 
     return (
         <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -436,10 +625,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                                     <TabsTrigger
                                         key={t}
                                         value={t}
-                                        className={cn(
-                                            "justify-start rounded-lg px-3 py-2 text-sm font-medium",
-                                            "data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                                        )}
+                                        className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
                                     >
                                         {t === "category" && "Category"}
                                         {t === "brand" && "Brand"}
@@ -461,13 +647,11 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                             />
                             <button
                                 className="text-sm font-medium text-blue-600 hover:underline"
-                                onClick={() => handleSelectAll(currentKey, getListForTab())}
+                                onClick={() =>
+                                    handleSelectAll(currentKey, allItemsForCurrentTab)
+                                }
                             >
-                                {getListForTab().every((i) =>
-                                    value[currentKey].includes(i)
-                                )
-                                    ? "Clear all"
-                                    : "Select all"}
+                                {allSelectedForCurrentTab ? "Clear all" : "Select all"}
                             </button>
                         </div>
 
@@ -513,25 +697,82 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-const TrendView = ({ filters, city, onBackToTable, onSwitchToKpi }) => {
-    const selectedBrands = filters.brands.length
-        ? filters.brands
-        : ["My Brand", "Vaseline", "Nivea"];
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+    const isBrandMode = mode === "brand";
 
-    const data = useMemo(
+    const selectedIds = useMemo(() => {
+        if (isBrandMode) {
+            const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
+            let rows = allRows;
+
+            if (filters.categories.length) {
+                rows = rows.filter((r) => filters.categories.includes(r.category));
+            }
+            if (filters.brands.length) {
+                rows = rows.filter((r) => filters.brands.includes(r.name));
+            }
+
+            const ids = rows.map((r) => r.id);
+            if (ids.length) return ids.slice(0, 4);
+            return allRows.slice(0, 3).map((r) => r.id);
+        } else {
+            const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
+            let rows = allRows;
+
+            if (filters.categories.length) {
+                rows = rows.filter((r) => filters.categories.includes(r.category));
+            }
+            if (filters.brands.length) {
+                rows = rows.filter((r) => filters.brands.includes(r.brandName));
+            }
+            if (filters.skus.length) {
+                rows = rows.filter((r) => filters.skus.includes(r.name));
+            }
+
+            const ids = rows.map((r) => r.id);
+            if (ids.length) return ids.slice(0, 5);
+            return allRows.slice(0, 5).map((r) => r.id);
+        }
+    }, [isBrandMode, filters, city]);
+
+    const selectedLabels = useMemo(
         () =>
-            DAYS.map((date, idx) => {
+            selectedIds.map((id) =>
+                isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+            ),
+        [selectedIds, isBrandMode]
+    );
+
+    const chartData = useMemo(() => {
+        const days = DATA_MODEL.days;
+
+        if (isBrandMode) {
+            return days.map((date, idx) => {
                 const row = { date };
-                BRAND_SERIES.forEach((series) => {
-                    const point = series[idx];
-                    if (selectedBrands.includes(point.brand)) {
-                        row[`${point.brand}_wtOsa`] = point.wtOsa;
-                    }
+                selectedIds.forEach((id) => {
+                    const series =
+                        DATA_MODEL.brandTrendsByCity[city] &&
+                        DATA_MODEL.brandTrendsByCity[city][id];
+                    if (!series) return;
+                    row[id] = series[idx].wtOsa;
                 });
                 return row;
-            }),
-        [selectedBrands]
-    );
+            });
+        }
+
+        // SKU mode
+        return days.map((date, idx) => {
+            const row = { date };
+            selectedIds.forEach((id) => {
+                const series =
+                    DATA_MODEL.skuTrendsByCity[city] &&
+                    DATA_MODEL.skuTrendsByCity[city][id];
+                if (!series) return;
+                row[id] = series[idx].wtOsa;
+            });
+            return row;
+        });
+    }, [selectedIds, isBrandMode, city]);
 
     return (
         <Card className="mt-4">
@@ -541,13 +782,13 @@ const TrendView = ({ filters, city, onBackToTable, onSwitchToKpi }) => {
                         Wt. OSA % trend
                     </CardTitle>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span>Brands:</span>
-                        {selectedBrands.map((b) => (
+                        <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
+                        {selectedLabels.map((label) => (
                             <Badge
-                                key={b}
+                                key={label}
                                 className="border-slate-200 bg-slate-50"
                             >
-                                {b}
+                                {label}
                             </Badge>
                         ))}
                         <Separator orientation="vertical" className="mx-1 h-4" />
@@ -569,7 +810,7 @@ const TrendView = ({ filters, city, onBackToTable, onSwitchToKpi }) => {
                 <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart
-                            data={data}
+                            data={chartData}
                             margin={{ top: 12, left: -16, right: 12 }}
                         >
                             <CartesianGrid
@@ -583,19 +824,18 @@ const TrendView = ({ filters, city, onBackToTable, onSwitchToKpi }) => {
                                 dy={6}
                             />
                             <YAxis
-                                domain={[80, 110]}
-                                tickFormatter={(v) => `${v}%`}
+                                tickFormatter={(v) => `${v.toFixed(0)}%`}
                                 fontSize={11}
                                 tickLine={false}
                             />
                             <Tooltip formatter={(v) => `${v.toFixed(1)}%`} />
                             <Legend wrapperStyle={{ fontSize: 12 }} />
-                            {selectedBrands.map((brand) => (
+                            {selectedIds.map((id) => (
                                 <Line
-                                    key={brand}
+                                    key={id}
                                     type="monotone"
-                                    dataKey={`${brand}_wtOsa`}
-                                    name={brand}
+                                    dataKey={id}
+                                    name={isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]}
                                     dot={false}
                                     strokeWidth={2}
                                 />
@@ -613,36 +853,87 @@ const TrendView = ({ filters, city, onBackToTable, onSwitchToKpi }) => {
 /* -------------------------------------------------------------------------- */
 
 const KPI_KEYS = [
-    { key: "estCatShare", label: "Est. Category Share" },
-    { key: "wtOsa", label: "Wt. OSA %" },
-    { key: "overallSov", label: "Overall SOV" },
-    { key: "adSov", label: "Ad SOV" },
+    { key: "Osa", label: "Osa" },
+    { key: "Doi", label: "Doi" },
+    { key: "Fillrate", label: "Fillrate" },
+    { key: "Assortment", label: "Assortment" },
 ];
 
-const KpiCompareView = ({ filters, city, onBackToTrend }) => {
-    const selectedBrands = filters.brands.length
-        ? filters.brands
-        : ["My Brand", "Vaseline", "Nivea"];
+const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
+    const isBrandMode = mode === "brand";
 
-    const baseData = useMemo(() => {
-        const byBrand = {};
-        BRAND_SERIES.forEach((series) => {
-            byBrand[series[0].brand] = series;
-        });
-        return { byBrand };
-    }, []);
+    const selectedIds = useMemo(() => {
+        if (isBrandMode) {
+            const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
+            let rows = allRows;
 
-    const chartDataFor = (key) =>
-        DAYS.map((date, idx) => {
+            if (filters.categories.length) {
+                rows = rows.filter((r) => filters.categories.includes(r.category));
+            }
+            if (filters.brands.length) {
+                rows = rows.filter((r) => filters.brands.includes(r.name));
+            }
+
+            const ids = rows.map((r) => r.id);
+            if (ids.length) return ids.slice(0, 4);
+            return allRows.slice(0, 3).map((r) => r.id);
+        } else {
+            const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
+            let rows = allRows;
+
+            if (filters.categories.length) {
+                rows = rows.filter((r) => filters.categories.includes(r.category));
+            }
+            if (filters.brands.length) {
+                rows = rows.filter((r) => filters.brands.includes(r.brandName));
+            }
+            if (filters.skus.length) {
+                rows = rows.filter((r) => filters.skus.includes(r.name));
+            }
+
+            const ids = rows.map((r) => r.id);
+            if (ids.length) return ids.slice(0, 5);
+            return allRows.slice(0, 5).map((r) => r.id);
+        }
+    }, [isBrandMode, filters, city]);
+
+    const selectedLabels = useMemo(
+        () =>
+            selectedIds.map((id) =>
+                isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+            ),
+        [selectedIds, isBrandMode]
+    );
+
+    const chartDataFor = (metricKey) => {
+        const days = DATA_MODEL.days;
+
+        if (isBrandMode) {
+            return days.map((date, idx) => {
+                const row = { date };
+                selectedIds.forEach((id) => {
+                    const series =
+                        DATA_MODEL.brandTrendsByCity[city] &&
+                        DATA_MODEL.brandTrendsByCity[city][id];
+                    if (!series) return;
+                    row[id] = series[idx][metricKey];
+                });
+                return row;
+            });
+        }
+
+        return days.map((date, idx) => {
             const row = { date };
-            selectedBrands.forEach((brand) => {
-                const series = baseData.byBrand[brand];
-                if (series) {
-                    row[brand] = series[idx][key];
-                }
+            selectedIds.forEach((id) => {
+                const series =
+                    DATA_MODEL.skuTrendsByCity[city] &&
+                    DATA_MODEL.skuTrendsByCity[city][id];
+                if (!series) return;
+                row[id] = series[idx][metricKey];
             });
             return row;
         });
+    };
 
     return (
         <Card className="mt-4">
@@ -652,13 +943,13 @@ const KpiCompareView = ({ filters, city, onBackToTrend }) => {
                         Compare by KPIs
                     </CardTitle>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span>Brands:</span>
-                        {selectedBrands.map((b) => (
+                        <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
+                        {selectedLabels.map((label) => (
                             <Badge
-                                key={b}
+                                key={label}
                                 className="border-slate-200 bg-slate-50"
                             >
-                                {b}
+                                {label}
                             </Badge>
                         ))}
                         <Separator orientation="vertical" className="mx-1 h-4" />
@@ -699,12 +990,16 @@ const KpiCompareView = ({ filters, city, onBackToTrend }) => {
                                         width={32}
                                     />
                                     <Tooltip />
-                                    {selectedBrands.map((brand) => (
+                                    {selectedIds.map((id) => (
                                         <Line
-                                            key={brand}
+                                            key={id}
                                             type="monotone"
-                                            dataKey={brand}
-                                            name={brand}
+                                            dataKey={id}
+                                            name={
+                                                isBrandMode
+                                                    ? BRAND_ID_TO_NAME[id]
+                                                    : SKU_ID_TO_NAME[id]
+                                            }
                                             dot={false}
                                             strokeWidth={2}
                                         />
@@ -723,11 +1018,11 @@ const KpiCompareView = ({ filters, city, onBackToTrend }) => {
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = () => (
+const BrandTable = ({ rows }) => (
     <Card className="mt-3">
         <CardHeader className="border-b pb-2">
             <CardTitle className="text-sm font-medium text-slate-800">
-                Brands (Top 50)
+                Brands (Top {rows.length || 0})
             </CardTitle>
         </CardHeader>
         <CardContent className="pt-3">
@@ -736,40 +1031,48 @@ const BrandTable = () => (
                     <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                         <tr>
                             <th className="px-3 py-2 text-left">Brand</th>
-                            <th className="px-3 py-2 text-right">
-                                Est. Cat. Share
-                            </th>
-                            <th className="px-3 py-2 text-right">Wt. OSA %</th>
-                            <th className="px-3 py-2 text-right">Overall SOV</th>
-                            <th className="px-3 py-2 text-right">Ad SOV</th>
+                            <th className="px-3 py-2 text-right">Osa</th>
+                            <th className="px-3 py-2 text-right">Doi</th>
+                            <th className="px-3 py-2 text-right">Fillrate</th>
+                            <th className="px-3 py-2 text-right">Assortment</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                        {BRANDS.map((b, idx) => (
+                        {rows.map((row, idx) => (
                             <tr
-                                key={b}
+                                key={row.id}
                                 className={cn(
                                     "hover:bg-slate-50",
                                     idx % 2 === 1 && "bg-slate-50/60"
                                 )}
                             >
                                 <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                                    {b}
+                                    {row.name}
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(20 + idx * 1.3).toFixed(1)}%
+                                    {row.Osa.toFixed(1)}%
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(90 + idx * 0.5).toFixed(1)}%
+                                    {row.Doi.toFixed(1)}
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(25 + idx * 0.8).toFixed(1)}%
+                                    {row.Fillrate.toFixed(1)}%
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(18 + idx * 0.6).toFixed(1)}%
+                                    {row.Assortment.toFixed(1)}%
                                 </td>
                             </tr>
                         ))}
+                        {rows.length === 0 && (
+                            <tr>
+                                <td
+                                    colSpan={5}
+                                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                                >
+                                    No brands matching current filters.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -777,11 +1080,11 @@ const BrandTable = () => (
     </Card>
 );
 
-const SkuTable = () => (
+const SkuTable = ({ rows }) => (
     <Card className="mt-3 border-slate-200 bg-white shadow-sm">
         <CardHeader className="border-b pb-2">
             <CardTitle className="text-sm font-medium text-slate-800">
-                SKUs
+                SKUs (Top {rows.length || 0})
             </CardTitle>
         </CardHeader>
         <CardContent className="pt-3">
@@ -790,34 +1093,52 @@ const SkuTable = () => (
                     <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                         <tr>
                             <th className="px-3 py-2 text-left">SKU</th>
-                            <th className="px-3 py-2 text-right">Wt. OSA %</th>
-                            <th className="px-3 py-2 text-right">Overall SOV</th>
-                            <th className="px-3 py-2 text-right">Ad SOV</th>
+                            <th className="px-3 py-2 text-left">Brand</th>
+                            <th className="px-3 py-2 text-right">Osa</th>
+                            <th className="px-3 py-2 text-right">Doi</th>
+                            <th className="px-3 py-2 text-right">Fillrate</th>
+                            <th className="px-3 py-2 text-right">Assortment</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                        {SKUS.map((s, idx) => (
+                        {rows.map((row, idx) => (
                             <tr
-                                key={s}
+                                key={row.id}
                                 className={cn(
                                     "hover:bg-slate-50",
                                     idx % 2 === 1 && "bg-slate-50/60"
                                 )}
                             >
                                 <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                                    {s}
+                                    {row.name}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                                    {row.brandName}
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(88 + idx * 0.7).toFixed(1)}%
+                                    {row.Osa.toFixed(1)}%
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(30 + idx * 0.9).toFixed(1)}%
+                                    {row.Doi.toFixed(1)}
                                 </td>
                                 <td className="px-3 py-2 text-right text-[12px]">
-                                    {(22 + idx * 0.4).toFixed(1)}%
+                                    {row.Fillrate.toFixed(1)}%
+                                </td>
+                                <td className="px-3 py-2 text-right text-[12px]">
+                                    {row.Assortment.toFixed(1)}%
                                 </td>
                             </tr>
                         ))}
+                        {rows.length === 0 && (
+                            <tr>
+                                <td
+                                    colSpan={6}
+                                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                                >
+                                    No SKUs matching current filters.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -830,7 +1151,7 @@ const SkuTable = () => (
 /* -------------------------------------------------------------------------- */
 
 export const KpiTrendShowcase = () => {
-    const [tab, setTab] = useState("brand");
+    const [tab, setTab] = useState("brand"); // "brand" | "sku"
     const [city, setCity] = useState(CITIES[0]);
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({
@@ -838,15 +1159,56 @@ export const KpiTrendShowcase = () => {
         brands: [],
         skus: [],
     });
-    const [viewMode, setViewMode] = useState("table");
+    const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
     const selectionCount =
         filters.categories.length +
         filters.brands.length +
         filters.skus.length;
 
+    // Dynamic filtered rows for table for the active tab + city
+    const brandRows = useMemo(() => {
+        const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
+        let rows = allRows;
+
+        if (filters.categories.length) {
+            rows = rows.filter((r) => filters.categories.includes(r.category));
+        }
+        if (filters.brands.length) {
+            rows = rows.filter((r) => filters.brands.includes(r.name));
+        }
+        // if SKUs selected, show only brands that have any selected SKU
+        if (filters.skus.length) {
+            const brandIdsWithSelectedSkus = new Set(
+                RAW_DATA.skus
+                    .filter((s) => filters.skus.includes(s.name))
+                    .map((s) => s.brandId)
+            );
+            rows = rows.filter((r) => brandIdsWithSelectedSkus.has(r.id));
+        }
+
+        return rows;
+    }, [city, filters]);
+
+    const skuRows = useMemo(() => {
+        const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
+        let rows = allRows;
+
+        if (filters.categories.length) {
+            rows = rows.filter((r) => filters.categories.includes(r.category));
+        }
+        if (filters.brands.length) {
+            rows = rows.filter((r) => filters.brands.includes(r.brandName));
+        }
+        if (filters.skus.length) {
+            rows = rows.filter((r) => filters.skus.includes(r.name));
+        }
+
+        return rows;
+    }, [city, filters]);
+
     return (
-        <div className="flex min-h-screen flex-col bg-slate-50 px-6 py-4 text-slate-900">
+        <div className="flex-col bg-slate-50 text-slate-900">
             {/* Header */}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
@@ -907,7 +1269,10 @@ export const KpiTrendShowcase = () => {
             {/* Tabs */}
             <Tabs
                 value={tab}
-                onValueChange={setTab}
+                onValueChange={(v) => {
+                    setTab(v);
+                    setViewMode("table"); // reset view when switching tab
+                }}
                 className="w-full"
             >
                 <div className="flex items-center justify-between gap-3">
@@ -930,11 +1295,12 @@ export const KpiTrendShowcase = () => {
                     </div>
                 </div>
 
-                {/* Brand Tab */}
+                {/* BRAND TAB */}
                 <TabsContent value="brand" className="mt-3">
-                    {viewMode === "table" && <BrandTable />}
+                    {viewMode === "table" && <BrandTable rows={brandRows} />}
                     {viewMode === "trend" && (
                         <TrendView
+                            mode="brand"
                             filters={filters}
                             city={city}
                             onBackToTable={() => setViewMode("table")}
@@ -943,6 +1309,7 @@ export const KpiTrendShowcase = () => {
                     )}
                     {viewMode === "kpi" && (
                         <KpiCompareView
+                            mode="brand"
                             filters={filters}
                             city={city}
                             onBackToTrend={() => setViewMode("trend")}
@@ -950,11 +1317,12 @@ export const KpiTrendShowcase = () => {
                     )}
                 </TabsContent>
 
-                {/* SKU tab */}
+                {/* SKU TAB */}
                 <TabsContent value="sku" className="mt-3">
-                    {viewMode === "table" && <SkuTable />}
+                    {viewMode === "table" && <SkuTable rows={skuRows} />}
                     {viewMode === "trend" && (
                         <TrendView
+                            mode="sku"
                             filters={filters}
                             city={city}
                             onBackToTable={() => setViewMode("table")}
@@ -963,6 +1331,7 @@ export const KpiTrendShowcase = () => {
                     )}
                     {viewMode === "kpi" && (
                         <KpiCompareView
+                            mode="sku"
                             filters={filters}
                             city={city}
                             onBackToTrend={() => setViewMode("trend")}
