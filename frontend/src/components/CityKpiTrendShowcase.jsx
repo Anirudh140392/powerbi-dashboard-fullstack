@@ -1,12 +1,20 @@
 import React from "react";
+import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
+
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon } from "lucide-react";
+// import {SimpleTableWithTabs} from "../components/CommonLayout/SimpleTableWithTabs";
+import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
+
+// import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+// import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityCompetitionDrawer";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -17,6 +25,7 @@ import {
   YAxis,
   Tooltip as RechartsTooltip,
 } from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -121,29 +130,29 @@ function getCellClasses(value) {
 }
 
 function getTrendMeta(trend) {
-  if (trend > 1.5) {
+  const num = typeof trend === "number" ? trend : 0; // fallback
+
+  if (num > 0)
     return {
-      icon: TrendingUp,
-      label: `+${trend.toFixed(1)} pts vs LY`,
-      color: "text-emerald-600",
-      pill: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      pill: "border-green-200 bg-green-50 text-green-700",
+      icon: LineChartIcon,
+      display: `+${num}`
     };
-  }
-  if (trend < -1.5) {
+
+  if (num < 0)
     return {
-      icon: TrendingDown,
-      label: `${trend.toFixed(1)} pts vs LY`,
-      color: "text-rose-600",
-      pill: "bg-rose-50 text-rose-700 border-rose-100",
+      pill: "border-red-200 bg-red-50 text-red-700",
+      icon: LineChartIcon,
+      display: `${num}`
     };
-  }
+
   return {
-    icon: Minus,
-    label: `${trend.toFixed(1)} pts vs LY`,
-    color: "text-slate-500",
-    pill: "bg-slate-50 text-slate-700 border-slate-100",
+    pill: "border-slate-200 bg-slate-50 text-slate-600",
+    icon: null,
+    display: "0"
   };
 }
+
 
 function TrendSparkline({ series }) {
   const data = (series || []).map((v, idx) => ({ idx, value: v }));
@@ -176,103 +185,593 @@ function TrendIcon({ trend }) {
   );
 }
 
+
 // --- Variant 1: Scrollable matrix with per-cell trend popover ----------------
 
-function MatrixVariant() {
+// function MatrixVariant() {
+//   return (
+//     <Card className="border-slate-200 bg-white shadow-sm">
+//       <CardHeader className="pb-2">
+//         <div className="flex items-center justify-between">
+//           <div>
+//             <CardTitle className="text-base text-slate-900">City KPI matrix</CardTitle>
+//             <CardDescription className="text-xs text-slate-500">
+//               Hover on any value to see trend sparkline for that city & KPI.
+//             </CardDescription>
+//           </div>
+//           <div className="flex items-center gap-2 text-xs">
+//             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
+//               <span className="h-2 w-2 rounded-full bg-emerald-500" />
+//               <span className="ml-2 text-slate-700">90%+ healthy</span>
+//             </Badge>
+//             <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1">
+//               <span className="h-2 w-2 rounded-full bg-amber-400" />
+//               <span className="ml-2 text-slate-700">70–90% watch</span>
+//             </Badge>
+//             <Badge variant="outline" className="rounded-full border-rose-200 bg-rose-50 px-3 py-1">
+//               <span className="h-2 w-2 rounded-full bg-rose-400" />
+//               <span className="ml-2 text-slate-700">&lt;70% action</span>
+//             </Badge>
+//           </div>
+//         </div>
+//       </CardHeader>
+//       <CardContent className="pt-0">
+//         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
+//           <div className="min-w-[1000px]">
+//             <table className="w-full border-separate border-spacing-0 text-xs">
+//               <thead>
+//                 <tr>
+//                   <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+//                     KPI
+//                   </th>
+//                   {CITY_DATA.map((city) => (
+//                     <th
+//                       key={city.name}
+//                       className="border-b border-slate-100 bg-slate-50 py-3 px-3 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500"
+//                     >
+//                       <div className="flex flex-col gap-1">
+//                         <div className="text-xs font-semibold text-slate-900">{city.name}</div>
+//                         <div className="flex items-center gap-1 text-[10px] text-slate-500">
+//                           <LineChartIcon className="h-3 w-3" />
+//                           <span>City trends</span>
+//                         </div>
+//                       </div>
+//                     </th>
+//                   ))}
+//                 </tr>
+//               </thead>
+//               <tbody>
+//                 {KPI_CONFIG.map((kpi) => (
+//                   <tr key={kpi.key} className="group">
+//                     <td className="sticky left-0 z-10 bg-slate-50 py-2 pl-4 pr-4 text-xs font-medium text-slate-700">
+//                       {kpi.label}
+//                     </td>
+//                     {CITY_DATA.map((city) => {
+//                       const metric = city.kpis[kpi.key];
+//                       if (!metric)
+//                         return (
+//                           <td key={city.name} className="py-2 px-3 text-center text-[11px] text-slate-400">
+//                             –
+//                           </td>
+//                         );
+//                       const cellClasses = getCellClasses(metric.value);
+//                       const trendMeta = getTrendMeta(metric.trend);
+//                       return (
+//                         <td key={city.name} className="py-2 px-3">
+//                           <Popover>
+//                             <PopoverTrigger asChild>
+//                               <button
+//                                 className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px] font-semibold shadow-[0_0_0_1px_rgba(15,23,42,0.02)] transition hover:shadow-sm ${cellClasses}`}
+//                               >
+//                                 <span>{metric.value}%</span>
+//                                 <span
+//                                   className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${trendMeta.pill}`}
+//                                 >
+//                                   {trendMeta.icon === TrendingUp && <TrendingUp className="h-3 w-3" />}
+//                                   {trendMeta.icon === TrendingDown && <TrendingDown className="h-3 w-3" />}
+//                                   {trendMeta.icon === Minus && <Minus className="h-3 w-3" />}
+//                                   <span>{metric.trend > 0 ? `+${metric.trend.toFixed(1)}` : metric.trend.toFixed(1)}</span>
+//                                 </span>
+//                               </button>
+//                             </PopoverTrigger>
+//                             <PopoverContent className="w-64 border-slate-100 bg-white shadow-md">
+//                               <div className="mb-2 flex items-center justify-between text-xs">
+//                                 <span className="font-semibold text-slate-900">
+//                                   {kpi.label} – {city.name}
+//                                 </span>
+//                                 <TrendIcon trend={metric.trend} />
+//                               </div>
+//                               <div className="mb-1 text-[11px] text-slate-500">Last 4 periods</div>
+//                               <TrendSparkline series={metric.series} />
+//                             </PopoverContent>
+//                           </Popover>
+//                         </td>
+//                       );
+//                     })}
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+//         </ScrollArea>
+//       </CardContent>
+//     </Card>
+//   );
+// }
+// function MatrixVariant({ data, title }) {
+//   const [openTrend, setOpenTrend] = useState(false);
+//   const [selectedColumn, setSelectedColumn] = useState(null);
+//   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
+
+//   const { columns, rows } = data;
+
+//   // ---------------- BUILD COMP META ----------------
+//   const buildCompMeta = (columnName) => ({
+//     context: { level: "Table", region: "All" },
+//     periodToggle: { primary: "MTD", compare: "Previous" },
+
+//     columns: columns.slice(1).map((col) => ({
+//       id: col,
+//       label: col,
+//       type: "metric",
+//     })),
+
+//     brands: rows.map((row) => {
+//       const obj = { brand: row.kpi };
+
+//       columns.slice(1).forEach((col) => {
+//         const value = row[col];
+//         const trend = row.trend?.[col];
+
+//         if (typeof value === "number") {
+//           obj[col] = { value, delta: trend || 0 };
+//         }
+//       });
+
+//       return obj;
+//     }),
+//   });
+
+//   return (
+//     <Card className="border-slate-200 bg-white shadow-sm">
+//       <CardHeader className="pb-2">
+//         <CardTitle className="text-base text-slate-900">{title} KPI Matrix</CardTitle>
+//         <CardDescription className="text-xs text-slate-500">Hover on any value to see trend sparkline.</CardDescription>
+//       </CardHeader>
+
+//       <CardContent className="pt-0">
+//         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
+//           <div className="min-w-[1000px]">
+//             <table className="w-full border-separate border-spacing-0 text-xs">
+
+//               {/* ---------------- HEADER ---------------- */}
+//               <thead>
+//                 <tr>
+//                   <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+//                     KPI
+//                   </th>
+
+//                   {columns.slice(1).map((col) => (
+//                     <th key={col} className="border-b border-slate-100 bg-slate-50 py-3 px-3 text-left">
+//                       <div className="flex flex-col gap-1">
+//                         <div className="text-xs font-semibold text-slate-900">{col}</div>
+
+//                         {/* View trends button */}
+//                         <div
+//                           className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer hover:text-slate-700"
+//                           onClick={() => {
+//                             setSelectedColumn(col);
+//                             setCompMetaForDrawer(buildCompMeta(col));
+//                             setOpenTrend(true);
+//                           }}
+//                         >
+//                           <LineChartIcon className="h-3 w-3" />
+//                           <span>View trends</span>
+//                         </div>
+//                       </div>
+//                     </th>
+//                   ))}
+//                 </tr>
+//               </thead>
+
+//               {/* ---------------- BODY ---------------- */}
+//               <tbody>
+//                 {rows.map((row) => (
+//                   <tr key={row.kpi}>
+//                     <td className="sticky left-0 z-10 bg-slate-50 py-2 pl-4 pr-4 text-xs font-medium text-slate-700">
+//                       {row.kpi}
+//                     </td>
+
+//                     {columns.slice(1).map((col) => {
+//                       const value = row[col];
+//                       const trend = row.trend?.[col];
+//                       const cellClasses = getCellClasses(value);
+//                       const trendMeta = getTrendMeta(trend);
+
+//                       const Icon = trendMeta.icon;
+
+//                       return (
+//                         <td key={col} className="py-2 px-3">
+//                           <Popover>
+//                             <PopoverTrigger asChild>
+//                               <button
+//                                 className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 shadow-sm text-[11px] font-semibold ${cellClasses}`}
+//                               >
+//                                 <span>{value}%</span>
+
+//                                 <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${trendMeta.pill}`}>
+//                                   {Icon && <Icon className="h-3 w-3" />}
+//                                   <span>{trend > 0 ? `+${trend}` : trend}</span>
+//                                 </span>
+//                               </button>
+//                             </PopoverTrigger>
+
+//                             <PopoverContent className="w-64 border-slate-100 bg-white shadow-md">
+//                               <div className="mb-2 flex items-center justify-between text-xs">
+//                                 <span className="font-semibold text-slate-900">{row.kpi} – {col}</span>
+//                                 {Icon && <Icon className="h-3 w-3" />}
+//                               </div>
+
+//                               <TrendSparkline series={row.series?.[col] || []} />
+//                             </PopoverContent>
+//                           </Popover>
+//                         </td>
+//                       );
+//                     })}
+//                   </tr>
+//                 ))}
+//               </tbody>
+
+//             </table>
+//           </div>
+//         </ScrollArea>
+//       </CardContent>
+
+//       <TrendsCompetitionDrawer
+//         open={openTrend}
+//         onClose={() => setOpenTrend(false)}
+//         compMeta={compMetaForDrawer}
+//         selectedColumn={selectedColumn}
+//       />
+//     </Card>
+//   );
+// }
+// function MatrixVariant({ data, title }) {
+//   if (!data || !data.columns || !data.rows) return null;
+
+//   const [openTrend, setOpenTrend] = useState(false);
+//   const [selectedColumn, setSelectedColumn] = useState(null);
+//   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
+
+//   const { columns, rows } = data;
+
+//   // ---------- BUILD COMP META (unchanged) ----------
+//   const buildCompMeta = (columnName) => ({
+//     context: { level: "Table", region: "All" },
+//     periodToggle: { primary: "MTD", compare: "Previous" },
+
+//     columns: columns.slice(1).map((col) => ({
+//       id: col,
+//       label: col,
+//       type: "metric",
+//     })),
+
+//     brands: rows.map((row) => {
+//       const obj = { brand: row.kpi };
+
+//       columns.slice(1).forEach((col) => {
+//         const value = row[col];
+//         const trend = row.trend?.[col];
+
+//         if (typeof value === "number") {
+//           obj[col] = { value, delta: trend || 0 };
+//         }
+//       });
+
+//       return obj;
+//     }),
+//   });
+
+//   return (
+//     <Card className="border-slate-200 bg-white shadow-sm">
+//       {/* ----------- HEADER WITH BADGES (CITY STYLE) ----------- */}
+//       <CardHeader className="pb-2">
+//         <div className="flex items-center justify-between">
+//           <div>
+//             <CardTitle className="text-base text-slate-900">
+//               {title} KPI Matrix
+//             </CardTitle>
+//             <CardDescription className="text-xs text-slate-500">
+//               Hover on any value to see trend sparkline.
+//             </CardDescription>
+//           </div>
+
+//           {/* Heatmap legend */}
+//           <div className="flex items-center gap-2 text-xs">
+//             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
+//               <span className="h-2 w-2 rounded-full bg-emerald-500" />
+//               <span className="ml-2 text-slate-700">Healthy</span>
+//             </Badge>
+
+//             <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1">
+//               <span className="h-2 w-2 rounded-full bg-amber-400" />
+//               <span className="ml-2 text-slate-700">Watch</span>
+//             </Badge>
+
+//             <Badge variant="outline" className="rounded-full border-rose-200 bg-rose-50 px-3 py-1">
+//               <span className="h-2 w-2 rounded-full bg-rose-400" />
+//               <span className="ml-2 text-slate-700">Action</span>
+//             </Badge>
+//           </div>
+//         </div>
+//       </CardHeader>
+
+//       {/* ----------- TABLE BODY WITH CITY-STYLE CSS ----------- */}
+//       <CardContent className="pt-0">
+//         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
+//           <div className="min-w-[1000px]">
+//             <table className="w-full border-separate border-spacing-0 text-xs">
+
+//               {/* ---------------- HEADER ---------------- */}
+//               <thead>
+//                 <tr>
+//                   <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+//                     KPI
+//                   </th>
+
+//                   {columns.slice(1).map((col) => (
+//                     <th
+//                       key={col}
+//                       className="border-b border-slate-100 bg-slate-50 py-3 px-3 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500"
+//                     >
+//                       <div className="flex flex-col gap-1">
+//                         <div className="text-xs font-semibold text-slate-900">{col}</div>
+
+//                         <div
+//                           className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer hover:text-slate-700"
+//                           onClick={() => {
+//                             setSelectedColumn(col);
+//                             setCompMetaForDrawer(buildCompMeta(col));
+//                             setOpenTrend(true);
+//                           }}
+//                         >
+//                           <LineChartIcon className="h-3 w-3" />
+//                           <span>View trends</span>
+//                         </div>
+//                       </div>
+//                     </th>
+//                   ))}
+//                 </tr>
+//               </thead>
+
+//               {/* ---------------- BODY ---------------- */}
+//               <tbody>
+//                 {rows.map((row) => (
+//                   <tr key={row.kpi} className="group">
+//                     <td className="sticky left-0 z-10 bg-slate-50 py-2 pl-4 pr-4 text-xs font-medium text-slate-700">
+//                       {row.kpi}
+//                     </td>
+
+//                     {columns.slice(1).map((col) => {
+//                       const value = row[col];
+//                       const trend = row.trend?.[col];
+
+//                       const cellClasses = getCellClasses(value);
+//                       const trendMeta = getTrendMeta(trend);
+//                       const Icon = trendMeta.icon;
+
+//                       return (
+//                         <td key={col} className="py-2 px-3">
+//                           <Popover>
+//                             <PopoverTrigger asChild>
+
+//                               {/* CITY STYLE BUTTON */}
+//                               <button
+//                                 className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px] font-semibold shadow-[0_0_0_1px_rgba(15,23,42,0.05)] transition hover:shadow-sm ${cellClasses}`}
+//                               >
+//                                 <span>{value}%</span>
+
+//                                 <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${trendMeta.pill}`}>
+//                                   {Icon && <Icon className="h-3 w-3" />}
+//                                   <span>{trend > 0 ? `+${trend}` : trend}</span>
+//                                 </span>
+//                               </button>
+//                             </PopoverTrigger>
+
+//                             <PopoverContent className="w-64 border-slate-100 bg-white shadow-md">
+//                               <div className="mb-2 flex items-center justify-between text-xs">
+//                                 <span className="font-semibold text-slate-900">{row.kpi} – {col}</span>
+//                                 {Icon && <Icon className="h-3 w-3" />}
+//                               </div>
+
+//                               <div className="mb-1 text-[11px] text-slate-500">Last 4 periods</div>
+//                               <TrendSparkline series={row.series?.[col] || []} />
+//                             </PopoverContent>
+//                           </Popover>
+//                         </td>
+//                       );
+//                     })}
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+//         </ScrollArea>
+//       </CardContent>
+
+//       <TrendsCompetitionDrawer
+//         open={openTrend}
+//         onClose={() => setOpenTrend(false)}
+//         compMeta={compMetaForDrawer}
+//         selectedColumn={selectedColumn}
+//       />
+//     </Card>
+//   );
+// }
+function MatrixVariant({ data, title }) {
+  if (!data?.columns || !data?.rows) return null;
+
+  const [openTrend, setOpenTrend] = useState(false);
+  const [selectedColumn, setSelectedColumn] = useState(null);
+  const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
+
+  const { columns, rows } = data;
+
+  // ---------------- BUILD COMP META (same logic) ----------------
+  const buildCompMeta = (columnName) => ({
+    context: { level: "Table", region: "All" },
+    periodToggle: { primary: "MTD", compare: "Previous" },
+
+    columns: columns.slice(1).map((col) => ({
+      id: col,
+      label: col,
+      type: "metric",
+    })),
+
+    brands: rows.map((row) => {
+      const obj = { brand: row.kpi };
+      columns.slice(1).forEach((col) => {
+        const value = row[col];
+        const trend = row.trend?.[col];
+        if (typeof value === "number") obj[col] = { value, delta: trend || 0 };
+      });
+      return obj;
+    }),
+  });
+
   return (
     <Card className="border-slate-200 bg-white shadow-sm">
+      
+      {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base text-slate-900">City KPI matrix</CardTitle>
+            <CardTitle className="text-base text-slate-900">
+              {title} KPI Matrix
+            </CardTitle>
+
             <CardDescription className="text-xs text-slate-500">
-              Hover on any value to see trend sparkline for that city & KPI.
+              Hover on any value to see trend sparkline.
             </CardDescription>
           </div>
+
+          {/* City-style Heatmap Legend */}
           <div className="flex items-center gap-2 text-xs">
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="ml-2 text-slate-700">90%+ healthy</span>
+              <span className="ml-2 text-slate-700">Healthy</span>
             </Badge>
             <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-amber-400" />
-              <span className="ml-2 text-slate-700">70–90% watch</span>
+              <span className="ml-2 text-slate-700">Watch</span>
             </Badge>
             <Badge variant="outline" className="rounded-full border-rose-200 bg-rose-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-rose-400" />
-              <span className="ml-2 text-slate-700">&lt;70% action</span>
+              <span className="ml-2 text-slate-700">Action</span>
             </Badge>
           </div>
         </div>
       </CardHeader>
+
+      {/* ------------------ BODY ------------------ */}
       <CardContent className="pt-0">
         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
           <div className="min-w-[1000px]">
+
             <table className="w-full border-separate border-spacing-0 text-xs">
+
+              {/* ---------------- HEADER ROW ---------------- */}
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 
+                                 text-left text-[11px] font-semibold uppercase 
+                                 tracking-[0.12em] text-slate-500">
                     KPI
                   </th>
-                  {CITY_DATA.map((city) => (
+
+                  {columns.slice(1).map((col) => (
                     <th
-                      key={city.name}
-                      className="border-b border-slate-100 bg-slate-50 py-3 px-3 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500"
+                      key={col}
+                      className="border-b border-slate-100 bg-slate-50 py-3 px-3 
+                                 text-left text-[11px] font-semibold uppercase 
+                                 tracking-[0.12em] text-slate-500"
                     >
                       <div className="flex flex-col gap-1">
-                        <div className="text-xs font-semibold text-slate-900">{city.name}</div>
-                        <div className="flex items-center gap-1 text-[10px] text-slate-500">
+                        <div className="text-xs font-semibold text-slate-900">{col}</div>
+
+                        <div
+                          className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer hover:text-slate-700"
+                          onClick={() => {
+                            setSelectedColumn(col);
+                            setCompMetaForDrawer(buildCompMeta(col));
+                            setOpenTrend(true);
+                          }}
+                        >
                           <LineChartIcon className="h-3 w-3" />
-                          <span>City trends</span>
+                          <span>Column trends</span>
                         </div>
                       </div>
                     </th>
                   ))}
                 </tr>
               </thead>
+
+              {/* ---------------- TABLE BODY ---------------- */}
               <tbody>
-                {KPI_CONFIG.map((kpi) => (
-                  <tr key={kpi.key} className="group">
-                    <td className="sticky left-0 z-10 bg-slate-50 py-2 pl-4 pr-4 text-xs font-medium text-slate-700">
-                      {kpi.label}
+                {rows.map((row) => (
+                  <tr key={row.kpi} className="group">
+
+                    {/* Sticky KPI Column */}
+                    <td className="sticky left-0 z-10 bg-slate-50 py-2 pl-4 pr-4 
+                                   text-xs font-medium text-slate-700">
+                      {row.kpi}
                     </td>
-                    {CITY_DATA.map((city) => {
-                      const metric = city.kpis[kpi.key];
-                      if (!metric)
-                        return (
-                          <td key={city.name} className="py-2 px-3 text-center text-[11px] text-slate-400">
-                            –
-                          </td>
-                        );
-                      const cellClasses = getCellClasses(metric.value);
-                      const trendMeta = getTrendMeta(metric.trend);
+
+                    {columns.slice(1).map((col) => {
+                      const value = row[col];
+                      const trend = row.trend?.[col];
+
+                      const cellClasses = getCellClasses(value);
+                      const trendMeta = getTrendMeta(trend);
+                      const Icon = trendMeta.icon;
+
                       return (
-                        <td key={city.name} className="py-2 px-3">
+                        <td key={col} className="py-2 px-3">
                           <Popover>
                             <PopoverTrigger asChild>
+
+                              {/* CITY-STYLE CELL BUTTON */}
                               <button
-                                className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px] font-semibold shadow-[0_0_0_1px_rgba(15,23,42,0.02)] transition hover:shadow-sm ${cellClasses}`}
+                                className={`flex w-full items-center justify-between gap-2 
+                                           rounded-lg border px-2 py-1.5 
+                                           text-[11px] font-semibold 
+                                           shadow-[0_0_0_1px_rgba(15,23,42,0.05)] 
+                                           transition hover:shadow-sm 
+                                           ${cellClasses}`}
                               >
-                                <span>{metric.value}%</span>
+                                <span>{value}%</span>
+
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${trendMeta.pill}`}
+                                  className={`inline-flex items-center gap-1 rounded-full border 
+                                              px-2 py-0.5 text-[10px] ${trendMeta.pill}`}
                                 >
-                                  {trendMeta.icon === TrendingUp && <TrendingUp className="h-3 w-3" />}
-                                  {trendMeta.icon === TrendingDown && <TrendingDown className="h-3 w-3" />}
-                                  {trendMeta.icon === Minus && <Minus className="h-3 w-3" />}
-                                  <span>{metric.trend > 0 ? `+${metric.trend.toFixed(1)}` : metric.trend.toFixed(1)}</span>
+                                  {Icon && <Icon className="h-3 w-3" />}
+                                  <span>{trend > 0 ? `+${trend}` : trend}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
+
+                            {/* POPUP CONTENT */}
                             <PopoverContent className="w-64 border-slate-100 bg-white shadow-md">
                               <div className="mb-2 flex items-center justify-between text-xs">
                                 <span className="font-semibold text-slate-900">
-                                  {kpi.label} – {city.name}
+                                  {row.kpi} – {col}
                                 </span>
-                                <TrendIcon trend={metric.trend} />
+                                {Icon && <Icon className="h-3 w-3" />}
                               </div>
+
                               <div className="mb-1 text-[11px] text-slate-500">Last 4 periods</div>
-                              <TrendSparkline series={metric.series} />
+                              <TrendSparkline series={row.series?.[col] || []} />
                             </PopoverContent>
                           </Popover>
                         </td>
@@ -281,13 +780,23 @@ function MatrixVariant() {
                   </tr>
                 ))}
               </tbody>
+
             </table>
           </div>
         </ScrollArea>
       </CardContent>
+
+      {/* TRENDS DRAWER */}
+      <TrendsCompetitionDrawer
+        open={openTrend}
+        onClose={() => setOpenTrend(false)}
+        compMeta={compMetaForDrawer}
+        selectedColumn={selectedColumn}
+      />
     </Card>
   );
 }
+
 
 // --- Variant 2: Horizontal city cards with KPI bars ------------------------
 
@@ -550,11 +1059,11 @@ function MatrixVariant() {
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase() {
-  return (
-    <>
-  <MatrixVariant />
-    </>  
-            
-  );
+export default function CityKpiTrendShowcase({ data, title }) {
+    if (!data || !data.columns || !data.rows) {
+    console.warn("MatrixVariant blocked render because data invalid:", data);
+    return null; // Prevents crash
+  }
+  return <MatrixVariant data={data} title={title} />;
 }
+
