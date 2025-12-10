@@ -298,7 +298,7 @@ const DetailPanel = ({ selected }) => {
                 </div>
 
                 {/* DARK STORE GRID */}
-                <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                {/* <div className="rounded-2xl border border-slate-100 bg-white p-4">
                     <div className="mb-2 flex items-center justify-between">
                         <div>
                             <p className="text-xs font-medium text-slate-600">
@@ -359,7 +359,7 @@ const DetailPanel = ({ selected }) => {
                             </tbody>
                         </table>
                     </div>
-                </div>
+                </div> */}
 
                 {/* FOOTER */}
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
@@ -370,6 +370,20 @@ const DetailPanel = ({ selected }) => {
                     <span className="rounded-full bg-slate-50 px-2 py-1">
                         Platforms: Blinkit · Zepto · Instamart
                     </span>
+                    <span className="rounded-full bg-slate-50 px-8 py-1">
+                    </span>
+                    <span className="rounded-full bg-slate-50 px-8 py-1">
+
+                    </span>
+                    <span className="rounded-full bg-slate-50 px-7 py-1">
+
+                    </span>
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:border-sky-200 hover:text-sky-700"
+                    >
+                        show All
+                    </button>
                 </div>
 
                 {/* MODAL */}
