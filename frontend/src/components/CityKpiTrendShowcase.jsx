@@ -792,19 +792,19 @@ function MatrixVariant({ dynamicKey, data, title }) {
       {/* TRENDS DRAWER */}
       {dynamicKey === 'availability' ? (
         <TrendsCompetitionDrawer
-        open={openTrend}
-        onClose={() => setOpenTrend(false)}
-        compMeta={compMetaForDrawer}
-        selectedColumn={selectedColumn}
-        dynamicKey={dynamicKey}
+          open={openTrend}
+          onClose={() => setOpenTrend(false)}
+          compMeta={compMetaForDrawer}
+          selectedColumn={selectedColumn}
+          dynamicKey={dynamicKey}
         />
       ) : (
         <VisibilityTrendsCompetitionDrawer
-        open={openTrend}
-        onClose={() => setOpenTrend(false)}
-        compMeta={compMetaForDrawer}
-        selectedColumn={selectedColumn}
-        dynamicKey={dynamicKey}
+          open={openTrend}
+          onClose={() => setOpenTrend(false)}
+          compMeta={compMetaForDrawer}
+          selectedColumn={selectedColumn}
+          dynamicKey={dynamicKey}
         />
       )}
 
