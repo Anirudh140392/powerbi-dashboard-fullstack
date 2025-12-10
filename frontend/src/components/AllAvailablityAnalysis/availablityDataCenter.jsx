@@ -331,6 +331,7 @@ const FORMAT_MATRIX = {
   ]
 };
 
+
 const FORMAT_MATRIX_Visibility = {
   PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Virtual Store", "Swiggy"],
 
@@ -340,87 +341,85 @@ const FORMAT_MATRIX_Visibility = {
   ],
 
   CityColumns: [
-    "Ajmer", "Amritsar", "Bathinda", "Bhopal",
-    "Chandigarh", "Gwalior", "Indore", "Jaipur"
+    "Mumbai", "Delhi", "Bangalore", "Hyderabad",
+    "Chennai", "Kolkata", "Pune", "Ahmedabad"
   ],
 
-  // ------------------------------------------------------------
-  // PLATFORM LEVEL – ALL KPIs
-  // ------------------------------------------------------------
+  // -----------------------------------------
+  // PLATFORM LEVEL – NEW KPIs
+  // -----------------------------------------
   PlatformData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Blinkit: 82, Zepto: 78, Instamart: 65, "Virtual Store": 74, Swiggy: 70 },
-      trend: generateTrendMulti(78)
+      values: { Blinkit: 92, Zepto: 88, Instamart: 85, "Virtual Store": 87, Swiggy: 90 },
+      trend: generateTrendMulti(88)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Blinkit: 45, Zepto: 52, Instamart: 48, "Virtual Store": 50, Swiggy: 47 },
-      trend: generateTrendMulti(48)
+      values: { Blinkit: 12, Zepto: 15, Instamart: 10, "Virtual Store": 18, Swiggy: 14 },
+      trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Blinkit: 91, Zepto: 84, Instamart: 79, "Virtual Store": 87, Swiggy: 81 },
-      trend: generateTrendMulti(85)
+      values: { Blinkit: 96, Zepto: 94, Instamart: 92, "Virtual Store": 90, Swiggy: 89 },
+      trend: generateTrendMulti(92)
     },
     {
       kpi: "Display SOS",
-      values: { Blinkit: 72, Zepto: 69, Instamart: 61, "Virtual Store": 66, Swiggy: 64 },
-      trend: generateTrendMulti(66)
-    },
-
+      values: { Blinkit: 89, Zepto: 91, Instamart: 85, "Virtual Store": 88, Swiggy: 86 },
+      trend: generateTrendMulti(88)
+    }
   ],
 
-  // ------------------------------------------------------------
-  // FORMAT LEVEL – ALL KPIs
-  // ------------------------------------------------------------
+  // -----------------------------------------
+  // FORMAT LEVEL – NEW KPIs
+  // -----------------------------------------
   FormatData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Cassata: 7, "Core Tub": 81, Cornetto: 90, Magnum: 91, "KW Sticks": 97, "Premium Tub": 85, Sandwich: 82 },
-      trend: generateTrendMulti(75)
+      values: { Cassata: 75, "Core Tub": 82, Cornetto: 90, Magnum: 87, "KW Sticks": 95, "Premium Tub": 80, Sandwich: 76 },
+      trend: generateTrendMulti(82)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Cassata: 13, "Core Tub": 87, Cornetto: 98, Magnum: 100, "KW Sticks": 100, "Premium Tub": 78, Sandwich: 95 },
-      trend: generateTrendMulti(85)
+      values: { Cassata: 18, "Core Tub": 12, Cornetto: 14, Magnum: 16, "KW Sticks": 10, "Premium Tub": 20, Sandwich: 22 },
+      trend: generateTrendMulti(15)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Cassata: 17, "Core Tub": 99, Cornetto: 99, Magnum: 100, "KW Sticks": 100, "Premium Tub": 99, Sandwich: 100 },
+      values: { Cassata: 92, "Core Tub": 95, Cornetto: 98, Magnum: 99, "KW Sticks": 100, "Premium Tub": 93, Sandwich: 91 },
       trend: generateTrendMulti(95)
     },
     {
       kpi: "Display SOS",
-      values: { Cassata: 72, "Core Tub": 96, Cornetto: 82, Magnum: 91, "KW Sticks": 94, "Premium Tub": 88, Sandwich: 55 },
-      trend: generateTrendMulti(85)
-    },
- 
+      values: { Cassata: 70, "Core Tub": 88, Cornetto: 90, Magnum: 92, "KW Sticks": 96, "Premium Tub": 85, Sandwich: 82 },
+      trend: generateTrendMulti(86)
+    }
   ],
 
-  // ------------------------------------------------------------
-  // CITY LEVEL – KPIs MAPPED (Non SOS KPIs already exist)
-  // ------------------------------------------------------------
+  // -----------------------------------------
+  // CITY LEVEL – NEW KPIs (Metro Cities)
+  // -----------------------------------------
   CityData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Ajmer: 72, Amritsar: 85, Bathinda: 79, Bhopal: 88, Chandigarh: 81, Gwalior: 75, Indore: 92, Jaipur: 69 },
-      trend: generateTrendMulti(80)
+      values: { Mumbai: 88, Delhi: 90, Bangalore: 85, Hyderabad: 83, Chennai: 82, Kolkata: 86, Pune: 89, Ahmedabad: 84 },
+      trend: generateTrendMulti(86)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Ajmer: 42, Amritsar: 55, Bathinda: 49, Bhopal: 60, Chandigarh: 53, Gwalior: 44, Indore: 67, Jaipur: 51 },
-      trend: generateTrendMulti(52)
+      values: { Mumbai: 14, Delhi: 12, Bangalore: 15, Hyderabad: 11, Chennai: 16, Kolkata: 13, Pune: 14, Ahmedabad: 18 },
+      trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Ajmer: 91, Amritsar: 88, Bathinda: 84, Bhopal: 94, Chandigarh: 92, Gwalior: 76, Indore: 90, Jaipur: 82 },
-      trend: generateTrendMulti(88)
+      values: { Mumbai: 95, Delhi: 94, Bangalore: 93, Hyderabad: 90, Chennai: 92, Kolkata: 91, Pune: 96, Ahmedabad: 89 },
+      trend: generateTrendMulti(93)
     },
     {
       kpi: "Display SOS",
-      values: { Ajmer: 73, Amritsar: 69, Bathinda: 71, Bhopal: 82, Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78 },
-      trend: generateTrendMulti(76)
+      values: { Mumbai: 90, Delhi: 92, Bangalore: 88, Hyderabad: 87, Chennai: 85, Kolkata: 86, Pune: 91, Ahmedabad: 84 },
+      trend: generateTrendMulti(88)
     }
   ]
 };

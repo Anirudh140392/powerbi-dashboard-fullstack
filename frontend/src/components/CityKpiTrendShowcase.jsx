@@ -27,6 +27,8 @@ import {
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
+import { Visibility } from "@mui/icons-material";
+import VisibilityTrendsCompetitionDrawer from "./AllVisiblityAnalysis/VisibilityTrendsCompetitionDrawer";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -617,7 +619,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ data, title }) {
+function MatrixVariant({ dynamicKey, data, title }) {
   if (!data?.columns || !data?.rows) return null;
 
   const [openTrend, setOpenTrend] = useState(false);
@@ -706,19 +708,11 @@ function MatrixVariant({ data, title }) {
                                  tracking-[0.12em] text-slate-500"
                     >
                       <div className="flex flex-col gap-1">
-                        <div className="text-xs font-semibold text-slate-900">{col}</div>
-
-                        <div
-                          className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer hover:text-slate-700"
-                          onClick={() => {
-                            setSelectedColumn(col);
-                            setCompMetaForDrawer(buildCompMeta(col));
-                            setOpenTrend(true);
-                          }}
-                        >
-                          <LineChartIcon className="h-3 w-3" />
-                          <span>Column trends</span>
-                        </div>
+                        <div className="flex text-xs font-semibold text-slate-900">{col} <span onClick={() => {
+                          setSelectedColumn(col);
+                          setCompMetaForDrawer(buildCompMeta(col));
+                          setOpenTrend(true);
+                        }}><LineChartIcon className="h-4 w-10" /></span></div>
                       </div>
                     </th>
                   ))}
@@ -796,12 +790,23 @@ function MatrixVariant({ data, title }) {
       </CardContent>
 
       {/* TRENDS DRAWER */}
-      <TrendsCompetitionDrawer
+      {dynamicKey === 'availability' ? (
+        <TrendsCompetitionDrawer
         open={openTrend}
         onClose={() => setOpenTrend(false)}
         compMeta={compMetaForDrawer}
         selectedColumn={selectedColumn}
-      />
+        dynamicKey={dynamicKey}
+        />
+      ) : (
+        <VisibilityTrendsCompetitionDrawer
+        open={openTrend}
+        onClose={() => setOpenTrend(false)}
+        compMeta={compMetaForDrawer}
+        selectedColumn={selectedColumn}
+        dynamicKey={dynamicKey}
+        />
+      )}
 
     </Card>
   );
@@ -1069,11 +1074,12 @@ function MatrixVariant({ data, title }) {
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ data, title }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title }) {
+  console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant data={data} title={title} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} />;
 }
 
