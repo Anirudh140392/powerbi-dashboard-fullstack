@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
   AreaChart,
@@ -14,12 +15,20 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import {
+  DRILL_COLUMNS,
+  FORMAT_MATRIX,
+  FORMAT_MATRIX_Visibility,
+  FORMAT_ROWS,
+  OLA_Detailed,
+  ONE_VIEW_DRILL_DATA,
+  PRODUCT_MATRIX
+} from "../AllAvailablityAnalysis/availablityDataCenter";
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
 import MetricCardContainer from '../CommonLayout/MetricCardContainer'
 
 import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
-import { FORMAT_MATRIX_Visibility } from '../AllAvailablityAnalysis/availablityDataCenter'
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -571,42 +580,155 @@ const cellHeat = (value) => {
   if (value >= 75) return "bg-amber-50 text-amber-800";
   return "bg-rose-50 text-rose-800";
 };
+// const TabbedHeatmapTable = () => {
+//   const [activeTab, setActiveTab] = useState("platform");
+
+//   // 🔥 Utility to compute unified trend + series for ANY item
+//   const buildRows = (dataArray = [], columnList = []) => {
+//     return dataArray.map((item) => {
+//       const primaryTrendSeries = item?.trend?.["Spend"] || [];
+//       const valid = primaryTrendSeries.length >= 2;
+
+//       const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+//       const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+//       const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+//       const trendObj = {};
+//       const seriesObj = {};
+
+//       columnList.forEach((col) => {
+//         trendObj[col] = globalDelta;           // same delta for every column
+//         seriesObj[col] = primaryTrendSeries;   // same sparkline for every column
+//       });
+
+//       return {
+//         kpi: item.kpi,
+//         ...item.values,
+//         trend: trendObj,
+//         series: seriesObj,
+//       };
+//     });
+//   };
+
+//   // ---------------- PLATFORM ----------------
+//   const platformData = {
+//     columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
+//     rows: buildRows(FORMAT_MATRIX.PlatformData, FORMAT_MATRIX.PlatformColumns),
+//   };
+
+//   // ---------------- FORMAT ----------------
+//   const formatData = {
+//     columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
+//     rows: buildRows(FORMAT_MATRIX.FormatData, FORMAT_MATRIX.formatColumns),
+//   };
+
+//   // ---------------- CITY ----------------
+//   const cityData = {
+//     columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
+//     rows: buildRows(FORMAT_MATRIX.CityData, FORMAT_MATRIX.CityColumns),
+//   };
+
+//   // ---------------- TABS ----------------
+//   const tabs = [
+//     { key: "platform", label: "Platform", data: platformData },
+//     { key: "format", label: "Format", data: formatData },
+//     { key: "city", label: "City", data: cityData },
+//   ];
+
+//   const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+//   return (
+//     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+
+//       {/* -------- TABS -------- */}
+//       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+//         {tabs.map((t) => (
+//           <button
+//             key={t.key}
+//             onClick={() => setActiveTab(t.key)}
+//             className={`px-4 py-1.5 text-sm rounded-full transition-all 
+//               ${activeTab === t.key
+//                 ? "bg-white text-slate-900 shadow-sm"
+//                 : "text-slate-500 hover:text-slate-700"
+//               }`}
+//           >
+//             {t.label}
+//           </button>
+//         ))}
+//       </div>
+
+//       {/* -------- MATRIX TABLE -------- */}
+//       <CityKpiTrendShowcase 
+//         data={active.data} 
+//         title={active.label} 
+//       />
+//     </div>
+//   );
+// };
+
 const TabbedHeatmapTable = () => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // ---------------- PLATFORM LEVEL DATA ----------------
+  // 🔥 Utility to compute unified trend + series for ANY item
+  const buildRows = (dataArray = [], columnList = []) => {
+    return dataArray.map((item) => {
+      const primaryTrendSeries = item?.trend?.["Spend"] || [];
+      const valid = primaryTrendSeries.length >= 2;
+
+      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+      const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+      const trendObj = {};
+      const seriesObj = {};
+
+      columnList.forEach((col) => {
+        trendObj[col] = globalDelta;           // same delta for every column
+        seriesObj[col] = primaryTrendSeries;   // sparkline same for each column
+      });
+
+      return {
+        kpi: item.kpi,
+        ...item.values,
+        trend: trendObj,
+        series: seriesObj,
+      };
+    });
+  };
+
+  // ---------------- PLATFORM ----------------
   const platformData = {
     columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
-    rows: (FORMAT_MATRIX_Visibility.PlatformData ?? []).map((r) => ({
-      kpi: r.kpi,
-      ...r.values,
-      trend: r.trend, // ← FIXED
-    })),
+    rows: buildRows(
+      FORMAT_MATRIX_Visibility.PlatformData,
+      FORMAT_MATRIX_Visibility.PlatformColumns
+    ),
   };
 
-  // ---------------- FORMAT LEVEL DATA ----------------
+  // ---------------- FORMAT ----------------
   const formatData = {
     columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
-    rows: (FORMAT_MATRIX_Visibility.FormatData ?? []).map((r) => ({
-      kpi: r.kpi,
-      ...r.values,
-      trend: r.trend, // ← FIXED
-    })),
+    rows: buildRows(
+      FORMAT_MATRIX_Visibility.FormatData,
+      FORMAT_MATRIX_Visibility.formatColumns
+    ),
   };
 
+  // ---------------- CITY ----------------
   const cityData = {
     columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
-    rows: (FORMAT_MATRIX_Visibility.CityData ?? []).map((r) => ({
-      kpi: r.kpi,
-      ...r.values,
-      trend: r.trend, // ← FIXED
-    })),
+    rows: buildRows(
+      FORMAT_MATRIX_Visibility.CityData,
+      FORMAT_MATRIX_Visibility.CityColumns
+    ),
   };
 
-  // ---------------- TAB DEFINITIONS ----------------
+  // ---------------- TABS ----------------
   const tabs = [
     { key: "platform", label: "Platform", data: platformData },
-    { key: "category", label: "Format", data: formatData },
+    { key: "format", label: "Format", data: formatData },
     { key: "city", label: "City", data: cityData },
   ];
 
@@ -614,34 +736,33 @@ const TabbedHeatmapTable = () => {
 
   return (
     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
-      {/* Tabs */}
-      <div className="flex gap-2">
+
+      {/* -------- TABS -------- */}
+      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-2 rounded-full text-sm border transition ${
-              activeTab === t.key
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-700 border-slate-300"
-            }`}
+            className={`px-4 py-1.5 text-sm rounded-full transition-all 
+              ${activeTab === t.key
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-500 hover:text-slate-700"
+              }`}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      <SimpleTableWithTabs
-        title={active.label}
-        subtitle="Visibility View"
-        data={active.data}
-        cellHeat={cellHeat}
-        trendKey="trend" // ← REQUIRED
+      {/* -------- MATRIX TABLE -------- */}
+      <CityKpiTrendShowcase 
+        dynamicKey="visibility"
+        data={active.data} 
+        title={active.label} 
       />
     </div>
   );
 };
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-6 text-slate-900">
@@ -666,9 +787,8 @@ const TabbedHeatmapTable = () => {
         {/* MODAL SECTION */}
         <MetricCardContainer title="Visibility Overview" cards={cards} />
         <TabbedHeatmapTable />
-
         {/* PULSEBOARD */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
             data={sampleData}
             title="Keyword level Sos"
@@ -705,7 +825,7 @@ const TabbedHeatmapTable = () => {
             getHeatStyle={(v) => ({ bg: "#d1fae5", color: "#065f46" })}
           />
 
-        // </div>
+        // </div> */}
         {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
 
 

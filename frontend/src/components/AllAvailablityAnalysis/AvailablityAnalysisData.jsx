@@ -167,7 +167,7 @@ const TabbedHeatmapTable = () => {
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase data={active.data} title={active.label} />
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
     </div>
   );
 };
