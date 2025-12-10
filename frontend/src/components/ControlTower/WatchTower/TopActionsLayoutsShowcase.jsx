@@ -372,10 +372,10 @@ const DetailPanel = ({ selected }) => {
                     </span>
                     <span className="rounded-full bg-slate-50 px-8 py-1">
                     </span>
-                    <span className="rounded-full bg-slate-50 px-8 py-1">
+                    <span className="rounded-full bg-slate-50 px-6 py-1">
 
                     </span>
-                    <span className="rounded-full bg-slate-50 px-7 py-1">
+                    <span className="rounded-full bg-slate-50 px-6 py-1">
 
                     </span>
                     <button
