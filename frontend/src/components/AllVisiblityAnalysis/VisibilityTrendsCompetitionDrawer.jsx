@@ -22,8 +22,9 @@ import {
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
-import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
-import KpiTrendShowcase from "./KpiTrendShowcase";
+import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
+import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
+import VisibilityKpiTrendShowcase from "./VisibilityKpiTrendShowcase";
 
 /**
  * ---------------------------------------------------------------------------
@@ -83,90 +84,89 @@ const DASHBOARD_DATA = {
     timeSteps: ["Daily", "Weekly", "Monthly"],
     defaultTimeStep: "Daily",
 
+    // ⭐ Your New KPI Set
     metrics: [
       {
-        id: "Osa",
-        label: "Osa",
+        id: "overall_sos",
+        label: "Overall Weighted SOS",
         color: "#F97316",
         axis: "left",
         default: true
       },
       {
-        id: "Doi",
-        label: "Doi",
+        id: "sponsored_sos",
+        label: "Sponsored Weighted SOS",
         color: "#7C3AED",
         axis: "right",
         default: true
       },
       {
-        id: "Fillrate",
-        label: "Fillrate",
+        id: "organic_sos",
+        label: "Organic Weighted SOS",
         color: "#6366F1",
         axis: "left",
         default: false
       },
       {
-        id: "Assortment",
-        label: "Assortment",
+        id: "display_sos",
+        label: "Display SOS",
         color: "#22C55E",
         axis: "left",
         default: false
       }
     ],
 
+    // ⭐ All trend points now contain SOS metrics instead of old KPIs
     points: [
-      { date: "06 Sep'25", Osa: 57, Doi: 41, Fillrate: 72, Assortment: 65 },
-      { date: "07 Sep'25", Osa: 54, Doi: 42, Fillrate: 70, Assortment: 66 },
-      { date: "08 Sep'25", Osa: 53, Doi: 40, Fillrate: 69, Assortment: 64 },
-      { date: "09 Sep'25", Osa: 53, Doi: 39, Fillrate: 68, Assortment: 63 },
-      { date: "10 Sep'25", Osa: 52, Doi: 37, Fillrate: 66, Assortment: 62 },
-      { date: "11 Sep'25", Osa: 52, Doi: 36, Fillrate: 67, Assortment: 62 },
-      { date: "12 Sep'25", Osa: 52, Doi: 35, Fillrate: 68, Assortment: 61 },
-      { date: "13 Sep'25", Osa: 52, Doi: 34, Fillrate: 69, Assortment: 60 },
-      { date: "14 Sep'25", Osa: 52, Doi: 33, Fillrate: 70, Assortment: 60 },
-      { date: "15 Sep'25", Osa: 52, Doi: 32, Fillrate: 70, Assortment: 59 },
-      { date: "16 Sep'25", Osa: 52, Doi: 32, Fillrate: 69, Assortment: 59 },
-      { date: "17 Sep'25", Osa: 51, Doi: 31, Fillrate: 68, Assortment: 58 },
-      { date: "18 Sep'25", Osa: 51, Doi: 31, Fillrate: 67, Assortment: 58 },
-      { date: "19 Sep'25", Osa: 51, Doi: 32, Fillrate: 66, Assortment: 57 },
-      { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68 },
-      { date: "21 Sep'25", Osa: 50, Doi: 34, Fillrate: 67, Assortment: 55 },
-      { date: "22 Sep'25", Osa: 49, Doi: 33, Fillrate: 66, Assortment: 54 },
-      { date: "23 Sep'25", Osa: 48, Doi: 32, Fillrate: 65, Assortment: 54 },
-      { date: "24 Sep'25", Osa: 47, Doi: 31, Fillrate: 64, Assortment: 53 },
-      { date: "25 Sep'25", Osa: 46, Doi: 30, Fillrate: 63, Assortment: 52 },
-      { date: "26 Sep'25", Osa: 45, Doi: 30, Fillrate: 62, Assortment: 52 },
-      { date: "27 Sep'25", Osa: 44, Doi: 31, Fillrate: 63, Assortment: 51 },
-      { date: "28 Sep'25", Osa: 44, Doi: 31, Fillrate: 62, Assortment: 51 },
-      { date: "29 Sep'25", Osa: 43, Doi: 32, Fillrate: 61, Assortment: 50 },
-      { date: "30 Sep'25", Osa: 43, Doi: 34, Fillrate: 60, Assortment: 49 },
-      { date: "01 Oct'25", Osa: 44, Doi: 36, Fillrate: 61, Assortment: 50 },
-      { date: "02 Oct'25", Osa: 45, Doi: 37, Fillrate: 62, Assortment: 51 },
-      { date: "03 Oct'25", Osa: 46, Doi: 39, Fillrate: 63, Assortment: 52 },
-      { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53 }
+      { date: "06 Sep'25", overall_sos: 57, sponsored_sos: 41, organic_sos: 72, display_sos: 65 },
+      { date: "07 Sep'25", overall_sos: 54, sponsored_sos: 42, organic_sos: 70, display_sos: 66 },
+      { date: "08 Sep'25", overall_sos: 53, sponsored_sos: 40, organic_sos: 69, display_sos: 64 },
+      { date: "09 Sep'25", overall_sos: 53, sponsored_sos: 39, organic_sos: 68, display_sos: 63 },
+      { date: "10 Sep'25", overall_sos: 52, sponsored_sos: 37, organic_sos: 66, display_sos: 62 },
+      { date: "11 Sep'25", overall_sos: 52, sponsored_sos: 36, organic_sos: 67, display_sos: 62 },
+      { date: "12 Sep'25", overall_sos: 52, sponsored_sos: 35, organic_sos: 68, display_sos: 61 },
+      { date: "13 Sep'25", overall_sos: 52, sponsored_sos: 34, organic_sos: 69, display_sos: 60 },
+      { date: "14 Sep'25", overall_sos: 52, sponsored_sos: 33, organic_sos: 70, display_sos: 60 },
+      { date: "15 Sep'25", overall_sos: 52, sponsored_sos: 32, organic_sos: 70, display_sos: 59 },
+      { date: "16 Sep'25", overall_sos: 52, sponsored_sos: 32, organic_sos: 69, display_sos: 59 },
+      { date: "17 Sep'25", overall_sos: 51, sponsored_sos: 31, organic_sos: 68, display_sos: 58 },
+      { date: "18 Sep'25", overall_sos: 51, sponsored_sos: 31, organic_sos: 67, display_sos: 58 },
+      { date: "19 Sep'25", overall_sos: 51, sponsored_sos: 32, organic_sos: 66, display_sos: 57 },
+      { date: "20 Sep'25", overall_sos: 56, sponsored_sos: 50, organic_sos: 75, display_sos: 68 },
+      { date: "21 Sep'25", overall_sos: 50, sponsored_sos: 34, organic_sos: 67, display_sos: 55 },
+      { date: "22 Sep'25", overall_sos: 49, sponsored_sos: 33, organic_sos: 66, display_sos: 54 },
+      { date: "23 Sep'25", overall_sos: 48, sponsored_sos: 32, organic_sos: 65, display_sos: 54 },
+      { date: "24 Sep'25", overall_sos: 47, sponsored_sos: 31, organic_sos: 64, display_sos: 53 },
+      { date: "25 Sep'25", overall_sos: 46, sponsored_sos: 30, organic_sos: 63, display_sos: 52 },
+      { date: "26 Sep'25", overall_sos: 45, sponsored_sos: 30, organic_sos: 62, display_sos: 52 },
+      { date: "27 Sep'25", overall_sos: 44, sponsored_sos: 31, organic_sos: 63, display_sos: 51 },
+      { date: "28 Sep'25", overall_sos: 44, sponsored_sos: 31, organic_sos: 62, display_sos: 51 },
+      { date: "29 Sep'25", overall_sos: 43, sponsored_sos: 32, organic_sos: 61, display_sos: 50 },
+      { date: "30 Sep'25", overall_sos: 43, sponsored_sos: 34, organic_sos: 60, display_sos: 49 },
+      { date: "01 Oct'25", overall_sos: 44, sponsored_sos: 36, organic_sos: 61, display_sos: 50 },
+      { date: "02 Oct'25", overall_sos: 45, sponsored_sos: 37, organic_sos: 62, display_sos: 51 },
+      { date: "03 Oct'25", overall_sos: 46, sponsored_sos: 39, organic_sos: 63, display_sos: 52 },
+      { date: "04 Oct'25", overall_sos: 46, sponsored_sos: 40, organic_sos: 65, display_sos: 53 }
     ]
   },
 
-  // compare SKUs with per-SKU trend
+  // ⭐ UPDATED Compare SKUs using NEW KPIs
   compareSkus: {
-    context: {
-      level: "MRP"
-    },
+    context: { level: "MRP" },
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
     defaultRange: "1M",
     timeSteps: ["Daily", "Weekly", "Monthly"],
     defaultTimeStep: "Daily",
 
     metrics: [
-      { id: "Osa", label: "Osa", color: "#F97316", default: true },
-      { id: "Doi", label: "Doi", color: "#7C3AED", default: true },
-      { id: "Fillrate", label: "Fillrate", color: "#6366F1", default: false },
-      { id: "Assortment", label: "Assortment", color: "#22C55E", default: false }
+      { id: "overall_sos", label: "Overall Weighted SOS", color: "#F97316", default: true },
+      { id: "sponsored_sos", label: "Sponsored Weighted SOS", color: "#7C3AED", default: true },
+      { id: "organic_sos", label: "Organic Weighted SOS", color: "#6366F1", default: false },
+      { id: "display_sos", label: "Display SOS", color: "#22C55E", default: false }
     ],
 
     x: COMPARE_X,
 
-    // keyed by SKU_DATA IDs (1..8)
     trendsBySku: {
       1: makeSkuTrend(0, 0, 0, 0),
       2: makeSkuTrend(-2, -1, -1, 0),
@@ -179,11 +179,9 @@ const DASHBOARD_DATA = {
     }
   },
 
+  // ⭐ COMPETITION VIEW UPDATED TO NEW KPIs
   competition: {
-    context: {
-      level: "MRP",
-      region: "All × Chennai"
-    },
+    context: { level: "MRP", region: "All × Chennai" },
 
     tabs: ["Brands", "SKUs"],
 
@@ -194,57 +192,36 @@ const DASHBOARD_DATA = {
 
     columns: [
       { id: "brand", label: "Brand", type: "text" },
-      { id: "Osa", label: "Osa", type: "metric" },
-      { id: "Doi", label: "Doi", type: "metric" },
-      { id: "Fillrate", label: "Fillrate", type: "metric" },
-      { id: "Assortment", label: "Assortment", type: "metric" }
+      { id: "overall_sos", label: "Overall Weighted SOS", type: "metric" },
+      { id: "sponsored_sos", label: "Sponsored Weighted SOS", type: "metric" },
+      { id: "organic_sos", label: "Organic Weighted SOS", type: "metric" },
+      { id: "display_sos", label: "Display SOS", type: "metric" }
     ],
 
     brands: [
       {
         brand: "Colgate",
-        Osa: { value: 32.9, delta: -4.5 },
-        Doi: { value: 74.6, delta: -16.3 },
-        Fillrate: { value: 20.0, delta: -8.5 },
-        Assortment: { value: 18.8, delta: 0.4 }
+        overall_sos: { value: 32.9, delta: -4.5 },
+        sponsored_sos: { value: 74.6, delta: -16.3 },
+        organic_sos: { value: 20.0, delta: -8.5 },
+        display_sos: { value: 18.8, delta: 0.4 }
       },
       {
         brand: "Sensodyne",
-        Osa: { value: 19.6, delta: 2.2 },
-        Doi: { value: 94.2, delta: 3.9 },
-        Fillrate: { value: 19.3, delta: 2.7 },
-        Assortment: { value: 18.5, delta: -3.1 }
-      },
-      {
-        brand: "Oral-B",
-        Osa: { value: 11.7, delta: -0.9 },
-        Doi: { value: 86.7, delta: -4.2 },
-        Fillrate: { value: 16.2, delta: -2.9 },
-        Assortment: { value: 20.8, delta: -5.6 }
-      },
-      {
-        brand: "Dabur",
-        Osa: { value: 8.6, delta: 0.2 },
-        Doi: { value: 90.6, delta: -1.2 },
-        Fillrate: { value: 7.2, delta: 0.3 },
-        Assortment: { value: 7.4, delta: 2.9 }
+        overall_sos: { value: 19.6, delta: 2.2 },
+        sponsored_sos: { value: 94.2, delta: 3.9 },
+        organic_sos: { value: 19.3, delta: 2.7 },
+        display_sos: { value: 18.5, delta: -3.1 }
       }
     ],
 
     skus: [
       {
         brand: "Colgate Strong Teeth 100g",
-        Osa: { value: 8.2, delta: -1.0 },
-        Doi: { value: 76.1, delta: -8.0 },
-        Fillrate: { value: 4.5, delta: -0.9 },
-        Assortment: { value: 3.2, delta: 0.2 }
-      },
-      {
-        brand: "Sensodyne Rapid Relief 40g",
-        Osa: { value: 4.4, delta: 0.7 },
-        Doi: { value: 95.0, delta: 2.0 },
-        Fillrate: { value: 5.1, delta: 1.3 },
-        Assortment: { value: 4.9, delta: -0.5 }
+        overall_sos: { value: 8.2, delta: -1.0 },
+        sponsored_sos: { value: 76.1, delta: -8.0 },
+        organic_sos: { value: 4.5, delta: -0.9 },
+        display_sos: { value: 3.2, delta: 0.2 }
       }
     ]
   }
@@ -353,7 +330,7 @@ const MetricChip = ({ active, label, color, onClick }) => (
  * ---------------------------------------------------------------------------
  */
 
-export default function TrendsCompetitionDrawer({
+export default function VisibilityTrendsCompetitionDrawer({
   dynamicKey,
   open = true,
   onClose = () => { },
@@ -790,7 +767,7 @@ export default function TrendsCompetitionDrawer({
 
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
-          <KpiTrendShowcase />
+          <VisibilityKpiTrendShowcase />
         )}
 
         {/* COMPARE SKUs VIEW */}

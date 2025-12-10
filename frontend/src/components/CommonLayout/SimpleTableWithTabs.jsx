@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
-import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityCompetitionDrawer";
+import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityTrendsCompetitionDrawer";
 
 export default function SimpleTableWithTabs({
   data = {},
