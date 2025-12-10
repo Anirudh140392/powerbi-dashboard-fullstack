@@ -667,7 +667,7 @@ const LayoutOne = () => {
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-sm font-semibold text-slate-900">
-                            Top actions – condensed
+                            Top actions – top actions for today
                         </h2>
                         <p className="text-xs text-slate-500">
                             Ranked by 7-day leak and opportunity.
