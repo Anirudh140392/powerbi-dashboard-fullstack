@@ -1,5 +1,5 @@
 // TrendsCompetitionDrawer.jsx
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -23,6 +23,7 @@ import {
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
+import KpiTrendShowcase from "./KpiTrendShowcase";
 
 /**
  * ---------------------------------------------------------------------------
@@ -354,7 +355,7 @@ const MetricChip = ({ active, label, color, onClick }) => (
 
 export default function TrendsCompetitionDrawer({
   open = true,
-  onClose = () => {},
+  onClose = () => { },
   selectedColumn
 }) {
   const [view, setView] = useState("Trends");
@@ -371,6 +372,23 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
+  const [showPlatformPills, setShowPlatformPills] = useState(false);
+
+  const platformRef = useRef(null);
+
+  // close on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (platformRef.current && !platformRef.current.contains(e.target)) {
+        setShowPlatformPills(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
@@ -581,7 +599,7 @@ export default function TrendsCompetitionDrawer({
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
             <ToggleButton value="Competition">Competition</ToggleButton>
-            <ToggleButton value="compare skus">Compare SKUs</ToggleButton>
+            {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
           <IconButton onClick={onClose} size="small">
@@ -592,11 +610,70 @@ export default function TrendsCompetitionDrawer({
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
-            <Box display="flex" alignItems="center" gap={1.5}>
+
+            {/* HEADER + PLATFORM FILTER */}
+            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+
+              {/* Title */}
               <Typography variant="h6" fontWeight={600}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
-              <Typography variant="body2">at</Typography>
+
+              {/* PLATFORM FILTER WRAPPER */}
+              <Box display="flex" alignItems="center" gap={1} ref={platformRef}>
+
+                {/* CLICKABLE LABEL */}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ cursor: "pointer", userSelect: "none" }}
+                  onClick={() => setShowPlatformPills((prev) => !prev)}
+                >
+                  Platform:
+                </Typography>
+
+                {/* PLATFORM PILLS */}
+                {showPlatformPills && (
+                  <Box display="flex" gap={0.5}>
+                    {["Blinkit", "Zepto", "Instamart", "Swiggy", "Virtual Store"].map(
+                      (p) => (
+                        <Box
+                          key={p}
+                          onClick={() => {
+                            setSelectedPlatform(p);
+                            setShowPlatformPills(true); // ALWAYS CLOSE
+                          }}
+                          sx={{
+                            px: 1.5,
+                            py: 0.7,
+                            borderRadius: "999px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            border: "1px solid #E5E7EB",
+                            backgroundColor:
+                              selectedPlatform === p ? "#0ea5e9" : "white",
+                            color: selectedPlatform === p ? "white" : "#0f172a",
+                            boxShadow:
+                              selectedPlatform === p
+                                ? "0 2px 6px rgba(0,0,0,0.15)"
+                                : "none",
+                            transition: "0.15s",
+                            "&:hover": {
+                              backgroundColor:
+                                selectedPlatform === p ? "#0284c7" : "#f1f5f9",
+                            },
+                          }}
+                        >
+                          {p}
+                        </Box>
+                      )
+                    )}
+                  </Box>
+                )}
+              </Box>
+
+              {/* LEVEL CHIP */}
               <Chip
                 size="small"
                 label={trendMeta.context.level}
@@ -604,10 +681,11 @@ export default function TrendsCompetitionDrawer({
                   borderRadius: "999px",
                   backgroundColor: "#DCFCE7",
                   color: "#166534",
-                  fontWeight: 500
+                  fontWeight: 500,
                 }}
               />
-              <Typography variant="body2">for</Typography>
+
+              {/* AUDIENCE CHIP */}
               <Chip
                 size="small"
                 label={trendMeta.context.audience}
@@ -615,12 +693,12 @@ export default function TrendsCompetitionDrawer({
                   borderRadius: "999px",
                   backgroundColor: "#E0F2FE",
                   color: "#075985",
-                  fontWeight: 500
+                  fontWeight: 500,
                 }}
               />
             </Box>
 
-            {/* Range + timestep */}
+            {/* RANGE + TIMESTEP */}
             <Box
               display="flex"
               justifyContent="space-between"
@@ -633,6 +711,7 @@ export default function TrendsCompetitionDrawer({
                 onChange={setRange}
                 options={trendMeta.rangeOptions}
               />
+
               <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
@@ -643,17 +722,17 @@ export default function TrendsCompetitionDrawer({
               </Box>
             </Box>
 
-            {/* Chart card */}
+            {/* CHART */}
             <Paper
               elevation={0}
               sx={{
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5
+                p: 2.5,
               }}
             >
-              {/* Metric toggles row */}
+              {/* Metric Row */}
               <Box
                 display="flex"
                 alignItems="center"
@@ -686,7 +765,7 @@ export default function TrendsCompetitionDrawer({
                   sx={{
                     textTransform: "none",
                     borderRadius: "999px",
-                    borderColor: "#E5E7EB"
+                    borderColor: "#E5E7EB",
                   }}
                   variant="outlined"
                 >
@@ -706,191 +785,11 @@ export default function TrendsCompetitionDrawer({
           </Box>
         )}
 
+
+
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
-          <Box display="flex" flexDirection="column" gap={2}>
-            <Box display="flex" justifyContent="space-between" gap={2}>
-              <Box display="flex" flexDirection="column" gap={1}>
-                <Tabs
-                  value={compTab}
-                  onChange={(_, v) => setCompTab(v)}
-                  sx={{
-                    minHeight: 0,
-                    "& .MuiTab-root": {
-                      textTransform: "none",
-                      minHeight: 0,
-                      fontSize: 14
-                    }
-                  }}
-                >
-                  <Tab value="Brands" label="Brands" />
-                  <Tab value="SKUs" label="SKUs" />
-                </Tabs>
-                <Box display="flex" alignItems="center" gap={1.25}>
-                  <Typography variant="h6" fontWeight={600}>
-                    Competition Benchmarking
-                  </Typography>
-                  <Typography variant="body2">at</Typography>
-                  <Chip
-                    size="small"
-                    label={compMeta.context.level}
-                    sx={{
-                      borderRadius: "999px",
-                      backgroundColor: "#DCFCE7",
-                      color: "#166534",
-                      fontWeight: 500
-                    }}
-                  />
-                  <Typography variant="body2">for</Typography>
-                  <Chip
-                    size="small"
-                    label={compMeta.context.region}
-                    sx={{
-                      borderRadius: "999px",
-                      backgroundColor: "#E0F2FE",
-                      color: "#075985",
-                      fontWeight: 500
-                    }}
-                  />
-                </Box>
-              </Box>
-
-              <Box
-                display="flex"
-                flexDirection="column"
-                alignItems="flex-end"
-                gap={1}
-              >
-                <PillToggleGroup
-                  value={periodMode}
-                  onChange={setPeriodMode}
-                  options={[
-                    compMeta.periodToggle.primary,
-                    `vs ${compMeta.periodToggle.compare}`
-                  ]}
-                />
-              </Box>
-            </Box>
-
-            {/* search */}
-            <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-              gap={2}
-              flexWrap="wrap"
-            >
-              <Box display="flex" gap={1.5} alignItems="center">
-                <TextField
-                  size="small"
-                  placeholder="Search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search size={16} />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Box>
-            </Box>
-
-            {/* Table */}
-            <Paper
-              elevation={0}
-              sx={{
-                borderRadius: 3,
-                border: "1px solid #E5E7EB",
-                overflow: "hidden"
-              }}
-            >
-              <TableContainer sx={{ maxHeight: 480 }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      {compMeta.columns.map((col) => (
-                        <TableCell
-                          key={col.id}
-                          sx={{
-                            backgroundColor: "#F9FAFB",
-                            borderBottom: "1px solid #E5E7EB",
-                            fontWeight: 600,
-                            fontSize: 12
-                          }}
-                        >
-                          {col.label}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {competitionRows.map((row) => (
-                      <TableRow
-                        key={row.brand}
-                        hover
-                        sx={{
-                          "&:nth-of-type(odd)": {
-                            backgroundColor: "#F9FAFB"
-                          }
-                        }}
-                      >
-                        {compMeta.columns.map((col) => {
-                          if (col.type === "text") {
-                            return (
-                              <TableCell
-                                key={col.id}
-                                sx={{ fontSize: 13, fontWeight: 500 }}
-                              >
-                                {row[col.id]}
-                              </TableCell>
-                            );
-                          }
-                          const metric = row[col.id];
-                          if (!metric) {
-                            return (
-                              <TableCell key={col.id} sx={{ fontSize: 13 }}>
-                                –
-                              </TableCell>
-                            );
-                          }
-                          const value = metric.value;
-                          const delta = metric.delta;
-                          const isPositive = delta >= 0;
-                          return (
-                            <TableCell key={col.id} sx={{ fontSize: 13 }}>
-                              <Box
-                                display="flex"
-                                flexDirection="column"
-                                alignItems="flex-start"
-                              >
-                                <Typography
-                                  variant="body2"
-                                  sx={{ fontWeight: 500 }}
-                                >
-                                  {value.toFixed(1)}%
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: isPositive ? "#16A34A" : "#DC2626"
-                                  }}
-                                >
-                                  {isPositive ? "+" : ""}
-                                  {delta.toFixed(1)}%
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
-          </Box>
+          <KpiTrendShowcase />
         )}
 
         {/* COMPARE SKUs VIEW */}
