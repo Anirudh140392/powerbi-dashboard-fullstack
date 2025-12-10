@@ -87,7 +87,7 @@ const getSummaryMetrics = async (filters) => {
         }
 
         // 3. Availability Calculation Helper (Unified for all platforms using RbPdpOlap)
-        const getAvailability = async (start, end, brandFilter, platformFilter, locationFilter) => {
+        const getAvailability = async (start, end, brandFilter, platformFilter, locationFilter, categoryFilter) => {
             let where = {};
 
             // Check if first argument is a pre-built where clause (overload)
@@ -107,6 +107,7 @@ const getSummaryMetrics = async (filters) => {
                 }
                 if (platformFilter && platformFilter !== 'All') where.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platformFilter.toLowerCase());
                 if (locationFilter && locationFilter !== 'All') where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), locationFilter.toLowerCase());
+                if (categoryFilter && categoryFilter !== 'All') where.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), categoryFilter.toLowerCase());
             }
 
             const result = await RbPdpOlap.findOne({
@@ -136,7 +137,7 @@ const getSummaryMetrics = async (filters) => {
                 };
 
                 if (categoryFilter) {
-                    baseWhere.keyword_category = categoryFilter;
+                    baseWhere.keyword_category = sequelize.where(sequelize.fn('LOWER', sequelize.col('keyword_category')), categoryFilter.toLowerCase());
                 }
 
                 if (locationFilter && locationFilter !== 'All') {
@@ -149,7 +150,7 @@ const getSummaryMetrics = async (filters) => {
 
                 // 1. Total count of rows for selected brand
                 const brandWhere = { ...baseWhere };
-                if (brandFilter) {
+                if (brandFilter && brandFilter !== 'All') {
                     brandWhere.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brandFilter.toLowerCase());
                 }
 
@@ -191,16 +192,31 @@ const getSummaryMetrics = async (filters) => {
             prevOfftakeResult,
             prevMarketShareResult
         ] = await Promise.all([
-            // 1. Total Offtake (Sales) & Chart Data (Using RbPdpOlap for ALL)
-            RbPdpOlap.findAll({
-                attributes: [
-                    [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
-                ],
-                where: offtakeWhereClause,
-                group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
-                raw: true
-            }),
+            // 1. Total Offtake (Sales) & Chart Data
+            (selectedPlatform && selectedPlatform.toLowerCase() === 'zepto')
+                ? TbZeptoBrandSalesAnalytics.findAll({
+                    attributes: [
+                        [Sequelize.fn('DATE_FORMAT', Sequelize.col('sales_date'), '%Y-%m-01'), 'month_date'],
+                        [Sequelize.fn('SUM', Sequelize.col('gmv')), 'total_sales']
+                    ],
+                    where: {
+                        sales_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                        ...(brand && brand !== 'All' && { brand_name: { [Op.like]: `%${brand}%` } }),
+                        ...(category && category !== 'All' && { sku_category: sequelize.where(sequelize.fn('LOWER', sequelize.col('sku_category')), category.toLowerCase()) }),
+                        ...(location && location !== 'All' && { city: sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), location.toLowerCase()) })
+                    },
+                    group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('sales_date'), '%Y-%m-01')],
+                    raw: true
+                })
+                : RbPdpOlap.findAll({
+                    attributes: [
+                        [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
+                    ],
+                    where: offtakeWhereClause,
+                    group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
+                    raw: true
+                }),
             // 2. Total Market Share & Chart Data (Using RbBrandMs)
             RbBrandMs.findAll({
                 attributes: [
@@ -249,10 +265,10 @@ const getSummaryMetrics = async (filters) => {
                 raw: true
             }),
             // 4. Current Availability
-            getAvailability(startDate, endDate, brand, selectedPlatform, location),
+            getAvailability(startDate, endDate, brand, selectedPlatform, location, category),
             // 5. Previous Availability (if compare dates exist)
             (filters.compareStartDate && filters.compareEndDate)
-                ? getAvailability(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, selectedPlatform, location)
+                ? getAvailability(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, selectedPlatform, location, category)
                 : Promise.resolve(0),
             // 6. Current Share of Search
             getShareOfSearch(startDate, endDate, brand, selectedPlatform, location, category),
@@ -283,16 +299,26 @@ const getSummaryMetrics = async (filters) => {
                 return Promise.all(trendPromises);
             })(),
             // 10. Previous Offtake (Total Sales)
+            // 10. Previous Offtake (Total Sales)
             (filters.compareStartDate && filters.compareEndDate)
-                ? RbPdpOlap.sum('Sales', {
-                    where: {
-                        DATE: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
-                        ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                        ...(category && category !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase()) }),
-                        ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
-                    }
-                })
+                ? (selectedPlatform && selectedPlatform.toLowerCase() === 'zepto')
+                    ? TbZeptoBrandSalesAnalytics.sum('gmv', {
+                        where: {
+                            sales_date: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
+                            ...(brand && brand !== 'All' && { brand_name: { [Op.like]: `%${brand}%` } }),
+                            ...(category && category !== 'All' && { sku_category: sequelize.where(sequelize.fn('LOWER', sequelize.col('sku_category')), category.toLowerCase()) }),
+                            ...(location && location !== 'All' && { city: sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), location.toLowerCase()) })
+                        }
+                    })
+                    : RbPdpOlap.sum('Sales', {
+                        where: {
+                            DATE: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
+                            ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                            ...(category && category !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase()) }),
+                            ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                        }
+                    })
                 : Promise.resolve(0),
             // 11. Previous Market Share
             (filters.compareStartDate && filters.compareEndDate)
@@ -478,19 +504,19 @@ const getSummaryMetrics = async (filters) => {
         const platformOverview = [];
 
         // Helper to generate columns structure
-        const generateColumns = (offtake, availability, sos, marketShare = 0) => [
+        const generateColumns = (offtake, availability, sos, marketShare = 0, spend = 0, roas = 0, inorgSales = 0, conversion = 0, cpm = 0, cpc = 0) => [
             { title: "Offtakes", value: formatCurrency(offtake), change: { text: "0%", positive: true }, meta: { units: "units", change: "0%" } },
-            { title: "Spend", value: "₹0 Cr", change: { text: "0%", positive: true }, meta: { units: "₹0", change: "0%" } },
-            { title: "ROAS", value: "0x", change: { text: "0%", positive: true }, meta: { units: "₹0 return", change: "0%" } },
-            { title: "Inorg Sales", value: "₹0 Cr", change: { text: "0%", positive: true }, meta: { units: "0 units", change: "0%" } },
-            { title: "Conversion", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "0 conversions", change: "0 pp" } },
+            { title: "Spend", value: formatCurrency(spend), change: { text: "0%", positive: true }, meta: { units: "₹0", change: "0%" } },
+            { title: "ROAS", value: `${roas.toFixed(2)}x`, change: { text: "0%", positive: true }, meta: { units: "₹0 return", change: "0%" } },
+            { title: "Inorg Sales", value: formatCurrency(inorgSales), change: { text: "0%", positive: true }, meta: { units: "0 units", change: "0%" } },
+            { title: "Conversion", value: `${conversion.toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "0 conversions", change: "0 pp" } },
             { title: "Availability", value: `${availability.toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "stores", change: "0 pp" } },
             { title: "SOS", value: `${sos.toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "index", change: "0 pp" } },
             { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: "0 pp", positive: true }, meta: { units: "Category", change: "0 pp" } },
             { title: "Promo My Brand", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "Depth", change: "0 pp" } },
             { title: "Promo Compete", value: "0%", change: { text: "0 pp", positive: true }, meta: { units: "Depth", change: "0 pp" } },
-            { title: "CPM", value: "₹0", change: { text: "0%", positive: true }, meta: { units: "impressions", change: "0%" } },
-            { title: "CPC", value: "₹0", change: { text: "0%", positive: true }, meta: { units: "clicks", change: "0%" } },
+            { title: "CPM", value: `₹${Math.round(cpm)}`, change: { text: "0%", positive: true }, meta: { units: "impressions", change: "0%" } },
+            { title: "CPC", value: `₹${Math.round(cpc)}`, change: { text: "0%", positive: true }, meta: { units: "clicks", change: "0%" } },
         ];
 
         // Calculate "All" Metrics (Global Aggregate)
@@ -524,7 +550,7 @@ const getSummaryMetrics = async (filters) => {
             allOfftake = parseFloat(allOfftakeResult?.total_sales || 0);
 
             // 2. All Availability
-            allAvailability = await getAvailability(startDate, endDate, brand, null, location); // Pass null for platform to get aggregate
+            allAvailability = await getAvailability(startDate, endDate, brand, null, location, category); // Pass null for platform to get aggregate
 
             // 3. All SOS
             allSos = await getShareOfSearch(startDate, endDate, brand, null, location, category); // Pass null for platform
@@ -535,7 +561,8 @@ const getSummaryMetrics = async (filters) => {
                 where: {
                     created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(category && category !== 'All' && { category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase()) })
                     // No Platform filter
                 },
                 raw: true
@@ -551,14 +578,14 @@ const getSummaryMetrics = async (filters) => {
             label: 'All',
             type: 'Overall',
             logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
-            columns: generateColumns(allOfftake, allAvailability, allSos, allMarketShare)
+            columns: generateColumns(allOfftake, allAvailability, allSos, allMarketShare) // All metrics for "All" platform might need separate calculation if we want to show aggregates there too, but for now keeping basic
         });
 
         const platformOverviewPromises = platformDefinitions.map(async (p) => {
             try {
                 let offtake = 0;
 
-                // Calculate Offtake (Unified using RbPdpOlap)
+                // Define platformOfftakeWhere for RbPdpOlap (used for Ad Metrics and non-Zepto Offtake)
                 const platformOfftakeWhere = {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase())
@@ -567,16 +594,32 @@ const getSummaryMetrics = async (filters) => {
                 if (location && location !== 'All') platformOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
                 if (category && category !== 'All') platformOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
 
-                const platformOfftakeResult = await RbPdpOlap.findOne({
-                    attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
-                    where: platformOfftakeWhere,
-                    raw: true
-                });
-                offtake = parseFloat(platformOfftakeResult?.total_sales || 0);
+                // Calculate Offtake (Unified using RbPdpOlap, except Zepto)
+                if (p.key === 'zepto') {
+                    const zeptoOfftakeWhere = {
+                        sales_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                        ...(brand && brand !== 'All' && { brand_name: { [Op.like]: `%${brand}%` } }),
+                        ...(category && category !== 'All' && { sku_category: sequelize.where(sequelize.fn('LOWER', sequelize.col('sku_category')), category.toLowerCase()) }),
+                        ...(location && location !== 'All' && { city: sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), location.toLowerCase()) })
+                    };
+                    const zeptoOfftakeResult = await TbZeptoBrandSalesAnalytics.findOne({
+                        attributes: [[Sequelize.fn('SUM', Sequelize.col('gmv')), 'total_sales']],
+                        where: zeptoOfftakeWhere,
+                        raw: true
+                    });
+                    offtake = parseFloat(zeptoOfftakeResult?.total_sales || 0);
+                } else {
+                    const platformOfftakeResult = await RbPdpOlap.findOne({
+                        attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
+                        where: platformOfftakeWhere,
+                        raw: true
+                    });
+                    offtake = parseFloat(platformOfftakeResult?.total_sales || 0);
+                }
 
                 // Execute other metrics concurrently
                 const [availability, sos, msResult, adMetrics] = await Promise.all([
-                    getAvailability(startDate, endDate, brand, p.label, location),
+                    getAvailability(startDate, endDate, brand, p.label, location, category),
                     getShareOfSearch(startDate, endDate, brand, p.label, location, category),
                     RbBrandMs.findOne({
                         attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
@@ -584,7 +627,8 @@ const getSummaryMetrics = async (filters) => {
                             created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                             Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase()),
                             ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                            ...(category && category !== 'All' && { category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase()) })
                         },
                         raw: true
                     }),
@@ -592,7 +636,8 @@ const getSummaryMetrics = async (filters) => {
                         attributes: [
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                            [Sequelize.fn('SUM', Sequelize.col('ROAS')), 'total_roas_col'] // Fetching sum of ROAS column as requested, though we'll use calculated ROAS for display usually
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
                         ],
                         where: platformOfftakeWhere,
                         raw: true
@@ -603,27 +648,27 @@ const getSummaryMetrics = async (filters) => {
 
                 const totalSpend = parseFloat(adMetrics?.total_spend || 0);
                 const totalAdSales = parseFloat(adMetrics?.total_ad_sales || 0);
-                const totalRoasCol = parseFloat(adMetrics?.total_roas_col || 0);
+                const totalClicks = parseFloat(adMetrics?.total_clicks || 0);
+                const totalImpressions = parseFloat(adMetrics?.total_impressions || 0);
 
-                // Calculate ROAS: Total Ad Sales / Total Spend (Standard)
-                // OR use the sum of ROAS column if explicitly requested as "Total of ROAS column"
-                // Given the user said "total of ROAS column", we will use that.
-                const roas = totalRoasCol;
+                // Calculate ROAS: Total Ad Sales / Total Spend
+                const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
 
-                // If the user meant calculated ROAS, it would be:
-                // const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
+                // Calculate Conversion: (Total Ad Clicks / Total Ad Impressions) * 100
+                const conversion = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+
+                // Calculate CPM: (Total Ad Spend / Total Ad Impressions) * 1000
+                const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
+
+                // Calculate CPC: Total Ad Spend / Total Ad Clicks
+                const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
 
                 return {
                     key: p.key,
                     label: p.label,
                     type: p.type,
                     logo: p.logo,
-                    columns: generateColumns(offtake, availability, sos, marketShare).map(col => {
-                        if (col.title === "Spend") return { ...col, value: formatCurrency(totalSpend) };
-                        if (col.title === "Inorg Sales") return { ...col, value: formatCurrency(totalAdSales) };
-                        if (col.title === "ROAS") return { ...col, value: `${roas.toFixed(2)}x` };
-                        return col;
-                    })
+                    columns: generateColumns(offtake, availability, sos, marketShare, totalSpend, roas, totalAdSales, conversion, cpm, cpc)
                 };
             } catch (err) {
                 console.error(`Error processing platform ${p.key}:`, err);
@@ -678,17 +723,22 @@ const getSummaryMetrics = async (filters) => {
             });
 
             // ROAS for Performance Marketing Section
-            // Calculate Current ROAS (Sum of ROAS column for current period)
+            // Calculate Current ROAS using Average of ROAS column
             const currentRoasResult = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('ROAS')), 'total_roas']],
+                attributes: [
+                    [Sequelize.fn('AVG', Sequelize.col('ROAS')), 'avg_roas']
+                ],
                 where: offtakeWhereClause,
                 raw: true
             });
-            const currentRoas = parseFloat(currentRoasResult?.total_roas || 0);
+            const currentRoas = parseFloat(currentRoasResult?.avg_roas || 0);
+
 
             // MoM ROAS
             const momRoasResult = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('ROAS')), 'total_roas']],
+                attributes: [
+                    [Sequelize.fn('AVG', Sequelize.col('ROAS')), 'avg_roas']
+                ],
                 where: {
                     DATE: { [Op.between]: [momStartDate.toDate(), momEndDate.toDate()] },
                     ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
@@ -697,12 +747,15 @@ const getSummaryMetrics = async (filters) => {
                 },
                 raw: true
             });
-            const momRoas = parseFloat(momRoasResult?.total_roas || 0);
+            const momRoas = parseFloat(momRoasResult?.avg_roas || 0);
             const momRoasChange = momRoas > 0 ? ((currentRoas - momRoas) / momRoas) * 100 : 0;
+
 
             // YoY ROAS
             const yoyRoasResult = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('ROAS')), 'total_roas']],
+                attributes: [
+                    [Sequelize.fn('AVG', Sequelize.col('ROAS')), 'avg_roas']
+                ],
                 where: {
                     DATE: { [Op.between]: [yoyStartDate.toDate(), yoyEndDate.toDate()] },
                     ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
@@ -711,15 +764,16 @@ const getSummaryMetrics = async (filters) => {
                 },
                 raw: true
             });
-            const yoyRoas = parseFloat(yoyRoasResult?.total_roas || 0);
+            const yoyRoas = parseFloat(yoyRoasResult?.avg_roas || 0);
             const yoyRoasChange = yoyRoas > 0 ? ((currentRoas - yoyRoas) / yoyRoas) * 100 : 0;
 
-            // Trend (Last 6 Months) - Optimized to single query
+
+            // Trend (Last 6 Months) - Optimized to use AVG(ROAS) per month
             const trendStartDate = endDate.clone().subtract(6, 'month').startOf('month');
             const roasTrendResult = await RbPdpOlap.findAll({
                 attributes: [
                     [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
-                    [Sequelize.fn('AVG', Sequelize.col('ROAS')), 'total_roas']
+                    [Sequelize.fn('AVG', Sequelize.col('ROAS')), 'avg_roas']
                 ],
                 where: {
                     DATE: { [Op.between]: [trendStartDate.toDate(), endDate.toDate()] },
@@ -733,7 +787,7 @@ const getSummaryMetrics = async (filters) => {
 
             const roasTrendData = monthBuckets.map(bucket => {
                 const match = roasTrendResult.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
-                return match ? parseFloat(match.total_roas || 0) : 0;
+                return match ? parseFloat(match.avg_roas || 0) : 0;
             });
 
             performanceMarketing.push({
@@ -746,6 +800,106 @@ const getSummaryMetrics = async (filters) => {
                 data: roasTrendData
             });
 
+            // --- Conversion (CTR) ---
+            // Formula: (Total Ad_Clicks / Total Ad_Impressions) * 100
+            const getConversionMetrics = async (start, end) => {
+                const where = {
+                    DATE: { [Op.between]: [start.toDate(), end.toDate()] },
+                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                };
+                const result = await RbPdpOlap.findOne({
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
+                    ],
+                    where,
+                    raw: true
+                });
+                const clicks = parseFloat(result?.total_clicks || 0);
+                const impressions = parseFloat(result?.total_impressions || 0);
+                return impressions > 0 ? (clicks / impressions) * 100 : 0;
+            };
+
+            const currentConv = await getConversionMetrics(startDate, endDate);
+            const momConv = await getConversionMetrics(momStartDate, momEndDate);
+            const yoyConv = await getConversionMetrics(yoyStartDate, yoyEndDate);
+
+            const momConvChange = momConv > 0 ? ((currentConv - momConv) / momConv) * 100 : 0;
+            const yoyConvChange = yoyConv > 0 ? ((currentConv - yoyConv) / yoyConv) * 100 : 0;
+
+            // Trend for Conversion
+            const convTrendPromises = monthBuckets.map(async (bucket) => {
+                const mStart = dayjs(bucket.date).startOf('month');
+                const mEnd = dayjs(bucket.date).endOf('month');
+                return await getConversionMetrics(mStart, mEnd);
+            });
+            const convTrendData = await Promise.all(convTrendPromises);
+
+            performanceMarketing.push({
+                title: "Conversion", // User requested label "Conversion" for CTR formula
+                value: `${currentConv.toFixed(1)}%`,
+                mom: `${momConvChange.toFixed(1)}%`,
+                momUp: momConvChange >= 0,
+                yoy: `${yoyConvChange.toFixed(1)}%`,
+                yoyUp: yoyConvChange >= 0,
+                data: convTrendData
+            });
+
+
+            // --- Inorganic Sales (Percentage) ---
+            // Formula: (Total Sales - Total Ad_sales) / Total Sales * 100
+            const getInorganicSalesMetrics = async (start, end) => {
+                const where = {
+                    DATE: { [Op.between]: [start.toDate(), end.toDate()] },
+                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                };
+                const result = await RbPdpOlap.findOne({
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales']
+                    ],
+                    where,
+                    raw: true
+                });
+                const totalSales = parseFloat(result?.total_sales || 0);
+                const totalAdSales = parseFloat(result?.total_ad_sales || 0);
+
+                // Calculate Inorganic Sales Percentage
+                if (totalSales > 0) {
+                    return ((totalSales - totalAdSales) / totalSales) * 100;
+                }
+                return 0;
+            };
+
+            const currentInorg = await getInorganicSalesMetrics(startDate, endDate);
+            const momInorg = await getInorganicSalesMetrics(momStartDate, momEndDate);
+            const yoyInorg = await getInorganicSalesMetrics(yoyStartDate, yoyEndDate);
+
+            const momInorgChange = momInorg > 0 ? ((currentInorg - momInorg) / momInorg) * 100 : 0;
+            const yoyInorgChange = yoyInorg > 0 ? ((currentInorg - yoyInorg) / yoyInorg) * 100 : 0;
+
+            // Trend for Inorganic Sales
+            const inorgTrendPromises = monthBuckets.map(async (bucket) => {
+                const mStart = dayjs(bucket.date).startOf('month');
+                const mEnd = dayjs(bucket.date).endOf('month');
+                return await getInorganicSalesMetrics(mStart, mEnd);
+            });
+            const inorgTrendData = await Promise.all(inorgTrendPromises);
+
+            performanceMarketing.push({
+                title: "Inorganic Sales",
+                value: `${currentInorg.toFixed(1)}%`, // Formatted as percentage
+                mom: `${momInorgChange.toFixed(1)}%`,
+                momUp: momInorgChange >= 0,
+                yoy: `${yoyInorgChange.toFixed(1)}%`,
+                yoyUp: yoyInorgChange >= 0,
+                data: inorgTrendData
+            });
+
         } catch (err) {
             console.error("Error calculating Performance Marketing metrics:", err);
         }
@@ -756,19 +910,20 @@ const getSummaryMetrics = async (filters) => {
         console.log("Calculating Month Overview for Platform:", moPlatform);
 
         // Generate columns helper for Month Overview (similar to generateColumns but for a single month row)
-        const generateMonthColumns = (offtake, availability, sos, marketShare) => [
+        // Generate columns helper for Month Overview (similar to generateColumns but for a single month row)
+        const generateMonthColumns = (offtake, availability, sos, marketShare, spend = 0, roas = 0, inorgSales = 0, conversion = 0, cpm = 0, cpc = 0) => [
             { title: "Offtakes", value: formatCurrency(offtake), meta: { units: "", change: "▲0.0%" } },
-            { title: "Spend", value: "₹0", meta: { units: "", change: "▲0.0%" } }, // Mock
-            { title: "ROAS", value: "0x", meta: { units: "", change: "▲0.0%" } }, // Mock
-            { title: "Inorg Sales", value: "₹0", meta: { units: "", change: "▲0.0%" } }, // Mock
-            { title: "Conversion", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
+            { title: "Spend", value: formatCurrency(spend), meta: { units: "", change: "▲0.0%" } },
+            { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "", change: "▲0.0%" } },
+            { title: "Inorg Sales", value: formatCurrency(inorgSales), meta: { units: "", change: "▲0.0%" } },
+            { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
             { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
             { title: "SOS", value: `${sos.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
             { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
             { title: "Promo My Brand", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
             { title: "Promo Compete", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
-            { title: "CPM", value: "₹0", meta: { units: "", change: "▲0.0%" } }, // Mock
-            { title: "CPC", value: "₹0", meta: { units: "", change: "▲0.0%" } }  // Mock
+            { title: "CPM", value: `₹${Math.round(cpm)}`, meta: { units: "", change: "▲0.0%" } },
+            { title: "CPC", value: `₹${Math.round(cpc)}`, meta: { units: "", change: "▲0.0%" } }
         ];
 
         const monthOverviewPromises = monthBuckets.map(async (bucket) => {
@@ -786,11 +941,27 @@ const getSummaryMetrics = async (filters) => {
                 if (category && category !== 'All') moOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
 
                 const moOfftakeResult = await RbPdpOlap.findOne({
-                    attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
+                    ],
                     where: moOfftakeWhere,
                     raw: true
                 });
                 const moOfftake = parseFloat(moOfftakeResult?.total_sales || 0);
+                const moSpend = parseFloat(moOfftakeResult?.total_spend || 0);
+                const moAdSales = parseFloat(moOfftakeResult?.total_ad_sales || 0);
+                const moClicks = parseFloat(moOfftakeResult?.total_clicks || 0);
+                const moImpressions = parseFloat(moOfftakeResult?.total_impressions || 0);
+
+                // Calculate Metrics
+                const moRoas = moSpend > 0 ? moAdSales / moSpend : 0;
+                const moConversion = moImpressions > 0 ? (moClicks / moImpressions) * 100 : 0;
+                const moCpm = moImpressions > 0 ? (moSpend / moImpressions) * 1000 : 0;
+                const moCpc = moClicks > 0 ? moSpend / moClicks : 0;
 
                 // Availability
                 const moAvailability = await getAvailability(mStart, mEnd, brand, moPlatform, location);
@@ -818,7 +989,7 @@ const getSummaryMetrics = async (filters) => {
                     date: bucket.date,   // Add date for frontend context
                     type: bucket.label,  // Reuse label as type for UI consistency
                     logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png", // Generic calendar icon
-                    columns: generateMonthColumns(moOfftake, moAvailability, moSos, moMarketShare)
+                    columns: generateMonthColumns(moOfftake, moAvailability, moSos, moMarketShare, moSpend, moRoas, moAdSales, moConversion, moCpm, moCpc)
                 };
 
             } catch (err) {
@@ -839,31 +1010,30 @@ const getSummaryMetrics = async (filters) => {
         // 13. Category Overview Logic
         const categoryOverviewPlatform = filters.categoryOverviewPlatform || filters.platform || 'Zepto';
 
-        // Fetch unique categories based on filters
-        // Fetch unique categories based on filters
+        // Fetch unique categories based on filters from RcaSkuDim
         const categoryWhere = {};
 
-        // Add date filter to ensure we get categories relevant to the selected period
-        categoryWhere.DATE = { [Op.between]: [startDate.toDate(), endDate.toDate()] };
-
         if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-            categoryWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase());
+            categoryWhere.platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform')), categoryOverviewPlatform.toLowerCase());
         }
         if (brand && brand !== 'All') {
-            categoryWhere.Brand = { [Op.like]: `%${brand}%` };
+            categoryWhere.brand_name = { [Op.like]: `%${brand}%` };
         }
+        // Note: RcaSkuDim might not have location, or it might be 'location' column. 
+        // Assuming location filter is not strictly needed for category listing, or we check if column exists.
+        // Based on model, it has 'location'.
         if (location && location !== 'All') {
-            categoryWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            categoryWhere.location = sequelize.where(sequelize.fn('LOWER', sequelize.col('location')), location.toLowerCase());
         }
 
-        // Use RbPdpOlap instead of RcaSkuDim because RcaSkuDim has missing/null categories for some brands (e.g. Zepto/Aer)
-        const distinctCategories = await RbPdpOlap.findAll({
-            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Category')), 'brand_category']],
+        const distinctCategories = await RcaSkuDim.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_category')), 'brand_category']],
             where: categoryWhere,
             raw: true
         });
 
         const categories = distinctCategories.map(c => c.brand_category).filter(Boolean);
+        console.log(`[Category Overview] Platform: ${categoryOverviewPlatform}, Found ${categories.length} categories:`, categories);
 
         const categoryOverviewPromises = categories.map(async (catName) => {
             try {
@@ -876,32 +1046,159 @@ const getSummaryMetrics = async (filters) => {
 
                 // Calculate Metrics for this Category
                 const [
-                    catOfftake,
+                    catOfftakeResult,
                     catAvailability,
-                    catMarketShare
+                    catSos,
+                    catMsResult,
+                    catPromoMyBrandResult,
+                    catPromoCompeteResult
                 ] = await Promise.all([
-                    // Offtake (Sales)
-                    RbPdpOlap.sum('Sales', { where: catWhere }),
+                    // Offtake (Sales) & Ad Metrics
+                    RbPdpOlap.findOne({
+                        attributes: [
+                            [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
+                        ],
+                        where: catWhere,
+                        raw: true
+                    }),
                     // Availability (OSA)
-                    getAvailability(catWhere),
-                    // Market Share (using RbBrandMs if applicable, or mock/proxy)
-                    // Note: RbBrandMs might not have Category column directly usable or requires different logic.
-                    // For now, we'll try to fetch if possible or default to 0.
-                    // Assuming RbBrandMs has similar structure or we skip it for now.
-                    0 // Placeholder for Market Share as RbBrandMs structure for category is unclear
+                    getAvailability(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
+                    // SOS
+                    getShareOfSearch(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
+                    // Market Share
+                    RbBrandMs.findOne({
+                        attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
+                        where: {
+                            created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                            Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase()),
+                            ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
+                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                            category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), catName.toLowerCase())
+                        },
+                        raw: true
+                    }),
+                    // Promo My Brand (Comp_flag = 0)
+                    RbPdpOlap.findOne({
+                        attributes: [
+                            [Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']
+                        ],
+                        where: {
+                            ...catWhere,
+                            Comp_flag: 0
+                        },
+                        raw: true
+                    }),
+                    // Promo Compete (Comp_flag = 1)
+                    RbPdpOlap.findOne({
+                        attributes: [
+                            [Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']
+                        ],
+                        where: {
+                            ...catWhere,
+                            Comp_flag: 1
+                        },
+                        raw: true
+                    })
                 ]);
 
-                // SOS for Category - RbKw doesn't have Category, so we might need to skip or use a proxy.
-                // User requested SOS, but without a clear link, it's hard.
-                // We'll return 0 for SOS for now unless we find a way.
-                const catSos = 0;
+                const catOfftake = parseFloat(catOfftakeResult?.total_sales || 0);
+                const catSpend = parseFloat(catOfftakeResult?.total_spend || 0);
+                const catAdSales = parseFloat(catOfftakeResult?.total_ad_sales || 0); // Inorg Sales
+                const catClicks = parseFloat(catOfftakeResult?.total_clicks || 0);
+                const catImpressions = parseFloat(catOfftakeResult?.total_ad_impressions || 0);
+                const catMarketShare = parseFloat(catMsResult?.avg_ms || 0);
+                const catPromoMyBrand = parseFloat(catPromoMyBrandResult?.avg_promo_depth || 0) * 100;
+                const catPromoCompete = parseFloat(catPromoCompeteResult?.avg_promo_depth || 0) * 100;
+
+                // Calculate Metrics
+                const catRoas = catSpend > 0 ? catAdSales / catSpend : 0;
+                const catConversion = catImpressions > 0 ? (catClicks / catImpressions) * 100 : 0;
+                const catCpm = catImpressions > 0 ? (catSpend / catImpressions) * 1000 : 0;
+                const catCpc = catClicks > 0 ? catSpend / catClicks : 0;
 
                 return {
                     key: catName,
                     label: catName,
-                    type: "Category",
-                    logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png", // Generic category icon
-                    columns: generateMonthColumns(catOfftake || 0, catAvailability || 0, catSos, catMarketShare || 0)
+                    type: catName,
+                    logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
+                    columns: [
+                        {
+                            title: "Offtakes",
+                            value: formatCurrency(catOfftake),
+                            change: { text: "▲0.0%", positive: true }, // Placeholder for change
+                            meta: { units: "units", change: "▲0.0%" }
+                        },
+                        {
+                            title: "Spend",
+                            value: formatCurrency(catSpend),
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "currency", change: "▲0.0%" }
+                        },
+                        {
+                            title: "ROAS",
+                            value: `${catRoas.toFixed(1)}x`,
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "return", change: "▲0.0%" }
+                        },
+                        {
+                            title: "Inorg Sales",
+                            value: formatCurrency(catAdSales),
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "units", change: "▲0.0%" }
+                        },
+                        {
+                            title: "Conversion",
+                            value: `${catConversion.toFixed(1)}%`,
+                            change: { text: "▲0.0 pp", positive: true },
+                            meta: { units: "conversions", change: "▲0.0 pp" }
+                        },
+                        {
+                            title: "Availability",
+                            value: `${catAvailability.toFixed(1)}%`,
+                            change: { text: "▲0.0 pp", positive: true },
+                            meta: { units: "stores", change: "▲0.0 pp" }
+                        },
+                        {
+                            title: "SOS",
+                            value: `${catSos.toFixed(1)}%`,
+                            change: { text: "▲0.0 pp", positive: true },
+                            meta: { units: "index", change: "▲0.0 pp" }
+                        },
+                        {
+                            title: "Market Share",
+                            value: `${catMarketShare.toFixed(1)}%`,
+                            change: { text: "▲0.0 pp", positive: true },
+                            meta: { units: "share", change: "▲0.0 pp" }
+                        },
+                        {
+                            title: "Promo My Brand",
+                            value: `${catPromoMyBrand.toFixed(1)}%`,
+                            change: { text: "▲0.0 pp", positive: true },
+                            meta: { units: "depth", change: "▲0.0 pp" }
+                        },
+                        {
+                            title: "Promo Compete",
+                            value: `${catPromoCompete.toFixed(1)}%`,
+                            change: { text: "▲0.0 pp", positive: true },
+                            meta: { units: "depth", change: "▲0.0 pp" }
+                        },
+                        {
+                            title: "CPM",
+                            value: formatCurrency(catCpm),
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "impressions", change: "▲0.0%" }
+                        },
+                        {
+                            title: "CPC",
+                            value: formatCurrency(catCpc),
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "clicks", change: "▲0.0%" }
+                        }
+                    ]
                 };
 
             } catch (err) {
@@ -990,7 +1287,7 @@ const getSummaryMetrics = async (filters) => {
         if (lowerPlatform === 'zepto') {
             const zeptoWhere = {
                 sales_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                // Removed sku_category filter due to mismatch with RcaSkuDim categories
+                ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { sku_category: sequelize.where(sequelize.fn('LOWER', sequelize.col('sku_category')), brandsOverviewCategory.toLowerCase()) }),
                 ...(location && location !== 'All' && { city: sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), location.toLowerCase()) })
             };
             boOfftakePromise = TbZeptoBrandSalesAnalytics.findAll({
@@ -1311,6 +1608,7 @@ const getSummaryMetrics = async (filters) => {
             };
         });
 
+        console.log(`[Watch Tower Service] Returning categoryOverview with ${categoryOverview?.length || 0} items`);
         return {
             topMetrics,
             summaryMetrics,

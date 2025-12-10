@@ -894,24 +894,14 @@ const PlatformOverview = ({
                 >
                   {/* PLATFORM HEADER */}
                   <Box
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    mb={1.5}
+                    sx={{
+                      mb: 2,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
                   >
                     <Box display="flex" alignItems="center" gap={1.2}>
-                      {/* <img
-                        src={platform.logo}
-                        alt={platform.label}
-                        style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: "50%",
-                          background: "#fff",
-                          padding: 3,
-                          objectFit: "contain",
-                        }}
-                      /> */}
                       {platform.logo && (
                         <img
                           src={platform.logo}
@@ -939,19 +929,6 @@ const PlatformOverview = ({
                         </Typography>
                       </Box>
                     </Box>
-
-                    {/* <Chip
-                    label="Live"
-                    size="small"
-                    sx={{
-                      height: 22,
-                      borderRadius: 2,
-                      fontSize: "0.7rem",
-                      background: "#dcfce7",
-                      color: "#166534",
-                      fontWeight: 600,
-                    }}
-                  /> */}
                   </Box>
 
                   {/* SORTED KPI CARDS (VERTICAL) */}

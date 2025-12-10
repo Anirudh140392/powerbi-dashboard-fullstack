@@ -294,14 +294,20 @@ export default function WatchTower() {
   useEffect(() => {
     let ignore = false;
     const fetchCategoryOverview = async () => {
-      if (!filters.brand || !filters.location) return;
+      console.log("fetchCategoryOverview triggered. Loading:", loading);
+      if (!filters.brand || !filters.location) {
+        console.log("Skipping category fetch: Brand or Location missing");
+        return;
+      }
 
+      console.log("Fetching Category Overview for:", categoryOverviewPlatform);
       setCategoryOverviewLoading(true);
       try {
         const response = await axiosInstance.get("/watchtower/summary-metrics", {
           params: { ...filters, categoryOverviewPlatform }
         });
         if (!ignore && response.data && response.data.categoryOverview) {
+          console.log("Received Category Overview data:", response.data.categoryOverview);
           setCategoryOverviewData(response.data.categoryOverview);
           setDashboardData(prev => ({
             ...prev,
@@ -317,13 +323,15 @@ export default function WatchTower() {
 
     if (!loading) {
       fetchCategoryOverview();
+    } else {
+      console.log("Skipping fetchCategoryOverview because loading is true");
     }
     return () => { ignore = true; };
   }, [categoryOverviewPlatform, filters]);
 
   const [brandsOverviewPlatform, setBrandsOverviewPlatform] = useState(platform || "Zepto");
   const [brandsOverviewCategory, setBrandsOverviewCategory] = useState("All");
-  const [brandsOverviewData, setBrandsOverviewData] = useState([]);
+  const [brandsOverviewData, setBrandsOverviewData] = useState(null);
   const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
 
   // Reset category when platform changes to avoid invalid filters
@@ -336,6 +344,9 @@ export default function WatchTower() {
     let ignore = false;
     const fetchBrandsOverview = async () => {
       if (!filters.brand || !filters.location) return;
+
+      // Only fetch if Brands Overview tab is active
+      if (activeKpisTab !== "Brands Overview") return;
 
       setBrandsOverviewLoading(true);
       try {
@@ -360,7 +371,7 @@ export default function WatchTower() {
       fetchBrandsOverview();
     }
     return () => { ignore = true; };
-  }, [brandsOverviewPlatform, brandsOverviewCategory, filters]);
+  }, [brandsOverviewPlatform, brandsOverviewCategory, filters, activeKpisTab, loading]);
 
   return (
     <>
@@ -488,7 +499,11 @@ defaultCategory */}
               activeTab={activeTab}
             />
           </Box> */}
-          <FormatPerformanceStudio />
+          <FormatPerformanceStudio
+            categoryOverviewData={categoryOverviewData}
+            categoryOverviewPlatform={categoryOverviewPlatform}
+            setCategoryOverviewPlatform={setCategoryOverviewPlatform}
+          />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -698,24 +713,96 @@ const FORMAT_ROWS = [
 ];
 
 
-const FormatPerformanceStudio = () => {
-  const [activeName, setActiveName] = useState(FORMAT_ROWS[0]?.name);
+const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatform, setCategoryOverviewPlatform }) => {
+  // Transform categoryOverviewData from API into FORMAT_ROWS structure
+  const FORMAT_ROWS = useMemo(() => {
+    if (!categoryOverviewData || categoryOverviewData.length === 0) {
+      // Fallback to empty array if no data
+      return [];
+    }
+
+    return categoryOverviewData.map(category => {
+      // Helper function to parse currency strings like "₹1.2 L" or "₹45.3 K"
+      const parseCurrency = (str) => {
+        if (!str) return 0;
+        const cleaned = str.replace(/[₹,]/g, '').trim();
+        if (cleaned.includes('Cr')) return parseFloat(cleaned) * 10000000;
+        if (cleaned.includes('L')) return parseFloat(cleaned) * 100000;
+        if (cleaned.includes('K')) return parseFloat(cleaned) * 1000;
+        return parseFloat(cleaned) || 0;
+      };
+
+      // Helper to parse percentage strings like "5.2%"
+      const parsePercent = (str) => {
+        if (!str) return 0;
+        return parseFloat(str.replace('%', '')) || 0;
+      };
+
+      // Helper to parse multiplier strings like "7.4x"
+      const parseMultiplier = (str) => {
+        if (!str) return 0;
+        return parseFloat(str.replace('x', '')) || 0;
+      };
+
+      // Find column values by title
+      const getColumnValue = (title) => {
+        const column = category.columns?.find(col => col.title === title);
+        return column?.value || '';
+      };
+
+      return {
+        name: category.label || category.key,
+        offtakes: parseCurrency(getColumnValue('Offtakes')) / 100000, // Convert to lakhs for display
+        spend: parseCurrency(getColumnValue('Spend')) / 100000,
+        roas: parseMultiplier(getColumnValue('ROAS')),
+        inorgSalesPct: parseCurrency(getColumnValue('Inorg Sales')) / parseCurrency(getColumnValue('Offtakes')) * 100 || 0,
+        conversionPct: parsePercent(getColumnValue('Conversion')),
+        marketSharePct: parsePercent(getColumnValue('Market Share')),
+        promoMyBrandPct: parsePercent(getColumnValue('Promo My Brand')),
+        promoCompetePct: parsePercent(getColumnValue('Promo Compete')),
+        cpm: parseCurrency(getColumnValue('CPM')),
+        cpc: parseCurrency(getColumnValue('CPC')),
+      };
+    });
+  }, [categoryOverviewData]);
+
+  const [activeName, setActiveName] = useState(FORMAT_ROWS[0]?.name || '');
+
+  // Update activeName when FORMAT_ROWS changes (e.g., after API call)
+  useEffect(() => {
+    if (FORMAT_ROWS.length > 0 && !FORMAT_ROWS.find(f => f.name === activeName)) {
+      setActiveName(FORMAT_ROWS[0].name);
+    }
+  }, [FORMAT_ROWS, activeName]);
+
   const [compareName, setCompareName] = useState(null);
 
   const active = useMemo(
-    () => FORMAT_ROWS.find((f) => f.name === activeName) ?? FORMAT_ROWS[0],
-    [activeName]
+    () => FORMAT_ROWS.find((f) => f.name === activeName) ?? FORMAT_ROWS[0] ?? {
+      name: '',
+      offtakes: 0,
+      spend: 0,
+      roas: 0,
+      inorgSalesPct: 0,
+      conversionPct: 0,
+      marketSharePct: 0,
+      promoMyBrandPct: 0,
+      promoCompetePct: 0,
+      cpm: 0,
+      cpc: 0,
+    },
+    [activeName, FORMAT_ROWS]
   );
   const compare = useMemo(
     () =>
       compareName
         ? FORMAT_ROWS.find((f) => f.name === compareName) ?? null
         : null,
-    [compareName]
+    [compareName, FORMAT_ROWS]
   );
   const maxOfftakes = useMemo(
-    () => Math.max(...FORMAT_ROWS.map((f) => f.offtakes || 1)),
-    []
+    () => FORMAT_ROWS.length > 0 ? Math.max(...FORMAT_ROWS.map((f) => f.offtakes || 1)) : 1,
+    [FORMAT_ROWS]
   );
   const formatNumber = (value) =>
     Number.isFinite(value) ? value.toLocaleString("en-IN") : "NaN";
@@ -823,49 +910,66 @@ const FormatPerformanceStudio = () => {
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
+          <select
+            value={categoryOverviewPlatform}
+            onChange={(e) => setCategoryOverviewPlatform(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            <option value="Zepto">Zepto</option>
+            <option value="Blinkit">Blinkit</option>
+            <option value="Swiggy">Swiggy</option>
+            <option value="Amazon">Amazon</option>
+          </select>
         </div>
 
-        <div className="space-y-2 max-h-150 overflow-y-auto pr-1">
-          {FORMAT_ROWS.map((f) => {
-            const intensity = clamp01(f.offtakes / maxOfftakes);
-            const isActive = f.name === activeName;
-            return (
-              <motion.button
-                key={f.name}
-                onMouseEnter={() => setActiveName(f.name)}
-                onClick={() => setActiveName(f.name)}
-                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                  ? "border-sky-400 bg-sky-50 shadow-sm"
-                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                  }`}
-                whileHover={{ scale: 1.01 }}
-                transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-[10px] flex items-center justify-center text-white shadow-md"
-                    style={{ opacity: 0.3 + intensity * 0.7 }}
-                  >
-                    {f.name
-                      .split(" ")
-                      .map((w) => w[0])
-                      .join("")}
-                  </div>
-                  <div className="text-left">
-                    <div className="font-medium">{f.name}</div>
-                    <div className="text-[10px] text-slate-500">
-                      Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
+        {FORMAT_ROWS.length === 0 ? (
+          <div className="text-center py-8 text-slate-500">
+            <p>No categories found for the selected platform.</p>
+            <p className="text-xs mt-2">Try selecting a different platform or check your filters.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-150 overflow-y-auto pr-1">
+            {FORMAT_ROWS.map((f) => {
+              const intensity = clamp01(f.offtakes / maxOfftakes);
+              const isActive = f.name === activeName;
+              return (
+                <motion.button
+                  key={f.name}
+                  onMouseEnter={() => setActiveName(f.name)}
+                  onClick={() => setActiveName(f.name)}
+                  className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                    ? "border-sky-400 bg-sky-50 shadow-sm"
+                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                    }`}
+                  whileHover={{ scale: 1.01 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-[10px] flex items-center justify-center text-white shadow-md"
+                      style={{ opacity: 0.3 + intensity * 0.7 }}
+                    >
+                      {f.name
+                        .split(" ")
+                        .map((w) => w[0])
+                        .join("")}
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium">{f.name}</div>
+                      <div className="text-[10px] text-slate-500">
+                        Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-end text-[10px] text-slate-500">
-                  <span>MS {f.marketSharePct}%</span>
-                  <span>Conv {f.conversionPct}%</span>
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
+                  <div className="flex flex-col items-end text-[10px] text-slate-500">
+                    <span>MS {f.marketSharePct}%</span>
+                    <span>Conv {f.conversionPct}%</span>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="md:col-span-3 relative">
@@ -1074,6 +1178,6 @@ const FormatPerformanceStudio = () => {
           </motion.div>
         </AnimatePresence>
       </div>
-    </motion.div>
+    </motion.div >
   );
 };

@@ -11,8 +11,8 @@ const req = {
         platform: 'Zepto',
         brand: 'Aer',
         location: 'All',
-        brandsOverviewPlatform: 'Zepto',
-        brandsOverviewCategory: 'Fragrances & Grooming'
+        brandsOverviewPlatform: 'All',
+        brandsOverviewCategory: 'All'
     }
 };
 
