@@ -1,5 +1,5 @@
 // TrendsCompetitionDrawer.jsx
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
 import {
   Box,
   Typography,
@@ -18,7 +18,9 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Select,
+  MenuItem
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
@@ -74,7 +76,7 @@ const DASHBOARD_DATA = {
   trends: {
     context: {
       level: "MRP",
-      audience: "All"
+      audience: "Platform"
     },
 
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
@@ -359,6 +361,18 @@ export default function TrendsCompetitionDrawer({
   onClose = () => { },
   selectedColumn,
 }) {
+  const [allTrendMeta, allSetTrendMeta] = useState({
+    context: {
+      audience: "Platform", // default value
+    },
+  });
+  useLayoutEffect(() => {
+    allSetTrendMeta((prev) => ({
+      ...prev,
+      context: { ...prev.context, audience: "Platform" },
+    }));
+    setShowPlatformPills(true);
+  }, []);
   const [view, setView] = useState("Trends");
   const [range, setRange] = useState(DASHBOARD_DATA.trends.defaultRange);
   const [timeStep, setTimeStep] = useState(
@@ -378,12 +392,9 @@ export default function TrendsCompetitionDrawer({
 
   const platformRef = useRef(null);
 
-  // close on outside click
   useEffect(() => {
     function handleClickOutside(e) {
-      if (platformRef.current && !platformRef.current.contains(e.target)) {
-        setShowPlatformPills(false);
-      }
+      // do nothing
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -545,6 +556,11 @@ export default function TrendsCompetitionDrawer({
     setAddSkuOpen(false);
   };
 
+  const PLATFORM_OPTIONS = ["Blinkit", "Zepto", "Instamart", "Swiggy", "Amazon"];
+  const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
+  const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+
+
   if (!open) return null;
 
   return (
@@ -621,58 +637,73 @@ export default function TrendsCompetitionDrawer({
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1} ref={platformRef}>
+              {/* PLATFORM FILTER WRAPPER */}
+              <Box display="flex" alignItems="center" gap={1}>
 
-                {/* CLICKABLE LABEL */}
-                <Typography
+                {/* CLICKABLE LABEL (now only toggles open/close) */}
+                < Typography
                   variant="body2"
                   color="text.secondary"
                   sx={{ cursor: "pointer", userSelect: "none" }}
-                  onClick={() => setShowPlatformPills((prev) => !prev)}
+
                 >
-                  Platform:
+                  <Select
+                    size="small"
+                    value={allTrendMeta.context.audience}
+                    onChange={(e) => {
+                      allSetTrendMeta(prev => ({
+                        ...prev,
+                        context: { ...prev.context, audience: e.target.value },
+                      }));
+                      setShowPlatformPills(true);   // always show pills after changing mode
+                    }}
+
+                  >
+                    <MenuItem value="Platform">Platform</MenuItem>
+                    <MenuItem value="Format">Format</MenuItem>
+                    <MenuItem value="City">City</MenuItem>
+                  </Select>
                 </Typography>
 
-                {/* PLATFORM PILLS */}
+                {/* DYNAMIC PILLS */}
+                {/* DYNAMIC PILLS */}
                 {showPlatformPills && (
                   <Box display="flex" gap={0.5}>
-                    {["Blinkit", "Zepto", "Instamart", "Swiggy", "Virtual Store"].map(
-                      (p) => (
-                        <Box
-                          key={p}
-                          onClick={() => {
-                            setSelectedPlatform(p);
-                            setShowPlatformPills(true); // ALWAYS CLOSE
-                          }}
-                          sx={{
-                            px: 1.5,
-                            py: 0.7,
-                            borderRadius: "999px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            border: "1px solid #E5E7EB",
-                            backgroundColor:
-                              selectedPlatform === p ? "#0ea5e9" : "white",
-                            color: selectedPlatform === p ? "white" : "#0f172a",
-                            boxShadow:
-                              selectedPlatform === p
-                                ? "0 2px 6px rgba(0,0,0,0.15)"
-                                : "none",
-                            transition: "0.15s",
-                            "&:hover": {
-                              backgroundColor:
-                                selectedPlatform === p ? "#0284c7" : "#f1f5f9",
-                            },
-                          }}
-                        >
-                          {p}
-                        </Box>
-                      )
-                    )}
+                    {(allTrendMeta.context.audience === "Platform"
+                      ? PLATFORM_OPTIONS
+                      : allTrendMeta.context.audience === "Format"
+                        ? FORMAT_OPTIONS
+                        : allTrendMeta.context.audience === "City"
+                          ? CITY_OPTIONS
+                          : []
+                    ).map((p) => (
+                      <Box
+                        key={p}
+                        onClick={() => {
+                          setSelectedPlatform(p);  // only select the pill
+                          // ❌ DO NOT toggle or force open here
+                        }}
+                        sx={{
+                          px: 1.5,
+                          py: 0.7,
+                          borderRadius: "999px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          border: "1px solid #E5E7EB",
+                          backgroundColor:
+                            selectedPlatform === p ? "#0ea5e9" : "white",
+                          color: selectedPlatform === p ? "white" : "#0f172a",
+                        }}
+                      >
+                        {p}
+                      </Box>
+                    ))}
                   </Box>
                 )}
+
               </Box>
+
 
               {/* LEVEL CHIP */}
               <Chip
@@ -687,16 +718,7 @@ export default function TrendsCompetitionDrawer({
               />
 
               {/* AUDIENCE CHIP */}
-              <Chip
-                size="small"
-                label={trendMeta.context.audience}
-                sx={{
-                  borderRadius: "999px",
-                  backgroundColor: "#E0F2FE",
-                  color: "#075985",
-                  fontWeight: 500,
-                }}
-              />
+
             </Box>
 
             {/* RANGE + TIMESTEP */}
@@ -931,6 +953,6 @@ export default function TrendsCompetitionDrawer({
           selectedIds={selectedCompareSkus.map((s) => s.id)}
         />
       </Box>
-    </Box>
+    </Box >
   );
 }
