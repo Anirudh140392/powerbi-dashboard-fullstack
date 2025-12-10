@@ -26,6 +26,7 @@ import {
   Tooltip as RechartsTooltip,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
+import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -130,26 +131,31 @@ function getCellClasses(value) {
 }
 
 function getTrendMeta(trend) {
-  const num = typeof trend === "number" ? trend : 0; // fallback
+  const num = Number(trend || 0);
 
-  if (num > 0)
+  if (num > 0) {
     return {
       pill: "border-green-200 bg-green-50 text-green-700",
-      icon: LineChartIcon,
-      display: `+${num}`
+      icon: TrendingUp,
+      iconColor: "text-green-700",
+      display: `+${num.toFixed(1)}`,
     };
+  }
 
-  if (num < 0)
+  if (num < 0) {
     return {
       pill: "border-red-200 bg-red-50 text-red-700",
-      icon: LineChartIcon,
-      display: `${num}`
+      icon: TrendingDown,
+      iconColor: "text-red-700",
+      display: num.toFixed(1),
     };
+  }
 
   return {
     pill: "border-slate-200 bg-slate-50 text-slate-600",
-    icon: null,
-    display: "0"
+    icon: Minus,
+    iconColor: "text-slate-600",
+    display: "0.0",
   };
 }
 
@@ -177,13 +183,16 @@ function TrendSparkline({ series }) {
 function TrendIcon({ trend }) {
   const meta = getTrendMeta(trend);
   const Icon = meta.icon;
+
   return (
-    <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${meta.color}`}>
-      <Icon className="h-3 w-3" />
-      <span>{trend > 0 ? `+${trend.toFixed(1)}` : trend.toFixed(1)}</span>
+    <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${meta.iconColor}`}>
+      {Icon && <Icon className="h-3 w-3" />}
+      <span>{meta.display}</span>
     </span>
   );
 }
+
+
 
 
 // --- Variant 1: Scrollable matrix with per-cell trend popover ----------------
@@ -641,7 +650,7 @@ function MatrixVariant({ data, title }) {
 
   return (
     <Card className="border-slate-200 bg-white shadow-sm">
-      
+
       {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
@@ -793,6 +802,7 @@ function MatrixVariant({ data, title }) {
         compMeta={compMetaForDrawer}
         selectedColumn={selectedColumn}
       />
+
     </Card>
   );
 }
@@ -1060,7 +1070,7 @@ function MatrixVariant({ data, title }) {
 // // --- Main showcase ----------------------------------------------------------
 
 export default function CityKpiTrendShowcase({ data, title }) {
-    if (!data || !data.columns || !data.rows) {
+  if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }

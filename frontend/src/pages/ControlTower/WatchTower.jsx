@@ -51,6 +51,7 @@ import PerformanceMatric from "../../components/ControlTower/WatchTower/Peforman
 import { FilterContext } from "../../utils/FilterContext";
 import Loader from "../../components/CommonLayout/Loader";
 import { useMemo } from "react";
+import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -258,7 +259,17 @@ export default function WatchTower() {
 defaultCategory */}
           </Box>
         </Box>
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 2,
+            boxShadow: 1,
+            mb: 4,
+          }}
+        >
+          <TopActionsLayoutsShowcase />
 
+        </Box>
         {/* Category / SKU Tabs */}
         <Box
           sx={{
@@ -293,6 +304,7 @@ defaultCategory */}
               activeTab={activeTab}
             />
           </Box> */}
+
           <FormatPerformanceStudio />
 
           {/* {activeTab === "sku" && (
