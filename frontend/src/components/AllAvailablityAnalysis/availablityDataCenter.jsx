@@ -208,7 +208,7 @@ function generateTrendMulti(base) {
 }
 
 const FORMAT_MATRIX = {
-  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Virtual Store", "Swiggy"],
+  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
 
   formatColumns: [
     "Cassata", "Core Tub", "Cornetto", "Magnum",
@@ -333,7 +333,7 @@ const FORMAT_MATRIX = {
 
 
 const FORMAT_MATRIX_Visibility = {
-  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Virtual Store", "Swiggy"],
+  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
 
   formatColumns: [
     "Cassata", "Core Tub", "Cornetto", "Magnum",
