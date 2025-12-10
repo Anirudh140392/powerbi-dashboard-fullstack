@@ -14,6 +14,879 @@ const monthLogos = {
 };
 const categoryLogo = "https://cdn-icons-png.flaticon.com/512/711/711284.png";
 
+// export const defaultPlatforms = [
+//   // ---------------- ALL ----------------
+//   {
+//     key: "all",
+//     label: "All",
+//     type: "Overall",
+//     logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹11.8 Cr",
+//         change: { text: "▲3.4% (+₹38.9 lac)", positive: true },
+//         meta: { units: "5.7 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.32 Cr",
+//         change: { text: "▲2.2% (+₹2.8 lac)", positive: true },
+//         meta: { units: "₹1.32 Cr", change: "▲2.2%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.9x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹10.9 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.42 Cr",
+//         change: { text: "▲1.9% (+₹4.5 lac)", positive: true },
+//         meta: { units: "1.54 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "desp Sales",
+//         value: "₹2.42 Cr",
+//         change: { text: "▲1.9% (+₹4.5 lac)", positive: true },
+//         meta: { units: "1.54 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.6%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "1.21 lac conversions", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.2%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "10,780 stores", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "34.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Shelf share index 34.8", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Category: ₹32.4 Cr", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.1%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "Avg depth 21.1%", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.9%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Avg depth 28.9%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹128",
+//         change: { text: "▲1.7% (+₹2.1)", positive: true },
+//         meta: { units: "1.62 Cr impressions", change: "▲1.7%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.8",
+//         change: { text: "▲1.3% (+₹0.10)", positive: true },
+//         meta: { units: "10.8 lac clicks", change: "▲1.3%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- BLINKIT ----------------
+//   {
+//     key: "blinkit",
+//     label: "Blinkit",
+//     type: "Q-commerce",
+//     logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.46 Cr",
+//         change: { text: "▲3.2% (+₹7.6 lac)", positive: true },
+//         meta: { units: "1.24 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.34 Cr",
+//         change: { text: "▲1.6% (+₹0.5 lac)", positive: true },
+//         meta: { units: "₹34 lac", change: "▲1.6%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.2x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹2.44 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.48 Cr",
+//         change: { text: "▲2.1% (+₹1.0 lac)", positive: true },
+//         meta: { units: "0.33 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.9%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "34.1k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "92.4%",
+//         change: { text: "▼1.4 pp", positive: false },
+//         meta: { units: "1,920 stores", change: "▼1.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "32.1%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Shelf index 32.1", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "38.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹6.33 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "23.6%",
+//         change: { text: "▲0.8 pp", positive: true },
+//         meta: { units: "Depth 23.6%", change: "▲0.8 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "31.2%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 31.2%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹142",
+//         change: { text: "▲2.1% (+₹2.9)", positive: true },
+//         meta: { units: "43.1 lac impressions", change: "▲2.1%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹8.4",
+//         change: { text: "▲1.5% (+₹0.12)", positive: true },
+//         meta: { units: "3.9 lac clicks", change: "▲1.5%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- ZEPTO ----------------
+//   {
+//     key: "zepto",
+//     label: "Zepto",
+//     type: "Q-commerce",
+//     logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.88 Cr",
+//         change: { text: "▲3.4% (+₹6.1 lac)", positive: true },
+//         meta: { units: "0.98 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.28 Cr",
+//         change: { text: "▲1.4% (+₹0.4 lac)", positive: true },
+//         meta: { units: "₹28 lac", change: "▲1.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "6.8x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹1.90 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.36 Cr",
+//         change: { text: "▲1.7% (+₹0.6 lac)", positive: true },
+//         meta: { units: "0.27 lac units", change: "▲1.7%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "28.8k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "94.7%",
+//         change: { text: "▼0.9 pp", positive: false },
+//         meta: { units: "1,570 stores", change: "▼0.9 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Shelf index 33.8", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.9%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹5.08 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "22.8%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "Depth 22.8%", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "30.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 30.4%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹138",
+//         change: { text: "▲1.9% (+₹2.6)", positive: true },
+//         meta: { units: "38.0 lac impressions", change: "▲1.9%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹8.1",
+//         change: { text: "▲1.2% (+₹0.10)", positive: true },
+//         meta: { units: "3.2 lac clicks", change: "▲1.2%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- SWIGGY ----------------
+//   {
+//     key: "swiggy",
+//     label: "Swiggy",
+//     type: "Marketplace",
+//     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.42 Cr",
+//         change: { text: "▲2.4% (+₹3.3 lac)", positive: true },
+//         meta: { units: "0.74 lac units", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.22 Cr",
+//         change: { text: "▲1.3% (+₹0.3 lac)", positive: true },
+//         meta: { units: "₹22 lac", change: "▲1.3%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "6.2x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.36 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.29 Cr",
+//         change: { text: "▲1.5% (+₹0.4 lac)", positive: true },
+//         meta: { units: "0.21 lac units", change: "▲1.5%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.3%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "19.3k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "2,710 stores", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "31.4%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Shelf index 31.4", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "30.9%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹4.63 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 18.2%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 25.8%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹110",
+//         change: { text: "▲1.5% (+₹1.6)", positive: true },
+//         meta: { units: "26.9 lac impressions", change: "▲1.5%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.2",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "2.1 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- AMAZON ----------------
+//   {
+//     key: "amazon",
+//     label: "Amazon",
+//     type: "Marketplace",
+//     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.68 Cr",
+//         change: { text: "▲2.8% (+₹7.3 lac)", positive: true },
+//         meta: { units: "1.38 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.41 Cr",
+//         change: { text: "▲1.4% (+₹0.6 lac)", positive: true },
+//         meta: { units: "₹41 lac", change: "▲1.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.9x",
+//         change: { text: "▲0.5% (+0.04x)", positive: true },
+//         meta: { units: "₹3.24 Cr return", change: "▲0.5%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.58 Cr",
+//         change: { text: "▲1.8% (+₹1.0 lac)", positive: true },
+//         meta: { units: "0.41 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.4%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "41.3k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "93.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "4,520 stores", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.0%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Shelf index 33.0", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "34.7%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹7.72 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.1%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "Depth 20.1%", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.0%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 27.0%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹134",
+//         change: { text: "▲1.7% (+₹2.3)", positive: true },
+//         meta: { units: "49.5 lac impressions", change: "▲1.7%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.4",
+//         change: { text: "▲1.2% (+₹0.09)", positive: true },
+//         meta: { units: "4.7 lac clicks", change: "▲1.2%" },
+//       },
+//     ],
+//   },
+// ];
+// export const defaultPlatforms = [
+//   // ---------------- ALL ----------------
+//   {
+//     key: "all",
+//     label: "All",
+//     type: "Overall",
+//     logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹11.8 Cr",
+//         change: { text: "▲3.4% (+₹38.9 lac)", positive: true },
+//         meta: { units: "5.7 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.32 Cr",
+//         change: { text: "▲2.2% (+₹2.8 lac)", positive: true },
+//         meta: { units: "₹1.32 Cr", change: "▲2.2%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.9x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹10.9 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.42 Cr",
+//         change: { text: "▲1.9% (+₹4.5 lac)", positive: true },
+//         meta: { units: "1.54 lac units", change: "▲1.9%" },
+//       },
+
+//       // 🔥 NEW DESP SALES → 30% of 11.8 Cr = 3.54 Cr
+//       {
+//         title: "Desp Sales",
+//         value: "₹3.54 Cr",
+//         change: { text: "▲1.7% (+₹5.8 lac)", positive: true },
+//         meta: { units: "0.46 lac units", change: "▲1.7%" },
+//       },
+
+//       {
+//         title: "Conversion",
+//         value: "4.6%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "1.21 lac conversions", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.2%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "10,780 stores", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "34.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Shelf share index 34.8", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Category: ₹32.4 Cr", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.1%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "Avg depth 21.1%", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.9%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Avg depth 28.9%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹128",
+//         change: { text: "▲1.7% (+₹2.1)", positive: true },
+//         meta: { units: "1.62 Cr impressions", change: "▲1.7%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.8",
+//         change: { text: "▲1.3% (+₹0.10)", positive: true },
+//         meta: { units: "10.8 lac clicks", change: "▲1.3%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- BLINKIT ----------------
+//   {
+//     key: "blinkit",
+//     label: "Blinkit",
+//     type: "Q-commerce",
+//     logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.46 Cr",
+//         change: { text: "▲3.2% (+₹7.6 lac)", positive: true },
+//         meta: { units: "1.24 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.34 Cr",
+//         change: { text: "▲1.6% (+₹0.5 lac)", positive: true },
+//         meta: { units: "₹34 lac", change: "▲1.6%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.2x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹2.44 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.48 Cr",
+//         change: { text: "▲2.1% (+₹1.0 lac)", positive: true },
+//         meta: { units: "0.33 lac units", change: "▲2.1%" },
+//       },
+
+//       // 🔥 NEW DESP SALES → 0.74 Cr
+//       {
+//         title: "Desp Sales",
+//         value: "₹0.74 Cr",
+//         change: { text: "▲1.8% (+₹1.3 lac)", positive: true },
+//         meta: { units: "0.10 lac units", change: "▲1.8%" },
+//       },
+
+//       {
+//         title: "Conversion",
+//         value: "3.9%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "34.1k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "92.4%",
+//         change: { text: "▼1.4 pp", positive: false },
+//         meta: { units: "1,920 stores", change: "▼1.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "32.1%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Shelf index 32.1", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "38.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹6.33 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "23.6%",
+//         change: { text: "▲0.8 pp", positive: true },
+//         meta: { units: "Depth 23.6%", change: "▲0.8 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "31.2%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 31.2%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹142",
+//         change: { text: "▲2.1% (+₹2.9)", positive: true },
+//         meta: { units: "43.1 lac impressions", change: "▲2.1%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹8.4",
+//         change: { text: "▲1.5% (+₹0.12)", positive: true },
+//         meta: { units: "3.9 lac clicks", change: "▲1.5%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- ZEPTO ----------------
+//   {
+//     key: "zepto",
+//     label: "Zepto",
+//     type: "Q-commerce",
+//     logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.88 Cr",
+//         change: { text: "▲3.4% (+₹6.1 lac)", positive: true },
+//         meta: { units: "0.98 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.28 Cr",
+//         change: { text: "▲1.4% (+₹0.4 lac)", positive: true },
+//         meta: { units: "₹28 lac", change: "▲1.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "6.8x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹1.90 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.36 Cr",
+//         change: { text: "▲1.7% (+₹0.6 lac)", positive: true },
+//         meta: { units: "0.27 lac units", change: "▲1.7%" },
+//       },
+
+//       // 🔥 NEW DESP SALES → 0.56 Cr
+//       {
+//         title: "Desp Sales",
+//         value: "₹0.56 Cr",
+//         change: { text: "▲1.6% (+₹0.9 lac)", positive: true },
+//         meta: { units: "0.08 lac units", change: "▲1.6%" },
+//       },
+
+//       {
+//         title: "Conversion",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "28.8k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "94.7%",
+//         change: { text: "▼0.9 pp", positive: false },
+//         meta: { units: "1,570 stores", change: "▼0.9 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Shelf index 33.8", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.9%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹5.08 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "22.8%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "Depth 22.8%", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "30.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 30.4%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹138",
+//         change: { text: "▲1.9% (+₹2.6)", positive: true },
+//         meta: { units: "38.0 lac impressions", change: "▲1.9%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹8.1",
+//         change: { text: "▲1.2% (+₹0.10)", positive: true },
+//         meta: { units: "3.2 lac clicks", change: "▲1.2%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- SWIGGY (changed to Q-commerce) ----------------
+//   {
+//     key: "swiggy",
+//     label: "Swiggy",
+//     type: "Q-commerce",
+//     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.42 Cr",
+//         change: { text: "▲2.4% (+₹3.3 lac)", positive: true },
+//         meta: { units: "0.74 lac units", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.22 Cr",
+//         change: { text: "▲1.3% (+₹0.3 lac)", positive: true },
+//         meta: { units: "₹22 lac", change: "▲1.3%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "6.2x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.36 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.29 Cr",
+//         change: { text: "▲1.5% (+₹0.4 lac)", positive: true },
+//         meta: { units: "0.21 lac units", change: "▲1.5%" },
+//       },
+
+//       // 🔥 NEW DESP SALES → 0.43 Cr
+//       {
+//         title: "Desp Sales",
+//         value: "₹0.43 Cr",
+//         change: { text: "▲1.4% (+₹0.6 lac)", positive: true },
+//         meta: { units: "0.06 lac units", change: "▲1.4%" },
+//       },
+
+//       {
+//         title: "Conversion",
+//         value: "3.3%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "19.3k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "2,710 stores", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "31.4%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Shelf index 31.4", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "30.9%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹4.63 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 18.2%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 25.8%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹110",
+//         change: { text: "▲1.5% (+₹1.6)", positive: true },
+//         meta: { units: "26.9 lac impressions", change: "▲1.5%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.2",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "2.1 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------- AMAZON ----------------
+//   {
+//     key: "amazon",
+//     label: "Amazon",
+//     type: "Marketplace",
+//     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.68 Cr",
+//         change: { text: "▲2.8% (+₹7.3 lac)", positive: true },
+//         meta: { units: "1.38 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.41 Cr",
+//         change: { text: "▲1.4% (+₹0.6 lac)", positive: true },
+//         meta: { units: "₹41 lac", change: "▲1.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.9x",
+//         change: { text: "▲0.5% (+0.04x)", positive: true },
+//         meta: { units: "₹3.24 Cr return", change: "▲0.5%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.58 Cr",
+//         change: { text: "▲1.8% (+₹1.0 lac)", positive: true },
+//         meta: { units: "0.41 lac units", change: "▲1.8%" },
+//       },
+
+//       // 🔥 NEW DESP SALES → 0.80 Cr
+//       {
+//         title: "Desp Sales",
+//         value: "₹0.80 Cr",
+//         change: { text: "▲1.6% (+₹1.2 lac)", positive: true },
+//         meta: { units: "0.12 lac units", change: "▲1.6%" },
+//       },
+
+//       {
+//         title: "Conversion",
+//         value: "4.4%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "41.3k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "93.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "4,520 stores", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.0%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Shelf index 33.0", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "34.7%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹7.72 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.1%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "Depth 20.1%", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.0%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 27.0%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹134",
+//         change: { text: "▲1.7% (+₹2.3)", positive: true },
+//         meta: { units: "49.5 lac impressions", change: "▲1.7%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.4",
+//         change: { text: "▲1.2% (+₹0.09)", positive: true },
+//         meta: { units: "4.7 lac clicks", change: "▲1.2%" },
+//       },
+//     ],
+//   },
+// ];
 export const defaultPlatforms = [
   // ---------------- ALL ----------------
   {
@@ -46,6 +919,15 @@ export const defaultPlatforms = [
         change: { text: "▲1.9% (+₹4.5 lac)", positive: true },
         meta: { units: "1.54 lac units", change: "▲1.9%" },
       },
+
+      // 🌟 NEW DSP SALES = 34% OF 2.42 Cr
+      {
+        title: "Dsp Sales",
+        value: "₹0.82 Cr",
+        change: { text: "▲1.7% (+₹1.3 lac)", positive: true },
+        meta: { units: "0.52 lac units", change: "▲1.7%" },
+      },
+
       {
         title: "Conversion",
         value: "4.6%",
@@ -128,6 +1010,15 @@ export const defaultPlatforms = [
         change: { text: "▲2.1% (+₹1.0 lac)", positive: true },
         meta: { units: "0.33 lac units", change: "▲2.1%" },
       },
+
+      // 🌟 DSP SALES = 33% OF 0.48 Cr
+      {
+        title: "Dsp Sales",
+        value: "₹0.16 Cr",
+        change: { text: "▲1.9% (+₹0.3 lac)", positive: true },
+        meta: { units: "0.10 lac units", change: "▲1.9%" },
+      },
+
       {
         title: "Conversion",
         value: "3.9%",
@@ -210,6 +1101,15 @@ export const defaultPlatforms = [
         change: { text: "▲1.7% (+₹0.6 lac)", positive: true },
         meta: { units: "0.27 lac units", change: "▲1.7%" },
       },
+
+      // 🌟 DSP SALES = 30% OF 0.36 Cr = 0.11 Cr
+      {
+        title: "Dsp Sales",
+        value: "₹0.11 Cr",
+        change: { text: "▲1.6% (+₹0.2 lac)", positive: true },
+        meta: { units: "0.08 lac units", change: "▲1.6%" },
+      },
+
       {
         title: "Conversion",
         value: "4.1%",
@@ -261,11 +1161,11 @@ export const defaultPlatforms = [
     ],
   },
 
-  // ---------------- SWIGGY ----------------
+  // ---------------- SWIGGY (Q-commerce) ----------------
   {
     key: "swiggy",
     label: "Swiggy",
-    type: "Marketplace",
+    type: "Q-commerce",
     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
     columns: [
       {
@@ -292,6 +1192,15 @@ export const defaultPlatforms = [
         change: { text: "▲1.5% (+₹0.4 lac)", positive: true },
         meta: { units: "0.21 lac units", change: "▲1.5%" },
       },
+
+      // 🌟 DSP SALES = 35% OF 0.29 Cr = 0.10 Cr
+      {
+        title: "Dsp Sales",
+        value: "₹0.10 Cr",
+        change: { text: "▲1.4% (+₹0.2 lac)", positive: true },
+        meta: { units: "0.06 lac units", change: "▲1.4%" },
+      },
+
       {
         title: "Conversion",
         value: "3.3%",
@@ -374,6 +1283,15 @@ export const defaultPlatforms = [
         change: { text: "▲1.8% (+₹1.0 lac)", positive: true },
         meta: { units: "0.41 lac units", change: "▲1.8%" },
       },
+
+      // 🌟 DSP SALES = 32% OF 0.58 Cr = 0.19 Cr
+      {
+        title: "Dsp Sales",
+        value: "₹0.19 Cr",
+        change: { text: "▲1.7% (+₹0.3 lac)", positive: true },
+        meta: { units: "0.12 lac units", change: "▲1.7%" },
+      },
+
       {
         title: "Conversion",
         value: "4.4%",
@@ -426,6 +1344,981 @@ export const defaultPlatforms = [
   },
 ];
 
+
+// export const defaultMonths = [
+//   /* -------------------- JAN -------------------- */
+//   {
+//     key: "jan",
+//     label: "Jan",
+//     logo: monthLogos["jan"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹7.2 Cr",
+//         change: { text: "▲1.1% (+₹7.8 lac)", positive: true },
+//         meta: { units: "3.5 lac", change: "▲0.6%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.82 Cr",
+//         change: { text: "▲0.9% (+₹0.7 lac)", positive: true },
+//         meta: { units: "—", change: "▲0.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.1x",
+//         change: { text: "▲0.5% (+0.03x)", positive: true },
+//         meta: { units: "—", change: "▲0.5%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹1.62 Cr",
+//         change: { text: "▲0.7% (+₹1.1 lac)", positive: true },
+//         meta: { units: "1.1 lac", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.7%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "94.8%",
+//         change: { text: "▼0.6 pp", positive: false },
+//         meta: { units: "—", change: "▼0.6 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.4%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "31.6%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.9%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹115",
+//         change: { text: "▲1.2% (+₹1.4)", positive: true },
+//         meta: { units: "—", change: "▲1.2%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.6",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "—", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- FEB -------------------- */
+//   {
+//     key: "feb",
+//     label: "Feb",
+//     logo: monthLogos["feb"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹7.9 Cr",
+//         change: { text: "▲1.6% (+₹12.5 lac)", positive: true },
+//         meta: { units: "3.8 lac", change: "▲0.8%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.87 Cr",
+//         change: { text: "▲1.1% (+₹1.0 lac)", positive: true },
+//         meta: { units: "—", change: "▲1.1%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.3x",
+//         change: { text: "▲0.6% (+0.04x)", positive: true },
+//         meta: { units: "—", change: "▲0.6%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹1.78 Cr",
+//         change: { text: "▲1.0% (+₹1.7 lac)", positive: true },
+//         meta: { units: "1.15 lac", change: "▲0.8%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.9%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.3%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "34.1%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "32.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "19.3%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.4%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹118",
+//         change: { text: "▲1.4% (+₹1.6)", positive: true },
+//         meta: { units: "—", change: "▲1.4%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.7",
+//         change: { text: "▲1.3% (+₹0.08)", positive: true },
+//         meta: { units: "—", change: "▲1.3%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- MAR -------------------- */
+//   {
+//     key: "mar",
+//     label: "Mar",
+//     logo: monthLogos["mar"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹8.6 Cr",
+//         change: { text: "▲2.1% (+₹17.8 lac)", positive: true },
+//         meta: { units: "4.1 lac", change: "▲1.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.91 Cr",
+//         change: { text: "▲1.3% (+₹1.2 lac)", positive: true },
+//         meta: { units: "—", change: "▲1.3%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.5x",
+//         change: { text: "▲0.9% (+0.07x)", positive: true },
+//         meta: { units: "—", change: "▲0.9%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹1.92 Cr",
+//         change: { text: "▲1.2% (+₹2.2 lac)", positive: true },
+//         meta: { units: "1.24 lac", change: "▲0.9%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.0%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "35.0%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "33.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "19.9%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "—", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.8%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹122",
+//         change: { text: "▲1.8% (+₹2.1)", positive: true },
+//         meta: { units: "—", change: "▲1.8%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.9",
+//         change: { text: "▲1.4% (+₹0.09)", positive: true },
+//         meta: { units: "—", change: "▲1.4%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- APR -------------------- */
+//   {
+//     key: "apr",
+//     label: "Apr",
+//     logo: monthLogos["apr"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹9.3 Cr",
+//         change: { text: "▲2.6% (+₹23.5 lac)", positive: true },
+//         meta: { units: "4.5 lac", change: "▲1.3%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹0.96 Cr",
+//         change: { text: "▲1.4% (+₹1.3 lac)", positive: true },
+//         meta: { units: "—", change: "▲1.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.7x",
+//         change: { text: "▲1.1% (+0.08x)", positive: true },
+//         meta: { units: "—", change: "▲1.1%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.05 Cr",
+//         change: { text: "▲1.4% (+₹2.8 lac)", positive: true },
+//         meta: { units: "1.32 lac", change: "▲1.0%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.2%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.3%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "—", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "35.8%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "34.0%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.3%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹125",
+//         change: { text: "▲1.9% (+₹2.3)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.1",
+//         change: { text: "▲1.7% (+₹0.12)", positive: true },
+//         meta: { units: "—", change: "▲1.7%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- MAY -------------------- */
+//   {
+//     key: "may",
+//     label: "May",
+//     logo: monthLogos["may"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹10.0 Cr",
+//         change: { text: "▲3.3% (+₹32.1 lac)", positive: true },
+//         meta: { units: "4.9 lac", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.02 Cr",
+//         change: { text: "▲1.9% (+₹1.9 lac)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.9x",
+//         change: { text: "▲1.2% (+0.09x)", positive: true },
+//         meta: { units: "—", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.21 Cr",
+//         change: { text: "▲1.6% (+₹3.4 lac)", positive: true },
+//         meta: { units: "1.41 lac", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.3%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "36.6%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "34.9%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹129",
+//         change: { text: "▲2.2% (+₹2.8)", positive: true },
+//         meta: { units: "—", change: "▲2.2%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.3",
+//         change: { text: "▲1.8% (+₹0.13)", positive: true },
+//         meta: { units: "—", change: "▲1.8%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- JUN -------------------- */
+//   {
+//     key: "jun",
+//     label: "Jun",
+//     logo: monthLogos["jun"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹10.7 Cr",
+//         change: { text: "▲2.9% (+₹30.4 lac)", positive: true },
+//         meta: { units: "5.2 lac", change: "▲1.3%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.08 Cr",
+//         change: { text: "▲2.1% (+₹2.2 lac)", positive: true },
+//         meta: { units: "—", change: "▲2.1%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.1x",
+//         change: { text: "▲1.3% (+0.10x)", positive: true },
+//         meta: { units: "—", change: "▲1.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.34 Cr",
+//         change: { text: "▲1.6% (+₹3.6 lac)", positive: true },
+//         meta: { units: "1.51 lac", change: "▲1.1%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.4%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.8%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "37.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "35.4%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.0%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.7%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹133",
+//         change: { text: "▲3.1% (+₹4.0)", positive: true },
+//         meta: { units: "—", change: "▲3.1%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.4",
+//         change: { text: "▲1.9% (+₹0.14)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- JUL -------------------- */
+//   {
+//     key: "jul",
+//     label: "Jul",
+//     logo: monthLogos["jul"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹11.2 Cr",
+//         change: { text: "▲2.4% (+₹26.5 lac)", positive: true },
+//         meta: { units: "5.4 lac", change: "▲1.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.12 Cr",
+//         change: { text: "▲1.9% (+₹2.1 lac)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.2x",
+//         change: { text: "▲1.2% (+0.09x)", positive: true },
+//         meta: { units: "—", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.41 Cr",
+//         change: { text: "▲1.3% (+₹3.2 lac)", positive: true },
+//         meta: { units: "1.56 lac", change: "▲1.0%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.5%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.0%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "37.6%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.0%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "—", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.3%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "29.1%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹137",
+//         change: { text: "▲3.0% (+₹4.0)", positive: true },
+//         meta: { units: "—", change: "▲3.0%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.6",
+//         change: { text: "▲2.1% (+₹0.16)", positive: true },
+//         meta: { units: "—", change: "▲2.1%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- AUG -------------------- */
+//   {
+//     key: "aug",
+//     label: "Aug",
+//     logo: monthLogos["aug"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹11.6 Cr",
+//         change: { text: "▲2.9% (+₹33.1 lac)", positive: true },
+//         meta: { units: "5.6 lac", change: "▲1.5%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.18 Cr",
+//         change: { text: "▲2.3% (+₹2.7 lac)", positive: true },
+//         meta: { units: "—", change: "▲2.3%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.3x",
+//         change: { text: "▲1.4% (+0.12x)", positive: true },
+//         meta: { units: "—", change: "▲1.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.52 Cr",
+//         change: { text: "▲1.6% (+₹4.0 lac)", positive: true },
+//         meta: { units: "1.64 lac", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.7%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.3%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "38.2%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "—", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.7%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "—", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.6%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "29.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹139",
+//         change: { text: "▲1.8% (+₹2.4)", positive: true },
+//         meta: { units: "—", change: "▲1.8%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.7",
+//         change: { text: "▲1.9% (+₹0.15)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- SEP -------------------- */
+//   {
+//     key: "sep",
+//     label: "Sep",
+//     logo: monthLogos["sep"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹11.3 Cr",
+//         change: { text: "▼1.4% (-₹15.8 lac)", positive: false },
+//         meta: { units: "5.4 lac", change: "▼1.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.14 Cr",
+//         change: { text: "▼1.2% (-₹1.4 lac)", positive: false },
+//         meta: { units: "—", change: "▼1.2%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.0x",
+//         change: { text: "▼1.0% (-0.08x)", positive: false },
+//         meta: { units: "—", change: "▼1.0%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.44 Cr",
+//         change: { text: "▼1.3% (-₹3.2 lac)", positive: false },
+//         meta: { units: "1.58 lac", change: "▼1.1%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.5%",
+//         change: { text: "▼0.2 pp", positive: false },
+//         meta: { units: "—", change: "▼0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.9%",
+//         change: { text: "▼0.4 pp", positive: false },
+//         meta: { units: "—", change: "▼0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "37.4%",
+//         change: { text: "▼0.4 pp", positive: false },
+//         meta: { units: "—", change: "▼0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "36.1%",
+//         change: { text: "▼0.6 pp", positive: false },
+//         meta: { units: "—", change: "▼0.6 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.1%",
+//         change: { text: "▼0.5 pp", positive: false },
+//         meta: { units: "—", change: "▼0.5 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.9%",
+//         change: { text: "▼0.5 pp", positive: false },
+//         meta: { units: "—", change: "▼0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹138",
+//         change: { text: "▼0.5% (-₹0.7)", positive: false },
+//         meta: { units: "—", change: "▼0.5%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.6",
+//         change: { text: "▼0.9% (-₹0.07)", positive: false },
+//         meta: { units: "—", change: "▼0.9%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- OCT -------------------- */
+//   {
+//     key: "oct",
+//     label: "Oct",
+//     logo: monthLogos["oct"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹12.4 Cr",
+//         change: { text: "▲3.8% (+₹45.2 lac)", positive: true },
+//         meta: { units: "6.0 lac", change: "▲2.3%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.28 Cr",
+//         change: { text: "▲2.9% (+₹3.6 lac)", positive: true },
+//         meta: { units: "—", change: "▲2.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.4x",
+//         change: { text: "▲1.9% (+0.16x)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.71 Cr",
+//         change: { text: "▲2.4% (+₹6.3 lac)", positive: true },
+//         meta: { units: "1.74 lac", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.7%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.4%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "38.9%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "—", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "37.0%",
+//         change: { text: "▲0.9 pp", positive: true },
+//         meta: { units: "—", change: "▲0.9 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "22.0%",
+//         change: { text: "▲0.9 pp", positive: true },
+//         meta: { units: "—", change: "▲0.9 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "29.8%",
+//         change: { text: "▲0.9 pp", positive: true },
+//         meta: { units: "—", change: "▲0.9 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹141",
+//         change: { text: "▲2.4% (+₹3.3)", positive: true },
+//         meta: { units: "—", change: "▲2.4%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.8",
+//         change: { text: "▲2.1% (+₹0.16)", positive: true },
+//         meta: { units: "—", change: "▲2.1%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- NOV -------------------- */
+//   {
+//     key: "nov",
+//     label: "Nov",
+//     logo: monthLogos["nov"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹12.9 Cr",
+//         change: { text: "▲2.3% (+₹29.6 lac)", positive: true },
+//         meta: { units: "6.3 lac", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.32 Cr",
+//         change: { text: "▲1.6% (+₹2.1 lac)", positive: true },
+//         meta: { units: "—", change: "▲1.6%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.5x",
+//         change: { text: "▲1.0% (+0.08x)", positive: true },
+//         meta: { units: "—", change: "▲1.0%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.79 Cr",
+//         change: { text: "▲1.4% (+₹3.8 lac)", positive: true },
+//         meta: { units: "1.79 lac", change: "▲0.9%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.8%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "—", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.7%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "39.3%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "37.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "22.3%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "30.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹143",
+//         change: { text: "▲1.8% (+₹2.5)", positive: true },
+//         meta: { units: "—", change: "▲1.8%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.9",
+//         change: { text: "▲1.4% (+₹0.11)", positive: true },
+//         meta: { units: "—", change: "▲1.4%" },
+//       },
+//     ],
+//   },
+
+//   /* -------------------- DEC -------------------- */
+//   {
+//     key: "dec",
+//     label: "Dec",
+//     logo: monthLogos["dec"],
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹13.5 Cr",
+//         change: { text: "▲3.7% (+₹48.2 lac)", positive: true },
+//         meta: { units: "6.7 lac", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹1.38 Cr",
+//         change: { text: "▲2.1% (+₹2.8 lac)", positive: true },
+//         meta: { units: "—", change: "▲2.1%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.7x",
+//         change: { text: "▲1.9% (+0.16x)", positive: true },
+//         meta: { units: "—", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹2.92 Cr",
+//         change: { text: "▲1.8% (+₹5.2 lac)", positive: true },
+//         meta: { units: "1.86 lac", change: "▲1.4%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "5.0%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "—", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "98.0%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "—", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "39.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "—", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "38.1%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "—", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "22.9%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "—", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "30.5%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "—", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹148",
+//         change: { text: "▲2.7% (+₹3.9)", positive: true },
+//         meta: { units: "—", change: "▲2.7%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹8.1",
+//         change: { text: "▲2.6% (+₹0.21)", positive: true },
+//         meta: { units: "—", change: "▲2.6%" },
+//       },
+//     ],
+//   },
+// ];
+
 export const defaultMonths = [
   /* -------------------- JAN -------------------- */
   {
@@ -456,6 +2349,12 @@ export const defaultMonths = [
         value: "₹1.62 Cr",
         change: { text: "▲0.7% (+₹1.1 lac)", positive: true },
         meta: { units: "1.1 lac", change: "▲0.4%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.56 Cr", // ~35% of 1.62 Cr
+        change: { text: "▲0.6% (+₹0.7 lac)", positive: true },
+        meta: { units: "0.38 lac", change: "▲0.3%" },
       },
       {
         title: "Conversion",
@@ -539,6 +2438,12 @@ export const defaultMonths = [
         meta: { units: "1.15 lac", change: "▲0.8%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.62 Cr", // ~35%
+        change: { text: "▲0.9% (+₹0.6 lac)", positive: true },
+        meta: { units: "0.39 lac", change: "▲0.5%" },
+      },
+      {
         title: "Conversion",
         value: "3.9%",
         change: { text: "▲0.1 pp", positive: true },
@@ -618,6 +2523,12 @@ export const defaultMonths = [
         value: "₹1.92 Cr",
         change: { text: "▲1.2% (+₹2.2 lac)", positive: true },
         meta: { units: "1.24 lac", change: "▲0.9%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.67 Cr",
+        change: { text: "▲1.1% (+₹0.9 lac)", positive: true },
+        meta: { units: "0.42 lac", change: "▲0.6%" },
       },
       {
         title: "Conversion",
@@ -701,6 +2612,12 @@ export const defaultMonths = [
         meta: { units: "1.32 lac", change: "▲1.0%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.72 Cr",
+        change: { text: "▲1.3% (+₹1.0 lac)", positive: true },
+        meta: { units: "0.44 lac", change: "▲0.7%" },
+      },
+      {
         title: "Conversion",
         value: "4.2%",
         change: { text: "▲0.2 pp", positive: true },
@@ -780,6 +2697,12 @@ export const defaultMonths = [
         value: "₹2.21 Cr",
         change: { text: "▲1.6% (+₹3.4 lac)", positive: true },
         meta: { units: "1.41 lac", change: "▲1.2%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.77 Cr",
+        change: { text: "▲1.4% (+₹1.1 lac)", positive: true },
+        meta: { units: "0.46 lac", change: "▲0.8%" },
       },
       {
         title: "Conversion",
@@ -863,6 +2786,12 @@ export const defaultMonths = [
         meta: { units: "1.51 lac", change: "▲1.1%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.82 Cr",
+        change: { text: "▲1.4% (+₹1.2 lac)", positive: true },
+        meta: { units: "0.50 lac", change: "▲0.7%" },
+      },
+      {
         title: "Conversion",
         value: "4.4%",
         change: { text: "▲0.1 pp", positive: true },
@@ -942,6 +2871,12 @@ export const defaultMonths = [
         value: "₹2.41 Cr",
         change: { text: "▲1.3% (+₹3.2 lac)", positive: true },
         meta: { units: "1.56 lac", change: "▲1.0%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.85 Cr",
+        change: { text: "▲1.2% (+₹1.0 lac)", positive: true },
+        meta: { units: "0.50 lac", change: "▲0.8%" },
       },
       {
         title: "Conversion",
@@ -1025,6 +2960,12 @@ export const defaultMonths = [
         meta: { units: "1.64 lac", change: "▲1.2%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.92 Cr",
+        change: { text: "▲1.5% (+₹1.3 lac)", positive: true },
+        meta: { units: "0.53 lac", change: "▲0.8%" },
+      },
+      {
         title: "Conversion",
         value: "4.7%",
         change: { text: "▲0.2 pp", positive: true },
@@ -1104,6 +3045,12 @@ export const defaultMonths = [
         value: "₹2.44 Cr",
         change: { text: "▼1.3% (-₹3.2 lac)", positive: false },
         meta: { units: "1.58 lac", change: "▼1.1%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.85 Cr",
+        change: { text: "▼1.1% (-₹0.9 lac)", positive: false },
+        meta: { units: "0.50 lac", change: "▼0.5%" },
       },
       {
         title: "Conversion",
@@ -1187,6 +3134,12 @@ export const defaultMonths = [
         meta: { units: "1.74 lac", change: "▲1.8%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.96 Cr",
+        change: { text: "▲2.1% (+₹1.8 lac)", positive: true },
+        meta: { units: "0.57 lac", change: "▲1.2%" },
+      },
+      {
         title: "Conversion",
         value: "4.7%",
         change: { text: "▲0.2 pp", positive: true },
@@ -1266,6 +3219,12 @@ export const defaultMonths = [
         value: "₹2.79 Cr",
         change: { text: "▲1.4% (+₹3.8 lac)", positive: true },
         meta: { units: "1.79 lac", change: "▲0.9%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹1.01 Cr",
+        change: { text: "▲1.3% (+₹1.6 lac)", positive: true },
+        meta: { units: "0.60 lac", change: "▲0.7%" },
       },
       {
         title: "Conversion",
@@ -1349,6 +3308,12 @@ export const defaultMonths = [
         meta: { units: "1.86 lac", change: "▲1.4%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹1.05 Cr",
+        change: { text: "▲1.7% (+₹1.8 lac)", positive: true },
+        meta: { units: "0.62 lac", change: "▲0.9%" },
+      },
+      {
         title: "Conversion",
         value: "5.0%",
         change: { text: "▲0.2 pp", positive: true },
@@ -1399,6 +3364,7 @@ export const defaultMonths = [
     ],
   },
 ];
+
 
 export const defaultCategory = [
   // ---------------------- CASSATA ----------------------
