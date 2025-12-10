@@ -362,7 +362,7 @@ const DetailPanel = ({ selected }) => {
                 </div> */}
 
                 {/* FOOTER */}
-                <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
                     <span className="rounded-full bg-slate-50 px-2 py-1">
                         Lead owner: QC Ecom KAM
                     </span>
@@ -370,92 +370,96 @@ const DetailPanel = ({ selected }) => {
                     <span className="rounded-full bg-slate-50 px-2 py-1">
                         Platforms: Blinkit · Zepto · Instamart
                     </span>
-                    <span className="rounded-full bg-slate-50 px-8 py-1">
-                    </span>
-                    <span className="rounded-full bg-slate-50 px-6 py-1">
 
-                    </span>
-                    <span className="rounded-full bg-slate-50 px-6 py-1">
+                    {/* Empty pills — remove or keep */}
+                    <span className="rounded-full bg-slate-50 px-8 py-1"></span>
+                    <span className="rounded-full bg-slate-50 px-6 py-1"></span>
+                    <span className="rounded-full bg-slate-50 px-6 py-1"></span>
 
-                    </span>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:border-sky-200 hover:text-sky-700"
+                        className="bg-sky-900 text-black ml-auto rounded-full border border-slate-900 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-700 hover:border-sky-900 hover:text-sky-700"
+                        style={{
+                            cursor: "pointer",
+                        }}
                     >
-                        show All
+                        Show All
                     </button>
                 </div>
 
-                {/* MODAL */}
-                {showModal && (
-                    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-                        <div className="max-h-[80vh] w-full max-w-4xl rounded-3xl bg-white p-5 shadow-xl">
-                            <div className="mb-3 flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-sm font-semibold text-slate-900">
-                                        All 62 dark stores – OSA by SKU
-                                    </h3>
-                                    <p className="text-[11px] text-slate-500">
-                                        Use this grid to assign store-level actions to city and
-                                        supply teams.
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowModal(false)}
-                                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-600 hover:border-sky-200 hover:text-sky-700"
-                                >
-                                    Close
-                                </button>
-                            </div>
 
-                            <div className="overflow-auto rounded-2xl border border-slate-100">
-                                <table className="min-w-full text-left text-[11px]">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 bg-slate-50/80">
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                Dark store
-                                            </th>
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                City
-                                            </th>
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                Cornetto OSA
-                                            </th>
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                Magnum OSA
-                                            </th>
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                Feast OSA
-                                            </th>
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                Chocobar OSA
-                                            </th>
-                                            <th className="px-2 py-1 font-medium text-slate-500">
-                                                Leak (₹)
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {darkStoreRows.map((row) => (
-                                            <tr key={row.store} className="border-b border-slate-50">
-                                                <td className="px-2 py-1 text-slate-700">{row.store}</td>
-                                                <td className="px-2 py-1 text-slate-500">{row.city}</td>
-                                                <td className="px-2 py-1 text-rose-600">{row.cornetto}</td>
-                                                <td className="px-2 py-1 text-rose-600">{row.magnum}</td>
-                                                <td className="px-2 py-1 text-rose-600">{row.feast}</td>
-                                                <td className="px-2 py-1 text-rose-600">{row.chocobar}</td>
-                                                <td className="px-2 py-1 font-medium text-rose-600">
-                                                    {row.leak}
-                                                </td>
+                {/* MODAL */}
+                {
+                    showModal && (
+                        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+                            <div className="max-h-[80vh] w-full max-w-4xl rounded-3xl bg-white p-5 shadow-xl">
+                                <div className="mb-3 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-slate-900">
+                                            All 62 dark stores – OSA by SKU
+                                        </h3>
+                                        <p className="text-[11px] text-slate-500">
+                                            Use this grid to assign store-level actions to city and
+                                            supply teams.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowModal(false)}
+                                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-600 hover:border-sky-200 hover:text-sky-700"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+
+                                <div className="overflow-auto rounded-2xl border border-slate-100">
+                                    <table className="min-w-full text-left text-[11px]">
+                                        <thead>
+                                            <tr className="border-b border-slate-100 bg-slate-50/80">
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    Dark store
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    City
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    Cornetto OSA
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    Magnum OSA
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    Feast OSA
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    Chocobar OSA
+                                                </th>
+                                                <th className="px-2 py-1 font-medium text-slate-500">
+                                                    Leak (₹)
+                                                </th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {darkStoreRows.map((row) => (
+                                                <tr key={row.store} className="border-b border-slate-50">
+                                                    <td className="px-2 py-1 text-slate-700">{row.store}</td>
+                                                    <td className="px-2 py-1 text-slate-500">{row.city}</td>
+                                                    <td className="px-2 py-1 text-rose-600">{row.cornetto}</td>
+                                                    <td className="px-2 py-1 text-rose-600">{row.magnum}</td>
+                                                    <td className="px-2 py-1 text-rose-600">{row.feast}</td>
+                                                    <td className="px-2 py-1 text-rose-600">{row.chocobar}</td>
+                                                    <td className="px-2 py-1 font-medium text-rose-600">
+                                                        {row.leak}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )
+                }
+            </div >
         );
     }
 
