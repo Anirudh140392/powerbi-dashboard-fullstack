@@ -259,7 +259,17 @@ export default function WatchTower() {
 defaultCategory */}
           </Box>
         </Box>
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 2,
+            boxShadow: 1,
+            mb: 4,
+          }}
+        >
+          <TopActionsLayoutsShowcase />
 
+        </Box>
         {/* Category / SKU Tabs */}
         <Box
           sx={{
@@ -294,7 +304,7 @@ defaultCategory */}
               activeTab={activeTab}
             />
           </Box> */}
-          <TopActionsLayoutsShowcase />
+
           <FormatPerformanceStudio />
 
           {/* {activeTab === "sku" && (
