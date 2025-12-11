@@ -41,11 +41,11 @@ export default function PerformanceMatric() {
           <TrendingUpIcon color="white" size={20} />
         </Avatar>
 
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h5" fontWeight={600}>
           Performance Marketing
         </Typography>
 
-        <Chip label="All" size="small" variant="outlined" />
+        <Chip label="All" size="large" variant="outlined" />
       </Box>
 
       {/* Metrics Cards */}
@@ -94,7 +94,7 @@ export default function PerformanceMatric() {
             </Box>
 
             {/* Value */}
-            <Typography fontSize={28} fontWeight={700} mt={1}>
+            <Typography variant="h6" sx={{ fontSize: 22, fontWeight:550 }}>
               {m.value}
             </Typography>
 
