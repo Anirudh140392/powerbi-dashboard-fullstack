@@ -10,8 +10,10 @@ import {
   useTheme,
   Select,
   MenuItem,
+  IconButton,
 } from "@mui/material";
 import CategoryTable from "./CategoryTable";
+import { TrendingUp } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 
 /* ---------------- SMALL KPI CARD ---------------- */
@@ -306,45 +308,44 @@ const PlatformOverview = ({
 
                       {/* Right: Inline Buttons */}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <Tooltip title="View platform trend performance" arrow>
-                          <Button
-                            variant="text"
-                            size="small"
-                            sx={{
-                              textTransform: "none",
-                              fontSize: "9px",
-                              fontWeight: 600,
-                              color: "#2563eb",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 0.3,
-                              "&:hover": { background: "transparent", textDecoration: "underline" },
-                            }}
-                            onClick={() => onViewTrends(platform.label)}
-                          >
-                            Trends <span style={{ fontSize: "1rem" }}>›</span>
-                          </Button>
-                        </Tooltip>
+  <Tooltip title="View platform trend performance" arrow>
+    <IconButton
+      size="small"
+      onClick={() => onViewTrends(platform.label)}
+      sx={{
+        borderRadius: 2,
+        border: "1px solid #e5e7eb",
+        background:
+          "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(56,189,248,0.08))",
+        width: 32,
+        height: 32,
+      }}
+    >
+      <TrendingUp size={17} />
+    </IconButton>
+  </Tooltip>
 
-                        <Tooltip title="Compare performance with competitors" arrow>
-                          <Button
-                            variant="text"
-                            size="small"
-                            sx={{
-                              textTransform: "none",
-                              fontSize: "9px",
-                              fontWeight: 600,
-                              color: "#2563eb",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 0.3,
-                              "&:hover": { background: "transparent", textDecoration: "underline" },
-                            }}
-                          >
-                            Competition <span style={{ fontSize: "1rem" }}>›</span>
-                          </Button>
-                        </Tooltip>
-                      </Box>
+  {/* Competition button stays same */}
+  {/* <Tooltip title="Compare performance with competitors" arrow>
+    <Button
+      variant="text"
+      size="small"
+      sx={{
+        textTransform: "none",
+        fontSize: "9px",
+        fontWeight: 600,
+        color: "#2563eb",
+        display: "flex",
+        alignItems: "center",
+        gap: 0.3,
+        "&:hover": { background: "transparent", textDecoration: "underline" },
+      }}
+    >
+      Competition <span style={{ fontSize: "1rem" }}>›</span>
+    </Button>
+  </Tooltip> */}
+</Box>
+
                     </Box>
 
                     {/* Second Row: Platform Type */}
