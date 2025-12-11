@@ -194,7 +194,18 @@ export default function WatchTower() {
         )}
 
         {/* Top Cards */}
-        <PerformanceMatric />
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 4,
+            boxShadow: 1,
+            mb: 4,
+          }}
+        >
+          <PerformanceMatric cardWidth={285} cardHeight={140} />
+
+
+        </Box>
 
         {/* Platform Overview */}
         {/* Tabs */}
