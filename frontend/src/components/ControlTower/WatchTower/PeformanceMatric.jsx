@@ -20,7 +20,7 @@ export default function PerformanceMatric({ data }) {
     { title: "Inorganic Sales", value: "11%", mom: "5.4%", momUp: true, yoy: "0.0%", yoyUp: true, data: [2, 4, 5, 6, 8, 7, 9] },
     { title: "Conversion", value: "0.6%", mom: "28.0%", momUp: true, yoy: "0.0%", yoyUp: true, data: [1, 2, 1, 3, 2, 4, 3] },
     { title: "ROAS", value: "2.1", mom: "10.5%", momUp: true, yoy: "0.0%", yoyUp: true, data: [4, 6, 5, 7, 8, 7, 9] },
-    { title: "BMI / Sales Ratio", value: "5%", mom: "-4.6%", momUp: false, yoy: "-81.3%", yoyUp: false, data: [10, 8, 7, 6, 5, 4, 3] },
+    { title: "BMI/Sales Ratio", value: "0.00x", mom: "0.0%", momUp: true, yoy: "0.0%", yoyUp: true, data: [10, 8, 7, 6, 5, 4, 3] },
   ];
 
   // Merge dynamic data with default metrics

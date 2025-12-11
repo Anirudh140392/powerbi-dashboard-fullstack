@@ -209,7 +209,7 @@ export default function WatchTower() {
     });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  // Fetch Main Data (excluding Month Overview specific changes)
+  // Fetch Main Data (including all sections - brandsOverview, monthOverview, categoryOverview)
   useEffect(() => {
     let ignore = false;
     const fetchData = async () => {
@@ -221,17 +221,31 @@ export default function WatchTower() {
 
       setLoading(true);
       try {
+        // Fetch with ALL section-specific filters for prefetching
         const response = await axiosInstance.get("/watchtower", {
-          params: { ...filters, monthOverviewPlatform, categoryOverviewPlatform }, // Pass it initially
+          params: {
+            ...filters,
+            monthOverviewPlatform,
+            categoryOverviewPlatform,
+            brandsOverviewPlatform,
+            brandsOverviewCategory
+          },
         });
         if (!ignore && response.data) {
-          console.log("Fetched Watch Tower data:", response.data);
+          console.log("Fetched Watch Tower data with all sections:", response.data);
           setDashboardData(response.data);
+
+          // Set all sections from prefetched data
           if (response.data.monthOverview) {
             setMonthOverviewData(response.data.monthOverview);
           }
           if (response.data.categoryOverview) {
             setCategoryOverviewData(response.data.categoryOverview);
+          }
+          // NEW: Set brands Overview from prefetched data
+          if (response.data.brandsOverview) {
+            console.log("Setting prefetched brandsOverviewData:", response.data.brandsOverview);
+            setBrandsOverviewData(response.data.brandsOverview);
           }
         }
       } catch (error) {
@@ -243,7 +257,7 @@ export default function WatchTower() {
 
     fetchData();
     return () => { ignore = true; };
-  }, [filters]); // Refetch when main filters change
+  }, [filters]); // FIXED: Only filters as dependency - section filters passed in params but don't trigger refetch
 
   // Fetch ONLY Month Overview when monthOverviewPlatform changes
   useEffect(() => {
@@ -339,14 +353,15 @@ export default function WatchTower() {
     setBrandsOverviewCategory("All");
   }, [brandsOverviewPlatform]);
 
-  // Fetch ONLY Brands Overview when brandsOverviewPlatform or brandsOverviewCategory changes
+  // Fetch Brands Overview when brandsOverviewPlatform or brandsOverviewCategory changes
+  // This allows the platform/category dropdowns to work correctly
   useEffect(() => {
     let ignore = false;
     const fetchBrandsOverview = async () => {
       if (!filters.brand || !filters.location) return;
 
-      // Only fetch if Brands Overview tab is active
-      if (activeKpisTab !== "Brands Overview") return;
+      // Skip if still in initial loading
+      if (loading) return;
 
       setBrandsOverviewLoading(true);
       try {
@@ -367,11 +382,12 @@ export default function WatchTower() {
       }
     };
 
+    // Fetch when platform or category changes (but not on initial load when loading=true)
     if (!loading) {
       fetchBrandsOverview();
     }
     return () => { ignore = true; };
-  }, [brandsOverviewPlatform, brandsOverviewCategory, filters, activeKpisTab, loading]);
+  }, [brandsOverviewPlatform, brandsOverviewCategory, filters.brand, filters.location, filters.startDate, filters.endDate, loading]);
 
   return (
     <>

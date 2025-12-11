@@ -6,6 +6,8 @@ import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import AllRoutes from "./routes.js";
 import { connectDB } from "./config/db.js";
+import redisClient from "./config/redis.js";
+import cacheRoutes from "./routes/cache.js";
 
 
 // create app or middleware
@@ -46,6 +48,15 @@ app.use("/api", (req, res, next) => {
 
 // Connect to DB via Sequelize
 connectDB().then(() => console.log("✅ DB Ready")).catch(console.error);
+
+// Connect to Redis
+redisClient.connect().catch((err) => {
+  console.error("⚠️  Redis connection failed, continuing without cache:", err.message);
+});
+
+// Cache management routes
+app.use("/api/cache", cacheRoutes);
+
 // all Routes
 AllRoutes(app);
 

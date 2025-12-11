@@ -84,6 +84,17 @@ export const getBrandCategories = async (req, res) => {
     }
 };
 
+export const getMetrics = async (req, res) => {
+    try {
+        const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
+        const metrics = await getAllMetricKeys();
+        res.json(metrics);
+    } catch (error) {
+        console.error('Error fetching metrics:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getWatchTowerData = async (req, res) => {
     try {
         const {
@@ -97,13 +108,16 @@ export const getWatchTowerData = async (req, res) => {
             endDate,
             compareStartDate,
             compareEndDate,
-            monthOverviewPlatform // Extract it
+            monthOverviewPlatform, // Extract it
+            categoryOverviewPlatform,
+            brandsOverviewPlatform,
+            brandsOverviewCategory
         } = req.query;
 
         console.log("Processing Watch Tower request with filters:", req.query);
-        console.log("Extracted monthOverviewPlatform:", monthOverviewPlatform);
 
-        const data = await watchTowerService.getSummaryMetrics({
+        // Use optimized function for parallel fetching with section-wise caching
+        const data = await watchTowerService.getSummaryMetricsOptimized({
             platform,
             months,
             timeStep,
@@ -114,7 +128,10 @@ export const getWatchTowerData = async (req, res) => {
             endDate,
             compareStartDate,
             compareEndDate,
-            monthOverviewPlatform // Pass it
+            monthOverviewPlatform,
+            categoryOverviewPlatform,
+            brandsOverviewPlatform,
+            brandsOverviewCategory
         });
         res.json(data);
     } catch (error) {

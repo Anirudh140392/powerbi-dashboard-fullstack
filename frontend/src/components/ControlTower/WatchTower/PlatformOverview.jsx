@@ -522,13 +522,17 @@ const PlatformOverview = ({
   const [sortType, setSortType] = React.useState("default");
   const [platformFilter, setPlatformFilter] = React.useState({
     platform: "blinkit",
-    category: "Core Tub",
+    category: "", // Will be set when metrics load
     brand: "Amul",
   });
 
   const [platformList, setPlatformList] = React.useState([]);
   const [categoryList, setCategoryList] = React.useState([]);
+  const [metricsList, setMetricsList] = React.useState([]);
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [skuData, setSkuData] = React.useState([]);
+  const [loadingSkuData, setLoadingSkuData] = React.useState(false);
+  const [selectedSkuMetric, setSelectedSkuMetric] = React.useState("");
 
   // Fetch Platforms
   React.useEffect(() => {
@@ -563,6 +567,64 @@ const PlatformOverview = ({
       fetchCategories();
     }
   }, [brandsOverviewPlatform, activeKpisTab]);
+
+  // Fetch Metrics for Skus Overview dropdown
+  React.useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await axiosInstance.get("/watchtower/metrics");
+        if (response.data && response.data.length > 0) {
+          setMetricsList(response.data);
+          // Set first metric as default category for Skus Overview
+          if (activeKpisTab === "Skus Overview") {
+            setPlatformFilter(prev => ({
+              ...prev,
+              category: response.data[0] // Set to first metric name
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching metrics:", error);
+      }
+    };
+    fetchMetrics();
+  }, []); // Fetch once on mount
+
+  // Fetch SKU data when metric changes
+  React.useEffect(() => {
+    const fetchSkuData = async () => {
+      if (!selectedSkuMetric || activeKpisTab !== "Skus Overview") {
+        return;
+      }
+
+      setLoadingSkuData(true);
+      try {
+        const response = await axiosInstance.get("/watchtower/sku-metrics", {
+          params: { metric: selectedSkuMetric }
+        });
+        if (response.data) {
+          setSkuData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching SKU metrics data:", error);
+        setSkuData([]);
+      } finally {
+        setLoadingSkuData(false);
+      }
+    };
+
+    fetchSkuData();
+  }, [selectedSkuMetric, activeKpisTab]);
+
+  // Set default category when switching to Skus Overview tab
+  React.useEffect(() => {
+    if (activeKpisTab === "Skus Overview" && metricsList.length > 0 && !platformFilter.category) {
+      setPlatformFilter(prev => ({
+        ...prev,
+        category: metricsList[0]
+      }));
+    }
+  }, [activeKpisTab, metricsList]);
 
   const sortedPlatforms = React.useMemo(() => {
     let filteredData = data;
@@ -688,7 +750,7 @@ const PlatformOverview = ({
                 </Select>
               )}
 
-              {activeKpisTab !== "Platform Overview" && activeKpisTab !== "Month Overview" && activeKpisTab !== "Category Overview" && (
+              {activeKpisTab !== "Platform Overview" && activeKpisTab !== "Month Overview" && activeKpisTab !== "Category Overview" && activeKpisTab !== "Skus Overview" && (
                 <>
                   {/* Platform Filter */}
                   <Select
@@ -757,7 +819,7 @@ const PlatformOverview = ({
                     <>
                       <Select
                         size="small"
-                        value={platformFilter.category}
+                        value={platformFilter.category || ""}
                         onChange={(e) =>
                           setPlatformFilter((p) => ({
                             ...p,
@@ -778,32 +840,15 @@ const PlatformOverview = ({
                           },
                         }}
                       >
-                        <MenuItem value="Core Tub">Core Tub</MenuItem>
-                      </Select>
-                      <Select
-                        size="small"
-                        value={platformFilter.brand}
-                        onChange={(e) =>
-                          setPlatformFilter((p) => ({
-                            ...p,
-                            brand: e.target.value,
-                          }))
-                        }
-                        sx={{
-                          minWidth: 130,
-                          height: 36,
-                          fontSize: "0.85rem",
-                          background: "#f3f4f6",
-                          borderRadius: 1.5,
-                          "& .MuiOutlinedInput-notchedOutline": {
-                            borderColor: theme.palette.divider,
-                          },
-                          "&:hover .MuiOutlinedInput-notchedOutline": {
-                            borderColor: theme.palette.text.primary,
-                          },
-                        }}
-                      >
-                        <MenuItem value="Amul">Amul</MenuItem>
+                        {metricsList && metricsList.length > 0 ? (
+                          metricsList.map((metric) => (
+                            <MenuItem key={metric} value={metric}>
+                              {metric}
+                            </MenuItem>
+                          ))
+                        ) : (
+                          <MenuItem value="">Loading...</MenuItem>
+                        )}
                       </Select>
                     </>
                   )}
@@ -975,7 +1020,13 @@ const PlatformOverview = ({
           </Box>
         </Card>
       ) : (
-        <CategoryTable categories={allProducts} activeTab={activeKpisTab} />
+        <CategoryTable
+          categories={skuData.length > 0 ? skuData : allProducts}
+          activeTab={activeKpisTab}
+          selectedMetric={selectedSkuMetric}
+          onMetricChange={(metric) => setSelectedSkuMetric(metric)}
+          loading={loadingSkuData}
+        />
       )}
     </Box>
   );
