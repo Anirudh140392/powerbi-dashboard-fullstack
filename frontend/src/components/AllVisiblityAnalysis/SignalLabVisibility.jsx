@@ -605,7 +605,7 @@ function SignalCard({ sku, metricType }) {
         metricType === "visibility" ? visibilityKpiOrder : availabilityKpiOrder;
 
     return (
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-5 py-4 min-w-[280px] max-w-sm">
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[230px] max-w-[230px]">
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -679,7 +679,7 @@ function SignalLabBase({ metricType }) {
 
     return (
         <div className="w-full bg-slate-50 py-6 px-1">
-            <div className="mx-auto max-w-6xl bg-white border rounded-3xl px-6 py-5 shadow">
+            <div className="mx-auto max-w-7xl bg-white border rounded-3xl px-6 py-5 shadow">
                 <div className="flex justify-between items-center flex-wrap gap-4">
                     <h2 className="text-lg font-semibold">
                         Signal Lab — Kwality Wall&apos;s ({metricType})

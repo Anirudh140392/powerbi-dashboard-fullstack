@@ -1047,6 +1047,7 @@ export const AvailablityAnalysisData = () => {
         <div className="space-y-4">
           <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
           <MetricCardContainer title="Availability Overview" cards={cards} />
+          <SignalLabVisibility type="availability" />
           <TabbedHeatmapTable />
           <DrillHeatTable
             title="One View Drilldown"
@@ -1060,7 +1061,6 @@ export const AvailablityAnalysisData = () => {
             })}
             levels={["Platform", "Zone", "City", "Product", "ID"]}
           />
-          <SignalLabVisibility type="availability" />
         </div>
       </div>
     </div>
