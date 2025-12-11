@@ -97,11 +97,11 @@ const CardMetric = ({ data }) => {
               📈
             </Box>
 
-            <Typography variant="h6" fontWeight={600}>
+            <Typography variant="h5" fontWeight={600}>
               Watchtower Overview
             </Typography>
 
-            <Chip label="All" size="small" variant="outlined" />
+            <Chip label="All" size="large" variant="outlined" />
           </Box>
 
           <Chip label="MTD vs Previous Month" variant="filled" />
@@ -181,26 +181,26 @@ const MiniChartCard = ({
       }}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" fontSize={16}>
           {card.title}
         </Typography>
 
-        <Typography variant="h5" fontWeight={600}>
+        <Typography variant="h6" fontWeight={600}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography component="span" color="text.secondary" fontSize={15}>
             {card.sub}
           </Typography>
         </Typography>
 
-        <Typography variant="body2" sx={{ color: card.changeColor, mt: 1 }}>
+        <Typography variant="body3" sx={{ color: card.changeColor, mt: 1 }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography component="span" color="text.secondary" fontSize={15}>
             {card.prevText}
           </Typography>
         </Typography>
 
         {card.extra && (
-          <Typography variant="body2" color="text.secondary" mt={0.5}>
+          <Typography variant="body2" color="text.secondary" mt={0.5} fontSize={15}>
             {card.extra}{" "}
             <span style={{ color: card.extraChangeColor }}>
               {card.extraChange}
