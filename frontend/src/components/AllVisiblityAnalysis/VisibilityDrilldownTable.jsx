@@ -418,8 +418,8 @@ export default function VisibilityDrilldownTable() {
     }
 
     return (
-        <div className="w-full flex-col items-center bg-slate-50 py-8 text-slate-900">
-            <div className="w-full max-w-6xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="w-full flex-col items-center bg-slate-50 py-1 text-slate-900">
+            <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
                 {/* HEADER */}
                 <header className="mb-4 flex items-center justify-between gap-4">
