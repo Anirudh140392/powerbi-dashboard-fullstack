@@ -52,6 +52,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import Loader from "../../components/CommonLayout/Loader";
 import { useMemo } from "react";
 import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
+import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -327,11 +328,17 @@ defaultCategory */}
       </CommonContainer>
 
       {/* Trend Drawer */}
-      <MyTrendsDrawer
+      {/* <MyTrendsDrawer
         open={showTrends}
         onClose={() => setShowTrends(false)}
         trendData={trendData}
         trendParams={trendParams}
+      /> */}
+      <TrendsCompetitionDrawer
+        open={showTrends}
+        onClose={() => setShowTrends(false)}
+        selectedColumn='Blinkit'
+        dynamicKey='control_tower'
       />
     </>
   );
