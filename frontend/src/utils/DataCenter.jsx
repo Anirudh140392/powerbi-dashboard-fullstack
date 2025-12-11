@@ -3366,6 +3366,574 @@ export const defaultMonths = [
 ];
 
 
+// export const defaultCategory = [
+//   // ---------------------- CASSATA ----------------------
+//   {
+//     key: "cassata",
+//     label: "Cassata",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.32 Cr",
+//         change: { text: "▲3.1% (+₹4.0 lac)", positive: true },
+//         meta: { units: "0.68 lac units", change: "▲1.7%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹18.4 lac",
+//         change: { text: "▲1.9% (+₹0.35 lac)", positive: true },
+//         meta: { units: "₹18.4 lac", change: "▲1.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.1x",
+//         change: { text: "▲0.2% (+0.01x)", positive: true },
+//         meta: { units: "₹1.30 Cr return", change: "▲0.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.21 Cr",
+//         change: { text: "▲2.2% (+₹0.45 lac)", positive: true },
+//         meta: { units: "0.12 lac units", change: "▲2.2%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.9%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "12.4k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.8%",
+//         change: { text: "▼0.9 pp", positive: false },
+//         meta: { units: "1,240 stores", change: "▼0.9 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "29.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "29.8 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "8.3%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹15.8 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.2%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 18.2%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.1%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 25.1%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹116",
+//         change: { text: "▲1.6% (+₹1.8)", positive: true },
+//         meta: { units: "14.1 lac impressions", change: "▲1.6%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.4",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "0.82 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- CORE TUB ----------------------
+//   {
+//     key: "coreTub",
+//     label: "Core Tub",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹3.12 Cr",
+//         change: { text: "▲3.6% (+₹10.9 lac)", positive: true },
+//         meta: { units: "1.52 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹32.1 lac",
+//         change: { text: "▲2.2% (+₹0.7 lac)", positive: true },
+//         meta: { units: "₹32.1 lac", change: "▲2.2%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.4x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹2.71 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.42 Cr",
+//         change: { text: "▲2.0% (+₹0.8 lac)", positive: true },
+//         meta: { units: "0.26 lac units", change: "▲2.0%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.4%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "19.1k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "94.2%",
+//         change: { text: "▼1.0 pp", positive: false },
+//         meta: { units: "1,720 stores", change: "▼1.0 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "34.3%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "34.3 shelf index", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "22.0%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹14.2 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.9%",
+//         change: { text: "▲0.7 pp", positive: true },
+//         meta: { units: "Depth 20.9%", change: "▲0.7 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 27.7%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹124",
+//         change: { text: "▲1.8% (+₹2.1)", positive: true },
+//         meta: { units: "19.8 lac impressions", change: "▲1.8%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.1",
+//         change: { text: "▲1.3% (+₹0.09)", positive: true },
+//         meta: { units: "1.36 lac clicks", change: "▲1.3%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- CORNETTO ----------------------
+//   {
+//     key: "cornetto",
+//     label: "Cornetto",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹3.98 Cr",
+//         change: { text: "▲4.3% (+₹16.9 lac)", positive: true },
+//         meta: { units: "2.03 lac units", change: "▲3.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹42.9 lac",
+//         change: { text: "▲2.4% (+₹1.0 lac)", positive: true },
+//         meta: { units: "₹42.9 lac", change: "▲2.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "9.1x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹3.91 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.58 Cr",
+//         change: { text: "▲2.5% (+₹1.4 lac)", positive: true },
+//         meta: { units: "0.34 lac units", change: "▲2.5%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.9%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "22.6k conversions", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "2,140 stores", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "36.1%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "36.1 shelf index", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "27.2%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Category: ₹14.6 Cr", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "21.7%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "Depth 21.7%", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 28.8%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹131",
+//         change: { text: "▲2.1% (+₹2.7)", positive: true },
+//         meta: { units: "28.7 lac impressions", change: "▲2.1%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.6",
+//         change: { text: "▲1.4% (+₹0.11)", positive: true },
+//         meta: { units: "1.97 lac clicks", change: "▲1.4%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- CUP ----------------------
+//   {
+//     key: "cup",
+//     label: "Cup",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.94 Cr",
+//         change: { text: "▲2.4% (+₹4.5 lac)", positive: true },
+//         meta: { units: "1.04 lac units", change: "▲1.2%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹16.9 lac",
+//         change: { text: "▲1.7% (+₹0.28 lac)", positive: true },
+//         meta: { units: "₹16.9 lac", change: "▲1.7%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.8x",
+//         change: { text: "▲0.2% (+0.02x)", positive: true },
+//         meta: { units: "₹1.52 Cr return", change: "▲0.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.27 Cr",
+//         change: { text: "▲1.9% (+₹0.5 lac)", positive: true },
+//         meta: { units: "0.18 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.2%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "18.4k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.9%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "1,980 stores", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "28.7%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "28.7 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "13.0%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹14.9 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "19.6%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 19.6%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "26.4%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 26.4%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹112",
+//         change: { text: "▲1.6% (+₹1.7)", positive: true },
+//         meta: { units: "13.5 lac impressions", change: "▲1.6%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.9",
+//         change: { text: "▲1.3% (+₹0.09)", positive: true },
+//         meta: { units: "1.02 lac clicks", change: "▲1.3%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- KW STICKS ----------------------
+//   {
+//     key: "kwSticks",
+//     label: "KW Sticks",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.58 Cr",
+//         change: { text: "▲3.2% (+₹8.0 lac)", positive: true },
+//         meta: { units: "1.33 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹21.8 lac",
+//         change: { text: "▲1.9% (+₹0.41 lac)", positive: true },
+//         meta: { units: "₹21.8 lac", change: "▲1.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.1x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹2.09 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.36 Cr",
+//         change: { text: "▲2.1% (+₹0.7 lac)", positive: true },
+//         meta: { units: "0.24 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.5%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "20.2k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "93.2%",
+//         change: { text: "▼1.3 pp", positive: false },
+//         meta: { units: "1,630 stores", change: "▼1.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.2%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "33.2 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "17.9%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹14.4 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.7%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 20.7%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "28.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 28.7%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹120",
+//         change: { text: "▲1.8% (+₹2.1)", positive: true },
+//         meta: { units: "17.6 lac impressions", change: "▲1.8%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.3",
+//         change: { text: "▲1.2% (+₹0.09)", positive: true },
+//         meta: { units: "1.28 lac clicks", change: "▲1.2%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- MAGNUM ----------------------
+//   {
+//     key: "magnum",
+//     label: "Magnum",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.54 Cr",
+//         change: { text: "▲2.9% (+₹4.3 lac)", positive: true },
+//         meta: { units: "0.82 lac units", change: "▲1.6%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹14.6 lac",
+//         change: { text: "▲1.6% (+₹0.23 lac)", positive: true },
+//         meta: { units: "₹14.6 lac", change: "▲1.6%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.5x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.46 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.24 Cr",
+//         change: { text: "▲1.8% (+₹0.4 lac)", positive: true },
+//         meta: { units: "0.15 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "13.9k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "1,460 stores", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "31.9%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "31.9 shelf index", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "10.4%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹14.8 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "19.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 19.1%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 25.7%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹109",
+//         change: { text: "▲1.4% (+₹1.5)", positive: true },
+//         meta: { units: "12.8 lac impressions", change: "▲1.4%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.6",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "0.87 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- OTHERS ----------------------
+//   {
+//     key: "others",
+//     label: "Others",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.07 Cr",
+//         change: { text: "▲1.8% (+₹1.9 lac)", positive: true },
+//         meta: { units: "0.56 lac units", change: "▲0.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹11.9 lac",
+//         change: { text: "▲1.3% (+₹0.15 lac)", positive: true },
+//         meta: { units: "₹11.9 lac", change: "▲1.3%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.4x",
+//         change: { text: "▲0.2% (+0.02x)", positive: true },
+//         meta: { units: "₹0.88 Cr return", change: "▲0.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.15 Cr",
+//         change: { text: "▲1.6% (+₹0.25 lac)", positive: true },
+//         meta: { units: "0.09 lac units", change: "▲1.6%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.7%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "9.8k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "91.8%",
+//         change: { text: "▼0.8 pp", positive: false },
+//         meta: { units: "930 stores", change: "▼0.8 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "27.8%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "27.8 shelf index", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "Category: ₹14.5 Cr", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "17.2%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 17.2%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "22.9%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 22.9%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹104",
+//         change: { text: "▲1.1% (+₹1.1)", positive: true },
+//         meta: { units: "9.4 lac impressions", change: "▲1.1%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.0",
+//         change: { text: "▲0.9% (+₹0.06)", positive: true },
+//         meta: { units: "0.69 lac clicks", change: "▲0.9%" },
+//       },
+//     ],
+//   },
+// ];
 export const defaultCategory = [
   // ---------------------- CASSATA ----------------------
   {
@@ -3396,6 +3964,12 @@ export const defaultCategory = [
         value: "₹0.21 Cr",
         change: { text: "▲2.2% (+₹0.45 lac)", positive: true },
         meta: { units: "0.12 lac units", change: "▲2.2%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.07 Cr",
+        change: { text: "▲1.6% (+₹0.19 lac)", positive: true },
+        meta: { units: "0.04 lac units", change: "▲1.0%" },
       },
       {
         title: "Conversion",
@@ -3479,6 +4053,12 @@ export const defaultCategory = [
         meta: { units: "0.26 lac units", change: "▲2.0%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.15 Cr",
+        change: { text: "▲1.7% (+₹0.41 lac)", positive: true },
+        meta: { units: "0.09 lac units", change: "▲1.0%" },
+      },
+      {
         title: "Conversion",
         value: "4.4%",
         change: { text: "▲0.1 pp", positive: true },
@@ -3558,6 +4138,12 @@ export const defaultCategory = [
         value: "₹0.58 Cr",
         change: { text: "▲2.5% (+₹1.4 lac)", positive: true },
         meta: { units: "0.34 lac units", change: "▲2.5%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.21 Cr",
+        change: { text: "▲2.0% (+₹0.90 lac)", positive: true },
+        meta: { units: "0.11 lac units", change: "▲1.0%" },
       },
       {
         title: "Conversion",
@@ -3641,6 +4227,12 @@ export const defaultCategory = [
         meta: { units: "0.18 lac units", change: "▲1.9%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.09 Cr",
+        change: { text: "▲1.4% (+₹0.27 lac)", positive: true },
+        meta: { units: "0.06 lac units", change: "▲0.8%" },
+      },
+      {
         title: "Conversion",
         value: "4.2%",
         change: { text: "▲0.1 pp", positive: true },
@@ -3720,6 +4312,12 @@ export const defaultCategory = [
         value: "₹0.36 Cr",
         change: { text: "▲2.1% (+₹0.7 lac)", positive: true },
         meta: { units: "0.24 lac units", change: "▲2.1%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.12 Cr",
+        change: { text: "▲1.7% (+₹0.38 lac)", positive: true },
+        meta: { units: "0.08 lac units", change: "▲0.9%" },
       },
       {
         title: "Conversion",
@@ -3803,6 +4401,12 @@ export const defaultCategory = [
         meta: { units: "0.15 lac units", change: "▲1.8%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.09 Cr",
+        change: { text: "▲1.5% (+₹0.22 lac)", positive: true },
+        meta: { units: "0.05 lac units", change: "▲0.9%" },
+      },
+      {
         title: "Conversion",
         value: "4.1%",
         change: { text: "▲0.1 pp", positive: true },
@@ -3884,6 +4488,12 @@ export const defaultCategory = [
         meta: { units: "0.09 lac units", change: "▲1.6%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.05 Cr",
+        change: { text: "▲1.3% (+₹0.14 lac)", positive: true },
+        meta: { units: "0.03 lac units", change: "▲0.7%" },
+      },
+      {
         title: "Conversion",
         value: "3.7%",
         change: { text: "▲0.1 pp", positive: true },
@@ -3935,6 +4545,494 @@ export const defaultCategory = [
   },
 ];
 
+// export const defaultBrands = [
+//   // ---------------------- DAIRY DAY ----------------------
+//   {
+//     key: "dairyDay",
+//     label: "Dairy Day",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.12 Cr",
+//         change: { text: "▲3.1% (+₹6.5 lac)", positive: true },
+//         meta: { units: "1.08 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹24.6 lac",
+//         change: { text: "▲2.1% (+₹0.5 lac)", positive: true },
+//         meta: { units: "₹24.6 lac", change: "▲2.1%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.6x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹2.07 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.31 Cr",
+//         change: { text: "▲2.0% (+₹0.6 lac)", positive: true },
+//         meta: { units: "0.19 lac units", change: "▲2.0%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.3%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "16.4k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.1%",
+//         change: { text: "▼0.8 pp", positive: false },
+//         meta: { units: "1,410 stores", change: "▼0.8 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "32.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "32.4 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "14.2%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹14.9 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "19.6%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 19.6%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "26.1%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 26.1%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹118",
+//         change: { text: "▲1.5% (+₹1.7)", positive: true },
+//         meta: { units: "15.7 lac impressions", change: "▲1.5%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.7",
+//         change: { text: "▲1.1% (+₹0.08)", positive: true },
+//         meta: { units: "0.94 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- KWALITY WALLS ----------------------
+//   {
+//     key: "kwalityWalls",
+//     label: "Kwality Walls",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹3.78 Cr",
+//         change: { text: "▲4.1% (+₹14.9 lac)", positive: true },
+//         meta: { units: "1.92 lac units", change: "▲2.9%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹36.4 lac",
+//         change: { text: "▲2.3% (+₹0.8 lac)", positive: true },
+//         meta: { units: "₹36.4 lac", change: "▲2.3%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "9.4x",
+//         change: { text: "▲0.4% (+0.03x)", positive: true },
+//         meta: { units: "₹3.42 Cr return", change: "▲0.4%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.52 Cr",
+//         change: { text: "▲2.4% (+₹1.2 lac)", positive: true },
+//         meta: { units: "0.31 lac units", change: "▲2.4%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.8%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "21.1k conversions", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.6%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "2,040 stores", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "37.2%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "37.2 shelf index", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "28.3%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Category: ₹13.7 Cr", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "22.4%",
+//         change: { text: "▲0.6 pp", positive: true },
+//         meta: { units: "Depth 22.4%", change: "▲0.6 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "29.1%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 29.1%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹129",
+//         change: { text: "▲1.9% (+₹2.4)", positive: true },
+//         meta: { units: "26.2 lac impressions", change: "▲1.9%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹7.4",
+//         change: { text: "▲1.3% (+₹0.09)", positive: true },
+//         meta: { units: "1.84 lac clicks", change: "▲1.3%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- MOTHER DAIRY ----------------------
+//   {
+//     key: "motherDairy",
+//     label: "Mother Dairy",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.68 Cr",
+//         change: { text: "▲2.7% (+₹4.4 lac)", positive: true },
+//         meta: { units: "0.89 lac units", change: "▲1.6%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹15.4 lac",
+//         change: { text: "▲1.8% (+₹0.27 lac)", positive: true },
+//         meta: { units: "₹15.4 lac", change: "▲1.8%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.9x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.54 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.23 Cr",
+//         change: { text: "▲1.8% (+₹0.4 lac)", positive: true },
+//         meta: { units: "0.14 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "14.1k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "1,630 stores", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "30.2%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "30.2 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "11.2%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹14.6 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 18.4%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 25.4%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹113",
+//         change: { text: "▲1.5% (+₹1.6)", positive: true },
+//         meta: { units: "14.4 lac impressions", change: "▲1.5%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.4",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "0.88 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- AMUL ----------------------
+//   {
+//     key: "amul",
+//     label: "Amul",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹2.89 Cr",
+//         change: { text: "▲3.4% (+₹9.6 lac)", positive: true },
+//         meta: { units: "1.48 lac units", change: "▲2.0%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹28.2 lac",
+//         change: { text: "▲2.0% (+₹0.55 lac)", positive: true },
+//         meta: { units: "₹28.2 lac", change: "▲2.0%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.7x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹2.45 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.38 Cr",
+//         change: { text: "▲2.2% (+₹0.7 lac)", positive: true },
+//         meta: { units: "0.24 lac units", change: "▲2.2%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.4%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "18.2k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.8%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "1,780 stores", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "33.7 shelf index", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "18.2%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹15.0 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 20.8%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.2%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 27.2%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹121",
+//         change: { text: "▲1.7% (+₹2.0)", positive: true },
+//         meta: { units: "18.3 lac impressions", change: "▲1.7%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.8",
+//         change: { text: "▲1.2% (+₹0.08)", positive: true },
+//         meta: { units: "1.19 lac clicks", change: "▲1.2%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- HAVMOR ----------------------
+//   {
+//     key: "havmor",
+//     label: "Havmor",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.24 Cr",
+//         change: { text: "▲2.2% (+₹2.7 lac)", positive: true },
+//         meta: { units: "0.65 lac units", change: "▲1.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹12.8 lac",
+//         change: { text: "▲1.5% (+₹0.19 lac)", positive: true },
+//         meta: { units: "₹12.8 lac", change: "▲1.5%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "7.9x",
+//         change: { text: "▲0.2% (+0.01x)", positive: true },
+//         meta: { units: "₹1.01 Cr return", change: "▲0.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.18 Cr",
+//         change: { text: "▲1.9% (+₹0.3 lac)", positive: true },
+//         meta: { units: "0.11 lac units", change: "▲1.9%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "3.9%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "11.8k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "94.9%",
+//         change: { text: "▼0.3 pp", positive: false },
+//         meta: { units: "1,220 stores", change: "▼0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "29.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "29.4 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "7.6%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹14.7 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 18.7%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.8%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 25.8%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹108",
+//         change: { text: "▲1.2% (+₹1.3)", positive: true },
+//         meta: { units: "10.2 lac impressions", change: "▲1.2%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.2",
+//         change: { text: "▲0.9% (+₹0.05)", positive: true },
+//         meta: { units: "0.63 lac clicks", change: "▲0.9%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- VADILAL ----------------------
+//   {
+//     key: "vadilal",
+//     label: "Vadilal",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.76 Cr",
+//         change: { text: "▲2.9% (+₹5.0 lac)", positive: true },
+//         meta: { units: "0.91 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹18.7 lac",
+//         change: { text: "▲1.9% (+₹0.32 lac)", positive: true },
+//         meta: { units: "₹18.7 lac", change: "▲1.9%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.2x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.53 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.26 Cr",
+//         change: { text: "▲2.1% (+₹0.45 lac)", positive: true },
+//         meta: { units: "0.17 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.2%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "15.2k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.6%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "1,540 stores", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "31.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "31.1 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "12.3%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Category: ₹14.3 Cr", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.1%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 20.1%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "26.7%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 26.7%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹115",
+//         change: { text: "▲1.6% (+₹1.8)", positive: true },
+//         meta: { units: "16.1 lac impressions", change: "▲1.6%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.5",
+//         change: { text: "▲1.1% (+₹0.07)", positive: true },
+//         meta: { units: "1.01 lac clicks", change: "▲1.1%" },
+//       },
+//     ],
+//   },
+// ];
+
 export const defaultBrands = [
   // ---------------------- DAIRY DAY ----------------------
   {
@@ -3965,6 +5063,12 @@ export const defaultBrands = [
         value: "₹0.31 Cr",
         change: { text: "▲2.0% (+₹0.6 lac)", positive: true },
         meta: { units: "0.19 lac units", change: "▲2.0%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.11 Cr",
+        change: { text: "▲1.5% (+₹0.22 lac)", positive: true },
+        meta: { units: "0.06 lac units", change: "▲1.0%" },
       },
       {
         title: "Conversion",
@@ -4048,6 +5152,12 @@ export const defaultBrands = [
         meta: { units: "0.31 lac units", change: "▲2.4%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.18 Cr",
+        change: { text: "▲1.8% (+₹0.55 lac)", positive: true },
+        meta: { units: "0.11 lac units", change: "▲1.1%" },
+      },
+      {
         title: "Conversion",
         value: "4.8%",
         change: { text: "▲0.2 pp", positive: true },
@@ -4127,6 +5237,12 @@ export const defaultBrands = [
         value: "₹0.23 Cr",
         change: { text: "▲1.8% (+₹0.4 lac)", positive: true },
         meta: { units: "0.14 lac units", change: "▲1.8%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.08 Cr",
+        change: { text: "▲1.3% (+₹0.22 lac)", positive: true },
+        meta: { units: "0.05 lac units", change: "▲0.8%" },
       },
       {
         title: "Conversion",
@@ -4210,6 +5326,12 @@ export const defaultBrands = [
         meta: { units: "0.24 lac units", change: "▲2.2%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.14 Cr",
+        change: { text: "▲1.6% (+₹0.32 lac)", positive: true },
+        meta: { units: "0.08 lac units", change: "▲1.0%" },
+      },
+      {
         title: "Conversion",
         value: "4.4%",
         change: { text: "▲0.1 pp", positive: true },
@@ -4289,6 +5411,12 @@ export const defaultBrands = [
         value: "₹0.18 Cr",
         change: { text: "▲1.9% (+₹0.3 lac)", positive: true },
         meta: { units: "0.11 lac units", change: "▲1.9%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.06 Cr",
+        change: { text: "▲1.4% (+₹0.14 lac)", positive: true },
+        meta: { units: "0.04 lac units", change: "▲0.9%" },
       },
       {
         title: "Conversion",
@@ -4372,6 +5500,12 @@ export const defaultBrands = [
         meta: { units: "0.17 lac units", change: "▲2.1%" },
       },
       {
+        title: "Dsp Sales",
+        value: "₹0.09 Cr",
+        change: { text: "▲1.6% (+₹0.26 lac)", positive: true },
+        meta: { units: "0.06 lac units", change: "▲0.9%" },
+      },
+      {
         title: "Conversion",
         value: "4.2%",
         change: { text: "▲0.1 pp", positive: true },
@@ -4423,6 +5557,507 @@ export const defaultBrands = [
   },
 ];
 
+
+// export const defaultSkus = [
+//   // ---------------------- DAIRY DAY MANGO TUB ----------------------
+//   {
+//     key: "dairyDayMangoTub",
+//     label: "Dairy Day Mango Tub",
+//     brand: "Dairy Day",
+//     category: "Core Tub",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹0.82 Cr",
+//         change: { text: "▲2.8% (+₹2.2 lac)", positive: true },
+//         meta: { units: "0.41 lac units", change: "▲1.8%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹9.8 lac",
+//         change: { text: "▲1.5% (+₹0.15 lac)", positive: true },
+//         meta: { units: "₹9.8 lac", change: "▲1.5%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.4x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹0.82 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.12 Cr",
+//         change: { text: "▲1.7% (+₹0.2 lac)", positive: true },
+//         meta: { units: "0.07 lac units", change: "▲1.7%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.2%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "6.3k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.2%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "890 stores", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "30.8%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "30.8 shelf index", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "5.3%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "Category: ₹15.4 Cr", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.4%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 18.4%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.7%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 25.7%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹112",
+//         change: { text: "▲1.3% (+₹1.5)", positive: true },
+//         meta: { units: "8.6 lac impressions", change: "▲1.3%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.3",
+//         change: { text: "▲1.0% (+₹0.06)", positive: true },
+//         meta: { units: "0.54 lac clicks", change: "▲1.0%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- DAIRY DAY VANILLA TUB ----------------------
+//   {
+//     key: "dairyDayVanillaTub",
+//     label: "Dairy Day Vanilla Tub",
+//     brand: "Dairy Day",
+//     category: "`Core Tub`",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹0.74 Cr",
+//         change: { text: "▲2.4% (+₹1.8 lac)", positive: true },
+//         meta: { units: "0.37 lac units", change: "▲1.5%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹8.9 lac",
+//         change: { text: "▲1.4% (+₹0.12 lac)", positive: true },
+//         meta: { units: "₹8.9 lac", change: "▲1.4%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.1x",
+//         change: { text: "▲0.2% (+0.01x)", positive: true },
+//         meta: { units: "₹0.74 Cr return", change: "▲0.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.11 Cr",
+//         change: { text: "▲1.6% (+₹0.18 lac)", positive: true },
+//         meta: { units: "0.06 lac units", change: "▲1.6%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "5.8k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.8%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "860 stores", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "29.9%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "29.9 shelf index", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "4.7%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "Category: ₹15.4 Cr", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 18.1%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.3%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 25.3%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹110",
+//         change: { text: "▲1.2% (+₹1.3)", positive: true },
+//         meta: { units: "8.1 lac impressions", change: "▲1.2%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.1",
+//         change: { text: "▲0.9% (+₹0.05)", positive: true },
+//         meta: { units: "0.51 lac clicks", change: "▲0.9%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- KWALITY WALLS KESAR TUB ----------------------
+//   {
+//     key: "kwKesarTub",
+//     label: "Kwality Walls Kesar Tub",
+//     brand: "Kwality Walls",
+//     category: "Core Tub",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.12 Cr",
+//         change: { text: "▲3.1% (+₹3.4 lac)", positive: true },
+//         meta: { units: "0.56 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹12.7 lac",
+//         change: { text: "▲1.8% (+₹0.23 lac)", positive: true },
+//         meta: { units: "₹12.7 lac", change: "▲1.8%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.9x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.12 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.17 Cr",
+//         change: { text: "▲2.0% (+₹0.34 lac)", positive: true },
+//         meta: { units: "0.10 lac units", change: "▲2.0%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.5%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "7.9k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.1%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "1,140 stores", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "33.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "33.4 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "7.1%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹15.8 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.2%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 20.2%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.1%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 27.1%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹118",
+//         change: { text: "▲1.4% (+₹1.7)", positive: true },
+//         meta: { units: "10.3 lac impressions", change: "▲1.4%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.5",
+//         change: { text: "▲1.0% (+₹0.06)", positive: true },
+//         meta: { units: "0.74 lac clicks", change: "▲1.0%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- MOTHER DAIRY VANILLA TUB ----------------------
+//   {
+//     key: "motherDairyVanillaTub",
+//     label: "Mother Dairy Vanilla Tub",
+//     brand: "Mother Dairy",
+//     category: "Core Tub",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹0.62 Cr",
+//         change: { text: "▲2.1% (+₹1.3 lac)", positive: true },
+//         meta: { units: "0.32 lac units", change: "▲1.3%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹7.4 lac",
+//         change: { text: "▲1.2% (+₹0.09 lac)", positive: true },
+//         meta: { units: "₹7.4 lac", change: "▲1.2%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.3x",
+//         change: { text: "▲0.2% (+0.02x)", positive: true },
+//         meta: { units: "₹0.62 Cr return", change: "▲0.2%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.09 Cr",
+//         change: { text: "▲1.6% (+₹0.14 lac)", positive: true },
+//         meta: { units: "0.05 lac units", change: "▲1.6%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.0%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "5.1k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "97.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "1,030 stores", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "28.9%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "28.9 shelf index", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "4.1%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "Category: ₹15.0 Cr", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "18.1%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "Depth 18.1%", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "25.1%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 25.1%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹105",
+//         change: { text: "▲1.2% (+₹1.3)", positive: true },
+//         meta: { units: "7.0 lac impressions", change: "▲1.2%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.0",
+//         change: { text: "▲0.9% (+₹0.05)", positive: true },
+//         meta: { units: "0.46 lac clicks", change: "▲0.9%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- AMUL CHOCOLATE TUB ----------------------
+//   {
+//     key: "amulChocolateTub",
+//     label: "Amul Chocolate Tub",
+//     brand: "Amul",
+//     category: "Core Tub",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹1.28 Cr",
+//         change: { text: "▲3.2% (+₹3.9 lac)", positive: true },
+//         meta: { units: "0.64 lac units", change: "▲2.2%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹13.6 lac",
+//         change: { text: "▲1.8% (+₹0.24 lac)", positive: true },
+//         meta: { units: "₹13.6 lac", change: "▲1.8%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "9.4x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹1.28 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.19 Cr",
+//         change: { text: "▲2.1% (+₹0.39 lac)", positive: true },
+//         meta: { units: "0.12 lac units", change: "▲2.1%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.6%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "9.2k conversions", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "95.4%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "1,480 stores", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "32.8%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "32.8 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "8.1%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹15.7 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "20.5%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 20.5%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "27.9%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 27.9%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹119",
+//         change: { text: "▲1.5% (+₹1.8)", positive: true },
+//         meta: { units: "12.1 lac impressions", change: "▲1.5%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.6",
+//         change: { text: "▲1.0% (+₹0.06)", positive: true },
+//         meta: { units: "0.82 lac clicks", change: "▲1.0%" },
+//       },
+//     ],
+//   },
+
+//   // ---------------------- VADILAL KAJU DRAKSH TUB ----------------------
+//   {
+//     key: "vadilalKajuDrakshTub",
+//     label: "Vadilal Kaju Draksh Tub",
+//     brand: "Vadilal",
+//     category: "Core Tub",
+//     logo: categoryLogo,
+//     columns: [
+//       {
+//         title: "Offtakes",
+//         value: "₹0.96 Cr",
+//         change: { text: "▲2.7% (+₹2.5 lac)", positive: true },
+//         meta: { units: "0.48 lac units", change: "▲1.7%" },
+//       },
+//       {
+//         title: "Spend",
+//         value: "₹10.9 lac",
+//         change: { text: "▲1.6% (+₹0.18 lac)", positive: true },
+//         meta: { units: "₹10.9 lac", change: "▲1.6%" },
+//       },
+//       {
+//         title: "ROAS",
+//         value: "8.8x",
+//         change: { text: "▲0.3% (+0.02x)", positive: true },
+//         meta: { units: "₹0.96 Cr return", change: "▲0.3%" },
+//       },
+//       {
+//         title: "Inorg Sales",
+//         value: "₹0.14 Cr",
+//         change: { text: "▲2.0% (+₹0.28 lac)", positive: true },
+//         meta: { units: "0.08 lac units", change: "▲2.0%" },
+//       },
+//       {
+//         title: "Conversion",
+//         value: "4.3%",
+//         change: { text: "▲0.1 pp", positive: true },
+//         meta: { units: "6.9k conversions", change: "▲0.1 pp" },
+//       },
+//       {
+//         title: "Availability",
+//         value: "96.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "1,260 stores", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "SOS",
+//         value: "31.4%",
+//         change: { text: "▲0.3 pp", positive: true },
+//         meta: { units: "31.4 shelf index", change: "▲0.3 pp" },
+//       },
+//       {
+//         title: "Market Share",
+//         value: "6.4%",
+//         change: { text: "▲0.2 pp", positive: true },
+//         meta: { units: "Category: ₹15.1 Cr", change: "▲0.2 pp" },
+//       },
+//       {
+//         title: "Promo My Brand",
+//         value: "19.6%",
+//         change: { text: "▲0.4 pp", positive: true },
+//         meta: { units: "Depth 19.6%", change: "▲0.4 pp" },
+//       },
+//       {
+//         title: "Promo Compete",
+//         value: "26.8%",
+//         change: { text: "▲0.5 pp", positive: true },
+//         meta: { units: "Depth 26.8%", change: "▲0.5 pp" },
+//       },
+//       {
+//         title: "CPM",
+//         value: "₹114",
+//         change: { text: "▲1.4% (+₹1.6)", positive: true },
+//         meta: { units: "9.6 lac impressions", change: "▲1.4%" },
+//       },
+//       {
+//         title: "CPC",
+//         value: "₹6.4",
+//         change: { text: "▲1.0% (+₹0.06)", positive: true },
+//         meta: { units: "0.69 lac clicks", change: "▲1.0%" },
+//       },
+//     ],
+//   },
+// ];
+
 export const defaultSkus = [
   // ---------------------- DAIRY DAY MANGO TUB ----------------------
   {
@@ -4456,6 +6091,15 @@ export const defaultSkus = [
         change: { text: "▲1.7% (+₹0.2 lac)", positive: true },
         meta: { units: "0.07 lac units", change: "▲1.7%" },
       },
+
+      // ⭐ Added DSP Sales
+      {
+        title: "Dsp Sales",
+        value: "₹0.04 Cr",
+        change: { text: "▲1.2% (+₹0.08 lac)", positive: true },
+        meta: { units: "0.03 lac units", change: "▲0.8%" },
+      },
+
       {
         title: "Conversion",
         value: "4.2%",
@@ -4512,7 +6156,7 @@ export const defaultSkus = [
     key: "dairyDayVanillaTub",
     label: "Dairy Day Vanilla Tub",
     brand: "Dairy Day",
-    category: "`Core Tub`",
+    category: "Core Tub",
     logo: categoryLogo,
     columns: [
       {
@@ -4539,6 +6183,15 @@ export const defaultSkus = [
         change: { text: "▲1.6% (+₹0.18 lac)", positive: true },
         meta: { units: "0.06 lac units", change: "▲1.6%" },
       },
+
+      // ⭐ DSP Sales
+      {
+        title: "Dsp Sales",
+        value: "₹0.04 Cr",
+        change: { text: "▲1.1% (+₹0.07 lac)", positive: true },
+        meta: { units: "0.02 lac units", change: "▲0.7%" },
+      },
+
       {
         title: "Conversion",
         value: "4.1%",
@@ -4622,6 +6275,15 @@ export const defaultSkus = [
         change: { text: "▲2.0% (+₹0.34 lac)", positive: true },
         meta: { units: "0.10 lac units", change: "▲2.0%" },
       },
+
+      // ⭐ DSP Sales
+      {
+        title: "Dsp Sales",
+        value: "₹0.06 Cr",
+        change: { text: "▲1.4% (+₹0.12 lac)", positive: true },
+        meta: { units: "0.03 lac units", change: "▲0.8%" },
+      },
+
       {
         title: "Conversion",
         value: "4.5%",
@@ -4705,6 +6367,15 @@ export const defaultSkus = [
         change: { text: "▲1.6% (+₹0.14 lac)", positive: true },
         meta: { units: "0.05 lac units", change: "▲1.6%" },
       },
+
+      // ⭐ DSP Sales
+      {
+        title: "Dsp Sales",
+        value: "₹0.03 Cr",
+        change: { text: "▲1.0% (+₹0.05 lac)", positive: true },
+        meta: { units: "0.02 lac units", change: "▲0.6%" },
+      },
+
       {
         title: "Conversion",
         value: "4.0%",
@@ -4788,6 +6459,15 @@ export const defaultSkus = [
         change: { text: "▲2.1% (+₹0.39 lac)", positive: true },
         meta: { units: "0.12 lac units", change: "▲2.1%" },
       },
+
+      // ⭐ DSP Sales
+      {
+        title: "Dsp Sales",
+        value: "₹0.07 Cr",
+        change: { text: "▲1.4% (+₹0.14 lac)", positive: true },
+        meta: { units: "0.04 lac units", change: "▲0.8%" },
+      },
+
       {
         title: "Conversion",
         value: "4.6%",
@@ -4871,6 +6551,15 @@ export const defaultSkus = [
         change: { text: "▲2.0% (+₹0.28 lac)", positive: true },
         meta: { units: "0.08 lac units", change: "▲2.0%" },
       },
+
+      // ⭐ DSP Sales
+      {
+        title: "Dsp Sales",
+        value: "₹0.05 Cr",
+        change: { text: "▲1.3% (+₹0.10 lac)", positive: true },
+        meta: { units: "0.03 lac units", change: "▲0.7%" },
+      },
+
       {
         title: "Conversion",
         value: "4.3%",
@@ -4922,6 +6611,7 @@ export const defaultSkus = [
     ],
   },
 ];
+
 
 export const allCategories = [
   {
