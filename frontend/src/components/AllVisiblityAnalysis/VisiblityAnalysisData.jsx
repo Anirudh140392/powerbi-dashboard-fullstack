@@ -30,6 +30,7 @@ import MetricCardContainer from '../CommonLayout/MetricCardContainer'
 
 import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
+import { SignalLabVisibility } from './SignalLabVisibility';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -831,6 +832,7 @@ const VisiblityAnalysisData = () => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <VisibilityDrilldownTable />
         </div>
+        <SignalLabVisibility type="visibility" />
         {modal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
             <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">

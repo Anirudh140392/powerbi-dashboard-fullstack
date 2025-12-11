@@ -13,6 +13,7 @@ import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 import KpiTrendShowcase from "./KpiTrendShowcase";
+import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1059,6 +1060,7 @@ export const AvailablityAnalysisData = () => {
             })}
             levels={["Platform", "Zone", "City", "Product", "ID"]}
           />
+          <SignalLabVisibility type="availability" />
         </div>
       </div>
     </div>
