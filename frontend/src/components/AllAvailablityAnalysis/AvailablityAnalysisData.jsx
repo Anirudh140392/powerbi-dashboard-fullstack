@@ -1040,12 +1040,50 @@ const cards = [
 // ---------------------------------------------------------------------------
 export const AvailablityAnalysisData = () => {
   const [olaMode, setOlaMode] = useState("absolute");
+  const [availability, setAvailability] = useState("absolute");
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-amber-50 via-white to-sky-50 text-slate-900 px-4 py-6">
+    <div className="min-h-screen w-full bg-gradient-to-br from-white via-white to-slate-50 text-slate-900 px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-5">
         <div className="space-y-4">
-          <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
+          {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
+
+          {/* MARKET SHARE TOGGLE BLOCK */}
+          {/* AVAILABILITY TOGGLE BLOCK */}
+          <div className="flex justify-center">
+            <div className="relative w-full md:w-[420px]">
+              <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
+                <motion.div
+                  layout
+                  className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
+                  initial={false}
+                  animate={{ x: availability === "absolute" ? 0 : "100%" }}
+                  transition={{ type: "spring", stiffness: 260, damping: 26 }}
+                />
+
+                {[
+                  { key: "absolute", label: "Absolute OLA" },
+                  { key: "weighted", label: "Weighted OLA" },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setAvailability(option.key)}
+                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
+                      ? "text-slate-900"
+                      : "text-slate-500 hover:text-slate-700"
+                      }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+
+
+
           <MetricCardContainer title="Availability Overview" cards={cards} />
           <SignalLabVisibility type="availability" />
           <TabbedHeatmapTable />
