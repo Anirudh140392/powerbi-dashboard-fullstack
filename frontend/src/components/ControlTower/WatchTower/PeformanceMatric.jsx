@@ -239,9 +239,10 @@ function KpiCard({ card, onOpenTrend }) {
         >
           {card.label}
         </div>
-
+        {/* 
         <div
-          onClick={onOpenTrend}
+          onClick={() => { }}
+          // onClick={onOpenTrend}
           style={{
             background: "#EEF2F7",
             padding: 6,
@@ -250,7 +251,7 @@ function KpiCard({ card, onOpenTrend }) {
           }}
         >
           <LineChartIcon size={18} color="#475569" />
-        </div>
+        </div> */}
       </div>
 
       {/* 🔵 ROW 2 — VALUE + MOM TAG */}
