@@ -202,79 +202,87 @@ export default function PerformanceMatric({
 /* ------------------------------------------------------
    KPI CARD
 -------------------------------------------------------*/
-function KpiCard({ card, cardWidth, cardHeight, onOpenTrend }) {
+function KpiCard({ card, onOpenTrend }) {
   const { bg, text } = getTagColors(card.tagTone);
 
   return (
     <div
       style={{
-        flex: "0 0 auto",
-        width: cardWidth,
-        height: cardHeight,
-        backgroundColor: "#FFFFFF",
-        borderRadius: 16,
-        padding: "14px 16px",
+        width: 260,
+        height: 150,
+        background: "#FFFFFF",
+        borderRadius: 18,
+        padding: "16px 18px",
         boxSizing: "border-box",
-        boxShadow: "0 0 0 1px rgba(15, 23, 42, 0.06)",
+        boxShadow: "0 0 0 1px #E5E7EB",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
       }}
     >
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: "0.08em",
-              fontWeight: 600,
-              color: "#6B7280",
-              marginBottom: 4,
-            }}
-          >
-            {card.label}
-          </div>
 
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span style={{ fontSize: 24, fontWeight: 600 }}>{card.value}</span>
-            {card.unit && <span style={{ fontSize: 14 }}>{card.unit}</span>}
-          </div>
+      {/* 🔵 ROW 1 — LABEL + GRAPH ICON */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            letterSpacing: "0.05em",
+            fontWeight: 700,
+            color: "#6B7280",
+          }}
+        >
+          {card.label}
         </div>
 
-        {/* Tag + Trend Icon */}
-        <div style={{ textAlign: "right" }}>
-          <div
-            style={{
-              padding: "3px 10px",
-              borderRadius: 999,
-              backgroundColor: bg,
-              color: text,
-              fontSize: 11,
-              fontWeight: 500,
-              display: "inline-block",
-              marginBottom: 6,
-            }}
-          >
-            {card.tag}
-          </div>
-
-          <button
-            onClick={onOpenTrend}
-            style={{
-              border: "none",
-              background: "#EEF2F7",
-              padding: 4,
-              borderRadius: 999,
-              cursor: "pointer",
-            }}
-          >
-            <LineChartIcon size={16} color="#4B5563" strokeWidth={1.7} />
-          </button>
+        <div
+          onClick={onOpenTrend}
+          style={{
+            background: "#EEF2F7",
+            padding: 6,
+            borderRadius: "50%",
+            cursor: "pointer",
+          }}
+        >
+          <LineChartIcon size={18} color="#475569" />
         </div>
       </div>
 
-      <div style={{ fontSize: 11, color: "#9CA3AF" }}>{card.footer}</div>
+      {/* 🔵 ROW 2 — VALUE + MOM TAG */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 4,
+        }}
+      >
+        {/* Value */}
+        <div style={{ fontSize: 28, fontWeight: 700 }}>{card.value}</div>
+
+        {/* MoM Tag */}
+        <div
+          style={{
+            background: bg,
+            color: text,
+            padding: "4px 10px",
+            borderRadius: 20,
+            fontSize: 12,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {card.tag}
+        </div>
+      </div>
+
+      {/* 🔵 ROW 3 — FOOTER TEXT */}
+      <div style={{ fontSize: 12, color: "#94A3B8" }}>{card.footer}</div>
     </div>
   );
 }
