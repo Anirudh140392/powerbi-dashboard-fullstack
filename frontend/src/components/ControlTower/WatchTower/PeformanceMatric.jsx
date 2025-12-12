@@ -158,10 +158,19 @@ function getTagColors(tone) {
 export default function PerformanceMatric({
   cardWidth = 240,
   cardHeight = 120,
+  data,
 }) {
+  // Debug: Check if data is being received
+  console.log("PerformanceMetric received data:", data);
+
+  // Use backend data if available, otherwise fall back to static KPI_CARDS
+  const KPI_CARDS_DATA = data && data.length > 0 ? data : KPI_CARDS;
+
+  console.log("Using KPI_CARDS_DATA:", KPI_CARDS_DATA);
+
   const [activeTrendId, setActiveTrendId] = useState(null);
 
-  const activeCard = KPI_CARDS.find((c) => c.id === activeTrendId) || null;
+  const activeCard = KPI_CARDS_DATA.find((c) => c.id === activeTrendId) || null;
 
   return (
     <div
@@ -181,7 +190,7 @@ export default function PerformanceMatric({
           paddingBottom: 8,
         }}
       >
-        {KPI_CARDS.map((card) => (
+        {KPI_CARDS_DATA.map((card) => (
           <KpiCard
             key={card.id}
             card={card}
@@ -239,10 +248,8 @@ function KpiCard({ card, onOpenTrend }) {
         >
           {card.label}
         </div>
-        {/* 
         <div
-          onClick={() => { }}
-          // onClick={onOpenTrend}
+          onClick={onOpenTrend}
           style={{
             background: "#EEF2F7",
             padding: 6,
@@ -251,7 +258,7 @@ function KpiCard({ card, onOpenTrend }) {
           }}
         >
           <LineChartIcon size={18} color="#475569" />
-        </div> */}
+        </div>
       </div>
 
       {/* 🔵 ROW 2 — VALUE + MOM TAG */}
