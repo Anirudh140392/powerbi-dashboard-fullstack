@@ -287,6 +287,8 @@ const SAMPLE_SKUS = [
         topCities: [
             { city: "Delhi", metric: "Ad SOV 20.2%", change: "+5.2%" },
             { city: "Gurgaon", metric: "Organic SOV 11.1%", change: "+3.2%" },
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
         ],
     },
     {
@@ -341,220 +343,239 @@ const SAMPLE_SKUS = [
     /* --------------------------------------------------
    AVAILABILITY — DRAINERS (5)
 -------------------------------------------------- */
-{
-    id: "KW-A-D01",
-    type: "drainer",
-    metricType: "availability",
-    skuCode: "KW A01",
-    skuName: "Family Pack Butterscotch",
-    packSize: "700 ml",
-    platform: "Blinkit",
-    categoryTag: "Tub",
-    offtakeValue: "₹ 6.1 lac",
-    impact: "-5.3%",
-    kpis: {
-        soh: "3.1 days",
-        doi: "12.4",
-        weightedOsa: "88.2%",
+    {
+        id: "KW-A-D01",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A01",
+        skuName: "Family Pack Butterscotch",
+        packSize: "700 ml",
+        platform: "Blinkit",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 6.1 lac",
+        impact: "-5.3%",
+        kpis: {
+            soh: "3.1 days",
+            doi: "12.4",
+            weightedOsa: "88.2%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
+            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
+            { city: "Delhi", metric: "OSA 80.1%", change: "-3.4%" },
+            { city: "Gurgaon", metric: "Fillrate 86.7%", change: "-2.3%" },
+        ],
     },
-    topCities: [
-        { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
-        { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
-    ],
-},
-{
-    id: "KW-A-D02",
-    type: "drainer",
-    metricType: "availability",
-    skuCode: "KW A02",
-    skuName: "Party Pack Mango",
-    packSize: "1.3 L",
-    platform: "Flipkart",
-    categoryTag: "Tub",
-    offtakeValue: "₹ 5.4 lac",
-    impact: "-3.7%",
-    kpis: {
-        soh: "1.8 days",
-        doi: "7.9",
-        weightedOsa: "79.6%",
+    {
+        id: "KW-A-D02",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A02",
+        skuName: "Party Pack Mango",
+        packSize: "1.3 L",
+        platform: "Flipkart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 5.4 lac",
+        impact: "-3.7%",
+        kpis: {
+            soh: "1.8 days",
+            doi: "7.9",
+            weightedOsa: "79.6%",
+        },
+        topCities: [
+            { city: "Chennai", metric: "Stock out 2.3 days", change: "-2.9%" },
+            { city: "Coimbatore", metric: "OSA 76.8%", change: "-3.3%" },
+            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
+            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
+        ],
     },
-    topCities: [
-        { city: "Chennai", metric: "Stock out 2.3 days", change: "-2.9%" },
-        { city: "Coimbatore", metric: "OSA 76.8%", change: "-3.3%" },
-    ],
-},
-{
-    id: "KW-A-D03",
-    type: "drainer",
-    metricType: "availability",
-    skuCode: "KW A03",
-    skuName: "Kulfi Assorted Box",
-    packSize: "10 sticks",
-    platform: "Instamart",
-    categoryTag: "Box",
-    offtakeValue: "₹ 3.2 lac",
-    impact: "-3.3%",
-    kpis: {
-        soh: "1.5 days",
-        doi: "6.7",
-        weightedOsa: "78.4%",
+    {
+        id: "KW-A-D03",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A03",
+        skuName: "Kulfi Assorted Box",
+        packSize: "10 sticks",
+        platform: "Instamart",
+        categoryTag: "Box",
+        offtakeValue: "₹ 3.2 lac",
+        impact: "-3.3%",
+        kpis: {
+            soh: "1.5 days",
+            doi: "6.7",
+            weightedOsa: "78.4%",
+        },
+        topCities: [
+            { city: "Jaipur", metric: "OSA 77.1%", change: "-2.7%" },
+            { city: "Udaipur", metric: "Fillrate 85.4%", change: "-2.0%" },
+            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
+            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
+        ],
     },
-    topCities: [
-        { city: "Jaipur", metric: "OSA 77.1%", change: "-2.7%" },
-        { city: "Udaipur", metric: "Fillrate 85.4%", change: "-2.0%" },
-    ],
-},
-{
-    id: "KW-A-D04",
-    type: "drainer",
-    metricType: "availability",
-    skuCode: "KW A04",
-    skuName: "Summer Special Mango Bar",
-    packSize: "65 ml",
-    platform: "Blinkit",
-    categoryTag: "Stick",
-    offtakeValue: "₹ 2.9 lac",
-    impact: "-4.6%",
-    kpis: {
-        soh: "1.7 days",
-        doi: "8.1",
-        weightedOsa: "81.3%",
+    {
+        id: "KW-A-D04",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A04",
+        skuName: "Summer Special Mango Bar",
+        packSize: "65 ml",
+        platform: "Blinkit",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 2.9 lac",
+        impact: "-4.6%",
+        kpis: {
+            soh: "1.7 days",
+            doi: "8.1",
+            weightedOsa: "81.3%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 80.1%", change: "-3.4%" },
+            { city: "Gurgaon", metric: "Fillrate 86.7%", change: "-2.3%" },
+            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
+            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
+        ],
     },
-    topCities: [
-        { city: "Delhi", metric: "OSA 80.1%", change: "-3.4%" },
-        { city: "Gurgaon", metric: "Fillrate 86.7%", change: "-2.3%" },
-    ],
-},
-{
-    id: "KW-A-D05",
-    type: "drainer",
-    metricType: "availability",
-    skuCode: "KW A05",
-    skuName: "Mini Cup Strawberry",
-    packSize: "85 ml",
-    platform: "Zepto",
-    categoryTag: "Cup",
-    offtakeValue: "₹ 2.5 lac",
-    impact: "-2.9%",
-    kpis: {
-        soh: "1.2 days",
-        doi: "5.9",
-        weightedOsa: "83.1%",
+    {
+        id: "KW-A-D05",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A05",
+        skuName: "Mini Cup Strawberry",
+        packSize: "85 ml",
+        platform: "Zepto",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 2.5 lac",
+        impact: "-2.9%",
+        kpis: {
+            soh: "1.2 days",
+            doi: "5.9",
+            weightedOsa: "83.1%",
+        },
+        topCities: [
+            { city: "Ahmedabad", metric: "OSA 81.3%", change: "-2.1%" },
+            { city: "Surat", metric: "Fillrate 85.9%", change: "-1.8%" },
+        ],
     },
-    topCities: [
-        { city: "Ahmedabad", metric: "OSA 81.3%", change: "-2.1%" },
-        { city: "Surat", metric: "Fillrate 85.9%", change: "-1.8%" },
-    ],
-},
 
-/* --------------------------------------------------
-   AVAILABILITY — GAINERS (5)
--------------------------------------------------- */
-{
-    id: "KW-A-G01",
-    type: "gainer",
-    metricType: "availability",
-    skuCode: "KW AG01",
-    skuName: "Choco Brownie Fudge",
-    packSize: "500 ml",
-    platform: "Zepto",
-    categoryTag: "Tub",
-    offtakeValue: "₹ 4.2 lac",
-    impact: "+6.9%",
-    kpis: {
-        soh: "4.6 days",
-        doi: "15.2",
-        weightedOsa: "97.4%",
+    /* --------------------------------------------------
+       AVAILABILITY — GAINERS (5)
+    -------------------------------------------------- */
+    {
+        id: "KW-A-G01",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG01",
+        skuName: "Choco Brownie Fudge",
+        packSize: "500 ml",
+        platform: "Zepto",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 4.2 lac",
+        impact: "+6.9%",
+        kpis: {
+            soh: "4.6 days",
+            doi: "15.2",
+            weightedOsa: "97.4%",
+        },
+        topCities: [
+            { city: "Bangalore", metric: "OSA 99.1%", change: "+3.4%" },
+            { city: "Mysore", metric: "Fillrate 99.5%", change: "+2.2%" },
+            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
+            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
+        ],
     },
-    topCities: [
-        { city: "Bangalore", metric: "OSA 99.1%", change: "+3.4%" },
-        { city: "Mysore", metric: "Fillrate 99.5%", change: "+2.2%" },
-    ],
-},
-{
-    id: "KW-A-G02",
-    type: "gainer",
-    metricType: "availability",
-    skuCode: "KW AG02",
-    skuName: "Chocobar Mini Multi Pack",
-    packSize: "6 x 45 ml",
-    platform: "Instamart",
-    categoryTag: "Mini",
-    offtakeValue: "₹ 3.7 lac",
-    impact: "+4.3%",
-    kpis: {
-        soh: "5.3 days",
-        doi: "17.8",
-        weightedOsa: "98.6%",
+    {
+        id: "KW-A-G02",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG02",
+        skuName: "Chocobar Mini Multi Pack",
+        packSize: "6 x 45 ml",
+        platform: "Instamart",
+        categoryTag: "Mini",
+        offtakeValue: "₹ 3.7 lac",
+        impact: "+4.3%",
+        kpis: {
+            soh: "5.3 days",
+            doi: "17.8",
+            weightedOsa: "98.6%",
+        },
+        topCities: [
+            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
+            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+        ],
     },
-    topCities: [
-        { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
-        { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
-    ],
-},
-{
-    id: "KW-A-G03",
-    type: "gainer",
-    metricType: "availability",
-    skuCode: "KW AG03",
-    skuName: "Butterscotch Family Tub",
-    packSize: "1.2 L",
-    platform: "Blinkit",
-    categoryTag: "Tub",
-    offtakeValue: "₹ 4.4 lac",
-    impact: "+5.1%",
-    kpis: {
-        soh: "4.9 days",
-        doi: "16.4",
-        weightedOsa: "97.9%",
+    {
+        id: "KW-A-G03",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG03",
+        skuName: "Butterscotch Family Tub",
+        packSize: "1.2 L",
+        platform: "Blinkit",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 4.4 lac",
+        impact: "+5.1%",
+        kpis: {
+            soh: "4.9 days",
+            doi: "16.4",
+            weightedOsa: "97.9%",
+        },
+        topCities: [
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
+            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
+            
+        ],
     },
-    topCities: [
-        { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-        { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
-    ],
-},
-{
-    id: "KW-A-G04",
-    type: "gainer",
-    metricType: "availability",
-    skuCode: "KW AG04",
-    skuName: "Chocolate Brick Pack",
-    packSize: "750 ml",
-    platform: "Zepto",
-    categoryTag: "Brick",
-    offtakeValue: "₹ 3.5 lac",
-    impact: "+3.6%",
-    kpis: {
-        soh: "4.3 days",
-        doi: "15.1",
-        weightedOsa: "96.7%",
+    {
+        id: "KW-A-G04",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG04",
+        skuName: "Chocolate Brick Pack",
+        packSize: "750 ml",
+        platform: "Zepto",
+        categoryTag: "Brick",
+        offtakeValue: "₹ 3.5 lac",
+        impact: "+3.6%",
+        kpis: {
+            soh: "4.3 days",
+            doi: "15.1",
+            weightedOsa: "96.7%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 97.7%", change: "+1.9%" },
+            { city: "Pune", metric: "Fillrate 98.3%", change: "+1.4%" },
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+        ],
     },
-    topCities: [
-        { city: "Delhi", metric: "OSA 97.7%", change: "+1.9%" },
-        { city: "Pune", metric: "Fillrate 98.3%", change: "+1.4%" },
-    ],
-},
-{
-    id: "KW-A-G05",
-    type: "gainer",
-    metricType: "availability",
-    skuCode: "KW AG05",
-    skuName: "Kesar Pista Cup",
-    packSize: "85 ml",
-    platform: "Instamart",
-    categoryTag: "Cup",
-    offtakeValue: "₹ 3.2 lac",
-    impact: "+3.1%",
-    kpis: {
-        soh: "3.8 days",
-        doi: "14.2",
-        weightedOsa: "97.3%",
+    {
+        id: "KW-A-G05",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG05",
+        skuName: "Kesar Pista Cup",
+        packSize: "85 ml",
+        platform: "Instamart",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 3.2 lac",
+        impact: "+3.1%",
+        kpis: {
+            soh: "3.8 days",
+            doi: "14.2",
+            weightedOsa: "97.3%",
+        },
+        topCities: [
+            { city: "Chennai", metric: "OSA 98.6%", change: "+1.6%" },
+            { city: "Coimbatore", metric: "Fillrate 98.1%", change: "+1.2%" },
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+        ],
     },
-    topCities: [
-        { city: "Chennai", metric: "OSA 98.6%", change: "+1.6%" },
-        { city: "Coimbatore", metric: "Fillrate 98.1%", change: "+1.2%" },
-    ],
-},
 
 ];
 
@@ -562,6 +583,8 @@ const SAMPLE_SKUS = [
    SIGNAL CARD UI
 -------------------------------------------------------*/
 function SignalCard({ sku, metricType }) {
+    const [showAllCities, setShowAllCities] = useState(false);
+    const citiesToShow = showAllCities ? sku.topCities : sku.topCities.slice(0, 2);
     const kpiKeys =
         metricType === "visibility" ? visibilityKpiOrder : availabilityKpiOrder;
 
@@ -615,7 +638,7 @@ function SignalCard({ sku, metricType }) {
                     Top impacted cities
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    {sku.topCities.map((c) => (
+                    {citiesToShow.map((c) => (
                         <div key={c.city} className="p-2 border rounded-xl bg-slate-50">
                             <div className="font-medium">{c.city}</div>
                             <div className="text-[10px] text-slate-500">{c.metric}</div>
@@ -623,6 +646,18 @@ function SignalCard({ sku, metricType }) {
                         </div>
                     ))}
                 </div>
+
+                {sku.topCities.length > 2 && (
+                    <div className="mt-2 flex justify-end">
+                        <button
+                            onClick={() => setShowAllCities(!showAllCities)}
+                            className="text-[12px] font-semibold text-sky-600 hover:underline"
+                        >
+                            {showAllCities ? "Show less" : "More cities"}
+                        </button>
+                    </div>
+                )}
+
             </div>
         </div>
     );
@@ -656,13 +691,14 @@ function SignalLabBase({ metricType }) {
                     />
                 </div>
 
-                <div className="mt-5 overflow-x-auto">
-                    <div className="flex gap-4 min-w-max">
-                        {filtered.map((s) => (
+                <div className="mt-5">
+                    <div className="grid grid-cols-4 gap-4 items-start">
+                        {filtered.slice(0, 4).map((s) => (
                             <SignalCard key={s.id} sku={s} metricType={metricType} />
                         ))}
                     </div>
                 </div>
+
             </div>
         </div>
     );
