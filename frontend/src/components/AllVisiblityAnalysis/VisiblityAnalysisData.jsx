@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
   AreaChart,
@@ -14,9 +15,23 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import {
+  DRILL_COLUMNS,
+  FORMAT_MATRIX,
+  FORMAT_MATRIX_Visibility,
+  FORMAT_ROWS,
+  OLA_Detailed,
+  ONE_VIEW_DRILL_DATA,
+  PRODUCT_MATRIX
+} from "../AllAvailablityAnalysis/availablityDataCenter";
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
+import MetricCardContainer from '../CommonLayout/MetricCardContainer'
 
+import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
+import VisibilityDrilldownTable from './VisibilityDrilldownTable';
+import { SignalLabVisibility } from './SignalLabVisibility';
+import VisibilityLayoutOne from './VisibilityLayoutOne';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -370,6 +385,52 @@ const competitorSeries = [
 // ------------------------------
 // MAIN COMPONENT — JSX ONLY
 // ------------------------------
+const cards = [
+  {
+    title: "Mother Dairy",
+    value: "96 on 30 Nov'25",
+    sub: "Active SKUs in store",
+    change: "▲4.3% (+4 SKUs)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "New launches this month: 7",
+    extraChange: "▲12.5%",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Amul",
+    value: "52.4%",
+    sub: "MTD on-shelf coverage",
+    change: "▼8.6 pts (from 61.0%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "High risk stores: 18",
+    extraChange: "▲5 stores",
+    extraChangeColor: "red",
+  },
+  {
+    title: "Godrej",
+    value: "68.3",
+    sub: "Network average days of cover",
+    change: "▲19.5% (from 57.1)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Slightly above target",
+    extraChangeColor: "orange",
+  },
+  {
+    title: "ITC",
+    value: "76.9%",
+    sub: "Weighted on-shelf availability (MTD)",
+    change: "▲1.2 pts (from 75.7%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Top 50 SKUs: 82.3%",
+    extraChange: "▲0.9 pts",
+    extraChangeColor: "green",
+  },
+];
 
 const VisiblityAnalysisData = () => {
   const [metric, setMetric] = useState('visibility')
@@ -396,25 +457,315 @@ const VisiblityAnalysisData = () => {
   //   { Country: 'United States', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 340, InStock: 580, SoldAmount: 240 },
   //   { Country: 'United States', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 390, InStock: 600, SoldAmount: 260 },
   // ]
+  // const sampleData = [
+  //   {
+  //     label: "Format A",
+  //     values: [1200, 1100, 1300, "2.5%", "2.8%", "3.1%"],
+  //     children: [
+  //       {
+  //         label: "Region North",
+  //         values: [400, 350, 500, "2.8%", "3.1%", "3.4%"],
+  //         children: [
+  //           {
+  //             label: "City Delhi",
+  //             values: [200, 180, 260, "3.0%", "3.4%", "3.8%"],
+  //             children: [],
+  //           },
+  //         ],
+  //       },
+  //     ],
+  //   },
+  // ];
   const sampleData = [
     {
-      label: "Format A",
-      values: [1200, 1100, 1300, "2.5%", "2.8%", "3.1%"],
+      label: "Grocery",
+      values: {
+        spend: 120000,
+        m1: 105000,
+        m2: 98000,
+        conv: 0.082,
+        m1c: 0.075,
+        m2c: 0.071,
+      },
       children: [
         {
-          label: "Region North",
-          values: [400, 350, 500, "2.8%", "3.1%", "3.4%"],
+          label: "North",
+          values: {
+            spend: 48000,
+            m1: 43000,
+            m2: 41000,
+            conv: 0.091,
+            m1c: 0.085,
+            m2c: 0.079,
+          },
           children: [
             {
-              label: "City Delhi",
-              values: [200, 180, 260, "3.0%", "3.4%", "3.8%"],
-              children: [],
+              label: "Delhi",
+              values: {
+                spend: 22000,
+                m1: 20000,
+                m2: 19000,
+                conv: 0.094,
+                m1c: 0.088,
+                m2c: 0.083,
+              },
+              children: []
             },
-          ],
-        },
-      ],
+            {
+              label: "Chandigarh",
+              values: {
+                spend: 18000,
+                m1: 16000,
+                m2: 15000,
+                conv: 0.087,
+                m1c: 0.081,
+                m2c: 0.076,
+              },
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+  ];
+
+
+
+  const cards = [
+    {
+      title: "Overall Weighted SOS",
+      value: "19.6%",
+      sub: "Share of shelf across all active SKUs",
+      change: "▲4.3 pts (from 15.3%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "New launches contributing: 7 SKUs",
+      extraChange: "▲12.5%",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Sponsored Weighted SOS",
+      value: "17.6%",
+      sub: "Share of shelf for sponsored placements",
+      change: "▼8.6 pts (from 26.2%)",
+      changeColor: "red",
+      prevText: "vs Previous Period",
+      extra: "High-risk stores: 18",
+      extraChange: "+5 stores",
+      extraChangeColor: "red",
+    },
+    {
+      title: "Organic Weighted SOS",
+      value: "20.7%",
+      sub: "Natural shelf share without sponsorship",
+      change: "▲19.5% (from 17.3%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Benchmark range: 18–22%",
+      extraChange: "Slightly above benchmark",
+      extraChangeColor: "orange",
+    },
+    {
+      title: "Display SOS",
+      value: "26.9%",
+      sub: "Share of shelf from display-led visibility",
+      change: "▲1.2 pts (from 25.7%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Top 50 SKUs Display SOS: 82.3%",
+      extraChange: "▲0.9 pts",
+      extraChangeColor: "green",
     },
   ];
+  const cellHeat = (value) => {
+    if (value >= 95) return "bg-emerald-100 text-emerald-900";
+    if (value >= 85) return "bg-emerald-50 text-emerald-800";
+    if (value >= 75) return "bg-amber-50 text-amber-800";
+    return "bg-rose-50 text-rose-800";
+  };
+  // const TabbedHeatmapTable = () => {
+  //   const [activeTab, setActiveTab] = useState("platform");
+
+  //   // 🔥 Utility to compute unified trend + series for ANY item
+  //   const buildRows = (dataArray = [], columnList = []) => {
+  //     return dataArray.map((item) => {
+  //       const primaryTrendSeries = item?.trend?.["Spend"] || [];
+  //       const valid = primaryTrendSeries.length >= 2;
+
+  //       const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+  //       const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+  //       const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+  //       const trendObj = {};
+  //       const seriesObj = {};
+
+  //       columnList.forEach((col) => {
+  //         trendObj[col] = globalDelta;           // same delta for every column
+  //         seriesObj[col] = primaryTrendSeries;   // same sparkline for every column
+  //       });
+
+  //       return {
+  //         kpi: item.kpi,
+  //         ...item.values,
+  //         trend: trendObj,
+  //         series: seriesObj,
+  //       };
+  //     });
+  //   };
+
+  //   // ---------------- PLATFORM ----------------
+  //   const platformData = {
+  //     columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
+  //     rows: buildRows(FORMAT_MATRIX.PlatformData, FORMAT_MATRIX.PlatformColumns),
+  //   };
+
+  //   // ---------------- FORMAT ----------------
+  //   const formatData = {
+  //     columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
+  //     rows: buildRows(FORMAT_MATRIX.FormatData, FORMAT_MATRIX.formatColumns),
+  //   };
+
+  //   // ---------------- CITY ----------------
+  //   const cityData = {
+  //     columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
+  //     rows: buildRows(FORMAT_MATRIX.CityData, FORMAT_MATRIX.CityColumns),
+  //   };
+
+  //   // ---------------- TABS ----------------
+  //   const tabs = [
+  //     { key: "platform", label: "Platform", data: platformData },
+  //     { key: "format", label: "Format", data: formatData },
+  //     { key: "city", label: "City", data: cityData },
+  //   ];
+
+  //   const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+  //   return (
+  //     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+
+  //       {/* -------- TABS -------- */}
+  //       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+  //         {tabs.map((t) => (
+  //           <button
+  //             key={t.key}
+  //             onClick={() => setActiveTab(t.key)}
+  //             className={`px-4 py-1.5 text-sm rounded-full transition-all 
+  //               ${activeTab === t.key
+  //                 ? "bg-white text-slate-900 shadow-sm"
+  //                 : "text-slate-500 hover:text-slate-700"
+  //               }`}
+  //           >
+  //             {t.label}
+  //           </button>
+  //         ))}
+  //       </div>
+
+  //       {/* -------- MATRIX TABLE -------- */}
+  //       <CityKpiTrendShowcase 
+  //         data={active.data} 
+  //         title={active.label} 
+  //       />
+  //     </div>
+  //   );
+  // };
+
+  const TabbedHeatmapTable = () => {
+    const [activeTab, setActiveTab] = useState("platform");
+
+    // 🔥 Utility to compute unified trend + series for ANY item
+    const buildRows = (dataArray = [], columnList = []) => {
+      return dataArray.map((item) => {
+        const primaryTrendSeries = item?.trend?.["Spend"] || [];
+        const valid = primaryTrendSeries.length >= 2;
+
+        const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+        const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+        const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+        const trendObj = {};
+        const seriesObj = {};
+
+        columnList.forEach((col) => {
+          trendObj[col] = globalDelta;           // same delta for every column
+          seriesObj[col] = primaryTrendSeries;   // sparkline same for each column
+        });
+
+        return {
+          kpi: item.kpi,
+          ...item.values,
+          trend: trendObj,
+          series: seriesObj,
+        };
+      });
+    };
+
+    // ---------------- PLATFORM ----------------
+    const platformData = {
+      columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+      rows: buildRows(
+        FORMAT_MATRIX_Visibility.PlatformData,
+        FORMAT_MATRIX_Visibility.PlatformColumns
+      ),
+    };
+
+    // ---------------- FORMAT ----------------
+    const formatData = {
+      columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+      rows: buildRows(
+        FORMAT_MATRIX_Visibility.FormatData,
+        FORMAT_MATRIX_Visibility.formatColumns
+      ),
+    };
+
+    // ---------------- CITY ----------------
+    const cityData = {
+      columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+      rows: buildRows(
+        FORMAT_MATRIX_Visibility.CityData,
+        FORMAT_MATRIX_Visibility.CityColumns
+      ),
+    };
+
+    // ---------------- TABS ----------------
+    const tabs = [
+      { key: "platform", label: "Platform", data: platformData },
+      { key: "format", label: "Format", data: formatData },
+      { key: "city", label: "City", data: cityData },
+    ];
+
+    const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+    return (
+      <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+
+        {/* -------- TABS -------- */}
+        <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-4 py-1.5 text-sm rounded-full transition-all 
+              ${activeTab === t.key
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* -------- MATRIX TABLE -------- */}
+        <CityKpiTrendShowcase
+          dynamicKey="visibility"
+          data={active.data}
+          title={active.label}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-6 text-slate-900">
@@ -436,8 +787,11 @@ const VisiblityAnalysisData = () => {
           </div>
         </div>
 
+        {/* MODAL SECTION */}
+        <MetricCardContainer title="Visibility Overview" cards={cards} />
+        <TabbedHeatmapTable />
         {/* PULSEBOARD */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
             data={sampleData}
             title="Keyword level Sos"
@@ -474,9 +828,16 @@ const VisiblityAnalysisData = () => {
             getHeatStyle={(v) => ({ bg: "#d1fae5", color: "#065f46" })}
           />
 
+        // </div> */}
+        {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <VisibilityDrilldownTable />
         </div>
+        {/* <SignalLabVisibility type="visibility" /> */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <VisibilityLayoutOne />
 
-        {/* MODAL SECTION */}
+        </div>
         {modal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
             <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
@@ -612,7 +973,7 @@ const VisiblityAnalysisData = () => {
         )}
 
       </div>
-    </div>
+    </div >
   )
 }
 

@@ -5,68 +5,34 @@ import CssBaseline from "@mui/material/CssBaseline";
 export const AppThemeContext = createContext();
 
 export default function AppThemeProvider({ children }) {
-  const getInitialMode = () => {
-    try {
-      const saved = localStorage.getItem("mode");
-      if (saved === "light" || saved === "dark") return saved;
-    } catch { }
-
-    // 🚫 REMOVE system theme detection — always default to light
-    return "light";
-  };
-
-  const [mode, setMode] = useState(getInitialMode);
-
-  const toggleTheme = () => {
-    setMode(prev => prev === "light" ? "dark" : "light");
-  };
+  // Enforce static light mode
+  const mode = "light";
 
   const muiTheme = useMemo(() => createTheme({
     palette: {
-      mode,
-      ...(mode === "dark"
-        ? {
-          background: {
-            default: "#111827",
-            paper: "#1f2937",
-          },
-          text: {
-            primary: "#f9fafb",
-            secondary: "#d1d5db",
-          },
-        }
-        : {
-          background: {
-            default: "#f5f5f5",
-            paper: "#ffffff",
-          },
-          text: {
-            primary: "#111827",
-            secondary: "#374151",
-          },
-        }),
+      mode: "light",
+      background: {
+        default: "#f5f5f5",
+        paper: "#ffffff",
+      },
+      text: {
+        primary: "#111827",
+        secondary: "#374151",
+      },
     },
-  }), [mode]);
+  }), []);
 
+  // Ensure DOM is synced with light mode immediately
   useEffect(() => {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.documentElement.style.colorScheme = "light";
+    document.documentElement.classList.remove("dark");
+    localStorage.removeItem("mode"); // Clean up legacy storage
+  }, []);
 
-    // 💥 Force default to light on Linux/Firefox/WebKit before render
-    if (!localStorage.getItem("mode")) {
-      document.documentElement.setAttribute("data-theme", "light");
-      document.documentElement.style.colorScheme = "light";
-    }
-
-    try {
-      localStorage.setItem("mode", mode);
-    } catch { }
-
-    // Tailwind / system UI sync
-    document.documentElement.setAttribute("data-theme", mode);
-    document.documentElement.style.colorScheme = mode;
-    document.documentElement.classList.toggle("dark", mode === "dark");
-
-  }, [mode]);
-
+  // toggleTheme is now a no-op or removed. Keeping a dummy for safety if other components call it, 
+  // but better to remove usages. For now, we provide a no-op to prevent crashes during refactor.
+  const toggleTheme = () => { };
 
   return (
     <AppThemeContext.Provider value={{ mode, toggleTheme }}>
