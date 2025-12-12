@@ -12,29 +12,29 @@ const VISIBILITY_KEYWORD_KPIS = [
   "demandClicks",
   "adCtr",
 ];
-const VISIBILITY_DATA = [ 
+const VISIBILITY_DATA = [
   // KEYWORD – DRAINERS (5)
-  {
-    id: "KW-KW-D01",
-    level: "keyword",
-    type: "drainer",
-    keyword: "ice cream tub",
-    platform: "Blinkit",
-    impact: "-6.4%",
-    offtake: "₹ 3.1 lac",
-    kpis: {
-      adSov: "12%",
-      organicSov: "8%",
-      overallSov: "9.4%",
-      volumeShare: "6.1%",
-      demandClicks: "41k",
-      adCtr: "0.9%",
-    },
-    cities: [
-      { city: "Delhi", metric: "SOV 7.2%", change: "-3.1%" },
-      { city: "Gurgaon", metric: "Vol 5.1%", change: "-1.7%" },
-    ],
-  },
+  // {
+  //   id: "KW-KW-D01",
+  //   level: "keyword",
+  //   type: "drainer",
+  //   keyword: "ice cream tub",
+  //   platform: "Blinkit",
+  //   impact: "-6.4%",
+  //   offtake: "₹ 3.1 lac",
+  //   kpis: {
+  //     adSov: "12%",
+  //     organicSov: "8%",
+  //     overallSov: "9.4%",
+  //     volumeShare: "6.1%",
+  //     demandClicks: "41k",
+  //     adCtr: "0.9%",
+  //   },
+  //   cities: [
+  //     { city: "Delhi", metric: "SOV 7.2%", change: "-3.1%" },
+  //     { city: "Gurgaon", metric: "Vol 5.1%", change: "-1.7%" },
+  //   ],
+  // },
   {
     id: "KW-KW-D02",
     level: "keyword",
@@ -54,7 +54,10 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Mumbai", metric: "SOV 6.4%", change: "-2.6%" },
       { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" },
+      { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
+      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
     ],
+
   },
   {
     id: "KW-KW-D03",
@@ -73,8 +76,10 @@ const VISIBILITY_DATA = [
       adCtr: "0.8%",
     },
     cities: [
-      { city: "Noida", metric: "SOV 5.9%", change: "-2.2%" },
-      { city: "Ghaziabad", metric: "Vol 4.2%", change: "-1.6%" },
+      { city: "Mumbai", metric: "SOV 6.4%", change: "-2.6%" },
+      { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" },
+      { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
+      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -94,8 +99,10 @@ const VISIBILITY_DATA = [
       adCtr: "0.7%",
     },
     cities: [
-      { city: "Jaipur", metric: "SOV 5.1%", change: "-1.9%" },
-      { city: "Udaipur", metric: "Vol 3.5%", change: "-1.3%" },
+      { city: "Mumbai", metric: "SOV 6.4%", change: "-2.6%" },
+      { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" },
+      { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
+      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -117,6 +124,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Chennai", metric: "SOV 5.7%", change: "-2.0%" },
       { city: "Coimbatore", metric: "Vol 3.9%", change: "-1.5%" },
+      { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
+      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
     ],
   },
 
@@ -140,6 +149,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Hyderabad", metric: "SOV 31%", change: "+6.2%" },
       { city: "Bangalore", metric: "Vol 22%", change: "+4.4%" },
+      { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
+      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -161,6 +172,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Mumbai", metric: "SOV 29%", change: "+5.6%" },
       { city: "Thane", metric: "Vol 18%", change: "+3.9%" },
+      { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
+      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -182,6 +195,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Pune", metric: "SOV 24%", change: "+4.3%" },
       { city: "Nashik", metric: "Vol 14%", change: "+3.1%" },
+      { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
+      { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
     ],
   },
   {
@@ -203,6 +218,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Delhi", metric: "SOV 22%", change: "+3.9%" },
       { city: "Gurgaon", metric: "Vol 15%", change: "+3.0%" },
+      { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
+      { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
     ],
   },
   {
@@ -224,6 +241,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
       { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
+      { city: "Noida", metric: "Placement 57", change: "-2.1%" },
+      { city: "Ghaziabad", metric: "Index 69", change: "-1.5%" },
     ],
   },
 
@@ -246,6 +265,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Mumbai", metric: "Placement 51", change: "-2.9%" },
       { city: "Pune", metric: "Index 59", change: "-1.8%" },
+      { city: "Delhi", metric: "Index 65", change: "-2.4%" },
+      { city: "Gurgaon", metric: "Placement 56", change: "-1.7%" },
     ],
   },
   {
@@ -266,6 +287,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Delhi", metric: "Index 65", change: "-2.4%" },
       { city: "Gurgaon", metric: "Placement 56", change: "-1.7%" },
+      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
   {
@@ -286,6 +309,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Noida", metric: "Placement 57", change: "-2.1%" },
       { city: "Ghaziabad", metric: "Index 69", change: "-1.5%" },
+      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
   {
@@ -348,6 +373,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Delhi", metric: "Index 93", change: "+3.4%" },
       { city: "Gurgaon", metric: "Placement 90", change: "+2.1%" },
+      { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
+      { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
     ],
   },
   {
@@ -368,6 +395,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
       { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
+      { city: "Delhi", metric: "Index 93", change: "+3.4%" },
+      { city: "Gurgaon", metric: "Placement 90", change: "+2.1%" },
     ],
   },
   {
@@ -387,6 +416,8 @@ const VISIBILITY_DATA = [
     },
     cities: [
       { city: "Pune", metric: "Placement 88", change: "+2.9%" },
+      { city: "Delhi", metric: "Index 93", change: "+3.4%" },
+      { city: "Gurgaon", metric: "Placement 90", change: "+2.1%" },
       { city: "Nashik", metric: "Index 87", change: "+2.4%" },
     ],
   },
@@ -408,6 +439,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Mumbai", metric: "Placement 85", change: "+2.6%" },
       { city: "Thane", metric: "Index 86", change: "+2.1%" },
+      { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
+      { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
     ],
   },
   {
@@ -505,10 +538,9 @@ function SignalTypeSwitch({ value, onChange }) {
             key={opt.value}
             onClick={() => onChange(opt.value)}
             className={`px-4 py-1.5 rounded-2xl text-xs sm:text-sm font-medium transition-all
-              ${
-                active
-                  ? "bg-white text-slate-900 shadow -translate-y-[1px]"
-                  : "text-slate-500 hover:text-slate-900"
+              ${active
+                ? "bg-white text-slate-900 shadow -translate-y-[1px]"
+                : "text-slate-500 hover:text-slate-900"
               }`}
           >
             {opt.label}
@@ -534,10 +566,9 @@ function LevelSwitch({ value, onChange }) {
             key={opt.value}
             onClick={() => onChange(opt.value)}
             className={`px-4 py-1.5 rounded-2xl text-xs sm:text-sm font-medium transition-all
-              ${
-                active
-                  ? "bg-white text-slate-900 shadow -translate-y-[1px]"
-                  : "text-slate-500 hover:text-slate-900"
+              ${active
+                ? "bg-white text-slate-900 shadow -translate-y-[1px]"
+                : "text-slate-500 hover:text-slate-900"
               }`}
           >
             {opt.label}
@@ -552,7 +583,9 @@ function LevelSwitch({ value, onChange }) {
 /*                               CARD COMPONENT                                */
 /* -------------------------------------------------------------------------- */
 
-function VisibilityCard({ item }) {
+function VisibilityCard({ item, expanded, toggleExpand }) {
+  const citiesToShow = expanded ? item.cities : item.cities.slice(0, 2);
+
   const isKeyword = item.level === "keyword";
   const kpiKeys = isKeyword ? VISIBILITY_KEYWORD_KPIS : VISIBILITY_SKU_KPIS;
 
@@ -563,7 +596,7 @@ function VisibilityCard({ item }) {
       rounded-3xl border border-slate-200 
       bg-white shadow-sm 
       px-6 py-5 
-      min-w-[310px] max-w-[310px]
+      w-full
       transition-all duration-200
     "
     >
@@ -635,14 +668,14 @@ function VisibilityCard({ item }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {item.cities.map((c) => (
+          {citiesToShow.map((c) => (
             <div
               key={c.city}
               className="
-                p-3 rounded-2xl 
-                bg-white border border-slate-200 
-                flex flex-col gap-1
-              "
+        p-3 rounded-2xl 
+        bg-white border border-slate-200 
+        flex flex-col gap-1
+      "
             >
               <div className="text-[12px] font-medium text-slate-800">
                 {c.city}
@@ -652,6 +685,21 @@ function VisibilityCard({ item }) {
             </div>
           ))}
         </div>
+
+        {item.cities.length > 2 && (
+          <div className="mt-2 flex justify-end">
+            <button
+              onClick={toggleExpand}
+              className="text-[12px] font-semibold text-sky-600 hover:underline"
+            >
+              {expanded ? "Show less" : "More cities"}
+            </button>
+
+          </div>
+
+        )}
+
+
       </div>
     </div>
   );
@@ -665,6 +713,16 @@ function VisibilityCard({ item }) {
 export function VisibilityLayoutOne() {
   const [signalType, setSignalType] = useState("drainer");
   const [level, setLevel] = useState("keyword");
+  const [expandedCards, setExpandedCards] = useState({});
+
+  const toggleExpand = (id) => {
+    setExpandedCards((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+
 
   const filtered = VISIBILITY_DATA.filter(
     (row) => row.type === signalType && row.level === level
@@ -678,10 +736,10 @@ export function VisibilityLayoutOne() {
             <h2 className="text-lg font-semibold text-slate-900">
               Visibility Signals — Keyword & SKU
             </h2>
-            <p className="mt-1 text-xs text-slate-500 max-w-xl">
+            {/* <p className="mt-1 text-xs text-slate-500 max-w-xl">
               Auto-ranked Kwality Walls drainers and gainers based on visibility
               KPIs at keyword and SKU level across quick commerce platforms.
-            </p>
+            </p> */}
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -690,13 +748,20 @@ export function VisibilityLayoutOne() {
           </div>
         </div>
 
-        <div className="mt-2 overflow-x-auto pb-1">
-          <div className="flex gap-4 min-w-max">
-            {filtered.map((item) => (
-              <VisibilityCard key={item.id} item={item} />
+        <div className="mt-2 pb-1">
+          <div className="grid grid-cols-4 gap-3 w-full items-start">
+            {filtered.slice(0, 4).map((item) => (
+              <VisibilityCard
+                key={item.id}
+                item={item}
+                expanded={expandedCards[item.id]}   // ✅ passing expanded state
+                toggleExpand={() => toggleExpand(item.id)}  // ✅ passing handler
+              />
             ))}
+
           </div>
         </div>
+
       </div>
     </div>
   );

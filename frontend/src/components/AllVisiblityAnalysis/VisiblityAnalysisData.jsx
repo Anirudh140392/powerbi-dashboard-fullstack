@@ -773,18 +773,18 @@ const VisiblityAnalysisData = () => {
 
         {/* HEADER */}
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
+          {/* <div>
             <p className="text-xs uppercase tracking-[0.25em] text-sky-600">Visibility KPI Studio</p>
             <h1 className="text-2xl font-bold">Visibility Workspace</h1>
             <p className="text-sm text-slate-500">Premium analytics studio for Visibility Share</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          </div> */}
+          {/* <div className="flex flex-wrap gap-2">
             {['Insights', 'Actionable', 'Live filters'].map((c) => (
               <span key={c} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                 {c}
               </span>
             ))}
-          </div>
+          </div> */}
         </div>
 
         {/* MODAL SECTION */}
