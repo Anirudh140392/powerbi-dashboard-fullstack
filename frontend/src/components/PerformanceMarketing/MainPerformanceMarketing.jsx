@@ -53,11 +53,12 @@ const cards = [
     extra: "Top 10 stores: 84.2%",
     extraChange: "▲0.6 pts",
     extraChangeColor: "green",
-  }
+  },
 ];
 
 export default function MainPerformanceMarketings() {
   const calledOnce = useRef(false);
+  const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
 
   useEffect(() => {
     if (calledOnce.current) return;
@@ -65,8 +66,8 @@ export default function MainPerformanceMarketings() {
 
     const fetchPerformanceData = async () => {
       try {
-        const response = await axiosInstance.get('/performance-marketing', {
-          params: { platform: 'Blinkit' } // Default filter
+        const response = await axiosInstance.get("/performance-marketing", {
+          params: { platform: "Blinkit" }, // Default filter
         });
         console.log("Performance Marketing Data:", response.data);
       } catch (error) {
@@ -135,14 +136,20 @@ export default function MainPerformanceMarketings() {
         </Card>
       </Box> */}
       <Box sx={{ mt: 4 }}>
-        <MetricCardContainer title="Performance Marketing Overview" cards={cards} />
+        <MetricCardContainer
+          title="Performance Marketing Overview"
+          cards={cards}
+        />
       </Box>
       <Box sx={{ mt: 4 }}>
-        <InsightHorizontalKpis />
+        <InsightHorizontalKpis
+          selectedInsight={selectedInsight}
+          setSelectedInsight={setSelectedInsight}
+        />
       </Box>
       {/* NEW HEATMAP (Tailwind + Framer Motion) */}
       <Box sx={{ mt: 4 }}>
-        <HeatMapDrillTable />
+        <HeatMapDrillTable selectedInsight={selectedInsight} />
       </Box>
       <Box sx={{ mt: 4 }}>
         <KeywordAnalysisTable />
