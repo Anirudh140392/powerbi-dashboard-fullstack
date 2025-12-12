@@ -131,7 +131,7 @@ const PlatformOverview = ({
                   width: 40,
                   height: 40,
                   borderRadius: "50%",
-                  background: "#f3f4f6",
+                  background: theme.palette.action.hover,
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
@@ -140,7 +140,7 @@ const PlatformOverview = ({
                 <BsGrid3X3GapFill size={18} color={theme.palette.primary.main} />
               </Box>
 
-              <Typography ml={1.2} fontWeight={700} fontSize="1.15rem">
+              <Typography ml={1.2} fontWeight={700} fontSize="1.2rem">
                 {activeKpisTab}
               </Typography>
             </Box>
@@ -316,7 +316,7 @@ const PlatformOverview = ({
         borderRadius: 2,
         border: "1px solid #e5e7eb",
         background:
-          "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(56,189,248,0.08))",
+          "#EEF2F7",
         width: 32,
         height: 32,
       }}
