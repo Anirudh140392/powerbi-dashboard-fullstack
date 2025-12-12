@@ -87,14 +87,6 @@ const getMaxDepth = (nodes, depth = 0) => {
   return max;
 };
 
-// ------------ COLUMN TITLES -------------
-const LEVEL_TITLES = {
-  0: "Format",
-  1: "Region",
-  2: "City",
-  3: "Keyword",
-};
-
 // ------------ METRICS CONFIG (for trend) -------------
 const METRICS = [
   { key: "spend", label: "Spend", index: 0, isPercent: false },
@@ -127,15 +119,40 @@ const getExpandedDepth = (expandedKeys) => {
 
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
-  console.log("selectedInsight", selectedInsight);
-  const { heatmapData, heatmapDataSecond, heatmapDataThird, heatmapDataFourth, heatmapDataFifth } = performanceData;
+  const {
+    heatmapData,
+    heatmapDataSecond,
+    heatmapDataThird,
+    heatmapDataFourth,
+    heatmapDataFifth,
+  } = performanceData;
 
-  const collectedData = selectedInsight === "All Campaign Summary" ? heatmapData :
-  selectedInsight === "Q1 - Performing Well" ? heatmapDataSecond :
-  selectedInsight === "Q2 - Need Attention" ? heatmapDataThird :
-  selectedInsight === "Q3 - Experiment" ? heatmapDataFourth :
-  selectedInsight === "Q4 - Opportunity" ? heatmapDataFifth : heatmapData;
-  
+  const collectedData =
+    selectedInsight === "All Campaign Summary"
+      ? heatmapData
+      : selectedInsight === "Q1 - Performing Well"
+      ? heatmapDataSecond
+      : selectedInsight === "Q2 - Need Attention"
+      ? heatmapDataThird
+      : selectedInsight === "Q3 - Experiment"
+      ? heatmapDataFourth
+      : selectedInsight === "Q4 - Opportunity"
+      ? heatmapDataFifth
+      : heatmapData;
+
+  const LEVEL_TITLES =
+    selectedInsight === "All Campaign Summary"
+      ? {
+          0: "Format",
+          1: "Region",
+          2: "City",
+          3: "Keyword",
+        }
+      : {
+          0: "AD Property",
+          1: "Group",
+          2: "Keyword",
+        };
 
   const [expanded, setExpanded] = useState({});
   const [formatFilter] = useState("All");
@@ -144,7 +161,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
   const [trendState, setTrendState] = useState(null); // { node, path }
   const [chartType, setChartType] = useState("line"); // 'line' | 'area' | 'bar'
-  const [selectedMetrics, setSelectedMetrics] = useState(["spend", "conv", "roas"]);
+  const [selectedMetrics, setSelectedMetrics] = useState([
+    "spend",
+    "conv",
+    "roas",
+  ]);
 
   const rowsPerPage = 5;
 
@@ -180,7 +201,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
   const deepRows = getDeepNodes(filteredRows, expanded);
 
   const drillTotals = collectedData?.headers.slice(1).map((_, idx) => {
-    const vals = deepRows.map((r) => getQuarterValues(r.values, selectedQuarter)[idx]);
+    const vals = deepRows.map(
+      (r) => getQuarterValues(r.values, selectedQuarter)[idx]
+    );
 
     const nums = vals
       .map((v) => parseFloat(String(v).replace("%", "")))
@@ -506,7 +529,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           </TableCell>
         </TableRow>
 
-        {isOpen && children.map((child) => renderRow(child, level + 1, fullPath))}
+        {isOpen &&
+          children.map((child) => renderRow(child, level + 1, fullPath))}
       </React.Fragment>
     );
   };
@@ -528,15 +552,24 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         <Box mb={2} display="flex" justifyContent="space-between">
           <Box>
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-              FORMAT → REGION → CITY → KEYWORD
+              {selectedInsight === "All Campaign Summary"
+                ? "FORMAT → REGION → CITY → KEYWORD"
+                : "AD Property → GROUP → KEYWORD"}
             </Typography>
 
-            <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+            <Typography
+              sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
+            >
               {collectedData?.title}
             </Typography>
           </Box>
 
-          <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+          <Box
+            display="flex"
+            flexDirection="column"
+            alignItems="flex-end"
+            gap={1}
+          >
             {/* QUARTERS */}
             <Box display="flex" gap={1}>
               {["Q1", "Q2", "Q3", "Q4"].map((q) => (
@@ -595,7 +628,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         </Box>
 
         {/* TABLE */}
-        <TableContainer component={Paper} sx={{ maxHeight: 520, borderRadius: 2 }}>
+        <TableContainer
+          component={Paper}
+          sx={{ maxHeight: 520, borderRadius: 2 }}
+        >
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
@@ -636,7 +672,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
               {/* TOTAL ROW */}
               <TableRow sx={{ background: "#f8fafc" }}>
-                <TableCell colSpan={visibleHierarchyCols} sx={{ fontWeight: 700 }}>
+                <TableCell
+                  colSpan={visibleHierarchyCols}
+                  sx={{ fontWeight: 700 }}
+                >
                   TOTAL ({selectedQuarter})
                 </TableCell>
 
@@ -663,7 +702,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             gap: 1,
           }}
         >
-          <Button size="small" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+          <Button
+            size="small"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
             Prev
           </Button>
           <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
@@ -739,7 +782,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   Trend Studio
                 </Typography>
 
-                <Typography sx={{ fontSize: 18, fontWeight: 600, mt: 0.4 }}>{trendTitle}</Typography>
+                <Typography sx={{ fontSize: 18, fontWeight: 600, mt: 0.4 }}>
+                  {trendTitle}
+                </Typography>
 
                 <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 0.5 }}>
                   Visualise Spend, Conversion, ROAS across quarters.
@@ -787,7 +832,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       px: 1.4,
                       py: 0.3,
                       border: "1px solid #e2e8f0",
-                      backgroundColor: chartType === c.key ? "#eef2ff" : "white",
+                      backgroundColor:
+                        chartType === c.key ? "#eef2ff" : "white",
                       color: chartType === c.key ? "#4f46e5" : "#475569",
                     }}
                   >
@@ -818,7 +864,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                         borderRadius: 999,
                         bgcolor: active ? "rgba(99,102,241,0.15)" : "#f3f4f6",
                         color: active ? "#4f46e5" : "#475569",
-                        border: active ? "1px solid #6366F1" : "1px solid #e5e7eb",
+                        border: active
+                          ? "1px solid #6366F1"
+                          : "1px solid #e5e7eb",
                         "&:hover": {
                           bgcolor: active ? "rgba(99,102,241,0.24)" : "#e2e8f0",
                         },
@@ -840,7 +888,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               }}
             >
               <Box sx={{ mt: 1, height: 320 }}>
-                <EChartsWrapper option={getTrendOption()} style={{ height: "100%", width: "100%" }} />
+                <EChartsWrapper
+                  option={getTrendOption()}
+                  style={{ height: "100%", width: "100%" }}
+                />
               </Box>
             </Box>
           </Box>

@@ -1953,7 +1953,7 @@ const performanceData = {
   },
 
   heatmapDataSecond: {
-    title: "Format Performance (Heatmap)",
+    title: "Ad Property Performance (Heatmap)",
     duration: "Last 3 Months",
 
     headers: [
@@ -2143,7 +2143,7 @@ const performanceData = {
   },
 
   heatmapDataThird: {
-    title: "Format Performance (Heatmap)",
+    title: "Ad Property Performance (Heatmap)",
     duration: "Last 3 Months",
 
     headers: [
@@ -2362,7 +2362,7 @@ const performanceData = {
   },
 
   heatmapDataFourth: {
-    title: "Format Performance (Heatmap)",
+    title: "Ad Property Performance (Heatmap)",
     duration: "Last 3 Months",
 
     headers: [
@@ -2615,7 +2615,7 @@ const performanceData = {
   },
 
   heatmapDataFifth: {
-    title: "Format Performance (Heatmap)",
+    title: "Ad Property Performance (Heatmap)",
     duration: "Last 3 Months",
 
     headers: [
