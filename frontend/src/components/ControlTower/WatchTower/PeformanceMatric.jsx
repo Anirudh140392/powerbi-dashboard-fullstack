@@ -167,7 +167,7 @@ export default function PerformanceMatric({
     <div
       style={{
         width: "100%",
-        backgroundColor: "#F5F7FB",
+        backgroundColor: "white",
         padding: "12px 16px",
         boxSizing: "border-box",
       }}
@@ -179,6 +179,7 @@ export default function PerformanceMatric({
           gap: 16,
           overflowX: "auto",
           paddingBottom: 8,
+          paddingTop:2,
         }}
       >
         {KPI_CARDS.map((card) => (
@@ -227,6 +228,7 @@ function KpiCard({ card, onOpenTrend }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+  
         }}
       >
         <div
