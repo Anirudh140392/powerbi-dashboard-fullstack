@@ -7,6 +7,54 @@ import performanceData from "../../utils/PerformanceMarketingData";
 import HeatMapDrillTable from "./HeatMapDrillTable";
 import InsightHorizontalKpis from "./InsightHorizontalKpis";
 import KeywordAnalysisTable from "./KeywordAnalysisTable";
+import MetricCardContainer from "../CommonLayout/MetricCardContainer";
+
+const cards = [
+  {
+    title: "Impressions",
+    value: "65.2%",
+    sub: "MTD on-shelf coverage",
+    change: "▲3.1 pts (from 82.1%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "High risk stores: 12",
+    extraChange: "▼4 stores",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Direct Conv",
+    value: "52.4",
+    sub: "Network average days of cover",
+    change: "▼5.3% (from 65.9)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Within target range",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Spend",
+    value: "43.7%",
+    sub: "Supplier fulfillment rate",
+    change: "▲1.8 pts (from 91.9%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Orders delayed: 6%",
+    extraChange: "▼1.2 pts",
+    extraChangeColor: "green",
+  },
+  {
+    title: "New Users",
+    value: "60.5%",
+    sub: "MTD availability across metro cities",
+    change: "▼2.0 pts (from 80.5%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Top 10 stores: 84.2%",
+    extraChange: "▲0.6 pts",
+    extraChangeColor: "green",
+  }
+];
 
 export default function MainPerformanceMarketings() {
   const calledOnce = useRef(false);
@@ -31,7 +79,7 @@ export default function MainPerformanceMarketings() {
 
   return (
     <Box>
-      <Box>
+      {/* <Box>
         <Card
           sx={{
             p: 3,
@@ -39,7 +87,6 @@ export default function MainPerformanceMarketings() {
             border: "1px solid #e2e8f0",
           }}
         >
-          {/* HEADER */}
           <Typography variant="h6" fontWeight={700}>
             kpis overview
           </Typography>
@@ -86,6 +133,9 @@ export default function MainPerformanceMarketings() {
             })}
           </Grid>
         </Card>
+      </Box> */}
+      <Box sx={{ mt: 4 }}>
+        <MetricCardContainer title="Performance Marketing Overview" cards={cards} />
       </Box>
       <Box sx={{ mt: 4 }}>
         <InsightHorizontalKpis />

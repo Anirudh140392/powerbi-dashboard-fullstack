@@ -52,6 +52,8 @@ import PerformanceMatric from "../../components/ControlTower/WatchTower/Peforman
 import { FilterContext } from "../../utils/FilterContext";
 import Loader from "../../components/CommonLayout/Loader";
 import { useMemo } from "react";
+import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
+import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -406,8 +408,17 @@ export default function WatchTower() {
           />
         )}
 
-        {/* Top Cards */}
-        <PerformanceMatric data={dashboardData.performanceMarketing} />
+        {/* Performance Marketing */}
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 4,
+            boxShadow: 1,
+            mb: 4,
+          }}
+        >
+          <PerformanceMatric cardWidth={285} cardHeight={140} />
+        </Box>
 
         {/* Platform Overview */}
         {/* Tabs */}
@@ -480,7 +491,17 @@ export default function WatchTower() {
 defaultCategory */}
           </Box>
         </Box>
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 2,
+            boxShadow: 1,
+            mb: 4,
+          }}
+        >
+          <TopActionsLayoutsShowcase />
 
+        </Box>
         {/* Category / SKU Tabs */}
         <Box
           sx={{
@@ -530,12 +551,11 @@ defaultCategory */}
       </CommonContainer>
 
       {/* Trend Drawer */}
-      <MyTrendsDrawer
+      <TrendsCompetitionDrawer
         open={showTrends}
         onClose={() => setShowTrends(false)}
-        trendData={trendData}
-        trendParams={trendParams}
-        onParamsChange={setTrendParams}
+        selectedColumn='Blinkit'
+        dynamicKey='control_tower'
       />
     </>
   );

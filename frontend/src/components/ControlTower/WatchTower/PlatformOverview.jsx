@@ -937,83 +937,75 @@ const PlatformOverview = ({
                     boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
                   }}
                 >
-                  {/* PLATFORM HEADER */}
-                  <Box
-                    sx={{
-                      mb: 2,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Box display="flex" alignItems="center" gap={1.2}>
-                      {platform.logo && (
-                        <img
-                          src={platform.logo}
-                          alt={platform.label}
-                          style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: "50%",
-                            background: "#fff",
-                            padding: 3,
-                            objectFit: "contain",
-                          }}
-                        />
-                      )}
-                      <Box>
-                        <Typography fontWeight={700} fontSize="0.92rem">
+                  {/* ---------------- PREMIUM INLINE HEADER ---------------- */}
+                  <Box sx={{ mb: 1.5 }}>
+                    {/* First Row: Logo + Title + Inline Buttons */}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        width: "100%",
+                      }}
+                    >
+                      {/* Left: Logo + Name */}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                        {platform.logo && (
+                          <img
+                            src={platform.logo}
+                            alt={platform.label}
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              padding: 3,
+                              objectFit: "contain",
+                            }}
+                          />
+                        )}
+
+                        <Typography fontWeight={700} fontSize="0.95rem">
                           {platform.label}
                         </Typography>
-                        <Typography
-                          color="text.secondary"
-                          fontSize="0.75rem"
-                          mt={-0.2}
-                        >
-                          {platform.type}
-                        </Typography>
                       </Box>
+
+                      {/* Right: Inline Buttons */}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <Tooltip title="View platform trend performance" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => onViewTrends(platform.label)}
+                            sx={{
+                              borderRadius: 2,
+                              border: "1px solid #e5e7eb",
+                              background:
+                                "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(56,189,248,0.08))",
+                              width: 32,
+                              height: 32,
+                            }}
+                          >
+                            <TrendingUp size={17} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+
                     </Box>
+
+                    {/* Second Row: Platform Type */}
+                    <Typography
+                      color="text.secondary"
+                      fontSize="0.75rem"
+                      sx={{ mt: 0.5, ml: 5.5 }}
+                    >
+                      {platform.type}
+                    </Typography>
                   </Box>
 
                   {/* SORTED KPI CARDS (VERTICAL) */}
                   {platform.columns.map((col, i) => (
                     <SmallCard key={i} item={col} />
                   ))}
-
-                  {/* FOOTER BUTTONS - ADDED BACK */}
-                  <Box display="flex" gap={1.2} mt={1}>
-                    <Button
-                      variant="text"
-                      size="small"
-                      sx={{
-                        flex: 1,
-                        textTransform: "none",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "#2563eb",
-                        "&:hover": { background: "#eff6ff" },
-                      }}
-                      onClick={() => onViewTrends(platform.label)}
-                    >
-                      My Trends ▶
-                    </Button>
-
-                    <Button
-                      variant="text"
-                      size="small"
-                      sx={{
-                        flex: 1,
-                        textTransform: "none",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "#2563eb",
-                        "&:hover": { background: "#eff6ff" },
-                      }}
-                    >
-                      Competition ▶
-                    </Button>
-                  </Box>
                 </Card>
               </Box>
             ))}
