@@ -448,12 +448,14 @@ import {
   CardContent,
   Typography,
   Button,
-  Chip,
+  Tooltip,
   useTheme,
   Select,
   MenuItem,
+  IconButton,
 } from "@mui/material";
 import CategoryTable from "./CategoryTable";
+import { TrendingUp } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 
 /* SMALL KPI CARD */

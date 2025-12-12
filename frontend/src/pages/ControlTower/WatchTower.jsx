@@ -55,7 +55,7 @@ import { useMemo } from "react";
 import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 
-export default function WatchTower() {
+function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -417,7 +417,11 @@ export default function WatchTower() {
             mb: 4,
           }}
         >
-          <PerformanceMatric cardWidth={285} cardHeight={140} />
+          <PerformanceMatric
+            cardWidth={285}
+            cardHeight={140}
+            data={dashboardData.performanceMetricsKpis}
+          />
         </Box>
 
         {/* Platform Overview */}
@@ -1217,3 +1221,5 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
     </motion.div >
   );
 };
+
+export default WatchTower;
