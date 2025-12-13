@@ -17,6 +17,7 @@ import VisibilityAnalysis from "./pages/AllVisibilityAnalysis/VisibilityAnalysis
 import PiyConcept from "./pages/PiyConcept/PiyConcept";
 
 import { FilterProvider } from "./utils/FilterContext";
+import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 
 export default function App() {
   return (
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/pricing-analysis" element={<PricingAnalysis />} />
             <Route path="/market-share" element={<MarketShares />} />
             <Route path="/piy" element={<PiyConcept />} />
+            <Route path="/inventory" element={<InventeryConceptMains />} />
           </Routes>
         </BrowserRouter>
       </FilterProvider>
