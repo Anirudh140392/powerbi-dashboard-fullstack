@@ -798,7 +798,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
-      ) : (
+      ) :( 
         <VisibilityTrendsCompetitionDrawer
           open={openTrend}
           onClose={() => setOpenTrend(false)}

@@ -60,7 +60,6 @@ const cards = [
 export default function MainPerformanceMarketings() {
   const calledOnce = useRef(false);
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
-
   useEffect(() => {
     if (calledOnce.current) return;
     calledOnce.current = true;
@@ -105,5 +104,6 @@ export default function MainPerformanceMarketings() {
         <DrilldownLatestTable />
       </Box>
     </Box>
+    
   );
 };
