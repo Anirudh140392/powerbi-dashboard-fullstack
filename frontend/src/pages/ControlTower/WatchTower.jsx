@@ -643,8 +643,6 @@ const FormatPerformanceStudio = () => {
         Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
     },
   ];
-
-
   return (
     <motion.div
       className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
@@ -725,7 +723,7 @@ const FormatPerformanceStudio = () => {
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-sm uppercase tracking-[0.2em] text-sky-600 font-bold">
+                <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
                   {compare ? "Focus format · VS mode" : "Focus format"}
                 </div>
                 <div className="text-xl font-semibold">
