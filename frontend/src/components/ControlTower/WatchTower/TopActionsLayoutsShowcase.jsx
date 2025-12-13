@@ -661,8 +661,8 @@ const LayoutOne = () => {
     const selected = issues.find((x) => x.id === selectedId) || null;
 
     return (
-        <section className="grid gap-4 rounded-3xl bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-5 shadow-sm md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
-            <div className="flex flex-col gap-3">
+        <section className="grid gap-4 rounded-3xl bg-gradient-to-br bg-white p-5 shadow-sm md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+            <div className="flex flex-col gap-3 bg-white">
 
                 <div className="flex items-center justify-between">
                     <div>
@@ -731,7 +731,7 @@ const LayoutOne = () => {
 
 const TopActionsLayoutsShowcase = () => {
     return (
-        <div className="min-h-[500px] w-full bg-slate-50 p-4">
+        <div className="min-h-[500px] w-full bg-white p-4">
             <LayoutOne />
         </div>
     );

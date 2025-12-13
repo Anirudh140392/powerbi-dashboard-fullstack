@@ -1,3 +1,4 @@
+// HeatMapDrillTable.jsx
 import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
@@ -86,14 +87,6 @@ const getMaxDepth = (nodes, depth = 0) => {
   return max;
 };
 
-// ------------ COLUMN TITLES -------------
-const LEVEL_TITLES = {
-  0: "Format",
-  1: "Region",
-  2: "City",
-  3: "Keyword",
-};
-
 // ------------ METRICS CONFIG (for trend) -------------
 const METRICS = [
   { key: "spend", label: "Spend", index: 0, isPercent: false },
@@ -106,10 +99,60 @@ const METRICS = [
   { key: "roas", label: "ROAS", index: 7, isPercent: false },
 ];
 
-// ----------------- COMPONENT -----------------
-export default function HeatMapDrillTable() {
-  const { heatmapData } = performanceData;
+// ---------------- expanded depth detector -----------------
+// Returns the maximum number of segments (levels) among expanded keys.
+// Example:
+//  - no expanded keys -> 0
+//  - expanded["Magnum"] === true -> returns 1
+//  - expanded["Magnum>North"] === true -> returns 2
+const getExpandedDepth = (expandedKeys) => {
+  if (!expandedKeys) return 0;
+  let max = 0;
+  Object.keys(expandedKeys).forEach((key) => {
+    if (expandedKeys[key]) {
+      const depth = key.split(">").length; // "Magnum" -> 1, "Magnum>North" -> 2
+      if (depth > max) max = depth;
+    }
+  });
+  return max;
+};
 
+// ----------------- COMPONENT -----------------
+export default function HeatMapDrillTable({ selectedInsight }) {
+  const {
+    heatmapData,
+    heatmapDataSecond,
+    heatmapDataThird,
+    heatmapDataFourth,
+    heatmapDataFifth,
+  } = performanceData;
+
+  const collectedData =
+    selectedInsight === "All Campaign Summary"
+      ? heatmapData
+      : selectedInsight === "Q1 - Performing Well"
+      ? heatmapDataSecond
+      : selectedInsight === "Q2 - Need Attention"
+      ? heatmapDataThird
+      : selectedInsight === "Q3 - Experiment"
+      ? heatmapDataFourth
+      : selectedInsight === "Q4 - Opportunity"
+      ? heatmapDataFifth
+      : heatmapData;
+
+  const LEVEL_TITLES =
+    selectedInsight === "All Campaign Summary"
+      ? {
+          0: "Format",
+          1: "Region",
+          2: "City",
+          3: "Keyword",
+        }
+      : {
+          0: "AD Property",
+          1: "Group",
+          2: "Keyword",
+        };
 
   const [expanded, setExpanded] = useState({});
   const [formatFilter] = useState("All");
@@ -126,14 +169,20 @@ export default function HeatMapDrillTable() {
 
   const rowsPerPage = 5;
 
-  // Max hierarchy depth
-  const maxDepth = getMaxDepth(heatmapData.rows, 0);
-  const totalHierarchyCols = maxDepth + 2; // Format → Region → City → Keyword
+  // Max hierarchy depth (data-driven)
+  const maxDepth = getMaxDepth(collectedData?.rows, 0);
+  // totalHierarchyCols used previously = maxDepth + 2; but for Option 2 we hide header+body columns
+  // visibleHierarchyCols is dynamic: Format only when nothing expanded, else increases with expansion
+  const expandedDepth = getExpandedDepth(expanded); // 0 -> nothing expanded, 1 -> top-level expanded, etc.
+  const visibleHierarchyCols = Math.max(
+    1,
+    Math.min(expandedDepth + 1, maxDepth + 1)
+  ); // min 1 (Format), max maxDepth+1
 
   const filteredRows =
     formatFilter === "All"
-      ? heatmapData.rows
-      : heatmapData.rows.filter((r) => r.label === formatFilter);
+      ? collectedData?.rows
+      : collectedData?.rows.filter((r) => r.label === formatFilter);
 
   // ---------------- TOTALS -----------------
   const getDeepNodes = (nodes, exp, path = [], res = []) => {
@@ -151,7 +200,7 @@ export default function HeatMapDrillTable() {
 
   const deepRows = getDeepNodes(filteredRows, expanded);
 
-  const drillTotals = heatmapData.headers.slice(1).map((_, idx) => {
+  const drillTotals = collectedData?.headers.slice(1).map((_, idx) => {
     const vals = deepRows.map(
       (r) => getQuarterValues(r.values, selectedQuarter)[idx]
     );
@@ -344,11 +393,11 @@ export default function HeatMapDrillTable() {
     const keywordChildren =
       !realChildren.length && !node.isKeyword
         ? KEYWORDS.map((k) => ({
-          label: k,
-          values: node.values,
-          children: [],
-          isKeyword: true,
-        }))
+            label: k,
+            values: node.values,
+            children: [],
+            isKeyword: true,
+          }))
         : [];
 
     const children = [...realChildren, ...keywordChildren];
@@ -368,17 +417,17 @@ export default function HeatMapDrillTable() {
           animate={{ opacity: 1, y: 0 }}
           sx={{ backgroundColor: rowBg }}
         >
-          {Array.from({ length: totalHierarchyCols }).map((_, col) => {
+          {Array.from({ length: visibleHierarchyCols }).map((_, col) => {
             const sticky =
               col === 0
                 ? {
-                  position: "sticky",
-                  left: 0,
-                  zIndex: 10,
-                  backgroundColor: rowBg,
-                  minWidth: 150,
-                  borderRight: "1px solid #e5e7eb",
-                }
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 10,
+                    backgroundColor: rowBg,
+                    minWidth: 150,
+                    borderRight: "1px solid #e5e7eb",
+                  }
                 : {};
 
             if (col === level) {
@@ -414,7 +463,7 @@ export default function HeatMapDrillTable() {
 
             return (
               <TableCell key={col} sx={sticky}>
-                –
+                –{/* placeholder for collapsed hierarchy */}
               </TableCell>
             );
           })}
@@ -503,17 +552,24 @@ export default function HeatMapDrillTable() {
         <Box mb={2} display="flex" justifyContent="space-between">
           <Box>
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-              FORMAT → REGION → CITY → KEYWORD
+              {selectedInsight === "All Campaign Summary"
+                ? "FORMAT → REGION → CITY → KEYWORD"
+                : "AD Property → GROUP → KEYWORD"}
             </Typography>
 
             <Typography
               sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
             >
-              {heatmapData.title}
+              {collectedData?.title}
             </Typography>
           </Box>
 
-          <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+          <Box
+            display="flex"
+            flexDirection="column"
+            alignItems="flex-end"
+            gap={1}
+          >
             {/* QUARTERS */}
             <Box display="flex" gap={1}>
               {["Q1", "Q2", "Q3", "Q4"].map((q) => (
@@ -579,18 +635,18 @@ export default function HeatMapDrillTable() {
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                {Array.from({ length: totalHierarchyCols }).map((_, i) => (
+                {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
                   <TableCell
                     key={i}
                     sx={
                       i === 0
                         ? {
-                          position: "sticky",
-                          left: 0,
-                          background: "#f9fafb",
-                          zIndex: 10,
-                          minWidth: 150,
-                        }
+                            position: "sticky",
+                            left: 0,
+                            background: "#f9fafb",
+                            zIndex: 10,
+                            minWidth: 150,
+                          }
                         : {}
                     }
                   >
@@ -598,7 +654,7 @@ export default function HeatMapDrillTable() {
                   </TableCell>
                 ))}
 
-                {heatmapData.headers.slice(1).map((h) => (
+                {collectedData?.headers.slice(1).map((h) => (
                   <TableCell key={h} align="right">
                     {h} ({selectedQuarter})
                   </TableCell>
@@ -617,7 +673,7 @@ export default function HeatMapDrillTable() {
               {/* TOTAL ROW */}
               <TableRow sx={{ background: "#f8fafc" }}>
                 <TableCell
-                  colSpan={totalHierarchyCols}
+                  colSpan={visibleHierarchyCols}
                   sx={{ fontWeight: 700 }}
                 >
                   TOTAL ({selectedQuarter})
@@ -806,17 +862,13 @@ export default function HeatMapDrillTable() {
                         fontSize: 11,
                         height: 24,
                         borderRadius: 999,
-                        bgcolor: active
-                          ? "rgba(99,102,241,0.15)"
-                          : "#f3f4f6",
+                        bgcolor: active ? "rgba(99,102,241,0.15)" : "#f3f4f6",
                         color: active ? "#4f46e5" : "#475569",
                         border: active
                           ? "1px solid #6366F1"
                           : "1px solid #e5e7eb",
                         "&:hover": {
-                          bgcolor: active
-                            ? "rgba(99,102,241,0.24)"
-                            : "#e2e8f0",
+                          bgcolor: active ? "rgba(99,102,241,0.24)" : "#e2e8f0",
                         },
                       }}
                     />
