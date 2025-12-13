@@ -1,5 +1,6 @@
 // HeatMapDrillTable.jsx
 import React, { useState, useRef, useEffect } from "react";
+import { LineChart as LineChartIcon } from "lucide-react";
 import {
   Box,
   Card,
@@ -15,7 +16,7 @@ import {
   IconButton,
   Chip,
 } from "@mui/material";
-
+import TrendsOnlyDrawer from "./TrendsOnlyDrawer";
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
@@ -119,6 +120,19 @@ const getExpandedDepth = (expandedKeys) => {
 
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
+  const [openTrendsDrawer, setOpenTrendsDrawer] = useState(false);
+  const [selectedKpi, setSelectedKpi] = useState(null);
+  const [trendPayload, setTrendPayload] = useState(null);
+const COLUMN_TO_KPI = {
+  "Spend": "spend_q1",
+  "M-1 Spend": "m1_spend_q1",
+  "M-2 Spend": "m2_spend_q1",
+  "Conversion": "conv_q1",
+  "M-1 Conv": "m1_conv_q1",
+  "M-2 Conv": "m2_conv_q1",
+};
+
+
   const {
     heatmapData,
     heatmapDataSecond,
@@ -508,7 +522,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             )}
           </TableCell>
 
-          <TableCell align="right">
+          {/* <TableCell align="right">
             <IconButton
               size="small"
               onClick={() =>
@@ -526,7 +540,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             >
               <TrendingUp size={16} />
             </IconButton>
-          </TableCell>
+          </TableCell> */}
         </TableRow>
 
         {isOpen &&
@@ -654,14 +668,71 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   </TableCell>
                 ))}
 
-                {collectedData?.headers.slice(1).map((h) => (
+                {/* {collectedData?.headers.slice(1).map((h) => (
                   <TableCell key={h} align="right">
                     {h} ({selectedQuarter})
                   </TableCell>
-                ))}
+                ))} */}
+                {collectedData?.headers.slice(1).map((col) => (
+  <TableCell key={col} align="right">
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        gap: 0.6,
+      }}
+    >
+      {/* Column Title */}
+      <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+        {col} ({selectedQuarter})
+      </Typography>
+
+      {/* Trend Icon */}
+      <IconButton
+  size="small"
+  onClick={() => {
+    console.log("TREND ICON CLICKED", col);
+    setSelectedKpi(COLUMN_TO_KPI[col]);
+    setTrendPayload({
+      source: "column",
+      column: col,
+      quarter: selectedQuarter,
+    });
+    setOpenTrendsDrawer(true);
+  }}
+  sx={{
+    p: "2px",
+    ml: 0.5,
+    borderRadius: 1,
+    backgroundColor: "transparent",
+    color: "#64748b",
+    border: "none",
+    boxShadow: "none",
+    transition: "color 120ms ease, transform 120ms ease",
+
+    "& svg": {
+      width: 15,        // ⬆ slightly bigger
+      height: 15,
+      strokeWidth: 2.9, // 🔥 bolder stroke
+    },
+
+    "&:hover": {
+      backgroundColor: "transparent",
+      color: "#4f46e5",
+      transform: "translateY(-1px)",
+    },
+  }}
+>
+  <LineChartIcon />
+</IconButton>
+
+    </Box>
+  </TableCell>
+))}
 
                 <TableCell align="right">Row Avg</TableCell>
-                <TableCell align="right">Trend</TableCell>
+                {/* <TableCell align="right">Trend</TableCell> */}
               </TableRow>
             </TableHead>
 
@@ -686,7 +757,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 ))}
 
                 <TableCell>–</TableCell>
-                <TableCell />
+                {/* <TableCell /> */}
               </TableRow>
             </TableBody>
           </Table>
