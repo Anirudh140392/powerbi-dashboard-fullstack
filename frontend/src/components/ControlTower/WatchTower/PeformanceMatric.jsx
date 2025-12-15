@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -119,23 +120,23 @@ const KPI_CARDS = [
     ],
   },
 
-  {
-    id: "osa",
-    label: "AVG OSA",
-    value: "95.6%",
-    unit: "",
-    tag: "stable",
-    tagTone: "neutral",
-    footer: "Availability weighted",
-    trendTitle: "OSA – Weighted",
-    trendSubtitle: "Last 4 periods",
-    trendData: [
-      { period: "P1", value: 95.2 },
-      { period: "P2", value: 95.4 },
-      { period: "P3", value: 95.7 },
-      { period: "P4", value: 95.6 },
-    ],
-  },
+  // {
+  //   id: "osa",
+  //   label: "AVG OSA",
+  //   value: "95.6%",
+  //   unit: "",
+  //   tag: "stable",
+  //   tagTone: "neutral",
+  //   footer: "Availability weighted",
+  //   trendTitle: "OSA – Weighted",
+  //   trendSubtitle: "Last 4 periods",
+  //   trendData: [
+  //     { period: "P1", value: 95.2 },
+  //     { period: "P2", value: 95.4 },
+  //     { period: "P3", value: 95.7 },
+  //     { period: "P4", value: 95.6 },
+  //   ],
+  // },
 ];
 
 /* ------------------------------------------------------
@@ -160,6 +161,7 @@ export default function PerformanceMatric({
   cardHeight = 120,
 }) {
   const [activeTrendId, setActiveTrendId] = useState(null);
+  const [showTrends, setShowTrends] = useState(false);
 
   const activeCard = KPI_CARDS.find((c) => c.id === activeTrendId) || null;
 
@@ -179,7 +181,7 @@ export default function PerformanceMatric({
           gap: 16,
           overflowX: "auto",
           paddingBottom: 8,
-          paddingTop:2,
+          paddingTop: 2,
         }}
       >
         {KPI_CARDS.map((card) => (
@@ -189,6 +191,7 @@ export default function PerformanceMatric({
             cardWidth={cardWidth}
             cardHeight={cardHeight}
             onOpenTrend={() => setActiveTrendId(card.id)}
+            setShowTrends={setShowTrends}
           />
         ))}
       </div>
@@ -196,6 +199,12 @@ export default function PerformanceMatric({
       {activeCard && (
         <TrendPopup card={activeCard} onClose={() => setActiveTrendId(null)} />
       )}
+      <TrendsCompetitionDrawer
+        open={showTrends}
+        onClose={() => setShowTrends(false)}
+        selectedColumn="Blinkit"
+        dynamicKey="performance_dashboard_tower"
+      />
     </div>
   );
 }
@@ -203,7 +212,7 @@ export default function PerformanceMatric({
 /* ------------------------------------------------------
    KPI CARD
 -------------------------------------------------------*/
-function KpiCard({ card, onOpenTrend }) {
+function KpiCard({ card, onOpenTrend, setShowTrends }) {
   const { bg, text } = getTagColors(card.tagTone);
 
   return (
@@ -221,14 +230,12 @@ function KpiCard({ card, onOpenTrend }) {
         justifyContent: "space-between",
       }}
     >
-
       {/* 🔵 ROW 1 — LABEL + GRAPH ICON */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-  
         }}
       >
         <div
@@ -241,9 +248,9 @@ function KpiCard({ card, onOpenTrend }) {
         >
           {card.label}
         </div>
-        {/* 
+
         <div
-          onClick={() => { }}
+          onClick={() => setShowTrends(true)}
           // onClick={onOpenTrend}
           style={{
             background: "#EEF2F7",
@@ -253,7 +260,7 @@ function KpiCard({ card, onOpenTrend }) {
           }}
         >
           <LineChartIcon size={18} color="#475569" />
-        </div> */}
+        </div>
       </div>
 
       {/* 🔵 ROW 2 — VALUE + MOM TAG */}
