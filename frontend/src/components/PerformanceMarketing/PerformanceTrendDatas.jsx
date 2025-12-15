@@ -1,5 +1,11 @@
 // TrendsCompetitionDrawer.jsx
-import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import {
   Box,
   Typography,
@@ -20,12 +26,12 @@ import {
   TableHead,
   TableRow,
   Select,
-  MenuItem
+  MenuItem,
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
-import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
-import KpiTrendShowcase from "./KpiTrendShowcase";
+import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
+import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 
 /**
  * ---------------------------------------------------------------------------
@@ -39,7 +45,7 @@ const BRAND_COLORS = {
   Sensodyne: "#8B5CF6",
   Dabur: "#22C55E",
   Pepsodent: "#0EA5E9",
-  Closeup: "#F97316"
+  Closeup: "#F97316",
 };
 
 // base compare-SKU X axis + base trend (we'll offset per SKU)
@@ -53,14 +59,14 @@ const COMPARE_X = [
   "07 Sep",
   "08 Sep",
   "09 Sep",
-  "10 Sep"
+  "10 Sep",
 ];
 
 const BASE_COMPARE_TRENDS = {
   Osa: [100, 100, 100, 99, 99, 98, 98, 97, 97, 96],
   Doi: [80, 81, 79, 80, 79, 78, 78, 77, 76, 77],
   Fillrate: [92, 92, 91, 91, 90, 90, 89, 89, 88, 88],
-  Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51]
+  Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51],
 };
 
 function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
@@ -68,15 +74,18 @@ function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
     Osa: BASE_COMPARE_TRENDS.Osa.map((v) => v + osaOffset),
     Doi: BASE_COMPARE_TRENDS.Doi.map((v) => v + doiOffset),
     Fillrate: BASE_COMPARE_TRENDS.Fillrate.map((v) => v + fillOffset),
-    Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset)
+    Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset),
   };
 }
 
 const DASHBOARD_DATA = {
+  /* ============================================================
+     TRENDS
+  ============================================================ */
   trends: {
     context: {
       level: "MRP",
-      audience: "Platform"
+      audience: "Platform",
     },
 
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
@@ -87,169 +96,357 @@ const DASHBOARD_DATA = {
 
     metrics: [
       {
-        id: "Osa",
-        label: "Osa",
+        id: "Impressions",
+        label: "Impressions",
+        color: "#2563EB",
+        axis: "left",
+        default: true,
+      },
+      {
+        id: "DirectConv",
+        label: "Direct Conv",
+        color: "#16A34A",
+        axis: "right",
+        default: true,
+      },
+      {
+        id: "Spend",
+        label: "Spend",
         color: "#F97316",
         axis: "left",
-        default: true
+        default: false,
       },
       {
-        id: "Doi",
-        label: "Doi",
+        id: "NewUsers",
+        label: "New Users",
         color: "#7C3AED",
-        axis: "right",
-        default: true
-      },
-      {
-        id: "Fillrate",
-        label: "Fillrate",
-        color: "#6366F1",
         axis: "left",
-        default: false
+        default: false,
       },
-      {
-        id: "Assortment",
-        label: "Assortment",
-        color: "#22C55E",
-        axis: "left",
-        default: false
-      }
     ],
 
     points: [
-      { date: "06 Sep'25", Osa: 57, Doi: 41, Fillrate: 72, Assortment: 65 },
-      { date: "07 Sep'25", Osa: 54, Doi: 42, Fillrate: 70, Assortment: 66 },
-      { date: "08 Sep'25", Osa: 53, Doi: 40, Fillrate: 69, Assortment: 64 },
-      { date: "09 Sep'25", Osa: 53, Doi: 39, Fillrate: 68, Assortment: 63 },
-      { date: "10 Sep'25", Osa: 52, Doi: 37, Fillrate: 66, Assortment: 62 },
-      { date: "11 Sep'25", Osa: 52, Doi: 36, Fillrate: 67, Assortment: 62 },
-      { date: "12 Sep'25", Osa: 52, Doi: 35, Fillrate: 68, Assortment: 61 },
-      { date: "13 Sep'25", Osa: 52, Doi: 34, Fillrate: 69, Assortment: 60 },
-      { date: "14 Sep'25", Osa: 52, Doi: 33, Fillrate: 70, Assortment: 60 },
-      { date: "15 Sep'25", Osa: 52, Doi: 32, Fillrate: 70, Assortment: 59 },
-      { date: "16 Sep'25", Osa: 52, Doi: 32, Fillrate: 69, Assortment: 59 },
-      { date: "17 Sep'25", Osa: 51, Doi: 31, Fillrate: 68, Assortment: 58 },
-      { date: "18 Sep'25", Osa: 51, Doi: 31, Fillrate: 67, Assortment: 58 },
-      { date: "19 Sep'25", Osa: 51, Doi: 32, Fillrate: 66, Assortment: 57 },
-      { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68 },
-      { date: "21 Sep'25", Osa: 50, Doi: 34, Fillrate: 67, Assortment: 55 },
-      { date: "22 Sep'25", Osa: 49, Doi: 33, Fillrate: 66, Assortment: 54 },
-      { date: "23 Sep'25", Osa: 48, Doi: 32, Fillrate: 65, Assortment: 54 },
-      { date: "24 Sep'25", Osa: 47, Doi: 31, Fillrate: 64, Assortment: 53 },
-      { date: "25 Sep'25", Osa: 46, Doi: 30, Fillrate: 63, Assortment: 52 },
-      { date: "26 Sep'25", Osa: 45, Doi: 30, Fillrate: 62, Assortment: 52 },
-      { date: "27 Sep'25", Osa: 44, Doi: 31, Fillrate: 63, Assortment: 51 },
-      { date: "28 Sep'25", Osa: 44, Doi: 31, Fillrate: 62, Assortment: 51 },
-      { date: "29 Sep'25", Osa: 43, Doi: 32, Fillrate: 61, Assortment: 50 },
-      { date: "30 Sep'25", Osa: 43, Doi: 34, Fillrate: 60, Assortment: 49 },
-      { date: "01 Oct'25", Osa: 44, Doi: 36, Fillrate: 61, Assortment: 50 },
-      { date: "02 Oct'25", Osa: 45, Doi: 37, Fillrate: 62, Assortment: 51 },
-      { date: "03 Oct'25", Osa: 46, Doi: 39, Fillrate: 63, Assortment: 52 },
-      { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53 }
-    ]
+      {
+        date: "06 Sep'25",
+        Impressions: 5,
+        DirectConv: 3.2,
+        Spend: 1.8,
+        NewUsers: 21,
+      },
+      {
+        date: "07 Sep'25",
+        Impressions: 9,
+        DirectConv: 3.1,
+        Spend: 1.7,
+        NewUsers: 16,
+      },
+      {
+        date: "08 Sep'25",
+        Impressions: 3,
+        DirectConv: 3.0,
+        Spend: 1.6,
+        NewUsers: 8,
+      },
+      {
+        date: "09 Sep'25",
+        Impressions: 5,
+        DirectConv: 2.9,
+        Spend: 1.6,
+        NewUsers: 11,
+      },
+      {
+        date: "10 Sep'25",
+        Impressions: 13,
+        DirectConv: 2.8,
+        Spend: 1.5,
+        NewUsers: 12,
+      },
+      {
+        date: "11 Sep'25",
+        Impressions: 16,
+        DirectConv: 2.8,
+        Spend: 1.5,
+        NewUsers: 15,
+      },
+      {
+        date: "12 Sep'25",
+        Impressions: 18,
+        DirectConv: 2.7,
+        Spend: 1.4,
+        NewUsers: 17,
+      },
+      {
+        date: "13 Sep'25",
+        Impressions: 11,
+        DirectConv: 2.6,
+        Spend: 1.4,
+        NewUsers: 19,
+      },
+      {
+        date: "14 Sep'25",
+        Impressions: 6,
+        DirectConv: 2.6,
+        Spend: 1.4,
+        NewUsers: 18,
+      },
+      {
+        date: "15 Sep'25",
+        Impressions: 9,
+        DirectConv: 2.5,
+        Spend: 1.3,
+        NewUsers: 12,
+      },
+      {
+        date: "16 Sep'25",
+        Impressions: 13,
+        DirectConv: 2.5,
+        Spend: 1.3,
+        NewUsers: 13,
+      },
+      {
+        date: "17 Sep'25",
+        Impressions: 8,
+        DirectConv: 2.4,
+        Spend: 1.2,
+        NewUsers: 5,
+      },
+      {
+        date: "18 Sep'25",
+        Impressions: 7,
+        DirectConv: 2.4,
+        Spend: 1.2,
+        NewUsers: 8,
+      },
+      {
+        date: "19 Sep'25",
+        Impressions: 10,
+        DirectConv: 2.3,
+        Spend: 1.2,
+        NewUsers: 5,
+      },
+      {
+        date: "20 Sep'25",
+        Impressions: 18,
+        DirectConv: 3.6,
+        Spend: 2.1,
+        NewUsers: 9,
+      },
+      {
+        date: "21 Sep'25",
+        Impressions: 10,
+        DirectConv: 2.5,
+        Spend: 1.3,
+        NewUsers: 19,
+      },
+      {
+        date: "22 Sep'25",
+        Impressions: 21,
+        DirectConv: 2.4,
+        Spend: 1.3,
+        NewUsers: 11,
+      },
+      {
+        date: "23 Sep'25",
+        Impressions: 4,
+        DirectConv: 2.3,
+        Spend: 1.2,
+        NewUsers: 19,
+      },
+      {
+        date: "24 Sep'25",
+        Impressions: 3,
+        DirectConv: 2.2,
+        Spend: 1.2,
+        NewUsers: 16,
+      },
+      {
+        date: "25 Sep'25",
+        Impressions: 2,
+        DirectConv: 2.2,
+        Spend: 1.1,
+        NewUsers: 12,
+      },
+      {
+        date: "26 Sep'25",
+        Impressions: 11,
+        DirectConv: 2.1,
+        Spend: 1.1,
+        NewUsers: 23,
+      },
+      {
+        date: "27 Sep'25",
+        Impressions: 15,
+        DirectConv: 2.1,
+        Spend: 5,
+        NewUsers: 12,
+      },
+      {
+        date: "28 Sep'25",
+        Impressions: 16,
+        DirectConv: 2.0,
+        Spend: 7,
+        NewUsers: 3,
+      },
+      {
+        date: "29 Sep'25",
+        Impressions: 19,
+        DirectConv: 2.0,
+        Spend: 4,
+        NewUsers: 4,
+      },
+      {
+        date: "30 Sep'25",
+        Impressions: 20,
+        DirectConv: 2.1,
+        Spend: 9,
+        NewUsers: 5,
+      },
+      {
+        date: "01 Oct'25",
+        Impressions: 21,
+        DirectConv: 2.2,
+        Spend: 1.2,
+        NewUsers: 12,
+      },
+      {
+        date: "02 Oct'25",
+        Impressions: 14,
+        DirectConv: 2.3,
+        Spend: 1.3,
+        NewUsers: 17,
+      },
+      {
+        date: "03 Oct'25",
+        Impressions: 7,
+        DirectConv: 2.5,
+        Spend: 1.4,
+        NewUsers: 8,
+      },
+      {
+        date: "04 Oct'25",
+        Impressions: 9,
+        DirectConv: 2.6,
+        Spend: 1.5,
+        NewUsers: 10,
+      },
+    ],
   },
 
-  // compare SKUs with per-SKU trend
+  /* ============================================================
+     COMPARE SKUs
+  ============================================================ */
   compareSkus: {
-    context: {
-      level: "MRP"
-    },
+    context: { level: "MRP" },
+
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
     defaultRange: "1M",
+
     timeSteps: ["Daily", "Weekly", "Monthly"],
     defaultTimeStep: "Daily",
 
     metrics: [
-      { id: "Osa", label: "Osa", color: "#F97316", default: true },
-      { id: "Doi", label: "Doi", color: "#7C3AED", default: true },
-      { id: "Fillrate", label: "Fillrate", color: "#6366F1", default: false },
-      { id: "Assortment", label: "Assortment", color: "#22C55E", default: false }
+      {
+        id: "Impressions",
+        label: "Impressions",
+        color: "#2563EB",
+        default: true,
+      },
+      {
+        id: "DirectConv",
+        label: "Direct Conv",
+        color: "#16A34A",
+        default: true,
+      },
+      { id: "Spend", label: "Spend", color: "#F97316", default: false },
+      { id: "NewUsers", label: "New Users", color: "#7C3AED", default: false },
     ],
 
     x: COMPARE_X,
 
-    // keyed by SKU_DATA IDs (1..8)
     trendsBySku: {
       1: makeSkuTrend(0, 0, 0, 0),
-      2: makeSkuTrend(-2, -1, -1, 0),
-      3: makeSkuTrend(-3, -2, -2, -1),
-      4: makeSkuTrend(-4, -3, -3, -1),
-      5: makeSkuTrend(+2, +3, +2, +2),
-      6: makeSkuTrend(+1, +2, +1, +1),
-      7: makeSkuTrend(-1, -2, -1, -1),
-      8: makeSkuTrend(+3, +1, +2, +1)
-    }
+      2: makeSkuTrend(-2000, -0.2, -0.1, -20),
+      3: makeSkuTrend(-4000, -0.3, -0.2, -35),
+      4: makeSkuTrend(-6000, -0.4, -0.3, -50),
+      5: makeSkuTrend(+3000, +0.3, +0.2, +40),
+      6: makeSkuTrend(+2000, +0.2, +0.1, +25),
+      7: makeSkuTrend(-1500, -0.2, -0.1, -18),
+      8: makeSkuTrend(+4500, +0.4, +0.3, +55),
+    },
   },
 
+  /* ============================================================
+     COMPETITION
+  ============================================================ */
   competition: {
     context: {
       level: "MRP",
-      region: "All × Chennai"
+      region: "All × Chennai",
     },
 
     tabs: ["Brands", "SKUs"],
 
     periodToggle: {
       primary: "MTD",
-      compare: "Previous Month"
+      compare: "Previous Month",
     },
 
     columns: [
       { id: "brand", label: "Brand", type: "text" },
-      { id: "Osa", label: "Osa", type: "metric" },
-      { id: "Doi", label: "Doi", type: "metric" },
-      { id: "Fillrate", label: "Fillrate", type: "metric" },
-      { id: "Assortment", label: "Assortment", type: "metric" }
+      { id: "Impressions", label: "Impressions", type: "metric" },
+      { id: "DirectConv", label: "Direct Conv", type: "metric" },
+      { id: "Spend", label: "Spend", type: "metric" },
+      { id: "NewUsers", label: "New Users", type: "metric" },
     ],
 
     brands: [
       {
         brand: "Colgate",
-        Osa: { value: 32.9, delta: -4.5 },
-        Doi: { value: 74.6, delta: -16.3 },
-        Fillrate: { value: 20.0, delta: -8.5 },
-        Assortment: { value: 18.8, delta: 0.4 }
+        Impressions: { value: 65200, delta: -4200 },
+        DirectConv: { value: 3.1, delta: -0.4 },
+        Spend: { value: 18.4, delta: -2.1 },
+        NewUsers: { value: 420, delta: 22 },
       },
       {
         brand: "Sensodyne",
-        Osa: { value: 19.6, delta: 2.2 },
-        Doi: { value: 94.2, delta: 3.9 },
-        Fillrate: { value: 19.3, delta: 2.7 },
-        Assortment: { value: 18.5, delta: -3.1 }
+        Impressions: { value: 49600, delta: 3100 },
+        DirectConv: { value: 3.6, delta: 0.5 },
+        Spend: { value: 16.8, delta: 1.9 },
+        NewUsers: { value: 390, delta: -18 },
       },
       {
         brand: "Oral-B",
-        Osa: { value: 11.7, delta: -0.9 },
-        Doi: { value: 86.7, delta: -4.2 },
-        Fillrate: { value: 16.2, delta: -2.9 },
-        Assortment: { value: 20.8, delta: -5.6 }
+        Impressions: { value: 38200, delta: -2900 },
+        DirectConv: { value: 2.8, delta: -0.3 },
+        Spend: { value: 12.6, delta: -1.4 },
+        NewUsers: { value: 310, delta: -26 },
       },
       {
         brand: "Dabur",
-        Osa: { value: 8.6, delta: 0.2 },
-        Doi: { value: 90.6, delta: -1.2 },
-        Fillrate: { value: 7.2, delta: 0.3 },
-        Assortment: { value: 7.4, delta: 2.9 }
-      }
+        Impressions: { value: 26800, delta: 1200 },
+        DirectConv: { value: 3.0, delta: 0.2 },
+        Spend: { value: 9.4, delta: 0.8 },
+        NewUsers: { value: 260, delta: 34 },
+      },
     ],
 
     skus: [
       {
         brand: "Colgate Strong Teeth 100g",
-        Osa: { value: 8.2, delta: -1.0 },
-        Doi: { value: 76.1, delta: -8.0 },
-        Fillrate: { value: 4.5, delta: -0.9 },
-        Assortment: { value: 3.2, delta: 0.2 }
+        Impressions: { value: 18200, delta: -1200 },
+        DirectConv: { value: 3.0, delta: -0.2 },
+        Spend: { value: 5.8, delta: -0.7 },
+        NewUsers: { value: 120, delta: 6 },
       },
       {
         brand: "Sensodyne Rapid Relief 40g",
-        Osa: { value: 4.4, delta: 0.7 },
-        Doi: { value: 95.0, delta: 2.0 },
-        Fillrate: { value: 5.1, delta: 1.3 },
-        Assortment: { value: 4.9, delta: -0.5 }
-      }
-    ]
-  }
+        Impressions: { value: 14600, delta: 900 },
+        DirectConv: { value: 3.8, delta: 0.4 },
+        Spend: { value: 6.1, delta: 0.9 },
+        NewUsers: { value: 135, delta: -4 },
+      },
+    ],
+  },
 };
 
 /**
@@ -270,14 +467,14 @@ const MONTH_MAP = {
   Sep: 8,
   Oct: 9,
   Nov: 10,
-  Dec: 11
+  Dec: 11,
 };
 
 const RANGE_TO_DAYS = {
   "1M": 30,
   "3M": 90,
   "6M": 180,
-  "1Y": 365
+  "1Y": 365,
 };
 
 const parseTrendDate = (label) => {
@@ -310,9 +507,9 @@ const PillToggleGroup = ({ value, onChange, options }) => (
         borderRadius: "999px",
         "&.Mui-selected": {
           backgroundColor: "#ffffff",
-          boxShadow: "0 1px 3px rgba(15,23,42,0.15)"
-        }
-      }
+          boxShadow: "0 1px 3px rgba(15,23,42,0.15)",
+        },
+      },
     }}
   >
     {options.map((opt) => (
@@ -332,7 +529,7 @@ const MetricChip = ({ active, label, color, onClick }) => (
             width: 10,
             height: 10,
             borderRadius: "999px",
-            backgroundColor: color
+            backgroundColor: color,
           }}
         />
         <Typography variant="body2">{label}</Typography>
@@ -344,7 +541,7 @@ const MetricChip = ({ active, label, color, onClick }) => (
       borderRadius: "999px",
       backgroundColor: active ? "#EFF6FF" : "white",
       borderColor: active ? "#3B82F6" : "#E5E7EB",
-      "& .MuiChip-label": { px: 1.5, py: 0.25 }
+      "& .MuiChip-label": { px: 1.5, py: 0.25 },
     }}
   />
 );
@@ -355,10 +552,10 @@ const MetricChip = ({ active, label, color, onClick }) => (
  * ---------------------------------------------------------------------------
  */
 
-export default function TrendsCompetitionDrawer({
+export default function PerformanceTrendDatas({
   dynamicKey,
   open = true,
-  onClose = () => { },
+  onClose = () => {},
   selectedColumn,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -400,7 +597,6 @@ export default function TrendsCompetitionDrawer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
@@ -423,7 +619,7 @@ export default function TrendsCompetitionDrawer({
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
       ...p,
-      _dateObj: parseTrendDate(p.date)
+      _dateObj: parseTrendDate(p.date),
     }));
     const sorted = [...enriched].sort(
       (a, b) => a._dateObj.getTime() - b._dateObj.getTime()
@@ -462,7 +658,7 @@ export default function TrendsCompetitionDrawer({
         lineStyle: { width: 2 },
         emphasis: { focus: "series" },
         data: trendPoints.map((p) => p[m.id] ?? null),
-        itemStyle: { color: m.color }
+        itemStyle: { color: m.color },
       }));
 
     return {
@@ -473,7 +669,7 @@ export default function TrendsCompetitionDrawer({
         data: xData,
         boundaryGap: false,
         axisLine: { lineStyle: { color: "#E5E7EB" } },
-        axisLabel: { fontSize: 11 }
+        axisLabel: { fontSize: 11 },
       },
       yAxis: [
         {
@@ -481,7 +677,7 @@ export default function TrendsCompetitionDrawer({
           position: "left",
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { lineStyle: { color: "#F3F4F6" } }
+          splitLine: { lineStyle: { color: "#F3F4F6" } },
         },
         {
           type: "value",
@@ -490,11 +686,11 @@ export default function TrendsCompetitionDrawer({
           axisTick: { show: false },
           splitLine: { show: false },
           min: 0,
-          max: 100
-        }
+          max: 100,
+        },
       ],
       legend: { show: false },
-      series
+      series,
     };
   }, [trendMeta, activeMetrics, trendPoints]);
 
@@ -529,7 +725,7 @@ export default function TrendsCompetitionDrawer({
             symbolSize: 6,
             lineStyle: { width: 1 },
             itemStyle: { color: m.color },
-            data: trend[m.id] || []
+            data: trend[m.id] || [],
           });
         });
     });
@@ -542,9 +738,9 @@ export default function TrendsCompetitionDrawer({
         type: "value",
         min: 0,
         max: 120,
-        axisLabel: { formatter: "{value}%" }
+        axisLabel: { formatter: "{value}%" },
       },
-      series
+      series,
     };
   }, [compareMeta, activeMetrics, selectedCompareSkus]);
 
@@ -556,10 +752,15 @@ export default function TrendsCompetitionDrawer({
     setAddSkuOpen(false);
   };
 
-  const PLATFORM_OPTIONS = ["Blinkit", "Zepto", "Instamart", "Swiggy", "Amazon"];
+  const PLATFORM_OPTIONS = [
+    "Blinkit",
+    "Zepto",
+    "Instamart",
+    "Swiggy",
+    "Amazon",
+  ];
   const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
   const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-
 
   if (!open) return null;
 
@@ -574,7 +775,7 @@ export default function TrendsCompetitionDrawer({
         alignItems: "flex-start",
         p: 2,
         zIndex: 1300,
-        overflow: "auto"
+        overflow: "auto",
       }}
     >
       <Box
@@ -587,7 +788,7 @@ export default function TrendsCompetitionDrawer({
           p: 3,
           display: "flex",
           flexDirection: "column",
-          gap: 2
+          gap: 2,
         }}
       >
         {/* Header row */}
@@ -609,15 +810,14 @@ export default function TrendsCompetitionDrawer({
                 fontSize: 14,
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
-                  color: "#fff"
-                }
-              }
+                  color: "#fff",
+                },
+              },
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
             {dynamicKey !== "Performance_marketing" && (
               <ToggleButton value="Competition">Competition</ToggleButton>
-
             )}
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
@@ -630,10 +830,8 @@ export default function TrendsCompetitionDrawer({
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
-
             {/* HEADER + PLATFORM FILTER */}
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-
               {/* Title */}
               <Typography variant="h6" fontWeight={600}>
                 {selectedColumn || "KPI Trends"}
@@ -642,25 +840,22 @@ export default function TrendsCompetitionDrawer({
               {/* PLATFORM FILTER WRAPPER */}
               {/* PLATFORM FILTER WRAPPER */}
               <Box display="flex" alignItems="center" gap={1}>
-
                 {/* CLICKABLE LABEL (now only toggles open/close) */}
-                < Typography
+                <Typography
                   variant="body2"
                   color="text.secondary"
                   sx={{ cursor: "pointer", userSelect: "none" }}
-
                 >
                   <Select
                     size="small"
                     value={allTrendMeta.context.audience}
                     onChange={(e) => {
-                      allSetTrendMeta(prev => ({
+                      allSetTrendMeta((prev) => ({
                         ...prev,
                         context: { ...prev.context, audience: e.target.value },
                       }));
-                      setShowPlatformPills(true);   // always show pills after changing mode
+                      setShowPlatformPills(true); // always show pills after changing mode
                     }}
-
                   >
                     <MenuItem value="Platform">Platform</MenuItem>
                     <MenuItem value="Format">Format</MenuItem>
@@ -675,15 +870,15 @@ export default function TrendsCompetitionDrawer({
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
-                        ? FORMAT_OPTIONS
-                        : allTrendMeta.context.audience === "City"
-                          ? CITY_OPTIONS
-                          : []
+                      ? FORMAT_OPTIONS
+                      : allTrendMeta.context.audience === "City"
+                      ? CITY_OPTIONS
+                      : []
                     ).map((p) => (
                       <Box
                         key={p}
                         onClick={() => {
-                          setSelectedPlatform(p);  // only select the pill
+                          setSelectedPlatform(p); // only select the pill
                           // ❌ DO NOT toggle or force open here
                         }}
                         sx={{
@@ -704,9 +899,7 @@ export default function TrendsCompetitionDrawer({
                     ))}
                   </Box>
                 )}
-
               </Box>
-
 
               {/* LEVEL CHIP */}
               <Chip
@@ -721,7 +914,6 @@ export default function TrendsCompetitionDrawer({
               />
 
               {/* AUDIENCE CHIP */}
-
             </Box>
 
             {/* RANGE + TIMESTEP */}
@@ -811,12 +1003,8 @@ export default function TrendsCompetitionDrawer({
           </Box>
         )}
 
-
-
         {/* COMPETITION VIEW */}
-        {view === "Competition" && (
-          <KpiTrendShowcase />
-        )}
+        {view === "Competition" && <KpiTrendShowcase />}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
@@ -832,7 +1020,7 @@ export default function TrendsCompetitionDrawer({
                   borderRadius: "999px",
                   backgroundColor: "#DCFCE7",
                   color: "#166534",
-                  fontWeight: 500
+                  fontWeight: 500,
                 }}
               />
             </Box>
@@ -876,7 +1064,7 @@ export default function TrendsCompetitionDrawer({
                               width: 12,
                               height: 12,
                               borderRadius: "999px",
-                              backgroundColor: color
+                              backgroundColor: color,
                             }}
                           />
                           <Typography variant="body2" noWrap>
@@ -893,7 +1081,7 @@ export default function TrendsCompetitionDrawer({
                         borderRadius: "999px",
                         backgroundColor: "#F9FAFB",
                         borderColor: "transparent",
-                        maxWidth: 260
+                        maxWidth: 260,
                       }}
                     />
                   );
@@ -907,7 +1095,7 @@ export default function TrendsCompetitionDrawer({
                   backgroundColor: "#2563EB",
                   textTransform: "none",
                   borderRadius: "999px",
-                  minWidth: 140
+                  minWidth: 140,
                 }}
                 onClick={() => setAddSkuOpen(true)}
               >
@@ -956,6 +1144,6 @@ export default function TrendsCompetitionDrawer({
           selectedIds={selectedCompareSkus.map((s) => s.id)}
         />
       </Box>
-    </Box >
+    </Box>
   );
 }
