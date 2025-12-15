@@ -331,6 +331,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Chennai", metric: "Placement 55", change: "-1.9%" },
       { city: "Coimbatore", metric: "Index 67", change: "-1.4%" },
+      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
   {

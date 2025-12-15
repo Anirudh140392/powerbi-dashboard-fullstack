@@ -9,9 +9,10 @@ import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsC
 
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, X } from "lucide-react";
 // import {SimpleTableWithTabs} from "../components/CommonLayout/SimpleTableWithTabs";
 import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
+import { KpiFilterPanel } from "./KpiFilterPanel";
 
 // import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 // import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityCompetitionDrawer";
@@ -625,8 +626,71 @@ function MatrixVariant({ dynamicKey, data, title }) {
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
-
   const { columns, rows } = data;
+
+  // Filter states
+  const [showValue, setShowValue] = useState(true);
+  const [selectedKPIs, setSelectedKPIs] = useState([]);
+  const [isKPIOptionsOpen, setKPIOptionsOpen] = useState(false);
+
+  // New KpiFilterPanel State
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterRules, setFilterRules] = useState(null);
+
+  const filterOptions = React.useMemo(() => {
+    return {
+      keywords: [],
+      skus: [],
+      cities: columns.slice(1).map((c, i) => ({ id: c, label: c, value: i })),
+      platforms: [],
+      kpiFields: rows ? rows.map(r => ({ id: r.kpi, label: r.kpi, type: 'number' })) : []
+    };
+  }, [rows, columns]);
+
+  // Value Logic Filter (Legacy - kept for reference or removal)
+  const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
+  const [filterValue, setFilterValue] = useState("");
+
+  const checkValueCondition = (val) => {
+    if (!filterValue || filterOperator === "none" || val === undefined || val === null) return true;
+    const num = Number(filterValue);
+    if (isNaN(num)) return true;
+
+    switch (filterOperator) {
+      case "gt": return val > num;
+      case "lt": return val < num;
+      case "eq": return val === num;
+      case "gte": return val >= num;
+      case "lte": return val <= num;
+      default: return true;
+    }
+  };
+
+  // Initialize/Sync selectedKPIs with rows
+  React.useEffect(() => {
+    if (rows) {
+      setSelectedKPIs(rows.map(r => r.kpi));
+    }
+  }, [rows]);
+
+  const allKPIs = React.useMemo(() => rows.map(r => r.kpi), [rows]);
+  const isAllSelected = selectedKPIs.length === allKPIs.length;
+
+  const toggleAllKPIs = () => {
+    if (isAllSelected) {
+      setSelectedKPIs([]);
+    } else {
+      setSelectedKPIs(allKPIs);
+    }
+  };
+
+  const toggleKPI = (kpi) => {
+    if (selectedKPIs.includes(kpi)) {
+      setSelectedKPIs(selectedKPIs.filter(k => k !== kpi));
+    } else {
+      setSelectedKPIs([...selectedKPIs, kpi]);
+    }
+  };
 
   // ---------------- BUILD COMP META (same logic) ----------------
   const buildCompMeta = (columnName) => ({
@@ -667,7 +731,16 @@ function MatrixVariant({ dynamicKey, data, title }) {
           </div>
 
           {/* City-style Heatmap Legend */}
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-3 text-xs">
+            {/* KpiFilterPanel Integration */}
+            <button
+              onClick={() => setShowFilterPanel(true)}
+              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>Filters</span>
+            </button>
+            <div className="h-4 w-px bg-slate-200 mx-1"></div>
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               <span className="ml-2 text-slate-700">Healthy</span>
@@ -684,8 +757,62 @@ function MatrixVariant({ dynamicKey, data, title }) {
         </div>
       </CardHeader>
 
+      {/* ------------------ KPI FILTER MODAL ------------------ */}
+      {showFilterPanel && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+              </div>
+              <button
+                onClick={() => setShowFilterPanel(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Panel Content */}
+            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+              <KpiFilterPanel
+                keywords={filterOptions.keywords}
+                skus={filterOptions.skus}
+                cities={filterOptions.cities}
+                platforms={filterOptions.platforms}
+                kpiFields={filterOptions.kpiFields}
+                onRulesChange={setFilterRules}
+                // Mock handlers for demo
+                onKeywordChange={(ids) => console.log("Keywords:", ids)}
+                onSkuChange={(ids) => console.log("SKUs:", ids)}
+                onCityChange={(ids) => console.log("Cities:", ids)}
+                onPlatformChange={(ids) => console.log("Platforms:", ids)}
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+              <button
+                onClick={() => setShowFilterPanel(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowFilterPanel(false)}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ------------------ BODY ------------------ */}
-      <CardContent className="pt-0">
+      < CardContent className="pt-0" >
         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
           <div className="min-w-[1000px]">
 
@@ -721,7 +848,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody>
-                {rows.map((row) => (
+                {rows.filter(row => selectedKPIs.includes(row.kpi)).map((row) => (
                   <tr key={row.kpi} className="group">
 
                     {/* Sticky KPI Column */}
@@ -752,7 +879,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                            transition hover:shadow-sm 
                                            ${cellClasses}`}
                               >
-                                <span>{value}%</span>
+                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}%` : ""}</span>
 
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full border 
@@ -787,28 +914,30 @@ function MatrixVariant({ dynamicKey, data, title }) {
             </table>
           </div>
         </ScrollArea>
-      </CardContent>
+      </CardContent >
 
       {/* TRENDS DRAWER */}
-      {dynamicKey === 'availability' ? (
-        <TrendsCompetitionDrawer
-          open={openTrend}
-          onClose={() => setOpenTrend(false)}
-          compMeta={compMetaForDrawer}
-          selectedColumn={selectedColumn}
-          dynamicKey={dynamicKey}
-        />
-      ) : (
-        <VisibilityTrendsCompetitionDrawer
-          open={openTrend}
-          onClose={() => setOpenTrend(false)}
-          compMeta={compMetaForDrawer}
-          selectedColumn={selectedColumn}
-          dynamicKey={dynamicKey}
-        />
-      )}
+      {
+        dynamicKey === 'availability' ? (
+          <TrendsCompetitionDrawer
+            open={openTrend}
+            onClose={() => setOpenTrend(false)}
+            compMeta={compMetaForDrawer}
+            selectedColumn={selectedColumn}
+            dynamicKey={dynamicKey}
+          />
+        ) : (
+          <VisibilityTrendsCompetitionDrawer
+            open={openTrend}
+            onClose={() => setOpenTrend(false)}
+            compMeta={compMetaForDrawer}
+            selectedColumn={selectedColumn}
+            dynamicKey={dynamicKey}
+          />
+        )
+      }
 
-    </Card>
+    </Card >
   );
 }
 
