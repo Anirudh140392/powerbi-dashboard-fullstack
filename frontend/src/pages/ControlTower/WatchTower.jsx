@@ -338,7 +338,7 @@ defaultCategory */}
         open={showTrends}
         onClose={() => setShowTrends(false)}
         selectedColumn='Blinkit'
-        dynamicKey='control_tower'
+        dynamicKey='platform_overview_tower'
       />
     </>
   );
