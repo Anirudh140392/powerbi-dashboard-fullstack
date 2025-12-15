@@ -189,10 +189,10 @@ const quarterMonths = {
 }
 
 const FROZEN_WIDTHS = {
-  format: 180,
-  tdp: 110,
-  weekend: 130,
-  day: 90,
+  format: 110,
+  tdp: 37,
+  weekend: 62,
+  day: 40,
 }
 
 const LEFT_TDP = FROZEN_WIDTHS.format
@@ -354,124 +354,91 @@ export default function DrilldownLatestTable() {
       byFormat.get(r.format).push(r)
     })
 
-    const cmp = (a, b) =>
-      typeof a === 'number' && typeof b === 'number'
-        ? a - b
-        : String(a).localeCompare(String(b))
+    Array.from(byFormat.entries()).forEach(([format, formatRows]) => {
+      const formatId = `fmt-${format}`
 
-    const dayFactor = sortField === 'day' ? (sortDir === 'asc' ? 1 : -1) : 1
+      rows.push({
+        id: formatId,
+        depth: 0,
+        label: format,
+        level: 'format',
+        format,
+        quarters: aggregateQuarterKpis(formatRows),
+        months: aggregateMonthKpis(formatRows),
+        hasChildren: true,
+      })
 
-    Array.from(byFormat.entries())
-      .sort(([fa], [fb]) =>
-        sortField === 'format' ? cmp(fa, fb) * (sortDir === 'asc' ? 1 : -1) : cmp(fa, fb)
-      )
-      .forEach(([format, formatRows]) => {
-        const formatAgg = aggregateQuarterKpis(formatRows)
-        const formatMonths = aggregateMonthKpis(formatRows)
-        const formatId = `fmt-${format}`
+      if (!expandedRows.has(formatId)) return
+
+      const byTdp = new Map()
+      formatRows.forEach((r) => {
+        if (!byTdp.has(r.tdp)) byTdp.set(r.tdp, [])
+        byTdp.get(r.tdp).push(r)
+      })
+
+      Array.from(byTdp.entries()).forEach(([tdp, tdpRows]) => {
+        const tdpId = `${formatId}-tdp-${tdp}`
 
         rows.push({
-          id: formatId,
-          depth: 0,
-          label: format,
-          level: 'format',
+          id: tdpId,
+          depth: 1,
+          label: tdp,
+          level: 'tdp',
           format,
-          quarters: formatAgg,
-          months: formatMonths,
+          tdp,
+          quarters: aggregateQuarterKpis(tdpRows),
+          months: aggregateMonthKpis(tdpRows),
           hasChildren: true,
         })
 
-        if (expandedRows.has(formatId)) {
-          const byTdp = new Map()
-          formatRows.forEach((r) => {
-            if (!byTdp.has(r.tdp)) byTdp.set(r.tdp, [])
-            byTdp.get(r.tdp).push(r)
+        if (!expandedRows.has(tdpId)) return
+
+        const byWeekend = new Map()
+        tdpRows.forEach((r) => {
+          if (!byWeekend.has(r.weekendFlag)) byWeekend.set(r.weekendFlag, [])
+          byWeekend.get(r.weekendFlag).push(r)
+        })
+
+        Array.from(byWeekend.entries()).forEach(([weekend, weekendRows]) => {
+          const weekendId = `${tdpId}-w-${weekend}`
+
+          rows.push({
+            id: weekendId,
+            depth: 2,
+            label: weekend,
+            level: 'weekend',
+            format,
+            tdp,
+            weekendFlag: weekend,
+            quarters: aggregateQuarterKpis(weekendRows),
+            months: aggregateMonthKpis(weekendRows),
+            hasChildren: true,
           })
 
-          Array.from(byTdp.entries())
-            .sort(([ta], [tb]) => cmp(ta, tb))
-            .forEach(([tdp, tdpRows]) => {
-              const tdpId = `${formatId}-tdp-${tdp}`
-              const tdpAgg = aggregateQuarterKpis(tdpRows)
-              const tdpMonths = aggregateMonthKpis(tdpRows)
+          /* 🔥 FIX APPLIED HERE */
+          if (expandedRows.has(weekendId)) {
+            const dayId = `${weekendId}-d-all`
 
-              rows.push({
-                id: tdpId,
-                depth: 1,
-                label: tdp,
-                level: 'tdp',
-                format,
-                tdp,
-                quarters: tdpAgg,
-                months: tdpMonths,
-                hasChildren: true,
-              })
-
-              if (expandedRows.has(tdpId)) {
-                const byWeekend = new Map()
-                tdpRows.forEach((r) => {
-                  if (!byWeekend.has(r.weekendFlag)) byWeekend.set(r.weekendFlag, [])
-                  byWeekend.get(r.weekendFlag).push(r)
-                })
-
-                Array.from(byWeekend.entries())
-                  .sort(([wa], [wb]) => cmp(wa, wb))
-                  .forEach(([weekend, weekendRows]) => {
-                    const weekendId = `${tdpId}-w-${weekend}`
-                    const weekendAgg = aggregateQuarterKpis(weekendRows)
-                    const weekendMonths = aggregateMonthKpis(weekendRows)
-
-                    rows.push({
-                      id: weekendId,
-                      depth: 2,
-                      label: weekend,
-                      level: 'weekend',
-                      format,
-                      tdp,
-                      weekendFlag: weekend,
-                      quarters: weekendAgg,
-                      months: weekendMonths,
-                      hasChildren: true,
-                    })
-
-                    if (expandedRows.has(weekendId)) {
-                      const byDay = new Map()
-                      weekendRows.forEach((r) => {
-                        const key = r.day ?? null
-                        if (!byDay.has(key)) byDay.set(key, [])
-                        byDay.get(key).push(r)
-                      })
-
-                      Array.from(byDay.entries())
-                        .sort(([da], [db]) => cmp(da ?? -1, db ?? -1) * dayFactor)
-                        .forEach(([dayKey, dayRows]) => {
-                          const dayId = `${weekendId}-d-${dayKey ?? 'all'}`
-                          const dayAgg = aggregateQuarterKpis(dayRows)
-                          const dayMonths = aggregateMonthKpis(dayRows)
-
-                          rows.push({
-                            id: dayId,
-                            depth: 3,
-                            label: dayKey == null ? 'All days' : `Day ${dayKey}`,
-                            level: 'day',
-                            format,
-                            tdp,
-                            weekendFlag: weekend,
-                            day: dayKey,
-                            quarters: dayAgg,
-                            months: dayMonths,
-                            hasChildren: false,
-                          })
-                        })
-                    }
-                  })
-              }
+            rows.push({
+              id: dayId,
+              depth: 3,
+              label: 'All days',
+              level: 'day',
+              format,
+              tdp,
+              weekendFlag: weekend,
+              day: null,
+              quarters: aggregateQuarterKpis(weekendRows),
+              months: aggregateMonthKpis(weekendRows),
+              hasChildren: false,
             })
-        }
+          }
+        })
       })
+    })
 
     return rows
-  }, [filteredRows, expandedRows, sortDir, sortField])
+  }, [filteredRows, expandedRows])
 
   // Reset page when filters change
   useEffect(() => {

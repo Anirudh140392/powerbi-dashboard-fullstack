@@ -71,6 +71,7 @@ const Sidebar = ({
       { label: "Content Analysis" },
     ],
     ANALYTICS: [{ label: "Category RCA" }],
+    "Inventory Analysis": [{ label: "Inventory Analysis" }],
     // PIY: [{ label: "PIY" }],
   };
 
@@ -250,6 +251,10 @@ const Sidebar = ({
                       // Pricing Analysis
                       if (sectionName === "PIY" && item.label === "PIY") {
                         navigate("/piy");
+                      }
+                      // Pricing Analysis
+                      if (sectionName === "Inventory Analysis" && item.label === "Inventory Analysis") {
+                        navigate("/inventory");
                       }
                     }}
                     sx={{
