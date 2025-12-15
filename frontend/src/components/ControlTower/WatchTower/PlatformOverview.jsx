@@ -194,7 +194,7 @@ const PlatformOverview = ({
                     sx={{
                       minWidth: 130,
                       height: 36,
-                      fontSize: "0.85rem",
+                      fontSize: "1.85rem",
                       background: "#f3f4f6",
                     }}
                   >
@@ -261,7 +261,9 @@ const PlatformOverview = ({
               display: "flex",
               gap: 2,
               overflowX: "auto",
+              overflowY: "auto",
               pb: 2,
+              height: "800px",
             }}
           >
             {sortedPlatforms.map((platform) => (

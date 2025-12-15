@@ -155,7 +155,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           1: "Group",
           2: "Keyword",
         };
- 
+        const openHeaderTrend = (levelIndex) => {
+  setShowTrends(true);
+};
   const [expanded, setExpanded] = useState({});
   const [formatFilter] = useState("All");
   const [selectedQuarter, setSelectedQuarter] = useState("Q1");
@@ -542,12 +544,6 @@ export default function HeatMapDrillTable({ selectedInsight }) {
  
         {isOpen &&
           children.map((child) => renderRow(child, level + 1, fullPath))}
-        <PerformanceTrendDatas
-          open={showTrends}
-          onClose={() => setShowTrends(false)}
-          selectedColumn="Blinkit"
-          dynamicKey="Performance_marketing"
-        />
       </React.Fragment>
     );
   };
@@ -652,7 +648,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+                {/* {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
                   <TableCell
                     key={i}
                     sx={
@@ -669,7 +665,48 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   >
                     {LEVEL_TITLES[i] || `Keyword ${i - 2 + 2}`}
                   </TableCell>
-                ))}
+                ))} */}
+{Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+  <TableCell
+    key={i}
+    sx={
+      i === 0
+        ? {
+            position: "sticky",
+            left: 0,
+            background: "#f9fafb",
+            zIndex: 10,
+            minWidth: 150,
+          }
+        : {}
+    }
+  >
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.5,
+      }}
+    >
+      {/* Header title */}
+      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
+        {LEVEL_TITLES[i]}
+      </Typography>
+
+      {/* ✅ Trend icon ONLY for Region / City / Keyword */}
+      {i > 0 && (
+        <IconButton
+          size="small"
+          onClick={() => openHeaderTrend(i)}
+          sx={{ p: 0.25 }}
+        >
+          <LineChartIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
+    </Box>
+  </TableCell>
+))}
+
  
                 {collectedData?.headers.slice(1).map((col) => (
                   <TableCell key={col} align="right">
@@ -940,6 +977,12 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           </Box>
         </Box>
       )}
+              <PerformanceTrendDatas
+          open={showTrends}
+          onClose={() => setShowTrends(false)}
+          selectedColumn="Blinkit"
+          dynamicKey="Performance_marketing"
+        />
     </>
   );
 }
