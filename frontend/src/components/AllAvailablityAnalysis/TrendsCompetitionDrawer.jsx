@@ -32,6 +32,7 @@ import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
+import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
 
 /**
  * ---------------------------------------------------------------------------
@@ -334,31 +335,51 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   </ToggleButtonGroup>
 );
 
-const MetricChip = ({ active, label, color, onClick }) => (
-  <Chip
-    label={
-      <Box display="flex" alignItems="center" gap={1}>
-        <Box
-          sx={{
-            width: 10,
-            height: 10,
-            borderRadius: "999px",
-            backgroundColor: color,
-          }}
-        />
-        <Typography variant="body2">{label}</Typography>
+const MetricChip = ({ label, color, active, onClick }) => {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.8,
+        px: 1.5,
+        py: 0.6,
+        borderRadius: "999px",
+        cursor: "pointer",
+        border: `1px solid ${active ? color : "#E5E7EB"}`,
+        backgroundColor: active ? `${color}20` : "white",
+        color: active ? color : "#0f172a",
+        fontSize: "12px",
+        fontWeight: 600,
+        userSelect: "none",
+        transition: "all 0.15s ease",
+      }}
+    >
+      {/* CHECKBOX ICON */}
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          border: `2px solid ${active ? color : "#CBD5E1"}`,
+          backgroundColor: active ? color : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 10,
+          lineHeight: 1,
+        }}
+      >
+        {active && "✓"}
       </Box>
-    }
-    onClick={onClick}
-    variant={active ? "filled" : "outlined"}
-    sx={{
-      borderRadius: "999px",
-      backgroundColor: active ? "#EFF6FF" : "white",
-      borderColor: active ? "#3B82F6" : "#E5E7EB",
-      "& .MuiChip-label": { px: 1.5, py: 0.25 },
-    }}
-  />
-);
+
+      {label}
+    </Box>
+  );
+};
+
 
 /**
  * ---------------------------------------------------------------------------
@@ -1416,9 +1437,10 @@ export default function TrendsCompetitionDrawer({
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
-            {dynamicKey !== "Performance_marketing" && (
-              <ToggleButton value="Competition">Competition</ToggleButton>
-            )}
+            {dynamicKey !== "Performance_marketing" &&
+              dynamicKey !== "performance_dashboard_tower" && (
+                <ToggleButton value="Competition">Competition</ToggleButton>
+              )}
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
@@ -1604,7 +1626,15 @@ export default function TrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <KpiTrendShowcase />}
+        {view === "Competition" && (
+          <>
+            {dynamicKey === "platform_overview_tower" ? (
+              <PlatformOverviewKpiShowcase dynamicKey={dynamicKey} />
+            ) : (
+              <KpiTrendShowcase dynamicKey={dynamicKey} />
+            )}
+          </>
+        )}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
