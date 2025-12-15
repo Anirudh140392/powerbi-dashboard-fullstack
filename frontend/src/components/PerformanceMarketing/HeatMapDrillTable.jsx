@@ -17,10 +17,12 @@ import {
 } from "@mui/material";
 
 import { motion } from "framer-motion";
-import { Plus, Minus, TrendingUp } from "lucide-react";
+import { Plus, Minus, TrendingUp, LineChartIcon } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
 
 import performanceData from "../../utils/PerformanceMarketingData";
+import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import PerformanceTrendDatas from "./PerformanceTrendDatas";
 
 // ----------------- HELPERS -----------------
 const parsePercent = (v) =>
@@ -160,6 +162,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
   const [page, setPage] = useState(0);
 
   const [trendState, setTrendState] = useState(null); // { node, path }
+  const [showTrends, setShowTrends] = useState(false);
   const [chartType, setChartType] = useState("line"); // 'line' | 'area' | 'bar'
   const [selectedMetrics, setSelectedMetrics] = useState([
     "spend",
@@ -508,7 +511,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             )}
           </TableCell>
 
-          <TableCell align="right">
+          {/* <TableCell align="right">
             <IconButton
               size="small"
               onClick={() =>
@@ -517,6 +520,14 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   path: fullPath,
                 })
               }
+            >
+              <TrendingUp size={16} />
+            </IconButton>
+            </TableCell> */}
+          {/* <TableCell align="right">
+            <IconButton
+              size="small"
+              onClick={() => setShowTrends(true)}
               sx={{
                 borderRadius: 2,
                 border: "1px solid #e5e7eb",
@@ -526,11 +537,17 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             >
               <TrendingUp size={16} />
             </IconButton>
-          </TableCell>
+          </TableCell> */}
         </TableRow>
 
         {isOpen &&
           children.map((child) => renderRow(child, level + 1, fullPath))}
+        <PerformanceTrendDatas
+          open={showTrends}
+          onClose={() => setShowTrends(false)}
+          selectedColumn="Blinkit"
+          dynamicKey="Performance_marketing"
+        />
       </React.Fragment>
     );
   };
@@ -654,14 +671,40 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   </TableCell>
                 ))}
 
-                {collectedData?.headers.slice(1).map((h) => (
-                  <TableCell key={h} align="right">
-                    {h} ({selectedQuarter})
+                {collectedData?.headers.slice(1).map((col) => (
+                  <TableCell key={col} align="right">
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        gap: 0.6,
+                      }}
+                    >
+                      {/* Column Title */}
+                      <Typography sx={{ fontSize: 10, fontWeight: 600 }}>
+                        {col} ({selectedQuarter})
+                      </Typography>
+
+                      {/* Trend Icon */}
+                      <IconButton
+                        onClick={() => setShowTrends(true)}
+                        sx={{
+                          p: 0.25,
+                        }}
+                      >
+                        <LineChartIcon
+                          sx={{
+                            fontSize: 5,
+                          }}
+                        />
+                      </IconButton>
+                    </Box>
                   </TableCell>
                 ))}
 
-                <TableCell align="right">Row Avg</TableCell>
-                <TableCell align="right">Trend</TableCell>
+                <TableCell align="right" sx={{ fontSize: 12, fontWeight: 550 }}>Row Avg</TableCell>
+                {/* <TableCell align="right">Trend</TableCell> */}
               </TableRow>
             </TableHead>
 
