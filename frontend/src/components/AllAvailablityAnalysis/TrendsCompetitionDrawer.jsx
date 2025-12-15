@@ -1382,6 +1382,7 @@ export default function TrendsCompetitionDrawer({
   ];
   const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
   const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+  const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Hatsun"];
 
   if (!open) return null;
 
@@ -1481,6 +1482,7 @@ export default function TrendsCompetitionDrawer({
                   >
                     <MenuItem value="Platform">Platform</MenuItem>
                     <MenuItem value="Format">Format</MenuItem>
+                    <MenuItem value="Brand">Brand</MenuItem>
                     <MenuItem value="City">City</MenuItem>
                   </Select>
                 </Typography>
@@ -1495,6 +1497,8 @@ export default function TrendsCompetitionDrawer({
                       ? FORMAT_OPTIONS
                       : allTrendMeta.context.audience === "City"
                       ? CITY_OPTIONS
+                      : allTrendMeta.context.audience === "Brand"
+                      ? BRAND_OPTIONS
                       : []
                     ).map((p) => (
                       <Box
