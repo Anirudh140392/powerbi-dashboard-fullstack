@@ -200,20 +200,25 @@ export default function CategoryTable({ categories, activeTab = "" }) {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell
-                  sx={{
-                    background:
-                      theme.palette.mode === "dark"
-                        ? theme.palette.background.default
-                        : "#f9fafb",
-                    fontWeight: 700,
-                    position: "sticky",
-                    left: 0,
-                    zIndex: 10,
-                  }}
-                >
-                  {activeTab === "Split by Category" ? "Category" : "SKU"}
-                </TableCell>
+            <TableCell
+  sx={{
+    background:
+      theme.palette.mode === "dark"
+        ? theme.palette.background.default
+        : "#f9fafb",
+    position: "sticky",
+    left: 0,
+    zIndex: 10,
+
+    fontSize: 16,     // ⬆ same as body
+    fontWeight: 500,  // medium, clean
+    lineHeight: 1.4,
+  }}
+>
+  {activeTab === "Split by Category" ? "Category" : "SKU"}
+</TableCell>
+
+
 
                 {platforms.map((p) => (
                   <TableCell
@@ -224,7 +229,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                         theme.palette.mode === "dark"
                           ? theme.palette.background.default
                           : "#f9fafb",
-                      fontWeight: 700,
+                      fontWeight: 600,
                     }}
                   >
                     {p.toUpperCase()}
@@ -251,8 +256,8 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                         ? theme.palette.background.default
                         : "#f9fafb",
                     color: theme.palette.text.primary,
-                    fontWeight: 900,
-                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    fontSize: ".9rem",
                   }}
                 >
                   {selectedMetric.label}
@@ -264,16 +269,18 @@ export default function CategoryTable({ categories, activeTab = "" }) {
               {paginatedRows.map((cat, i) => (
                 <TableRow key={i} hover>
                   <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      background: theme.palette.background.paper,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {cat.name}
-                  </TableCell>
+  sx={{
+    position: "sticky",
+    left: 0,
+    background: theme.palette.background.paper,
 
+    fontSize: 16,      // ⬆ increased size
+    fontWeight: 500,   // ⬆ ~10–15% bolder than 500
+    lineHeight: 1.4,
+  }}
+>
+  {cat.name}
+</TableCell>
                   {platforms.map((p) => {
                     const main = cat[p][selectedMetric.key];
                     const change = cat[p][selectedMetric.key + "_change"];
@@ -284,8 +291,13 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                           flexDirection="column"
                           alignItems="center"
                         >
-                          <Typography fontWeight={600}>{main}</Typography>
-                          <Typography fontSize="0.75rem">
+                          <Typography
+                            fontSize={16}   // or 14 if you want it more prominent
+                            fontWeight={500}
+                          >
+                            {main}
+                          </Typography>
+                          <Typography fontSize=".82rem">
                             {renderChange(change)}
                           </Typography>
                         </Box>
@@ -315,7 +327,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
             Prev
           </Button>
 
-          <Typography fontWeight={600}>
+          <Typography fontWeight={500}>
             Page {page + 1} of {totalPages}
           </Typography>
 
