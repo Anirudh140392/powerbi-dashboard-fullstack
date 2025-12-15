@@ -1,6 +1,5 @@
 // HeatMapDrillTable.jsx
 import React, { useState, useRef, useEffect } from "react";
-import { LineChart as LineChartIcon } from "lucide-react";
 import {
   Box,
   Card,
@@ -16,44 +15,46 @@ import {
   IconButton,
   Chip,
 } from "@mui/material";
-import TrendsOnlyDrawer from "./TrendsOnlyDrawer";
+ 
 import { motion } from "framer-motion";
-import { Plus, Minus, TrendingUp } from "lucide-react";
+import { Plus, Minus, TrendingUp, LineChartIcon } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
-
+ 
 import performanceData from "../../utils/PerformanceMarketingData";
-
+import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import PerformanceTrendDatas from "./PerformanceTrendDatas";
+ 
 // ----------------- HELPERS -----------------
 const parsePercent = (v) =>
   typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
-
+ 
 const rowConvAvg = (values) => {
   const convIndices = [3, 4, 5];
   const nums = convIndices
     .map((i) => parsePercent(values[i]))
     .filter((x) => !isNaN(x));
-
+ 
   if (!nums.length) return "–";
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + "%";
 };
-
+ 
 const getHeatStyle = (val) => {
   const n = parsePercent(val);
   if (isNaN(n)) return {};
-
+ 
   if (n >= 3)
     return { backgroundColor: "rgba(22,163,74,0.12)", color: "#166534" };
   if (n >= 2)
     return { backgroundColor: "rgba(234,179,8,0.12)", color: "#854d0e" };
   return { backgroundColor: "rgba(239,68,68,0.12)", color: "#991b1b" };
 };
-
+ 
 const getQuarterValues = (base, quarter) => {
   if (quarter === "Q1") return base;
-
+ 
   const factor = { Q2: 1.1, Q3: 0.95, Q4: 1.15 }[quarter] || 1;
   const delta = { Q2: 0.2, Q3: -0.1, Q4: 0.3 }[quarter] || 0;
-
+ 
   return base.map((v, idx) => {
     if (idx >= 3) {
       const n = parsePercent(v);
@@ -65,7 +66,7 @@ const getQuarterValues = (base, quarter) => {
     return String(v).includes(".") ? adj.toFixed(1) : Math.round(adj);
   });
 };
-
+ 
 // ---------------- KEYWORD INJECTION ----------------
 const KEYWORDS = [
   "Sandwich, Cakes & Others",
@@ -76,7 +77,7 @@ const KEYWORDS = [
   "cas",
   "Ice Cream & Frozen Dessert",
 ];
-
+ 
 // -------------- MAX DEPTH -----------------
 const getMaxDepth = (nodes, depth = 0) => {
   let max = depth;
@@ -87,7 +88,7 @@ const getMaxDepth = (nodes, depth = 0) => {
   });
   return max;
 };
-
+ 
 // ------------ METRICS CONFIG (for trend) -------------
 const METRICS = [
   { key: "spend", label: "Spend", index: 0, isPercent: false },
@@ -99,7 +100,7 @@ const METRICS = [
   { key: "cpm", label: "CPM", index: 6, isPercent: false },
   { key: "roas", label: "ROAS", index: 7, isPercent: false },
 ];
-
+ 
 // ---------------- expanded depth detector -----------------
 // Returns the maximum number of segments (levels) among expanded keys.
 // Example:
@@ -117,22 +118,9 @@ const getExpandedDepth = (expandedKeys) => {
   });
   return max;
 };
-
+ 
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
-  const [openTrendsDrawer, setOpenTrendsDrawer] = useState(false);
-  const [selectedKpi, setSelectedKpi] = useState(null);
-  const [trendPayload, setTrendPayload] = useState(null);
-const COLUMN_TO_KPI = {
-  "Spend": "spend_q1",
-  "M-1 Spend": "m1_spend_q1",
-  "M-2 Spend": "m2_spend_q1",
-  "Conversion": "conv_q1",
-  "M-1 Conv": "m1_conv_q1",
-  "M-2 Conv": "m2_conv_q1",
-};
-
-
   const {
     heatmapData,
     heatmapDataSecond,
@@ -140,7 +128,7 @@ const COLUMN_TO_KPI = {
     heatmapDataFourth,
     heatmapDataFifth,
   } = performanceData;
-
+ 
   const collectedData =
     selectedInsight === "All Campaign Summary"
       ? heatmapData
@@ -153,7 +141,7 @@ const COLUMN_TO_KPI = {
       : selectedInsight === "Q4 - Opportunity"
       ? heatmapDataFifth
       : heatmapData;
-
+ 
   const LEVEL_TITLES =
     selectedInsight === "All Campaign Summary"
       ? {
@@ -167,22 +155,23 @@ const COLUMN_TO_KPI = {
           1: "Group",
           2: "Keyword",
         };
-
+ 
   const [expanded, setExpanded] = useState({});
   const [formatFilter] = useState("All");
   const [selectedQuarter, setSelectedQuarter] = useState("Q1");
   const [page, setPage] = useState(0);
-
+ 
   const [trendState, setTrendState] = useState(null); // { node, path }
+  const [showTrends, setShowTrends] = useState(false);
   const [chartType, setChartType] = useState("line"); // 'line' | 'area' | 'bar'
   const [selectedMetrics, setSelectedMetrics] = useState([
     "spend",
     "conv",
     "roas",
   ]);
-
+ 
   const rowsPerPage = 5;
-
+ 
   // Max hierarchy depth (data-driven)
   const maxDepth = getMaxDepth(collectedData?.rows, 0);
   // totalHierarchyCols used previously = maxDepth + 2; but for Option 2 we hide header+body columns
@@ -192,17 +181,17 @@ const COLUMN_TO_KPI = {
     1,
     Math.min(expandedDepth + 1, maxDepth + 1)
   ); // min 1 (Format), max maxDepth+1
-
+ 
   const filteredRows =
     formatFilter === "All"
       ? collectedData?.rows
       : collectedData?.rows.filter((r) => r.label === formatFilter);
-
+ 
   // ---------------- TOTALS -----------------
   const getDeepNodes = (nodes, exp, path = [], res = []) => {
     nodes.forEach((node) => {
       const k = [...path, node.label].join(">");
-
+ 
       if (node.children?.length && exp[k]) {
         getDeepNodes(node.children, exp, [...path, node.label], res);
       } else {
@@ -211,26 +200,26 @@ const COLUMN_TO_KPI = {
     });
     return res;
   };
-
+ 
   const deepRows = getDeepNodes(filteredRows, expanded);
-
+ 
   const drillTotals = collectedData?.headers.slice(1).map((_, idx) => {
     const vals = deepRows.map(
       (r) => getQuarterValues(r.values, selectedQuarter)[idx]
     );
-
+ 
     const nums = vals
       .map((v) => parseFloat(String(v).replace("%", "")))
       .filter((x) => !isNaN(x));
-
+ 
     if (!nums.length) return "–";
     const isPercent = idx >= 3;
-
+ 
     return isPercent
       ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + "%"
       : nums.reduce((a, b) => a + b, 0).toLocaleString();
   });
-
+ 
   // --------- Expand / Collapse all ----------
   const expandAll = () => {
     const newState = {};
@@ -246,20 +235,20 @@ const COLUMN_TO_KPI = {
     walk(filteredRows);
     setExpanded(newState);
   };
-
+ 
   const collapseAll = () => {
     setExpanded({});
   };
-
+ 
   // --------- Trend data builder (Q1–Q4 for this node) ----------
   const buildTrendData = (node) => {
     if (!node || !node.values) return [];
     const quarters = ["Q1", "Q2", "Q3", "Q4"];
-
+ 
     return quarters.map((q) => {
       const vals = getQuarterValues(node.values, q);
       const row = { quarter: q };
-
+ 
       METRICS.forEach((m) => {
         const raw = vals[m.index];
         if (raw === undefined || raw === "–") {
@@ -271,38 +260,38 @@ const COLUMN_TO_KPI = {
           row[m.key] = isNaN(num) ? null : num;
         }
       });
-
+ 
       return row;
     });
   };
-
+ 
   const trendData = trendState ? buildTrendData(trendState.node) : [];
   const trendTitle = trendState ? trendState.path.join(" → ") : "";
-
+ 
   const toggleMetric = (key) => {
     setSelectedMetrics((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
   };
-
+ 
   const getTrendOption = () => {
     if (!trendState) return {};
-
+ 
     const valueMetrics = METRICS.filter(
       (m) => !m.isPercent && selectedMetrics.includes(m.key)
     );
     const percentMetrics = METRICS.filter(
       (m) => m.isPercent && selectedMetrics.includes(m.key)
     );
-
+ 
     const series = [];
-
+ 
     const typeMap = {
       line: "line",
       bar: "bar",
       area: "line",
     };
-
+ 
     valueMetrics.forEach((m) => {
       series.push({
         name: m.label,
@@ -313,7 +302,7 @@ const COLUMN_TO_KPI = {
         areaStyle: chartType === "area" ? { opacity: 0.12 } : undefined,
       });
     });
-
+ 
     percentMetrics.forEach((m) => {
       series.push({
         name: m.label,
@@ -324,7 +313,7 @@ const COLUMN_TO_KPI = {
         areaStyle: chartType === "area" ? { opacity: 0.12 } : undefined,
       });
     });
-
+ 
     return {
       backgroundColor: "transparent",
       tooltip: {
@@ -396,13 +385,13 @@ const COLUMN_TO_KPI = {
       series,
     };
   };
-
+ 
   // ---------------- RENDER ROW -----------------
   const renderRow = (node, level = 0, path = []) => {
     const fullPath = [...path, node.label];
     const key = fullPath.join(">");
     const isOpen = expanded[key];
-
+ 
     const realChildren = node.children || [];
     const keywordChildren =
       !realChildren.length && !node.isKeyword
@@ -413,15 +402,15 @@ const COLUMN_TO_KPI = {
             isKeyword: true,
           }))
         : [];
-
+ 
     const children = [...realChildren, ...keywordChildren];
     const hasChildren = children.length > 0;
-
+ 
     const qVals = getQuarterValues(node.values, selectedQuarter);
     const avg = rowConvAvg(qVals);
-
+ 
     const rowBg = node.isKeyword ? "#fff" : level === 0 ? "#f8fafc" : "#fff";
-
+ 
     return (
       <React.Fragment key={key}>
         <TableRow
@@ -443,7 +432,7 @@ const COLUMN_TO_KPI = {
                     borderRight: "1px solid #e5e7eb",
                   }
                 : {};
-
+ 
             if (col === level) {
               return (
                 <TableCell key={col} sx={sticky}>
@@ -466,7 +455,7 @@ const COLUMN_TO_KPI = {
                     ) : (
                       <Box sx={{ width: 26 }} />
                     )}
-
+ 
                     <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
                       {node.label}
                     </Typography>
@@ -474,14 +463,14 @@ const COLUMN_TO_KPI = {
                 </TableCell>
               );
             }
-
+ 
             return (
               <TableCell key={col} sx={sticky}>
                 –{/* placeholder for collapsed hierarchy */}
               </TableCell>
             );
           })}
-
+ 
           {qVals.map((v, i) => {
             const heat = i >= 3 ? getHeatStyle(v) : {};
             return (
@@ -503,7 +492,7 @@ const COLUMN_TO_KPI = {
               </TableCell>
             );
           })}
-
+ 
           <TableCell align="right">
             {avg !== "–" ? (
               <Box
@@ -521,7 +510,7 @@ const COLUMN_TO_KPI = {
               "–"
             )}
           </TableCell>
-
+ 
           {/* <TableCell align="right">
             <IconButton
               size="small"
@@ -531,6 +520,14 @@ const COLUMN_TO_KPI = {
                   path: fullPath,
                 })
               }
+            >
+              <TrendingUp size={16} />
+            </IconButton>
+            </TableCell> */}
+          {/* <TableCell align="right">
+            <IconButton
+              size="small"
+              onClick={() => setShowTrends(true)}
               sx={{
                 borderRadius: 2,
                 border: "1px solid #e5e7eb",
@@ -542,13 +539,19 @@ const COLUMN_TO_KPI = {
             </IconButton>
           </TableCell> */}
         </TableRow>
-
+ 
         {isOpen &&
           children.map((child) => renderRow(child, level + 1, fullPath))}
+        <PerformanceTrendDatas
+          open={showTrends}
+          onClose={() => setShowTrends(false)}
+          selectedColumn="Blinkit"
+          dynamicKey="Performance_marketing"
+        />
       </React.Fragment>
     );
   };
-
+ 
   // ----------------- UI -----------------
   return (
     <>
@@ -570,14 +573,14 @@ const COLUMN_TO_KPI = {
                 ? "FORMAT → REGION → CITY → KEYWORD"
                 : "AD Property → GROUP → KEYWORD"}
             </Typography>
-
+ 
             <Typography
               sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
             >
               {collectedData?.title}
             </Typography>
           </Box>
-
+ 
           <Box
             display="flex"
             flexDirection="column"
@@ -604,7 +607,7 @@ const COLUMN_TO_KPI = {
                 </Button>
               ))}
             </Box>
-
+ 
             {/* EXPAND / COLLAPSE ALL */}
             <Box display="flex" gap={1}>
               <Button
@@ -640,7 +643,7 @@ const COLUMN_TO_KPI = {
             </Box>
           </Box>
         </Box>
-
+ 
         {/* TABLE */}
         <TableContainer
           component={Paper}
@@ -667,80 +670,49 @@ const COLUMN_TO_KPI = {
                     {LEVEL_TITLES[i] || `Keyword ${i - 2 + 2}`}
                   </TableCell>
                 ))}
-
-                {/* {collectedData?.headers.slice(1).map((h) => (
-                  <TableCell key={h} align="right">
-                    {h} ({selectedQuarter})
-                  </TableCell>
-                ))} */}
+ 
                 {collectedData?.headers.slice(1).map((col) => (
-  <TableCell key={col} align="right">
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        gap: 0.6,
-      }}
-    >
-      {/* Column Title */}
-      <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
-        {col} ({selectedQuarter})
-      </Typography>
-
-      {/* Trend Icon */}
-      <IconButton
-  size="small"
-  onClick={() => {
-    console.log("TREND ICON CLICKED", col);
-    setSelectedKpi(COLUMN_TO_KPI[col]);
-    setTrendPayload({
-      source: "column",
-      column: col,
-      quarter: selectedQuarter,
-    });
-    setOpenTrendsDrawer(true);
-  }}
-  sx={{
-    p: "2px",
-    ml: 0.5,
-    borderRadius: 1,
-    backgroundColor: "transparent",
-    color: "#64748b",
-    border: "none",
-    boxShadow: "none",
-    transition: "color 120ms ease, transform 120ms ease",
-
-    "& svg": {
-      width: 15,        // ⬆ slightly bigger
-      height: 15,
-      strokeWidth: 2.9, // 🔥 bolder stroke
-    },
-
-    "&:hover": {
-      backgroundColor: "transparent",
-      color: "#4f46e5",
-      transform: "translateY(-1px)",
-    },
-  }}
->
-  <LineChartIcon />
-</IconButton>
-
-    </Box>
-  </TableCell>
-))}
-
-                <TableCell align="right">Row Avg</TableCell>
+                  <TableCell key={col} align="right">
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        gap: 0.6,
+                      }}
+                    >
+                      {/* Column Title */}
+                      <Typography sx={{ fontSize: 10, fontWeight: 600 }}>
+                        {col} ({selectedQuarter})
+                      </Typography>
+ 
+                      {/* Trend Icon */}
+                      <IconButton
+                        onClick={() => setShowTrends(true)}
+                        sx={{
+                          p: 0.25,
+                        }}
+                      >
+                        <LineChartIcon
+                          sx={{
+                            fontSize: 5,
+                          }}
+                        />
+                      </IconButton>
+                    </Box>
+                  </TableCell>
+                ))}
+ 
+                <TableCell align="right" sx={{ fontSize: 12, fontWeight: 550 }}>Row Avg</TableCell>
                 {/* <TableCell align="right">Trend</TableCell> */}
               </TableRow>
             </TableHead>
-
+ 
             <TableBody>
               {filteredRows
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((row) => renderRow(row, 0, []))}
-
+ 
               {/* TOTAL ROW */}
               <TableRow sx={{ background: "#f8fafc" }}>
                 <TableCell
@@ -749,20 +721,20 @@ const COLUMN_TO_KPI = {
                 >
                   TOTAL ({selectedQuarter})
                 </TableCell>
-
+ 
                 {drillTotals.map((v, i) => (
                   <TableCell key={i} align="right" sx={{ fontWeight: 700 }}>
                     {v || "–"}
                   </TableCell>
                 ))}
-
+ 
                 <TableCell>–</TableCell>
-                {/* <TableCell /> */}
+                <TableCell />
               </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
-
+ 
         {/* SIMPLE PAGINATION */}
         <Box
           sx={{
@@ -792,7 +764,7 @@ const COLUMN_TO_KPI = {
           </Button>
         </Box>
       </Card>
-
+ 
       {/* TREND DRAWER */}
       {trendState && (
         <Box
@@ -852,16 +824,16 @@ const COLUMN_TO_KPI = {
                 >
                   Trend Studio
                 </Typography>
-
+ 
                 <Typography sx={{ fontSize: 18, fontWeight: 600, mt: 0.4 }}>
                   {trendTitle}
                 </Typography>
-
+ 
                 <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 0.5 }}>
                   Visualise Spend, Conversion, ROAS across quarters.
                 </Typography>
               </Box>
-
+ 
               <IconButton
                 size="small"
                 onClick={() => setTrendState(null)}
@@ -875,7 +847,7 @@ const COLUMN_TO_KPI = {
                 ✕
               </IconButton>
             </Box>
-
+ 
             <Box
               sx={{
                 display: "flex",
@@ -912,7 +884,7 @@ const COLUMN_TO_KPI = {
                   </Button>
                 ))}
               </Box>
-
+ 
               <Box
                 sx={{
                   display: "flex",
@@ -947,7 +919,7 @@ const COLUMN_TO_KPI = {
                 })}
               </Box>
             </Box>
-
+ 
             <Box
               sx={{
                 flex: 1,
@@ -971,3 +943,5 @@ const COLUMN_TO_KPI = {
     </>
   );
 }
+ 
+ 
