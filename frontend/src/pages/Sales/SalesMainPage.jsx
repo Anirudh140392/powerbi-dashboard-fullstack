@@ -22,11 +22,6 @@ export default function SalesMainPage() {
       <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
 
         {/* Description / Header inside content if needed */}
-        <Box>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            Sales performance, trends and contribution analysis and everything else
-          </Typography>
-        </Box>
 
         {/* ---------------- Main Page Container ---------------- */}
         <Box
