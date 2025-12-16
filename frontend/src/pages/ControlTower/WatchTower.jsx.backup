@@ -211,10 +211,10 @@ function WatchTower() {
     });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  // Progressive Loading: Fetch Main Overview First, Then Load Sections in Background
+  // Fetch Main Data (including all sections - brandsOverview, monthOverview, categoryOverview)
   useEffect(() => {
     let ignore = false;
-    const fetchInitialData = async () => {
+    const fetchData = async () => {
       // Prevent fetching if critical filters are missing (initial load state)
       if (!filters.brand || !filters.location) {
         console.log("Skipping fetch: Brand or Location missing");
@@ -223,95 +223,43 @@ function WatchTower() {
 
       setLoading(true);
       try {
-        // STEP 1: Fetch ONLY summary metrics & platform overview (FAST!)
-        console.log("⚡ Loading overview data first...");
-        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+        // Fetch with ALL section-specific filters for prefetching
+        const response = await axiosInstance.get("/watchtower", {
           params: {
             ...filters,
-            // NO section-specific params = only main overview
+            monthOverviewPlatform,
+            categoryOverviewPlatform,
+            brandsOverviewPlatform,
+            brandsOverviewCategory
           },
         });
         if (!ignore && response.data) {
-          console.log("✅ Overview loaded! Displaying main content...");
-          // Set main overview data immediately
+          console.log("Fetched Watch Tower data with all sections:", response.data);
           setDashboardData(response.data);
-          setLoading(false); // ✅ Users see content NOW!
 
-          // STEP 2: Load remaining sections in background
-          console.log("🔄 Loading additional sections in background...");
-          loadAdditionalSections();
+          // Set all sections from prefetched data
+          if (response.data.monthOverview) {
+            setMonthOverviewData(response.data.monthOverview);
+          }
+          if (response.data.categoryOverview) {
+            setCategoryOverviewData(response.data.categoryOverview);
+          }
+          // NEW: Set brands Overview from prefetched data
+          if (response.data.brandsOverview) {
+            console.log("Setting prefetched brandsOverviewData:", response.data.brandsOverview);
+            setBrandsOverviewData(response.data.brandsOverview);
+          }
         }
       } catch (error) {
-        if (!ignore) {
-          console.error("❌ Error fetching Watch Tower overview:", error);
-          setLoading(false);
-        }
+        if (!ignore) console.error("Error fetching Watch Tower data:", error);
+      } finally {
+        if (!ignore) setLoading(false);
       }
     };
 
-    // Function to load remaining sections progressively
-    const loadAdditionalSections = async () => {
-      // Load Month Overview
-      setMonthOverviewLoading(true);
-      try {
-        const monthResponse = await axiosInstance.get("/watchtower/summary-metrics", {
-          params: { ...filters, monthOverviewPlatform }
-        });
-        if (!ignore && monthResponse.data?.monthOverview) {
-          setMonthOverviewData(monthResponse.data.monthOverview);
-          setDashboardData(prev => ({
-            ...prev,
-            monthOverview: monthResponse.data.monthOverview
-          }));
-        }
-      } catch (error) {
-        if (!ignore) console.error("Error loading Month Overview:", error);
-      } finally {
-        if (!ignore) setMonthOverviewLoading(false);
-      }
-
-      // Load Category Overview
-      setCategoryOverviewLoading(true);
-      try {
-        const categoryResponse = await axiosInstance.get("/watchtower/summary-metrics", {
-          params: { ...filters, categoryOverviewPlatform }
-        });
-        if (!ignore && categoryResponse.data?.categoryOverview) {
-          setCategoryOverviewData(categoryResponse.data.categoryOverview);
-          setDashboardData(prev => ({
-            ...prev,
-            categoryOverview: categoryResponse.data.categoryOverview
-          }));
-        }
-      } catch (error) {
-        if (!ignore) console.error("Error loading Category Overview:", error);
-      } finally {
-        if (!ignore) setCategoryOverviewLoading(false);
-      }
-
-      // Load Brands Overview
-      setBrandsOverviewLoading(true);
-      try {
-        const brandsResponse = await axiosInstance.get("/watchtower/summary-metrics", {
-          params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory }
-        });
-        if (!ignore && brandsResponse.data?.brandsOverview) {
-          setBrandsOverviewData(brandsResponse.data.brandsOverview);
-          setDashboardData(prev => ({
-            ...prev,
-            brandsOverview: brandsResponse.data.brandsOverview
-          }));
-        }
-      } catch (error) {
-        if (!ignore) console.error("Error loading Brands Overview:", error);
-      } finally {
-        if (!ignore) setBrandsOverviewLoading(false);
-      }
-    };
-
-    fetchInitialData();
+    fetchData();
     return () => { ignore = true; };
-  }, [filters]); // Only filters as dependency - sections load independently
+  }, [filters]); // FIXED: Only filters as dependency - section filters passed in params but don't trigger refetch
 
   // Fetch ONLY Month Overview when monthOverviewPlatform changes
   useEffect(() => {
@@ -815,14 +763,11 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
     }
 
     return categoryOverviewData.map(category => {
-      // Helper function to parse currency strings like "₹1.2 L" or "₹45.3 K" or "₹5.91M"
+      // Helper function to parse currency strings like "₹1.2 L" or "₹45.3 K"
       const parseCurrency = (str) => {
         if (!str) return 0;
         const cleaned = str.replace(/[₹,]/g, '').trim();
-        if (cleaned.includes('B')) return parseFloat(cleaned) * 1000000000;
         if (cleaned.includes('Cr')) return parseFloat(cleaned) * 10000000;
-        if (cleaned.includes('M')) return parseFloat(cleaned) * 1000000;
-        if (cleaned.includes('Lac')) return parseFloat(cleaned) * 100000;
         if (cleaned.includes('L')) return parseFloat(cleaned) * 100000;
         if (cleaned.includes('K')) return parseFloat(cleaned) * 1000;
         return parseFloat(cleaned) || 0;
@@ -848,21 +793,16 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
 
       return {
         name: category.label || category.key,
-        // Use formatted strings directly from backend (K, Lac, M, Cr, B)
-        offtakes: getColumnValue('Offtakes'), // Formatted string like "₹5.91M"
-        offtakesNumeric: parseCurrency(getColumnValue('Offtakes')), // For calculations
-        spend: getColumnValue('Spend'),
-        spendNumeric: parseCurrency(getColumnValue('Spend')),
+        offtakes: parseCurrency(getColumnValue('Offtakes')) / 100000, // Convert to lakhs for display
+        spend: parseCurrency(getColumnValue('Spend')) / 100000,
         roas: parseMultiplier(getColumnValue('ROAS')),
-        inorgSalesPct: parsePercent(getColumnValue('Inorg Sales')),
+        inorgSalesPct: parseCurrency(getColumnValue('Inorg Sales')) / parseCurrency(getColumnValue('Offtakes')) * 100 || 0,
         conversionPct: parsePercent(getColumnValue('Conversion')),
         marketSharePct: parsePercent(getColumnValue('Market Share')),
         promoMyBrandPct: parsePercent(getColumnValue('Promo My Brand')),
         promoCompetePct: parsePercent(getColumnValue('Promo Compete')),
-        cpm: getColumnValue('CPM'),
-        cpmNumeric: parseCurrency(getColumnValue('CPM')),
-        cpc: getColumnValue('CPC'),
-        cpcNumeric: parseCurrency(getColumnValue('CPC')),
+        cpm: parseCurrency(getColumnValue('CPM')),
+        cpc: parseCurrency(getColumnValue('CPC')),
       };
     });
   }, [categoryOverviewData]);
@@ -881,20 +821,16 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
   const active = useMemo(
     () => FORMAT_ROWS.find((f) => f.name === activeName) ?? FORMAT_ROWS[0] ?? {
       name: '',
-      offtakes: '0',
-      offtakesNumeric: 0,
-      spend: '0',
-      spendNumeric: 0,
+      offtakes: 0,
+      spend: 0,
       roas: 0,
       inorgSalesPct: 0,
       conversionPct: 0,
       marketSharePct: 0,
       promoMyBrandPct: 0,
       promoCompetePct: 0,
-      cpm: '0',
-      cpmNumeric: 0,
-      cpc: '0',
-      cpcNumeric: 0,
+      cpm: 0,
+      cpc: 0,
     },
     [activeName, FORMAT_ROWS]
   );
@@ -906,7 +842,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
     [compareName, FORMAT_ROWS]
   );
   const maxOfftakes = useMemo(
-    () => FORMAT_ROWS.length > 0 ? Math.max(...FORMAT_ROWS.map((f) => f.offtakesNumeric || 1)) : 1,
+    () => FORMAT_ROWS.length > 0 ? Math.max(...FORMAT_ROWS.map((f) => f.offtakes || 1)) : 1,
     [FORMAT_ROWS]
   );
   const formatNumber = (value) =>
@@ -919,18 +855,18 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
     {
       key: "offtakes",
       label: "Offtakes",
-      activeValue: active.offtakesNumeric,
-      compareValue: compare?.offtakesNumeric ?? null,
-      max: maxOfftakes,
-      format: (v) => active.offtakes, // Use formatted string from backend
+      activeValue: active.offtakes,
+      compareValue: compare?.offtakes ?? null,
+      max: 100,
+      format: (v) => `${v}`,
     },
     {
       key: "spend",
       label: "Spend",
-      activeValue: active.spendNumeric,
-      compareValue: compare?.spendNumeric ?? null,
-      max: Math.max(active.spendNumeric, compare?.spendNumeric || 0, 1),
-      format: (v) => active.spend, // Use formatted string from backend
+      activeValue: active.spend,
+      compareValue: compare?.spend ?? null,
+      max: 20,
+      format: (v) => `₹${v}`,
     },
     {
       key: "roas",
@@ -983,18 +919,19 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
     {
       key: "cpm",
       label: "CPM",
-      activeValue: active.cpmNumeric,
-      compareValue: compare?.cpmNumeric ?? null,
-      max: Math.max(active.cpmNumeric, compare?.cpmNumeric || 0, 1),
-      format: (v) => active.cpm, // Use formatted string from backend
+      activeValue: active.cpm,
+      compareValue: compare?.cpm ?? null,
+      max: 800,
+      format: (v) => `${v}`,
     },
     {
       key: "cpc",
       label: "CPC",
-      activeValue: active.cpcNumeric,
-      compareValue: compare?.cpcNumeric ?? null,
-      max: Math.max(active.cpcNumeric, compare?.cpcNumeric || 0, 1),
-      format: (v) => active.cpc, // Use formatted string from backend
+      activeValue: active.cpc,
+      compareValue: compare?.cpc ?? null,
+      max: 5000,
+      format: (v) =>
+        Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
     },
   ];
 
@@ -1034,7 +971,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
         ) : (
           <div className="space-y-2 max-h-150 overflow-y-auto pr-1">
             {FORMAT_ROWS.map((f) => {
-              const intensity = clamp01(f.offtakesNumeric / maxOfftakes);
+              const intensity = clamp01(f.offtakes / maxOfftakes);
               const isActive = f.name === activeName;
               return (
                 <motion.button
@@ -1107,7 +1044,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
               <div className="flex flex-col items-end gap-1 text-right">
                 <div className="text-[10px] text-slate-500">Offtakes</div>
                 <div className="text-lg font-semibold">
-                  {active.offtakes}
+                  {formatNumber(active.offtakes)}
                 </div>
                 <div className="mt-1 text-[10px] text-slate-500">
                   Market share

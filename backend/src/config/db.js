@@ -12,13 +12,14 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT || 3306,
     logging: false, // set true if you want SQL logs
     pool: {
-      max: 10,
-      min: 0,
-      acquire: 60000,
-      idle: 10000
+      max: 50,        // Increased from 10 to handle parallel SOS queries
+      min: 5,         // Maintain minimum connections
+      acquire: 120000, // Increased from 60s to 120s
+      idle: 20000,    // inincreased idle timeout
+      evict: 10000    // Check for idle connections every 10s
     },
     dialectOptions: {
-      connectTimeout: 60000
+      connectTimeout: 120000 // Increased from 60s to 120s
     }
   }
 );

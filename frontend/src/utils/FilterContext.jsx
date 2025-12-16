@@ -33,8 +33,9 @@ export const FilterProvider = ({ children }) => {
     }, []);
 
     // Date Ranges
-    const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
-    const [timeEnd, setTimeEnd] = useState(dayjs("2025-10-06"));
+    // Default date range: 1st of current month to today
+    const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
+    const [timeEnd, setTimeEnd] = useState(dayjs());
     const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
 

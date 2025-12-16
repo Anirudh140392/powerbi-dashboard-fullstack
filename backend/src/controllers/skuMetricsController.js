@@ -4,6 +4,7 @@ import { getSkuMetrics } from '../services/skuMetricsService.js';
  * Get SKU metrics data
  * @route GET /api/watchtower/sku-metrics
  * @query {string} metric - The metric key to fetch (required)
+ * @query {string} platform - Platform filter (optional)
  * @query {string} dateFrom - Start date (optional)
  * @query {string} dateTo - End date (optional)
  * @query {string} brand - Brand filter (optional)
@@ -11,7 +12,7 @@ import { getSkuMetrics } from '../services/skuMetricsService.js';
  */
 export const getSkuMetricsData = async (req, res) => {
     try {
-        const { metric, dateFrom, dateTo, brand, location } = req.query;
+        const { metric, platform, dateFrom, dateTo, brand, location } = req.query;
 
         // Validate required parameter
         if (!metric) {
@@ -22,6 +23,7 @@ export const getSkuMetricsData = async (req, res) => {
 
         // Build filters object
         const filters = {};
+        if (platform) filters.platform = platform;
         if (dateFrom) filters.dateFrom = dateFrom;
         if (dateTo) filters.dateTo = dateTo;
         if (brand) filters.brand = brand;
