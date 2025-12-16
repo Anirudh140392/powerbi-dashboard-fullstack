@@ -1,5 +1,11 @@
 // TrendsCompetitionDrawer.jsx
-import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import {
   Box,
   Typography,
@@ -20,7 +26,7 @@ import {
   TableHead,
   TableRow,
   Select,
-  MenuItem
+  MenuItem,
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
@@ -40,7 +46,7 @@ const BRAND_COLORS = {
   Sensodyne: "#8B5CF6",
   Dabur: "#22C55E",
   Pepsodent: "#0EA5E9",
-  Closeup: "#F97316"
+  Closeup: "#F97316",
 };
 
 // base compare-SKU X axis + base trend (we'll offset per SKU)
@@ -54,14 +60,14 @@ const COMPARE_X = [
   "07 Sep",
   "08 Sep",
   "09 Sep",
-  "10 Sep"
+  "10 Sep",
 ];
 
 const BASE_COMPARE_TRENDS = {
   Osa: [100, 100, 100, 99, 99, 98, 98, 97, 97, 96],
   Doi: [80, 81, 79, 80, 79, 78, 78, 77, 76, 77],
   Fillrate: [92, 92, 91, 91, 90, 90, 89, 89, 88, 88],
-  Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51]
+  Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51],
 };
 
 function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
@@ -69,7 +75,7 @@ function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
     Osa: BASE_COMPARE_TRENDS.Osa.map((v) => v + osaOffset),
     Doi: BASE_COMPARE_TRENDS.Doi.map((v) => v + doiOffset),
     Fillrate: BASE_COMPARE_TRENDS.Fillrate.map((v) => v + fillOffset),
-    Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset)
+    Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset),
   };
 }
 
@@ -77,7 +83,7 @@ const DASHBOARD_DATA = {
   trends: {
     context: {
       level: "MRP",
-      audience: "All"
+      audience: "All",
     },
 
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
@@ -93,63 +99,237 @@ const DASHBOARD_DATA = {
         label: "Overall Weighted SOS",
         color: "#F97316",
         axis: "left",
-        default: true
+        default: true,
       },
       {
         id: "sponsored_sos",
         label: "Sponsored Weighted SOS",
         color: "#7C3AED",
         axis: "right",
-        default: true
+        default: true,
       },
       {
         id: "organic_sos",
         label: "Organic Weighted SOS",
         color: "#6366F1",
         axis: "left",
-        default: false
+        default: false,
       },
       {
         id: "display_sos",
         label: "Display SOS",
         color: "#22C55E",
         axis: "left",
-        default: false
-      }
+        default: false,
+      },
     ],
 
     // ⭐ All trend points now contain SOS metrics instead of old KPIs
     points: [
-      { date: "06 Sep'25", overall_sos: 57, sponsored_sos: 41, organic_sos: 72, display_sos: 65 },
-      { date: "07 Sep'25", overall_sos: 54, sponsored_sos: 42, organic_sos: 70, display_sos: 66 },
-      { date: "08 Sep'25", overall_sos: 53, sponsored_sos: 40, organic_sos: 69, display_sos: 64 },
-      { date: "09 Sep'25", overall_sos: 53, sponsored_sos: 39, organic_sos: 68, display_sos: 63 },
-      { date: "10 Sep'25", overall_sos: 52, sponsored_sos: 37, organic_sos: 66, display_sos: 62 },
-      { date: "11 Sep'25", overall_sos: 52, sponsored_sos: 36, organic_sos: 67, display_sos: 62 },
-      { date: "12 Sep'25", overall_sos: 52, sponsored_sos: 35, organic_sos: 68, display_sos: 61 },
-      { date: "13 Sep'25", overall_sos: 52, sponsored_sos: 34, organic_sos: 69, display_sos: 60 },
-      { date: "14 Sep'25", overall_sos: 52, sponsored_sos: 33, organic_sos: 70, display_sos: 60 },
-      { date: "15 Sep'25", overall_sos: 52, sponsored_sos: 32, organic_sos: 70, display_sos: 59 },
-      { date: "16 Sep'25", overall_sos: 52, sponsored_sos: 32, organic_sos: 69, display_sos: 59 },
-      { date: "17 Sep'25", overall_sos: 51, sponsored_sos: 31, organic_sos: 68, display_sos: 58 },
-      { date: "18 Sep'25", overall_sos: 51, sponsored_sos: 31, organic_sos: 67, display_sos: 58 },
-      { date: "19 Sep'25", overall_sos: 51, sponsored_sos: 32, organic_sos: 66, display_sos: 57 },
-      { date: "20 Sep'25", overall_sos: 56, sponsored_sos: 50, organic_sos: 75, display_sos: 68 },
-      { date: "21 Sep'25", overall_sos: 50, sponsored_sos: 34, organic_sos: 67, display_sos: 55 },
-      { date: "22 Sep'25", overall_sos: 49, sponsored_sos: 33, organic_sos: 66, display_sos: 54 },
-      { date: "23 Sep'25", overall_sos: 48, sponsored_sos: 32, organic_sos: 65, display_sos: 54 },
-      { date: "24 Sep'25", overall_sos: 47, sponsored_sos: 31, organic_sos: 64, display_sos: 53 },
-      { date: "25 Sep'25", overall_sos: 46, sponsored_sos: 30, organic_sos: 63, display_sos: 52 },
-      { date: "26 Sep'25", overall_sos: 45, sponsored_sos: 30, organic_sos: 62, display_sos: 52 },
-      { date: "27 Sep'25", overall_sos: 44, sponsored_sos: 31, organic_sos: 63, display_sos: 51 },
-      { date: "28 Sep'25", overall_sos: 44, sponsored_sos: 31, organic_sos: 62, display_sos: 51 },
-      { date: "29 Sep'25", overall_sos: 43, sponsored_sos: 32, organic_sos: 61, display_sos: 50 },
-      { date: "30 Sep'25", overall_sos: 43, sponsored_sos: 34, organic_sos: 60, display_sos: 49 },
-      { date: "01 Oct'25", overall_sos: 44, sponsored_sos: 36, organic_sos: 61, display_sos: 50 },
-      { date: "02 Oct'25", overall_sos: 45, sponsored_sos: 37, organic_sos: 62, display_sos: 51 },
-      { date: "03 Oct'25", overall_sos: 46, sponsored_sos: 39, organic_sos: 63, display_sos: 52 },
-      { date: "04 Oct'25", overall_sos: 46, sponsored_sos: 40, organic_sos: 65, display_sos: 53 }
-    ]
+      {
+        date: "06 Sep'25",
+        overall_sos: 57,
+        sponsored_sos: 41,
+        organic_sos: 72,
+        display_sos: 65,
+      },
+      {
+        date: "07 Sep'25",
+        overall_sos: 54,
+        sponsored_sos: 42,
+        organic_sos: 70,
+        display_sos: 66,
+      },
+      {
+        date: "08 Sep'25",
+        overall_sos: 53,
+        sponsored_sos: 40,
+        organic_sos: 69,
+        display_sos: 64,
+      },
+      {
+        date: "09 Sep'25",
+        overall_sos: 53,
+        sponsored_sos: 39,
+        organic_sos: 68,
+        display_sos: 63,
+      },
+      {
+        date: "10 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 37,
+        organic_sos: 66,
+        display_sos: 62,
+      },
+      {
+        date: "11 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 36,
+        organic_sos: 67,
+        display_sos: 62,
+      },
+      {
+        date: "12 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 35,
+        organic_sos: 68,
+        display_sos: 61,
+      },
+      {
+        date: "13 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 34,
+        organic_sos: 69,
+        display_sos: 60,
+      },
+      {
+        date: "14 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 33,
+        organic_sos: 70,
+        display_sos: 60,
+      },
+      {
+        date: "15 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 32,
+        organic_sos: 70,
+        display_sos: 59,
+      },
+      {
+        date: "16 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 32,
+        organic_sos: 69,
+        display_sos: 59,
+      },
+      {
+        date: "17 Sep'25",
+        overall_sos: 51,
+        sponsored_sos: 31,
+        organic_sos: 68,
+        display_sos: 58,
+      },
+      {
+        date: "18 Sep'25",
+        overall_sos: 51,
+        sponsored_sos: 31,
+        organic_sos: 67,
+        display_sos: 58,
+      },
+      {
+        date: "19 Sep'25",
+        overall_sos: 51,
+        sponsored_sos: 32,
+        organic_sos: 66,
+        display_sos: 57,
+      },
+      {
+        date: "20 Sep'25",
+        overall_sos: 56,
+        sponsored_sos: 50,
+        organic_sos: 75,
+        display_sos: 68,
+      },
+      {
+        date: "21 Sep'25",
+        overall_sos: 50,
+        sponsored_sos: 34,
+        organic_sos: 67,
+        display_sos: 55,
+      },
+      {
+        date: "22 Sep'25",
+        overall_sos: 49,
+        sponsored_sos: 33,
+        organic_sos: 66,
+        display_sos: 54,
+      },
+      {
+        date: "23 Sep'25",
+        overall_sos: 48,
+        sponsored_sos: 32,
+        organic_sos: 65,
+        display_sos: 54,
+      },
+      {
+        date: "24 Sep'25",
+        overall_sos: 47,
+        sponsored_sos: 31,
+        organic_sos: 64,
+        display_sos: 53,
+      },
+      {
+        date: "25 Sep'25",
+        overall_sos: 46,
+        sponsored_sos: 30,
+        organic_sos: 63,
+        display_sos: 52,
+      },
+      {
+        date: "26 Sep'25",
+        overall_sos: 45,
+        sponsored_sos: 30,
+        organic_sos: 62,
+        display_sos: 52,
+      },
+      {
+        date: "27 Sep'25",
+        overall_sos: 44,
+        sponsored_sos: 31,
+        organic_sos: 63,
+        display_sos: 51,
+      },
+      {
+        date: "28 Sep'25",
+        overall_sos: 44,
+        sponsored_sos: 31,
+        organic_sos: 62,
+        display_sos: 51,
+      },
+      {
+        date: "29 Sep'25",
+        overall_sos: 43,
+        sponsored_sos: 32,
+        organic_sos: 61,
+        display_sos: 50,
+      },
+      {
+        date: "30 Sep'25",
+        overall_sos: 43,
+        sponsored_sos: 34,
+        organic_sos: 60,
+        display_sos: 49,
+      },
+      {
+        date: "01 Oct'25",
+        overall_sos: 44,
+        sponsored_sos: 36,
+        organic_sos: 61,
+        display_sos: 50,
+      },
+      {
+        date: "02 Oct'25",
+        overall_sos: 45,
+        sponsored_sos: 37,
+        organic_sos: 62,
+        display_sos: 51,
+      },
+      {
+        date: "03 Oct'25",
+        overall_sos: 46,
+        sponsored_sos: 39,
+        organic_sos: 63,
+        display_sos: 52,
+      },
+      {
+        date: "04 Oct'25",
+        overall_sos: 46,
+        sponsored_sos: 40,
+        organic_sos: 65,
+        display_sos: 53,
+      },
+    ],
   },
 
   // ⭐ UPDATED Compare SKUs using NEW KPIs
@@ -161,10 +341,30 @@ const DASHBOARD_DATA = {
     defaultTimeStep: "Daily",
 
     metrics: [
-      { id: "overall_sos", label: "Overall Weighted SOS", color: "#F97316", default: true },
-      { id: "sponsored_sos", label: "Sponsored Weighted SOS", color: "#7C3AED", default: true },
-      { id: "organic_sos", label: "Organic Weighted SOS", color: "#6366F1", default: false },
-      { id: "display_sos", label: "Display SOS", color: "#22C55E", default: false }
+      {
+        id: "overall_sos",
+        label: "Overall Weighted SOS",
+        color: "#F97316",
+        default: true,
+      },
+      {
+        id: "sponsored_sos",
+        label: "Sponsored Weighted SOS",
+        color: "#7C3AED",
+        default: true,
+      },
+      {
+        id: "organic_sos",
+        label: "Organic Weighted SOS",
+        color: "#6366F1",
+        default: false,
+      },
+      {
+        id: "display_sos",
+        label: "Display SOS",
+        color: "#22C55E",
+        default: false,
+      },
     ],
 
     x: COMPARE_X,
@@ -177,8 +377,8 @@ const DASHBOARD_DATA = {
       5: makeSkuTrend(+2, +3, +2, +2),
       6: makeSkuTrend(+1, +2, +1, +1),
       7: makeSkuTrend(-1, -2, -1, -1),
-      8: makeSkuTrend(+3, +1, +2, +1)
-    }
+      8: makeSkuTrend(+3, +1, +2, +1),
+    },
   },
 
   // ⭐ COMPETITION VIEW UPDATED TO NEW KPIs
@@ -189,7 +389,7 @@ const DASHBOARD_DATA = {
 
     periodToggle: {
       primary: "MTD",
-      compare: "Previous Month"
+      compare: "Previous Month",
     },
 
     columns: [
@@ -197,7 +397,7 @@ const DASHBOARD_DATA = {
       { id: "overall_sos", label: "Overall Weighted SOS", type: "metric" },
       { id: "sponsored_sos", label: "Sponsored Weighted SOS", type: "metric" },
       { id: "organic_sos", label: "Organic Weighted SOS", type: "metric" },
-      { id: "display_sos", label: "Display SOS", type: "metric" }
+      { id: "display_sos", label: "Display SOS", type: "metric" },
     ],
 
     brands: [
@@ -206,15 +406,15 @@ const DASHBOARD_DATA = {
         overall_sos: { value: 32.9, delta: -4.5 },
         sponsored_sos: { value: 74.6, delta: -16.3 },
         organic_sos: { value: 20.0, delta: -8.5 },
-        display_sos: { value: 18.8, delta: 0.4 }
+        display_sos: { value: 18.8, delta: 0.4 },
       },
       {
         brand: "Sensodyne",
         overall_sos: { value: 19.6, delta: 2.2 },
         sponsored_sos: { value: 94.2, delta: 3.9 },
         organic_sos: { value: 19.3, delta: 2.7 },
-        display_sos: { value: 18.5, delta: -3.1 }
-      }
+        display_sos: { value: 18.5, delta: -3.1 },
+      },
     ],
 
     skus: [
@@ -223,10 +423,10 @@ const DASHBOARD_DATA = {
         overall_sos: { value: 8.2, delta: -1.0 },
         sponsored_sos: { value: 76.1, delta: -8.0 },
         organic_sos: { value: 4.5, delta: -0.9 },
-        display_sos: { value: 3.2, delta: 0.2 }
-      }
-    ]
-  }
+        display_sos: { value: 3.2, delta: 0.2 },
+      },
+    ],
+  },
 };
 
 /**
@@ -247,14 +447,14 @@ const MONTH_MAP = {
   Sep: 8,
   Oct: 9,
   Nov: 10,
-  Dec: 11
+  Dec: 11,
 };
 
 const RANGE_TO_DAYS = {
   "1M": 30,
   "3M": 90,
   "6M": 180,
-  "1Y": 365
+  "1Y": 365,
 };
 
 const parseTrendDate = (label) => {
@@ -287,9 +487,9 @@ const PillToggleGroup = ({ value, onChange, options }) => (
         borderRadius: "999px",
         "&.Mui-selected": {
           backgroundColor: "#ffffff",
-          boxShadow: "0 1px 3px rgba(15,23,42,0.15)"
-        }
-      }
+          boxShadow: "0 1px 3px rgba(15,23,42,0.15)",
+        },
+      },
     }}
   >
     {options.map((opt) => (
@@ -300,31 +500,50 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   </ToggleButtonGroup>
 );
 
-const MetricChip = ({ active, label, color, onClick }) => (
-  <Chip
-    label={
-      <Box display="flex" alignItems="center" gap={1}>
-        <Box
-          sx={{
-            width: 10,
-            height: 10,
-            borderRadius: "999px",
-            backgroundColor: color
-          }}
-        />
-        <Typography variant="body2">{label}</Typography>
+const MetricChip = ({ label, color, active, onClick }) => {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.8,
+        px: 1.5,
+        py: 0.6,
+        borderRadius: "999px",
+        cursor: "pointer",
+        border: `1px solid ${active ? color : "#E5E7EB"}`,
+        backgroundColor: active ? `${color}20` : "white",
+        color: active ? color : "#0f172a",
+        fontSize: "12px",
+        fontWeight: 600,
+        userSelect: "none",
+        transition: "all 0.15s ease",
+      }}
+    >
+      {/* CHECKBOX ICON */}
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          border: `2px solid ${active ? color : "#CBD5E1"}`,
+          backgroundColor: active ? color : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 10,
+          lineHeight: 1,
+        }}
+      >
+        {active && "✓"}
       </Box>
-    }
-    onClick={onClick}
-    variant={active ? "filled" : "outlined"}
-    sx={{
-      borderRadius: "999px",
-      backgroundColor: active ? "#EFF6FF" : "white",
-      borderColor: active ? "#3B82F6" : "#E5E7EB",
-      "& .MuiChip-label": { px: 1.5, py: 0.25 }
-    }}
-  />
-);
+
+      {label}
+    </Box>
+  );
+};
 
 /**
  * ---------------------------------------------------------------------------
@@ -335,7 +554,7 @@ const MetricChip = ({ active, label, color, onClick }) => (
 export default function VisibilityTrendsCompetitionDrawer({
   dynamicKey,
   open = true,
-  onClose = () => { },
+  onClose = () => {},
   selectedColumn,
 }) {
   const [view, setView] = useState("Trends");
@@ -380,7 +599,6 @@ export default function VisibilityTrendsCompetitionDrawer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
@@ -403,7 +621,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
       ...p,
-      _dateObj: parseTrendDate(p.date)
+      _dateObj: parseTrendDate(p.date),
     }));
     const sorted = [...enriched].sort(
       (a, b) => a._dateObj.getTime() - b._dateObj.getTime()
@@ -442,7 +660,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         lineStyle: { width: 2 },
         emphasis: { focus: "series" },
         data: trendPoints.map((p) => p[m.id] ?? null),
-        itemStyle: { color: m.color }
+        itemStyle: { color: m.color },
       }));
 
     return {
@@ -453,7 +671,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         data: xData,
         boundaryGap: false,
         axisLine: { lineStyle: { color: "#E5E7EB" } },
-        axisLabel: { fontSize: 11 }
+        axisLabel: { fontSize: 11 },
       },
       yAxis: [
         {
@@ -461,7 +679,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           position: "left",
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { lineStyle: { color: "#F3F4F6" } }
+          splitLine: { lineStyle: { color: "#F3F4F6" } },
         },
         {
           type: "value",
@@ -470,11 +688,11 @@ export default function VisibilityTrendsCompetitionDrawer({
           axisTick: { show: false },
           splitLine: { show: false },
           min: 0,
-          max: 100
-        }
+          max: 100,
+        },
       ],
       legend: { show: false },
-      series
+      series,
     };
   }, [trendMeta, activeMetrics, trendPoints]);
 
@@ -509,7 +727,7 @@ export default function VisibilityTrendsCompetitionDrawer({
             symbolSize: 6,
             lineStyle: { width: 1 },
             itemStyle: { color: m.color },
-            data: trend[m.id] || []
+            data: trend[m.id] || [],
           });
         });
     });
@@ -522,9 +740,9 @@ export default function VisibilityTrendsCompetitionDrawer({
         type: "value",
         min: 0,
         max: 120,
-        axisLabel: { formatter: "{value}%" }
+        axisLabel: { formatter: "{value}%" },
       },
-      series
+      series,
     };
   }, [compareMeta, activeMetrics, selectedCompareSkus]);
 
@@ -536,9 +754,16 @@ export default function VisibilityTrendsCompetitionDrawer({
     setAddSkuOpen(false);
   };
 
-  const PLATFORM_OPTIONS = ["Blinkit", "Zepto", "Instamart", "Swiggy", "Amazon"];
+  const PLATFORM_OPTIONS = [
+    "Blinkit",
+    "Zepto",
+    "Instamart",
+    "Swiggy",
+    "Amazon",
+  ];
   const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
   const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+  const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Britannia"];
 
   if (!open) return null;
 
@@ -553,7 +778,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         alignItems: "flex-start",
         p: 2,
         zIndex: 1300,
-        overflow: "auto"
+        overflow: "auto",
       }}
     >
       <Box
@@ -566,7 +791,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           p: 3,
           display: "flex",
           flexDirection: "column",
-          gap: 2
+          gap: 2,
         }}
       >
         {/* Header row */}
@@ -588,9 +813,9 @@ export default function VisibilityTrendsCompetitionDrawer({
                 fontSize: 14,
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
-                  color: "#fff"
-                }
-              }
+                  color: "#fff",
+                },
+              },
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
@@ -606,10 +831,8 @@ export default function VisibilityTrendsCompetitionDrawer({
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
-
             {/* HEADER + PLATFORM FILTER */}
             <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-
               {/* Title */}
               <Typography variant="h6" fontWeight={600}>
                 {selectedColumn || "KPI Trends"}
@@ -618,28 +841,26 @@ export default function VisibilityTrendsCompetitionDrawer({
               {/* PLATFORM FILTER WRAPPER */}
               {/* PLATFORM FILTER WRAPPER */}
               <Box display="flex" alignItems="center" gap={1}>
-
                 {/* CLICKABLE LABEL (now only toggles open/close) */}
-                < Typography
+                <Typography
                   variant="body2"
                   color="text.secondary"
                   sx={{ cursor: "pointer", userSelect: "none" }}
-
                 >
                   <Select
                     size="small"
                     value={allTrendMeta.context.audience}
                     onChange={(e) => {
-                      allSetTrendMeta(prev => ({
+                      allSetTrendMeta((prev) => ({
                         ...prev,
                         context: { ...prev.context, audience: e.target.value },
                       }));
-                      setShowPlatformPills(true);   // always show pills after changing mode
+                      setShowPlatformPills(true); // always show pills after changing mode
                     }}
-
                   >
                     <MenuItem value="Platform">Platform</MenuItem>
                     <MenuItem value="Format">Format</MenuItem>
+                    <MenuItem value="Brand">Brand</MenuItem>
                     <MenuItem value="City">City</MenuItem>
                   </Select>
                 </Typography>
@@ -651,15 +872,17 @@ export default function VisibilityTrendsCompetitionDrawer({
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
-                        ? FORMAT_OPTIONS
-                        : allTrendMeta.context.audience === "City"
-                          ? CITY_OPTIONS
-                          : []
+                      ? FORMAT_OPTIONS
+                      : allTrendMeta.context.audience === "City"
+                      ? CITY_OPTIONS
+                      : allTrendMeta.context.audience === "Brand"
+                      ? BRAND_OPTIONS
+                      : []
                     ).map((p) => (
                       <Box
                         key={p}
                         onClick={() => {
-                          setSelectedPlatform(p);  // only select the pill
+                          setSelectedPlatform(p); // only select the pill
                           // ❌ DO NOT toggle or force open here
                         }}
                         sx={{
@@ -680,9 +903,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                     ))}
                   </Box>
                 )}
-
               </Box>
-
 
               {/* LEVEL CHIP */}
               <Chip
@@ -697,7 +918,6 @@ export default function VisibilityTrendsCompetitionDrawer({
               />
 
               {/* AUDIENCE CHIP */}
-
             </Box>
 
             {/* RANGE + TIMESTEP */}
@@ -787,12 +1007,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           </Box>
         )}
 
-
-
         {/* COMPETITION VIEW */}
-        {view === "Competition" && (
-          <VisibilityKpiTrendShowcase />
-        )}
+        {view === "Competition" && <VisibilityKpiTrendShowcase />}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
@@ -808,7 +1024,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                   borderRadius: "999px",
                   backgroundColor: "#DCFCE7",
                   color: "#166534",
-                  fontWeight: 500
+                  fontWeight: 500,
                 }}
               />
             </Box>
@@ -852,7 +1068,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                               width: 12,
                               height: 12,
                               borderRadius: "999px",
-                              backgroundColor: color
+                              backgroundColor: color,
                             }}
                           />
                           <Typography variant="body2" noWrap>
@@ -869,7 +1085,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                         borderRadius: "999px",
                         backgroundColor: "#F9FAFB",
                         borderColor: "transparent",
-                        maxWidth: 260
+                        maxWidth: 260,
                       }}
                     />
                   );
@@ -883,7 +1099,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                   backgroundColor: "#2563EB",
                   textTransform: "none",
                   borderRadius: "999px",
-                  minWidth: 140
+                  minWidth: 140,
                 }}
                 onClick={() => setAddSkuOpen(true)}
               >
