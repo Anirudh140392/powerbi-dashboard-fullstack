@@ -190,6 +190,17 @@ function WatchTower() {
   const [categoryOverviewData, setCategoryOverviewData] = useState([]);
   const [categoryOverviewLoading, setCategoryOverviewLoading] = useState(false);
 
+  const [brandsOverviewPlatform, setBrandsOverviewPlatform] = useState(platform || "Zepto");
+  const [brandsOverviewCategory, setBrandsOverviewCategory] = useState("All");
+  const [brandsOverviewData, setBrandsOverviewData] = useState(null);
+  const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
+
+  // Reset category when platform changes to avoid invalid filters
+  useEffect(() => {
+    setBrandsOverviewCategory("All");
+  }, [brandsOverviewPlatform]);
+
+
   // Update filters when context changes
   useEffect(() => {
     setFilters(prev => {
@@ -211,237 +222,249 @@ function WatchTower() {
     });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  // Progressive Loading: Fetch Main Overview First, Then Load Sections in Background
+  // ==================== NEW: Concurrent Data Fetching ====================
+  // STAGE 1: Fetch critical data in parallel (overview + platform)
+  // STAGE 2: Fetch remaining sections in parallel (month, category, brands)
+
   useEffect(() => {
     let ignore = false;
-    const fetchInitialData = async () => {
-      // Prevent fetching if critical filters are missing (initial load state)
+
+    const fetchAllData = async () => {
+      // Prevent fetching if critical filters are missing
       if (!filters.brand || !filters.location) {
-        console.log("Skipping fetch: Brand or Location missing");
+        console.log("⏭️ Skipping fetch: Brand or Location missing");
         return;
       }
 
       setLoading(true);
-      try {
-        // STEP 1: Fetch ONLY summary metrics & platform overview (FAST!)
-        console.log("⚡ Loading overview data first...");
-        const response = await axiosInstance.get("/watchtower/summary-metrics", {
-          params: {
-            ...filters,
-            // NO section-specific params = only main overview
-          },
-        });
-        if (!ignore && response.data) {
-          console.log("✅ Overview loaded! Displaying main content...");
-          // Set main overview data immediately
-          setDashboardData(response.data);
-          setLoading(false); // ✅ Users see content NOW!
 
-          // STEP 2: Load remaining sections in background
-          console.log("🔄 Loading additional sections in background...");
-          loadAdditionalSections();
+      try {
+        // ⚡ STAGE 1: Fetch critical data in PARALLEL
+        console.log("⚡ STAGE 1: Loading critical data (overview + platform)...");
+        const startTime = performance.now();
+
+        const [overviewRes, platformRes] = await Promise.all([
+          axiosInstance.get("/watchtower/overview", { params: filters }),
+          axiosInstance.get("/watchtower/platform-overview", { params: filters })
+        ]);
+
+        const stage1Time = performance.now() - startTime;
+        console.log(`✅ STAGE 1 complete in ${(stage1Time / 1000).toFixed(2)}s`);
+
+        if (!ignore) {
+          // Update dashboard data immediately
+          setDashboardData(prev => ({
+            ...prev,
+            topMetrics: overviewRes.data.topMetrics || [],
+            summaryMetrics: overviewRes.data.summaryMetrics || prev.summaryMetrics,
+            performanceMetricsKpis: overviewRes.data.performanceMetricsKpis || [],
+            platformOverview: platformRes.data || []
+          }));
+
+          // ✅ Hide main loader - USER SEES CONTENT NOW!
+          setLoading(false);
+          console.log("🎉 Main content displayed! User can interact now.");
+
+          // 🔄 STAGE 2: Fetch remaining sections in PARALLEL (background)
+          console.log("🔄 STAGE 2: Loading additional sections in background...");
+          fetchAdditionalSections();
         }
       } catch (error) {
         if (!ignore) {
-          console.error("❌ Error fetching Watch Tower overview:", error);
+          console.error("❌ Error in STAGE 1:", error);
           setLoading(false);
         }
       }
     };
 
-    // Function to load remaining sections progressively
-    const loadAdditionalSections = async () => {
-      // Load Month Overview
+    const fetchAdditionalSections = async () => {
+      const stage2StartTime = performance.now();
       setMonthOverviewLoading(true);
-      try {
-        const monthResponse = await axiosInstance.get("/watchtower/summary-metrics", {
-          params: { ...filters, monthOverviewPlatform }
-        });
-        if (!ignore && monthResponse.data?.monthOverview) {
-          setMonthOverviewData(monthResponse.data.monthOverview);
-          setDashboardData(prev => ({
-            ...prev,
-            monthOverview: monthResponse.data.monthOverview
-          }));
-        }
-      } catch (error) {
-        if (!ignore) console.error("Error loading Month Overview:", error);
-      } finally {
-        if (!ignore) setMonthOverviewLoading(false);
-      }
-
-      // Load Category Overview
       setCategoryOverviewLoading(true);
-      try {
-        const categoryResponse = await axiosInstance.get("/watchtower/summary-metrics", {
-          params: { ...filters, categoryOverviewPlatform }
-        });
-        if (!ignore && categoryResponse.data?.categoryOverview) {
-          setCategoryOverviewData(categoryResponse.data.categoryOverview);
-          setDashboardData(prev => ({
-            ...prev,
-            categoryOverview: categoryResponse.data.categoryOverview
-          }));
-        }
-      } catch (error) {
-        if (!ignore) console.error("Error loading Category Overview:", error);
-      } finally {
-        if (!ignore) setCategoryOverviewLoading(false);
-      }
-
-      // Load Brands Overview
       setBrandsOverviewLoading(true);
-      try {
-        const brandsResponse = await axiosInstance.get("/watchtower/summary-metrics", {
+
+      // Fetch all 3 sections in PARALLEL
+      const results = await Promise.allSettled([
+        axiosInstance.get("/watchtower/month-overview", {
+          params: { ...filters, monthOverviewPlatform }
+        }),
+        axiosInstance.get("/watchtower/category-overview", {
+          params: { ...filters, categoryOverviewPlatform }
+        }),
+        axiosInstance.get("/watchtower/brands-overview", {
           params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory }
-        });
-        if (!ignore && brandsResponse.data?.brandsOverview) {
-          setBrandsOverviewData(brandsResponse.data.brandsOverview);
-          setDashboardData(prev => ({
-            ...prev,
-            brandsOverview: brandsResponse.data.brandsOverview
-          }));
+        })
+      ]);
+
+      const stage2Time = performance.now() - stage2StartTime;
+      console.log(`✅ STAGE 2 complete in ${(stage2Time / 1000).toFixed(2)}s`);
+
+      if (!ignore) {
+        // Update Month Overview
+        if (results[0].status === 'fulfilled') {
+          const monthData = results[0].value.data;
+          setMonthOverviewData(monthData);
+          setDashboardData(prev => ({ ...prev, monthOverview: monthData }));
+          setMonthOverviewLoading(false);
+          console.log("  ✓ Month overview loaded");
+        } else {
+          console.error("  ✗ Month overview failed:", results[0].reason);
+          setMonthOverviewLoading(false);
         }
-      } catch (error) {
-        if (!ignore) console.error("Error loading Brands Overview:", error);
-      } finally {
-        if (!ignore) setBrandsOverviewLoading(false);
+
+        // Update Category Overview
+        if (results[1].status === 'fulfilled') {
+          const categoryData = results[1].value.data;
+          setCategoryOverviewData(categoryData);
+          setDashboardData(prev => ({ ...prev, categoryOverview: categoryData }));
+          setCategoryOverviewLoading(false);
+          console.log("  ✓ Category overview loaded");
+        } else {
+          console.error("  ✗ Category overview failed:", results[1].reason);
+          setCategoryOverviewLoading(false);
+        }
+
+        // Update Brands Overview
+        if (results[2].status === 'fulfilled') {
+          const brandsData = results[2].value.data;
+          setBrandsOverviewData(brandsData);
+          setDashboardData(prev => ({ ...prev, brandsOverview: brandsData }));
+          setBrandsOverviewLoading(false);
+          console.log("  ✓ Brands overview loaded");
+        } else {
+          console.error("  ✗ Brands overview failed:", results[2].reason);
+          setBrandsOverviewLoading(false);
+        }
       }
     };
 
-    fetchInitialData();
+    fetchAllData();
     return () => { ignore = true; };
-  }, [filters]); // Only filters as dependency - sections load independently
+  }, [filters, monthOverviewPlatform, categoryOverviewPlatform, brandsOverviewPlatform, brandsOverviewCategory]); // Removed loading from deps
 
-  // Fetch ONLY Month Overview when monthOverviewPlatform changes
+  // Separate effect for Month Overview platform changes (after initial load)
   useEffect(() => {
     let ignore = false;
-    console.log("monthOverviewPlatform changed to:", monthOverviewPlatform);
-    console.log("Current loading state:", loading);
 
     const fetchMonthOverview = async () => {
-      if (!filters.brand || !filters.location) {
-        console.log("Skipping Month Overview fetch: Brand or Location missing");
-        return;
-      }
+      // Skip if initial load hasn't completed
+      if (loading || !filters.brand || !filters.location) return;
 
-      console.log("Fetching Month Overview for:", monthOverviewPlatform);
+      console.log("🔄 Fetching Month Overview for platform:", monthOverviewPlatform);
       setMonthOverviewLoading(true);
+
       try {
-        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+        const response = await axiosInstance.get("/watchtower/month-overview", {
           params: { ...filters, monthOverviewPlatform }
         });
-        if (!ignore && response.data && response.data.monthOverview) {
-          console.log("Received Month Overview data:", response.data.monthOverview);
-          setMonthOverviewData(response.data.monthOverview);
-          // Update dashboardData.monthOverview to keep it in sync if needed, 
-          // but we will use monthOverviewData state for the component
+
+        if (!ignore) {
+          setMonthOverviewData(response.data);
           setDashboardData(prev => ({
             ...prev,
-            monthOverview: response.data.monthOverview
+            monthOverview: response.data
           }));
+          setMonthOverviewLoading(false);
+          console.log("✅ Month overview updated");
         }
       } catch (error) {
-        if (!ignore) console.error("Error fetching Month Overview:", error);
-      } finally {
-        if (!ignore) setMonthOverviewLoading(false);
+        if (!ignore) {
+          console.error("❌ Error updating Month Overview:", error);
+          setMonthOverviewLoading(false);
+        }
       }
     };
 
-    // Only fetch if we are not in the initial full load (which handles everything)
-    // But simpler to just let it fetch or check if loading is false
+    // Only run if monthOverviewPlatform changes AFTER initial load
     if (!loading) {
       fetchMonthOverview();
-    } else {
-      console.log("Skipping Month Overview fetch because main loading is true");
     }
-    return () => { ignore = true; };
-  }, [monthOverviewPlatform]);
 
-  // Fetch ONLY Category Overview when categoryOverviewPlatform changes
+    return () => { ignore = true; };
+  }, [monthOverviewPlatform]); // Intentionally minimal deps
+
+  // Separate effect for Category Overview platform changes (after initial load)
   useEffect(() => {
     let ignore = false;
-    const fetchCategoryOverview = async () => {
-      console.log("fetchCategoryOverview triggered. Loading:", loading);
-      if (!filters.brand || !filters.location) {
-        console.log("Skipping category fetch: Brand or Location missing");
-        return;
-      }
 
-      console.log("Fetching Category Overview for:", categoryOverviewPlatform);
+    const fetchCategoryOverview = async () => {
+      // Skip if initial load hasn't completed
+      if (loading || !filters.brand || !filters.location) return;
+
+      console.log("🔄 Fetching Category Overview for platform:", categoryOverviewPlatform);
       setCategoryOverviewLoading(true);
+
       try {
-        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+        const response = await axiosInstance.get("/watchtower/category-overview", {
           params: { ...filters, categoryOverviewPlatform }
         });
-        if (!ignore && response.data && response.data.categoryOverview) {
-          console.log("Received Category Overview data:", response.data.categoryOverview);
-          setCategoryOverviewData(response.data.categoryOverview);
+
+        if (!ignore) {
+          setCategoryOverviewData(response.data);
           setDashboardData(prev => ({
             ...prev,
-            categoryOverview: response.data.categoryOverview
+            categoryOverview: response.data
           }));
+          setCategoryOverviewLoading(false);
+          console.log("✅ Category overview updated");
         }
       } catch (error) {
-        if (!ignore) console.error("Error fetching Category Overview:", error);
-      } finally {
-        if (!ignore) setCategoryOverviewLoading(false);
+        if (!ignore) {
+          console.error("❌ Error updating Category Overview:", error);
+          setCategoryOverviewLoading(false);
+        }
       }
     };
 
+    // Only run if categoryOverviewPlatform changes AFTER initial load
     if (!loading) {
       fetchCategoryOverview();
-    } else {
-      console.log("Skipping fetchCategoryOverview because loading is true");
     }
+
     return () => { ignore = true; };
-  }, [categoryOverviewPlatform, filters]);
+  }, [categoryOverviewPlatform]); // Intentionally minimal deps
 
-  const [brandsOverviewPlatform, setBrandsOverviewPlatform] = useState(platform || "Zepto");
-  const [brandsOverviewCategory, setBrandsOverviewCategory] = useState("All");
-  const [brandsOverviewData, setBrandsOverviewData] = useState(null);
-  const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
-
-  // Reset category when platform changes to avoid invalid filters
-  useEffect(() => {
-    setBrandsOverviewCategory("All");
-  }, [brandsOverviewPlatform]);
-
-  // Fetch Brands Overview when brandsOverviewPlatform or brandsOverviewCategory changes
-  // This allows the platform/category dropdowns to work correctly
+  // Separate effect for Brands Overview changes (after initial load)
   useEffect(() => {
     let ignore = false;
+
     const fetchBrandsOverview = async () => {
-      if (!filters.brand || !filters.location) return;
+      // Skip if initial load hasn't completed
+      if (loading || !filters.brand || !filters.location) return;
 
-      // Skip if still in initial loading
-      if (loading) return;
-
+      console.log("🔄 Fetching Brands Overview for:", brandsOverviewPlatform, brandsOverviewCategory);
       setBrandsOverviewLoading(true);
+
       try {
-        const response = await axiosInstance.get("/watchtower/summary-metrics", {
+        const response = await axiosInstance.get("/watchtower/brands-overview", {
           params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory }
         });
-        if (!ignore && response.data && response.data.brandsOverview) {
-          setBrandsOverviewData(response.data.brandsOverview);
+
+        if (!ignore) {
+          setBrandsOverviewData(response.data);
           setDashboardData(prev => ({
             ...prev,
-            brandsOverview: response.data.brandsOverview
+            brandsOverview: response.data
           }));
+          setBrandsOverviewLoading(false);
+          console.log("✅ Brands overview updated");
         }
       } catch (error) {
-        if (!ignore) console.error("Error fetching Brands Overview:", error);
-      } finally {
-        if (!ignore) setBrandsOverviewLoading(false);
+        if (!ignore) {
+          console.error("❌ Error updating Brands Overview:", error);
+          setBrandsOverviewLoading(false);
+        }
       }
     };
 
-    // Fetch when platform or category changes (but not on initial load when loading=true)
+    // Only run if platform/category changes AFTER initial load
     if (!loading) {
       fetchBrandsOverview();
     }
+
     return () => { ignore = true; };
-  }, [brandsOverviewPlatform, brandsOverviewCategory, filters.brand, filters.location, filters.startDate, filters.endDate, loading]);
+  }, [brandsOverviewPlatform, brandsOverviewCategory]); // Intentionally minimal deps
+
 
   return (
     <>
