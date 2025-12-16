@@ -692,7 +692,7 @@ const PlatformOverview = ({
                   width: 40,
                   height: 40,
                   borderRadius: "50%",
-                  background: "#f3f4f6",
+                  background: theme.palette.action.hover,
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
@@ -704,7 +704,7 @@ const PlatformOverview = ({
                 />
               </Box>
 
-              <Typography ml={1.2} fontWeight={700} fontSize="1.15rem">
+              <Typography ml={1.2} fontWeight={700} fontSize="1.2rem">
                 {activeKpisTab}
               </Typography>
             </Box>
@@ -784,7 +784,7 @@ const PlatformOverview = ({
                     sx={{
                       minWidth: 130,
                       height: 36,
-                      fontSize: "0.85rem",
+                      fontSize: "1.85rem",
                       background: "#f3f4f6",
                       borderRadius: 1.5,
                       "& .MuiOutlinedInput-notchedOutline": {
@@ -1031,6 +1031,10 @@ const PlatformOverview = ({
                         </Box>
 
                       </Box>
+
+                      {/* Right: Inline Buttons */}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+</Box>
 
                       {/* Second Row: Platform Type */}
                       <Typography

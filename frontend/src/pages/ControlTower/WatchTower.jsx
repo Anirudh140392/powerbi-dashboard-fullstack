@@ -635,7 +635,7 @@ defaultCategory */}
         open={showTrends}
         onClose={() => setShowTrends(false)}
         selectedColumn='Blinkit'
-        dynamicKey='control_tower'
+        dynamicKey='platform_overview_tower'
       />
     </>
   );
@@ -937,6 +937,9 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
   const pct = (value) =>
     Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
+  const [visibleCount, setVisibleCount] = useState(7);
+  const visibleItems = FORMAT_ROWS.slice(0, visibleCount);
+  const total = FORMAT_ROWS.length;
 
   const kpiBands = [
     {
@@ -1020,8 +1023,6 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
       format: (v) => active.cpc, // Use formatted string from backend
     },
   ];
-
-
   return (
     <motion.div
       className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
@@ -1032,7 +1033,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
       <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Category performance</h2>
+            <h2 className="text-lg font-semibold bg">Category performance</h2>
             <p className="text-xs text-slate-500">
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
@@ -1103,7 +1104,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
         <AnimatePresence mode="wait">
           <motion.div
             key={active.name + (compare?.name ?? "")}
-            className="h-full rounded-3xl bg-gradient-to-br from-sky-100 via-white to-indigo-50 border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
+            className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
@@ -1111,7 +1112,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-sky-500">
+                <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
                   {compare ? "Focus format · VS mode" : "Focus format"}
                 </div>
                 <div className="text-xl font-semibold">
@@ -1263,7 +1264,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
               </div>
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-2 justify-center">
+            {/* <div className="mt-2 flex flex-wrap gap-2 justify-center">
               {FORMAT_ROWS.map((f) => {
                 const weight = clamp01(f.roas / 12);
                 const isCompare = compareName === f.name;
@@ -1301,7 +1302,76 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
                   </motion.button>
                 );
               })}
+            </div> */}
+            <div className="mt-2 flex flex-wrap gap-2 justify-center">
+
+              {/* PILLS */}
+              {visibleItems.map((f) => {
+                const weight = clamp01(f.roas / 12);
+                const isCompare = compareName === f.name;
+                const isActive = activeName === f.name;
+
+                return (
+                  <motion.button
+                    key={f.name}
+                    onClick={() =>
+                      setCompareName(prev => (prev === f.name ? null : f.name))
+                    }
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
+                      ? "border-violet-500 bg-violet-50 shadow-sm"
+                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                      }`}
+                    whileHover={{ y: -2 }}
+                  >
+                    <div
+                      className="h-2 w-10 rounded-full"
+                      style={{
+                        background: `linear-gradient(to right,
+                rgba(14,165,233,${0.3 + weight * 0.4}),
+                rgba(99,102,241,${0.2 + weight * 0.5})
+              )`,
+                      }}
+                    />
+
+                    <span
+                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        }`}
+                    >
+                      {f.name}
+                    </span>
+
+                    {isCompare && (
+                      <span className="text-[9px] text-violet-600">VS</span>
+                    )}
+                  </motion.button>
+                );
+              })}
+
+              {/* ------------------------------- */}
+              {/*        ADD MORE & SHOW LESS     */}
+              {/* ------------------------------- */}
+
+              {/* ADD MORE (only if not all shown) */}
+              {visibleCount < total && (
+                <button
+                  onClick={() => setVisibleCount(prev => prev + 7)}
+                  className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
+                >
+                  + Add more
+                </button>
+              )}
+
+              {/* SHOW LESS (only when all are visible) */}
+              {visibleCount >= total && total > 7 && (
+                <button
+                  onClick={() => setVisibleCount(7)}
+                  className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
+                >
+                  Show less
+                </button>
+              )}
             </div>
+
           </motion.div>
         </AnimatePresence>
       </div>

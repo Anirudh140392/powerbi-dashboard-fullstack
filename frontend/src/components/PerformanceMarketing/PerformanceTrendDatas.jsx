@@ -30,9 +30,8 @@ import {
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
-import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
-import VisibilityKpiTrendShowcase from "./VisibilityKpiTrendShowcase";
+import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 
 /**
  * ---------------------------------------------------------------------------
@@ -80,10 +79,13 @@ function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
 }
 
 const DASHBOARD_DATA = {
+  /* ============================================================
+     TRENDS
+  ============================================================ */
   trends: {
     context: {
       level: "MRP",
-      audience: "All",
+      audience: "Platform",
     },
 
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
@@ -92,298 +94,295 @@ const DASHBOARD_DATA = {
     timeSteps: ["Daily", "Weekly", "Monthly"],
     defaultTimeStep: "Daily",
 
-    // ⭐ Your New KPI Set
     metrics: [
       {
-        id: "overall_sos",
-        label: "Overall Weighted SOS",
-        color: "#F97316",
+        id: "Impressions",
+        label: "Impressions",
+        color: "#2563EB",
         axis: "left",
         default: true,
       },
       {
-        id: "sponsored_sos",
-        label: "Sponsored Weighted SOS",
-        color: "#7C3AED",
+        id: "DirectConv",
+        label: "Direct Conv",
+        color: "#16A34A",
         axis: "right",
         default: true,
       },
       {
-        id: "organic_sos",
-        label: "Organic Weighted SOS",
-        color: "#6366F1",
+        id: "Spend",
+        label: "Spend",
+        color: "#F97316",
         axis: "left",
         default: false,
       },
       {
-        id: "display_sos",
-        label: "Display SOS",
-        color: "#22C55E",
+        id: "NewUsers",
+        label: "New Users",
+        color: "#7C3AED",
         axis: "left",
         default: false,
       },
     ],
 
-    // ⭐ All trend points now contain SOS metrics instead of old KPIs
     points: [
       {
         date: "06 Sep'25",
-        overall_sos: 57,
-        sponsored_sos: 41,
-        organic_sos: 72,
-        display_sos: 65,
+        Impressions: 5,
+        DirectConv: 3.2,
+        Spend: 1.8,
+        NewUsers: 21,
       },
       {
         date: "07 Sep'25",
-        overall_sos: 54,
-        sponsored_sos: 42,
-        organic_sos: 70,
-        display_sos: 66,
+        Impressions: 9,
+        DirectConv: 3.1,
+        Spend: 1.7,
+        NewUsers: 16,
       },
       {
         date: "08 Sep'25",
-        overall_sos: 53,
-        sponsored_sos: 40,
-        organic_sos: 69,
-        display_sos: 64,
+        Impressions: 3,
+        DirectConv: 3.0,
+        Spend: 1.6,
+        NewUsers: 8,
       },
       {
         date: "09 Sep'25",
-        overall_sos: 53,
-        sponsored_sos: 39,
-        organic_sos: 68,
-        display_sos: 63,
+        Impressions: 5,
+        DirectConv: 2.9,
+        Spend: 1.6,
+        NewUsers: 11,
       },
       {
         date: "10 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 37,
-        organic_sos: 66,
-        display_sos: 62,
+        Impressions: 13,
+        DirectConv: 2.8,
+        Spend: 1.5,
+        NewUsers: 12,
       },
       {
         date: "11 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 36,
-        organic_sos: 67,
-        display_sos: 62,
+        Impressions: 16,
+        DirectConv: 2.8,
+        Spend: 1.5,
+        NewUsers: 15,
       },
       {
         date: "12 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 35,
-        organic_sos: 68,
-        display_sos: 61,
+        Impressions: 18,
+        DirectConv: 2.7,
+        Spend: 1.4,
+        NewUsers: 17,
       },
       {
         date: "13 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 34,
-        organic_sos: 69,
-        display_sos: 60,
+        Impressions: 11,
+        DirectConv: 2.6,
+        Spend: 1.4,
+        NewUsers: 19,
       },
       {
         date: "14 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 33,
-        organic_sos: 70,
-        display_sos: 60,
+        Impressions: 6,
+        DirectConv: 2.6,
+        Spend: 1.4,
+        NewUsers: 18,
       },
       {
         date: "15 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 32,
-        organic_sos: 70,
-        display_sos: 59,
+        Impressions: 9,
+        DirectConv: 2.5,
+        Spend: 1.3,
+        NewUsers: 12,
       },
       {
         date: "16 Sep'25",
-        overall_sos: 52,
-        sponsored_sos: 32,
-        organic_sos: 69,
-        display_sos: 59,
+        Impressions: 13,
+        DirectConv: 2.5,
+        Spend: 1.3,
+        NewUsers: 13,
       },
       {
         date: "17 Sep'25",
-        overall_sos: 51,
-        sponsored_sos: 31,
-        organic_sos: 68,
-        display_sos: 58,
+        Impressions: 8,
+        DirectConv: 2.4,
+        Spend: 1.2,
+        NewUsers: 5,
       },
       {
         date: "18 Sep'25",
-        overall_sos: 51,
-        sponsored_sos: 31,
-        organic_sos: 67,
-        display_sos: 58,
+        Impressions: 7,
+        DirectConv: 2.4,
+        Spend: 1.2,
+        NewUsers: 8,
       },
       {
         date: "19 Sep'25",
-        overall_sos: 51,
-        sponsored_sos: 32,
-        organic_sos: 66,
-        display_sos: 57,
+        Impressions: 10,
+        DirectConv: 2.3,
+        Spend: 1.2,
+        NewUsers: 5,
       },
       {
         date: "20 Sep'25",
-        overall_sos: 56,
-        sponsored_sos: 50,
-        organic_sos: 75,
-        display_sos: 68,
+        Impressions: 18,
+        DirectConv: 3.6,
+        Spend: 2.1,
+        NewUsers: 9,
       },
       {
         date: "21 Sep'25",
-        overall_sos: 50,
-        sponsored_sos: 34,
-        organic_sos: 67,
-        display_sos: 55,
+        Impressions: 10,
+        DirectConv: 2.5,
+        Spend: 1.3,
+        NewUsers: 19,
       },
       {
         date: "22 Sep'25",
-        overall_sos: 49,
-        sponsored_sos: 33,
-        organic_sos: 66,
-        display_sos: 54,
+        Impressions: 21,
+        DirectConv: 2.4,
+        Spend: 1.3,
+        NewUsers: 11,
       },
       {
         date: "23 Sep'25",
-        overall_sos: 48,
-        sponsored_sos: 32,
-        organic_sos: 65,
-        display_sos: 54,
+        Impressions: 4,
+        DirectConv: 2.3,
+        Spend: 1.2,
+        NewUsers: 19,
       },
       {
         date: "24 Sep'25",
-        overall_sos: 47,
-        sponsored_sos: 31,
-        organic_sos: 64,
-        display_sos: 53,
+        Impressions: 3,
+        DirectConv: 2.2,
+        Spend: 1.2,
+        NewUsers: 16,
       },
       {
         date: "25 Sep'25",
-        overall_sos: 46,
-        sponsored_sos: 30,
-        organic_sos: 63,
-        display_sos: 52,
+        Impressions: 2,
+        DirectConv: 2.2,
+        Spend: 1.1,
+        NewUsers: 12,
       },
       {
         date: "26 Sep'25",
-        overall_sos: 45,
-        sponsored_sos: 30,
-        organic_sos: 62,
-        display_sos: 52,
+        Impressions: 11,
+        DirectConv: 2.1,
+        Spend: 1.1,
+        NewUsers: 23,
       },
       {
         date: "27 Sep'25",
-        overall_sos: 44,
-        sponsored_sos: 31,
-        organic_sos: 63,
-        display_sos: 51,
+        Impressions: 15,
+        DirectConv: 2.1,
+        Spend: 5,
+        NewUsers: 12,
       },
       {
         date: "28 Sep'25",
-        overall_sos: 44,
-        sponsored_sos: 31,
-        organic_sos: 62,
-        display_sos: 51,
+        Impressions: 16,
+        DirectConv: 2.0,
+        Spend: 7,
+        NewUsers: 3,
       },
       {
         date: "29 Sep'25",
-        overall_sos: 43,
-        sponsored_sos: 32,
-        organic_sos: 61,
-        display_sos: 50,
+        Impressions: 19,
+        DirectConv: 2.0,
+        Spend: 4,
+        NewUsers: 4,
       },
       {
         date: "30 Sep'25",
-        overall_sos: 43,
-        sponsored_sos: 34,
-        organic_sos: 60,
-        display_sos: 49,
+        Impressions: 20,
+        DirectConv: 2.1,
+        Spend: 9,
+        NewUsers: 5,
       },
       {
         date: "01 Oct'25",
-        overall_sos: 44,
-        sponsored_sos: 36,
-        organic_sos: 61,
-        display_sos: 50,
+        Impressions: 21,
+        DirectConv: 2.2,
+        Spend: 1.2,
+        NewUsers: 12,
       },
       {
         date: "02 Oct'25",
-        overall_sos: 45,
-        sponsored_sos: 37,
-        organic_sos: 62,
-        display_sos: 51,
+        Impressions: 14,
+        DirectConv: 2.3,
+        Spend: 1.3,
+        NewUsers: 17,
       },
       {
         date: "03 Oct'25",
-        overall_sos: 46,
-        sponsored_sos: 39,
-        organic_sos: 63,
-        display_sos: 52,
+        Impressions: 7,
+        DirectConv: 2.5,
+        Spend: 1.4,
+        NewUsers: 8,
       },
       {
         date: "04 Oct'25",
-        overall_sos: 46,
-        sponsored_sos: 40,
-        organic_sos: 65,
-        display_sos: 53,
+        Impressions: 9,
+        DirectConv: 2.6,
+        Spend: 1.5,
+        NewUsers: 10,
       },
     ],
   },
 
-  // ⭐ UPDATED Compare SKUs using NEW KPIs
+  /* ============================================================
+     COMPARE SKUs
+  ============================================================ */
   compareSkus: {
     context: { level: "MRP" },
+
     rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
     defaultRange: "1M",
+
     timeSteps: ["Daily", "Weekly", "Monthly"],
     defaultTimeStep: "Daily",
 
     metrics: [
       {
-        id: "overall_sos",
-        label: "Overall Weighted SOS",
-        color: "#F97316",
+        id: "Impressions",
+        label: "Impressions",
+        color: "#2563EB",
         default: true,
       },
       {
-        id: "sponsored_sos",
-        label: "Sponsored Weighted SOS",
-        color: "#7C3AED",
+        id: "DirectConv",
+        label: "Direct Conv",
+        color: "#16A34A",
         default: true,
       },
-      {
-        id: "organic_sos",
-        label: "Organic Weighted SOS",
-        color: "#6366F1",
-        default: false,
-      },
-      {
-        id: "display_sos",
-        label: "Display SOS",
-        color: "#22C55E",
-        default: false,
-      },
+      { id: "Spend", label: "Spend", color: "#F97316", default: false },
+      { id: "NewUsers", label: "New Users", color: "#7C3AED", default: false },
     ],
 
     x: COMPARE_X,
 
     trendsBySku: {
       1: makeSkuTrend(0, 0, 0, 0),
-      2: makeSkuTrend(-2, -1, -1, 0),
-      3: makeSkuTrend(-3, -2, -2, -1),
-      4: makeSkuTrend(-4, -3, -3, -1),
-      5: makeSkuTrend(+2, +3, +2, +2),
-      6: makeSkuTrend(+1, +2, +1, +1),
-      7: makeSkuTrend(-1, -2, -1, -1),
-      8: makeSkuTrend(+3, +1, +2, +1),
+      2: makeSkuTrend(-2000, -0.2, -0.1, -20),
+      3: makeSkuTrend(-4000, -0.3, -0.2, -35),
+      4: makeSkuTrend(-6000, -0.4, -0.3, -50),
+      5: makeSkuTrend(+3000, +0.3, +0.2, +40),
+      6: makeSkuTrend(+2000, +0.2, +0.1, +25),
+      7: makeSkuTrend(-1500, -0.2, -0.1, -18),
+      8: makeSkuTrend(+4500, +0.4, +0.3, +55),
     },
   },
 
-  // ⭐ COMPETITION VIEW UPDATED TO NEW KPIs
+  /* ============================================================
+     COMPETITION
+  ============================================================ */
   competition: {
-    context: { level: "MRP", region: "All × Chennai" },
+    context: {
+      level: "MRP",
+      region: "All × Chennai",
+    },
 
     tabs: ["Brands", "SKUs"],
 
@@ -394,36 +393,57 @@ const DASHBOARD_DATA = {
 
     columns: [
       { id: "brand", label: "Brand", type: "text" },
-      { id: "overall_sos", label: "Overall Weighted SOS", type: "metric" },
-      { id: "sponsored_sos", label: "Sponsored Weighted SOS", type: "metric" },
-      { id: "organic_sos", label: "Organic Weighted SOS", type: "metric" },
-      { id: "display_sos", label: "Display SOS", type: "metric" },
+      { id: "Impressions", label: "Impressions", type: "metric" },
+      { id: "DirectConv", label: "Direct Conv", type: "metric" },
+      { id: "Spend", label: "Spend", type: "metric" },
+      { id: "NewUsers", label: "New Users", type: "metric" },
     ],
 
     brands: [
       {
         brand: "Colgate",
-        overall_sos: { value: 32.9, delta: -4.5 },
-        sponsored_sos: { value: 74.6, delta: -16.3 },
-        organic_sos: { value: 20.0, delta: -8.5 },
-        display_sos: { value: 18.8, delta: 0.4 },
+        Impressions: { value: 65200, delta: -4200 },
+        DirectConv: { value: 3.1, delta: -0.4 },
+        Spend: { value: 18.4, delta: -2.1 },
+        NewUsers: { value: 420, delta: 22 },
       },
       {
         brand: "Sensodyne",
-        overall_sos: { value: 19.6, delta: 2.2 },
-        sponsored_sos: { value: 94.2, delta: 3.9 },
-        organic_sos: { value: 19.3, delta: 2.7 },
-        display_sos: { value: 18.5, delta: -3.1 },
+        Impressions: { value: 49600, delta: 3100 },
+        DirectConv: { value: 3.6, delta: 0.5 },
+        Spend: { value: 16.8, delta: 1.9 },
+        NewUsers: { value: 390, delta: -18 },
+      },
+      {
+        brand: "Oral-B",
+        Impressions: { value: 38200, delta: -2900 },
+        DirectConv: { value: 2.8, delta: -0.3 },
+        Spend: { value: 12.6, delta: -1.4 },
+        NewUsers: { value: 310, delta: -26 },
+      },
+      {
+        brand: "Dabur",
+        Impressions: { value: 26800, delta: 1200 },
+        DirectConv: { value: 3.0, delta: 0.2 },
+        Spend: { value: 9.4, delta: 0.8 },
+        NewUsers: { value: 260, delta: 34 },
       },
     ],
 
     skus: [
       {
         brand: "Colgate Strong Teeth 100g",
-        overall_sos: { value: 8.2, delta: -1.0 },
-        sponsored_sos: { value: 76.1, delta: -8.0 },
-        organic_sos: { value: 4.5, delta: -0.9 },
-        display_sos: { value: 3.2, delta: 0.2 },
+        Impressions: { value: 18200, delta: -1200 },
+        DirectConv: { value: 3.0, delta: -0.2 },
+        Spend: { value: 5.8, delta: -0.7 },
+        NewUsers: { value: 120, delta: 6 },
+      },
+      {
+        brand: "Sensodyne Rapid Relief 40g",
+        Impressions: { value: 14600, delta: 900 },
+        DirectConv: { value: 3.8, delta: 0.4 },
+        Spend: { value: 6.1, delta: 0.9 },
+        NewUsers: { value: 135, delta: -4 },
       },
     ],
   },
@@ -551,13 +571,12 @@ const MetricChip = ({ label, color, active, onClick }) => {
  * ---------------------------------------------------------------------------
  */
 
-export default function VisibilityTrendsCompetitionDrawer({
+export default function PerformanceTrendDatas({
   dynamicKey,
   open = true,
   onClose = () => {},
   selectedColumn,
 }) {
-  const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: "Platform", // default value
@@ -570,6 +589,7 @@ export default function VisibilityTrendsCompetitionDrawer({
     }));
     setShowPlatformPills(true);
   }, []);
+  const [view, setView] = useState("Trends");
   const [range, setRange] = useState(DASHBOARD_DATA.trends.defaultRange);
   const [timeStep, setTimeStep] = useState(
     DASHBOARD_DATA.trends.defaultTimeStep
@@ -588,12 +608,9 @@ export default function VisibilityTrendsCompetitionDrawer({
 
   const platformRef = useRef(null);
 
-  // close on outside click
   useEffect(() => {
     function handleClickOutside(e) {
-      if (platformRef.current && !platformRef.current.contains(e.target)) {
-        setShowPlatformPills(false);
-      }
+      // do nothing
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -763,7 +780,6 @@ export default function VisibilityTrendsCompetitionDrawer({
   ];
   const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
   const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Britannia"];
 
   if (!open) return null;
 
@@ -819,7 +835,9 @@ export default function VisibilityTrendsCompetitionDrawer({
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
-            <ToggleButton value="Competition">Competition</ToggleButton>
+            {dynamicKey !== "Performance_marketing" && (
+              <ToggleButton value="Competition">Competition</ToggleButton>
+            )}
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
@@ -860,7 +878,6 @@ export default function VisibilityTrendsCompetitionDrawer({
                   >
                     <MenuItem value="Platform">Platform</MenuItem>
                     <MenuItem value="Format">Format</MenuItem>
-                    <MenuItem value="Brand">Brand</MenuItem>
                     <MenuItem value="City">City</MenuItem>
                   </Select>
                 </Typography>
@@ -875,8 +892,6 @@ export default function VisibilityTrendsCompetitionDrawer({
                       ? FORMAT_OPTIONS
                       : allTrendMeta.context.audience === "City"
                       ? CITY_OPTIONS
-                      : allTrendMeta.context.audience === "Brand"
-                      ? BRAND_OPTIONS
                       : []
                     ).map((p) => (
                       <Box
@@ -1008,7 +1023,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <VisibilityKpiTrendShowcase />}
+        {view === "Competition" && <KpiTrendShowcase />}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
