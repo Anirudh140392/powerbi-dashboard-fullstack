@@ -632,9 +632,9 @@ function VisibilityCard({ item, onShowDetails }) {
         {/* Offtake & Impact */}
         <div className="mt-2 flex items-center justify-between">
           <div>
-            <div className="text-[11px] text-slate-400">Overall SOV</div>
+            <div className="text-[11px] text-slate-400">Offtake</div>
             <div className="text-[17px] font-semibold text-slate-900">
-              {item.kpis.overallSov}
+              {item.offtake}
             </div>
           </div>
 

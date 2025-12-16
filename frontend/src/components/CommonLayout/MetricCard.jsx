@@ -6,7 +6,7 @@ const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 const generateValues = () => months.map(() => Math.floor(Math.random() * 60) + 20);
 
 export default function MetricCard({ card, scrollNeeded, totalCards }) {
-  const values = generateValues();
+  const values = card.sparklineData || generateValues();
   const positive = card.change.includes("▲") || card.change.includes("+");
   const color = positive ? "#28a745" : "#dc3545";
 

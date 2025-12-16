@@ -470,8 +470,11 @@ const SAMPLE_SKUS = [
             weightedOsa: "96.8%",
         },
         topCities: [
-            { city: "Delhi", metric: "OSA 97.5%", change: "+2.5%" },
-            { city: "Gurgaon", metric: "Fillrate 98.2%", change: "+1.8%" },
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
+            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
+
         ],
     },
     {
@@ -929,6 +932,15 @@ function SignalCard({ sku, metricType, onShowDetails }) {
         inventory: inventoryKpiOrder,
     };
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
+
+    const PRIMARY_METRICS = {
+        visibility: { label: "Overall SOV", key: "overallSov" },
+        availability: { label: "Overall OSA", key: "weightedOsa" }
+    };
+
+    const primary = PRIMARY_METRICS[metricType] || { label: "Offtake", key: "offtakeValue" };
+    // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
+    const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
     return (
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px]">
