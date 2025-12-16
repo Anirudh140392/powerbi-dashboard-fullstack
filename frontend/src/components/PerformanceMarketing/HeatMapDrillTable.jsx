@@ -1,5 +1,5 @@
 // HeatMapDrillTable.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Box,
   Card,
@@ -15,46 +15,47 @@ import {
   IconButton,
   Chip,
 } from "@mui/material";
- 
+
 import { motion } from "framer-motion";
-import { Plus, Minus, TrendingUp, LineChartIcon } from "lucide-react";
+import { Plus, Minus, TrendingUp, LineChartIcon, SlidersHorizontal, X } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
- 
+
 import performanceData from "../../utils/PerformanceMarketingData";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import PerformanceTrendDatas from "./PerformanceTrendDatas";
- 
+import { KpiFilterPanel } from "../KpiFilterPanel";
+
 // ----------------- HELPERS -----------------
 const parsePercent = (v) =>
   typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
- 
+
 const rowConvAvg = (values) => {
   const convIndices = [3, 4, 5];
   const nums = convIndices
     .map((i) => parsePercent(values[i]))
     .filter((x) => !isNaN(x));
- 
+
   if (!nums.length) return "–";
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + "%";
 };
- 
+
 const getHeatStyle = (val) => {
   const n = parsePercent(val);
   if (isNaN(n)) return {};
- 
+
   if (n >= 3)
     return { backgroundColor: "rgba(22,163,74,0.12)", color: "#166534" };
   if (n >= 2)
     return { backgroundColor: "rgba(234,179,8,0.12)", color: "#854d0e" };
   return { backgroundColor: "rgba(239,68,68,0.12)", color: "#991b1b" };
 };
- 
+
 const getQuarterValues = (base, quarter) => {
   if (quarter === "Q1") return base;
- 
+
   const factor = { Q2: 1.1, Q3: 0.95, Q4: 1.15 }[quarter] || 1;
   const delta = { Q2: 0.2, Q3: -0.1, Q4: 0.3 }[quarter] || 0;
- 
+
   return base.map((v, idx) => {
     if (idx >= 3) {
       const n = parsePercent(v);
@@ -66,7 +67,7 @@ const getQuarterValues = (base, quarter) => {
     return String(v).includes(".") ? adj.toFixed(1) : Math.round(adj);
   });
 };
- 
+
 // ---------------- KEYWORD INJECTION ----------------
 const KEYWORDS = [
   "Sandwich, Cakes & Others",
@@ -77,7 +78,7 @@ const KEYWORDS = [
   "cas",
   "Ice Cream & Frozen Dessert",
 ];
- 
+
 // -------------- MAX DEPTH -----------------
 const getMaxDepth = (nodes, depth = 0) => {
   let max = depth;
@@ -88,7 +89,7 @@ const getMaxDepth = (nodes, depth = 0) => {
   });
   return max;
 };
- 
+
 // ------------ METRICS CONFIG (for trend) -------------
 const METRICS = [
   { key: "spend", label: "Spend", index: 0, isPercent: false },
@@ -100,7 +101,7 @@ const METRICS = [
   { key: "cpm", label: "CPM", index: 6, isPercent: false },
   { key: "roas", label: "ROAS", index: 7, isPercent: false },
 ];
- 
+
 // ---------------- expanded depth detector -----------------
 // Returns the maximum number of segments (levels) among expanded keys.
 // Example:
@@ -118,7 +119,58 @@ const getExpandedDepth = (expandedKeys) => {
   });
   return max;
 };
- 
+
+// ----------------- RULE EVALUATOR -----------------
+const evaluateRule = (rowValues, rule) => {
+  if (!rule.children || rule.children.length === 0) return true;
+
+  if (rule.logicalOp) {
+    // Group
+    const results = rule.children.map((child) => evaluateRule(rowValues, child));
+    return rule.logicalOp === "AND"
+      ? results.every((r) => r)
+      : results.some((r) => r);
+  }
+
+  // Condition
+  const { fieldId, operator, value, valueTo } = rule;
+  const metric = METRICS.find((m) => m.key === fieldId);
+  if (!metric) return true;
+
+  // Get value from row (handle "3%" strings)
+  // rowValues matches the order of header columns (after label)
+  // METRICS indices are 0..7
+  // rowValues has 6-8 items? 
+  // collectedData.headers: "Format...", "Spend", "M-1 Spend"...
+  // Spend is idx 0 in values.
+  // METRICS: spend index 0.
+  // matches.
+
+  const rawVal = rowValues[metric.index];
+  let val = rawVal;
+  if (typeof rawVal === "string" && rawVal.includes("%")) {
+    val = parseFloat(rawVal.replace("%", ""));
+  } else {
+    val = Number(rawVal); // "203.2" -> 203.2
+  }
+
+  if (isNaN(val)) return false;
+
+  const numVal = Number(value);
+  const numTo = Number(valueTo);
+
+  switch (operator) {
+    case ">": return val > numVal;
+    case ">=": return val >= numVal;
+    case "<": return val < numVal;
+    case "<=": return val <= numVal;
+    case "=": return val === numVal;
+    case "!=": return val !== numVal;
+    case "between": return val >= numVal && val <= numTo;
+    default: return true;
+  }
+};
+
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
   const {
@@ -128,41 +180,147 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     heatmapDataFourth,
     heatmapDataFifth,
   } = performanceData;
- 
+
   const collectedData =
     selectedInsight === "All Campaign Summary"
       ? heatmapData
       : selectedInsight === "Q1 - Performing Well"
-      ? heatmapDataSecond
-      : selectedInsight === "Q2 - Need Attention"
-      ? heatmapDataThird
-      : selectedInsight === "Q3 - Experiment"
-      ? heatmapDataFourth
-      : selectedInsight === "Q4 - Opportunity"
-      ? heatmapDataFifth
-      : heatmapData;
- 
+        ? heatmapDataSecond
+        : selectedInsight === "Q2 - Need Attention"
+          ? heatmapDataThird
+          : selectedInsight === "Q3 - Experiment"
+            ? heatmapDataFourth
+            : selectedInsight === "Q4 - Opportunity"
+              ? heatmapDataFifth
+              : heatmapData;
+
   const LEVEL_TITLES =
     selectedInsight === "All Campaign Summary"
       ? {
-          0: "Format",
-          1: "Region",
-          2: "City",
-          3: "Keyword",
-        }
+        0: "Format",
+        1: "Region",
+        2: "City",
+        3: "Keyword",
+      }
       : {
-          0: "AD Property",
-          1: "Group",
-          2: "Keyword",
-        };
-        const openHeaderTrend = (levelIndex) => {
-  setShowTrends(true);
-};
+        0: "AD Property",
+        1: "Group",
+        2: "Keyword",
+      };
+  const openHeaderTrend = (levelIndex) => {
+    setShowTrends(true);
+  };
   const [expanded, setExpanded] = useState({});
-  const [formatFilter] = useState("All");
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState("Q1");
   const [page, setPage] = useState(0);
- 
+
+  // ---------- FILTERS STATE ----------
+  const [activeFilters, setActiveFilters] = useState({
+    brands: [],     // Formats
+    categories: [], // Regions
+    cities: [],
+    keywords: [],
+    skus: [],
+    platforms: [],
+    kpiRules: null,
+  });
+
+  // ---------- DATA EXTRACTION FOR FILTERS ----------
+  const filterOptions = useMemo(() => {
+    const opts = {
+      brands: new Map(),
+      categories: new Map(),
+      cities: new Map(),
+      keywords: new Map(),
+    };
+
+    const traverse = (nodes, level = 0) => {
+      nodes.forEach((node) => {
+        const item = { id: node.label, label: node.label, value: 0 };
+
+        if (level === 0) opts.brands.set(node.label, item);
+        else if (level === 1) opts.categories.set(node.label, item);
+        else if (level === 2) opts.cities.set(node.label, item);
+        else if (node.isKeyword || level === 3) opts.keywords.set(node.label, item);
+
+        if (node.children) traverse(node.children, level + 1);
+      });
+    };
+
+    if (collectedData?.rows) {
+      traverse(collectedData.rows);
+    }
+
+    return {
+      brands: Array.from(opts.brands.values()),
+      categories: Array.from(opts.categories.values()),
+      cities: Array.from(opts.cities.values()),
+      keywords: Array.from(opts.keywords.values()),
+      kpiFields: METRICS.map((m) => ({ id: m.key, label: m.label, type: "number" })),
+    };
+  }, [collectedData]);
+
+  // ---------- FILTERING LOGIC ----------
+  const filteredDataRows = useMemo(() => {
+    if (!collectedData?.rows) return [];
+
+    const { brands, categories, cities, keywords, kpiRules } = activeFilters;
+    const hasBrandFilter = brands.length > 0;
+    const hasRegionFilter = categories.length > 0;
+    const hasCityFilter = cities.length > 0;
+    const hasKwFilter = keywords.length > 0;
+    const hasKpiRules = kpiRules && kpiRules.children && kpiRules.children.length > 0;
+
+    const filterRecursive = (nodes, level) => {
+      const res = [];
+      for (const node of nodes) {
+        let keep = true;
+
+        // 1. Check Level Filters
+        if (level === 0 && hasBrandFilter && !brands.includes(node.label)) keep = false;
+        else if (level === 1 && hasRegionFilter && !categories.includes(node.label)) keep = false;
+        else if (level === 2 && hasCityFilter && !cities.includes(node.label)) keep = false;
+        else if ((level === 3 || node.isKeyword) && hasKwFilter && !keywords.includes(node.label)) keep = false;
+
+        // 2. Check KPI Rules (on this node's values)
+        if (keep && hasKpiRules && node.values) {
+          const qValues = getQuarterValues(node.values, selectedQuarter);
+          if (!evaluateRule(qValues, kpiRules)) keep = false;
+        }
+
+        // 3. Recurse
+        let children = [];
+        if (node.children) {
+          children = filterRecursive(node.children, level + 1);
+        }
+
+        // 4. Final Decision
+        if (keep) {
+          // If node had children originally, it must have children now (unless it's a leaf node type that got filtered).
+          // But wait, if I filter "City: Mumbai", then "Magnum" (Format) will have only "Mumbai" child.
+          // If "Magnum" has NO children left after filtering, should I show "Magnum"?
+          // Typically in drill-down, NO.
+          // Exception: If I am at the deepest level (Keyword), I just return myself.
+          // If I have children property but it's empty now, I should be removed?
+          // collectedData has children for all except keywords.
+          if (node.children && node.children.length > 0) {
+            if (children.length > 0) {
+              res.push({ ...node, children });
+            }
+            // Else: all children filtered out -> remove parent
+          } else {
+            // Leaf node (Keyword)
+            res.push(node);
+          }
+        }
+      }
+      return res;
+    };
+
+    return filterRecursive(collectedData.rows, 0);
+  }, [collectedData, activeFilters, selectedQuarter]);
+
   const [trendState, setTrendState] = useState(null); // { node, path }
   const [showTrends, setShowTrends] = useState(false);
   const [chartType, setChartType] = useState("line"); // 'line' | 'area' | 'bar'
@@ -171,29 +329,26 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     "conv",
     "roas",
   ]);
- 
+
   const rowsPerPage = 5;
- 
+
   // Max hierarchy depth (data-driven)
   const maxDepth = getMaxDepth(collectedData?.rows, 0);
-  // totalHierarchyCols used previously = maxDepth + 2; but for Option 2 we hide header+body columns
-  // visibleHierarchyCols is dynamic: Format only when nothing expanded, else increases with expansion
-  const expandedDepth = getExpandedDepth(expanded); // 0 -> nothing expanded, 1 -> top-level expanded, etc.
+
+  // visibleHierarchyCols is dynamic
+  const expandedDepth = getExpandedDepth(expanded);
   const visibleHierarchyCols = Math.max(
     1,
     Math.min(expandedDepth + 1, maxDepth + 1)
-  ); // min 1 (Format), max maxDepth+1
- 
-  const filteredRows =
-    formatFilter === "All"
-      ? collectedData?.rows
-      : collectedData?.rows.filter((r) => r.label === formatFilter);
- 
+  );
+
+  const filteredRows = filteredDataRows;
+
   // ---------------- TOTALS -----------------
   const getDeepNodes = (nodes, exp, path = [], res = []) => {
     nodes.forEach((node) => {
       const k = [...path, node.label].join(">");
- 
+
       if (node.children?.length && exp[k]) {
         getDeepNodes(node.children, exp, [...path, node.label], res);
       } else {
@@ -202,26 +357,26 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     });
     return res;
   };
- 
+
   const deepRows = getDeepNodes(filteredRows, expanded);
- 
+
   const drillTotals = collectedData?.headers.slice(1).map((_, idx) => {
     const vals = deepRows.map(
       (r) => getQuarterValues(r.values, selectedQuarter)[idx]
     );
- 
+
     const nums = vals
       .map((v) => parseFloat(String(v).replace("%", "")))
       .filter((x) => !isNaN(x));
- 
+
     if (!nums.length) return "–";
     const isPercent = idx >= 3;
- 
+
     return isPercent
       ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + "%"
       : nums.reduce((a, b) => a + b, 0).toLocaleString();
   });
- 
+
   // --------- Expand / Collapse all ----------
   const expandAll = () => {
     const newState = {};
@@ -237,20 +392,20 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     walk(filteredRows);
     setExpanded(newState);
   };
- 
+
   const collapseAll = () => {
     setExpanded({});
   };
- 
+
   // --------- Trend data builder (Q1–Q4 for this node) ----------
   const buildTrendData = (node) => {
     if (!node || !node.values) return [];
     const quarters = ["Q1", "Q2", "Q3", "Q4"];
- 
+
     return quarters.map((q) => {
       const vals = getQuarterValues(node.values, q);
       const row = { quarter: q };
- 
+
       METRICS.forEach((m) => {
         const raw = vals[m.index];
         if (raw === undefined || raw === "–") {
@@ -262,38 +417,38 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           row[m.key] = isNaN(num) ? null : num;
         }
       });
- 
+
       return row;
     });
   };
- 
+
   const trendData = trendState ? buildTrendData(trendState.node) : [];
   const trendTitle = trendState ? trendState.path.join(" → ") : "";
- 
+
   const toggleMetric = (key) => {
     setSelectedMetrics((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
   };
- 
+
   const getTrendOption = () => {
     if (!trendState) return {};
- 
+
     const valueMetrics = METRICS.filter(
       (m) => !m.isPercent && selectedMetrics.includes(m.key)
     );
     const percentMetrics = METRICS.filter(
       (m) => m.isPercent && selectedMetrics.includes(m.key)
     );
- 
+
     const series = [];
- 
+
     const typeMap = {
       line: "line",
       bar: "bar",
       area: "line",
     };
- 
+
     valueMetrics.forEach((m) => {
       series.push({
         name: m.label,
@@ -304,7 +459,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         areaStyle: chartType === "area" ? { opacity: 0.12 } : undefined,
       });
     });
- 
+
     percentMetrics.forEach((m) => {
       series.push({
         name: m.label,
@@ -315,7 +470,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         areaStyle: chartType === "area" ? { opacity: 0.12 } : undefined,
       });
     });
- 
+
     return {
       backgroundColor: "transparent",
       tooltip: {
@@ -387,32 +542,22 @@ export default function HeatMapDrillTable({ selectedInsight }) {
       series,
     };
   };
- 
+
   // ---------------- RENDER ROW -----------------
   const renderRow = (node, level = 0, path = []) => {
     const fullPath = [...path, node.label];
     const key = fullPath.join(">");
     const isOpen = expanded[key];
- 
-    const realChildren = node.children || [];
-    const keywordChildren =
-      !realChildren.length && !node.isKeyword
-        ? KEYWORDS.map((k) => ({
-            label: k,
-            values: node.values,
-            children: [],
-            isKeyword: true,
-          }))
-        : [];
- 
-    const children = [...realChildren, ...keywordChildren];
+
+    // Use filtered children directly. Do not inject synthetic keywords.
+    const children = node.children || [];
     const hasChildren = children.length > 0;
- 
+
     const qVals = getQuarterValues(node.values, selectedQuarter);
     const avg = rowConvAvg(qVals);
- 
+
     const rowBg = node.isKeyword ? "#fff" : level === 0 ? "#f8fafc" : "#fff";
- 
+
     return (
       <React.Fragment key={key}>
         <TableRow
@@ -426,15 +571,15 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             const sticky =
               col === 0
                 ? {
-                    position: "sticky",
-                    left: 0,
-                    zIndex: 10,
-                    backgroundColor: rowBg,
-                    minWidth: 150,
-                    borderRight: "1px solid #e5e7eb",
-                  }
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 10,
+                  backgroundColor: rowBg,
+                  minWidth: 150,
+                  borderRight: "1px solid #e5e7eb",
+                }
                 : {};
- 
+
             if (col === level) {
               return (
                 <TableCell key={col} sx={sticky}>
@@ -457,7 +602,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     ) : (
                       <Box sx={{ width: 26 }} />
                     )}
- 
+
                     <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
                       {node.label}
                     </Typography>
@@ -465,14 +610,14 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 </TableCell>
               );
             }
- 
+
             return (
               <TableCell key={col} sx={sticky}>
                 –{/* placeholder for collapsed hierarchy */}
               </TableCell>
             );
           })}
- 
+
           {qVals.map((v, i) => {
             const heat = i >= 3 ? getHeatStyle(v) : {};
             return (
@@ -494,7 +639,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               </TableCell>
             );
           })}
- 
+
           <TableCell align="right">
             {avg !== "–" ? (
               <Box
@@ -512,7 +657,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               "–"
             )}
           </TableCell>
- 
+
           {/* <TableCell align="right">
             <IconButton
               size="small"
@@ -532,25 +677,82 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               onClick={() => setShowTrends(true)}
               sx={{
                 borderRadius: 2,
-                border: "1px solid #e5e7eb",
-                background:
-                  "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(56,189,248,0.08))",
-              }}
-            >
-              <TrendingUp size={16} />
+          <TrendingUp size={16} />
             </IconButton>
           </TableCell> */}
         </TableRow>
- 
+
         {isOpen &&
           children.map((child) => renderRow(child, level + 1, fullPath))}
       </React.Fragment>
     );
   };
- 
+
   // ----------------- UI -----------------
   return (
     <>
+      {/* ------------------ KPI FILTER MODAL ------------------ */}
+      {filterPanelOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+              </div>
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Panel Content */}
+            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
+              <KpiFilterPanel
+                sectionConfig={[
+                  { id: "brands", label: "Format" },
+                  { id: "categories", label: "Region" },
+                  { id: "cities", label: "City" },
+                  { id: "keywords", label: "Keyword" },
+                  { id: "kpiRules", label: "KPI Rules" },
+                ]}
+                keywords={filterOptions.keywords}
+                brands={filterOptions.brands}
+                categories={filterOptions.categories}
+                skus={[]}
+                cities={filterOptions.cities}
+                platforms={[]}
+                kpiFields={filterOptions.kpiFields}
+                onKeywordChange={(ids) => setActiveFilters(p => ({ ...p, keywords: ids }))}
+                onBrandChange={(ids) => setActiveFilters(p => ({ ...p, brands: ids }))}
+                onCategoryChange={(ids) => setActiveFilters(p => ({ ...p, categories: ids }))}
+                onCityChange={(ids) => setActiveFilters(p => ({ ...p, cities: ids }))}
+                onRulesChange={(tree) => setActiveFilters(p => ({ ...p, kpiRules: tree }))}
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Card
         sx={{
           p: 3,
@@ -569,41 +771,62 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 ? "FORMAT → REGION → CITY → KEYWORD"
                 : "AD Property → GROUP → KEYWORD"}
             </Typography>
- 
+
             <Typography
               sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
             >
               {collectedData?.title}
             </Typography>
           </Box>
- 
+
           <Box
             display="flex"
             flexDirection="column"
             alignItems="flex-end"
             gap={1}
           >
-            {/* QUARTERS */}
-            <Box display="flex" gap={1}>
-              {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                <Button
-                  key={q}
-                  onClick={() => setSelectedQuarter(q)}
-                  sx={{
-                    fontSize: 12,
-                    textTransform: "none",
-                    borderRadius: 999,
-                    px: 1.6,
-                    backgroundColor:
-                      selectedQuarter === q ? "#6366F1" : "transparent",
-                    color: selectedQuarter === q ? "white" : "#6b7280",
-                  }}
-                >
-                  {q}
-                </Button>
-              ))}
+            {/* BUTTON ROW */}
+            <Box display="flex" gap={1} alignItems="center">
+              {/* FILTERS BUTTON */}
+              <Button
+                onClick={() => setFilterPanelOpen(true)}
+                startIcon={<SlidersHorizontal size={14} />}
+                sx={{
+                  fontSize: 12,
+                  textTransform: "none",
+                  borderRadius: 999,
+                  px: 1.6,
+                  backgroundColor: "#f1f5f9",
+                  color: "#334155",
+                  border: "1px solid #e2e8f0",
+                  "&:hover": { backgroundColor: "#e2e8f0" }
+                }}
+              >
+                Filters
+              </Button>
+
+              {/* QUARTERS */}
+              <Box display="flex" gap={1}>
+                {["Q1", "Q2", "Q3", "Q4"].map((q) => (
+                  <Button
+                    key={q}
+                    onClick={() => setSelectedQuarter(q)}
+                    sx={{
+                      fontSize: 12,
+                      textTransform: "none",
+                      borderRadius: 999,
+                      px: 1.6,
+                      backgroundColor:
+                        selectedQuarter === q ? "#6366F1" : "transparent",
+                      color: selectedQuarter === q ? "white" : "#6b7280",
+                    }}
+                  >
+                    {q}
+                  </Button>
+                ))}
+              </Box>
             </Box>
- 
+
             {/* EXPAND / COLLAPSE ALL */}
             <Box display="flex" gap={1}>
               <Button
@@ -639,11 +862,14 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             </Box>
           </Box>
         </Box>
- 
+
+
+
         {/* TABLE */}
-        <TableContainer
+        < TableContainer
           component={Paper}
-          sx={{ maxHeight: 520, borderRadius: 2 }}
+          sx={{ maxHeight: 520, borderRadius: 2 }
+          }
         >
           <Table stickyHeader size="small">
             <TableHead>
@@ -666,48 +892,48 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     {LEVEL_TITLES[i] || `Keyword ${i - 2 + 2}`}
                   </TableCell>
                 ))} */}
-{Array.from({ length: visibleHierarchyCols }).map((_, i) => (
-  <TableCell
-    key={i}
-    sx={
-      i === 0
-        ? {
-            position: "sticky",
-            left: 0,
-            background: "#f9fafb",
-            zIndex: 10,
-            minWidth: 150,
-          }
-        : {}
-    }
-  >
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        gap: 0.5,
-      }}
-    >
-      {/* Header title */}
-      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
-        {LEVEL_TITLES[i]}
-      </Typography>
+                {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+                  <TableCell
+                    key={i}
+                    sx={
+                      i === 0
+                        ? {
+                          position: "sticky",
+                          left: 0,
+                          background: "#f9fafb",
+                          zIndex: 10,
+                          minWidth: 150,
+                        }
+                        : {}
+                    }
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                      }}
+                    >
+                      {/* Header title */}
+                      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
+                        {LEVEL_TITLES[i]}
+                      </Typography>
 
-      {/* ✅ Trend icon ONLY for Region / City / Keyword */}
-      {i > 0 && (
-        <IconButton
-          size="small"
-          onClick={() => openHeaderTrend(i)}
-          sx={{ p: 0.25 }}
-        >
-          <LineChartIcon sx={{ fontSize: 14 }} />
-        </IconButton>
-      )}
-    </Box>
-  </TableCell>
-))}
+                      {/* ✅ Trend icon ONLY for Region / City / Keyword */}
+                      {i > 0 && (
+                        <IconButton
+                          size="small"
+                          onClick={() => openHeaderTrend(i)}
+                          sx={{ p: 0.25 }}
+                        >
+                          <LineChartIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </TableCell>
+                ))}
 
- 
+
                 {collectedData?.headers.slice(1).map((col) => (
                   <TableCell key={col} align="right">
                     <Box
@@ -722,7 +948,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       <Typography sx={{ fontSize: 10, fontWeight: 600 }}>
                         {col} ({selectedQuarter})
                       </Typography>
- 
+
                       {/* Trend Icon */}
                       <IconButton
                         onClick={() => setShowTrends(true)}
@@ -739,17 +965,17 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     </Box>
                   </TableCell>
                 ))}
- 
+
                 <TableCell align="right" sx={{ fontSize: 12, fontWeight: 550 }}>Row Avg</TableCell>
                 {/* <TableCell align="right">Trend</TableCell> */}
               </TableRow>
             </TableHead>
- 
+
             <TableBody>
               {filteredRows
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((row) => renderRow(row, 0, []))}
- 
+
               {/* TOTAL ROW */}
               <TableRow sx={{ background: "#f8fafc" }}>
                 <TableCell
@@ -758,22 +984,22 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 >
                   TOTAL ({selectedQuarter})
                 </TableCell>
- 
+
                 {drillTotals.map((v, i) => (
                   <TableCell key={i} align="right" sx={{ fontWeight: 700 }}>
                     {v || "–"}
                   </TableCell>
                 ))}
- 
+
                 <TableCell>–</TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
           </Table>
-        </TableContainer>
- 
+        </TableContainer >
+
         {/* SIMPLE PAGINATION */}
-        <Box
+        < Box
           sx={{
             mt: 1.5,
             display: "flex",
@@ -799,192 +1025,192 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           >
             Next
           </Button>
-        </Box>
-      </Card>
- 
+        </Box >
+      </Card >
+
       {/* TREND DRAWER */}
-      {trendState && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            width: "50vw",
-            maxWidth: "50vw",
-            minWidth: 480,
-            zIndex: 2000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "none",
-            backdropFilter: "blur(2px)",
-          }}
-        >
+      {
+        trendState && (
           <Box
-            component={motion.div}
-            initial={{ opacity: 0, x: 80 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 80 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
             sx={{
-              pointerEvents: "auto",
-              width: "94%",
-              maxHeight: "92vh",
-              borderRadius: 3,
-              p: 3,
-              background: "white",
-              boxShadow: "0 18px 55px rgba(0,0,0,0.15)",
-              border: "1px solid #e5e7eb",
-              color: "#0f172a",
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "50vw",
+              maxWidth: "50vw",
+              minWidth: 480,
+              zIndex: 2000,
               display: "flex",
-              flexDirection: "column",
-              gap: 1.5,
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              backdropFilter: "blur(2px)",
             }}
           >
             <Box
+              component={motion.div}
+              initial={{ opacity: 0, x: 80 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 80 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
               sx={{
+                pointerEvents: "auto",
+                width: "94%",
+                maxHeight: "92vh",
+                borderRadius: 3,
+                p: 3,
+                background: "white",
+                boxShadow: "0 18px 55px rgba(0,0,0,0.15)",
+                border: "1px solid #e5e7eb",
+                color: "#0f172a",
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                mb: 1,
+                flexDirection: "column",
+                gap: 1.5,
               }}
             >
-              <Box>
-                <Typography
-                  sx={{
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.16em",
-                    color: "#64748b",
-                  }}
-                >
-                  Trend Studio
-                </Typography>
- 
-                <Typography sx={{ fontSize: 18, fontWeight: 600, mt: 0.4 }}>
-                  {trendTitle}
-                </Typography>
- 
-                <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 0.5 }}>
-                  Visualise Spend, Conversion, ROAS across quarters.
-                </Typography>
-              </Box>
- 
-              <IconButton
-                size="small"
-                onClick={() => setTrendState(null)}
+              <Box
                 sx={{
-                  color: "#475569",
-                  borderRadius: 999,
-                  border: "1px solid #e2e8f0",
-                  backgroundColor: "#f8fafc",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  mb: 1,
                 }}
               >
-                ✕
-              </IconButton>
-            </Box>
- 
-            <Box
-              sx={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 1,
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 1,
-              }}
-            >
-              <Box sx={{ display: "flex", gap: 0.5 }}>
-                {[
-                  { key: "line", label: "Line" },
-                  { key: "area", label: "Area" },
-                  { key: "bar", label: "Bar" },
-                ].map((c) => (
-                  <Button
-                    key={c.key}
-                    size="small"
-                    onClick={() => setChartType(c.key)}
+                <Box>
+                  <Typography
                     sx={{
-                      textTransform: "none",
                       fontSize: 11,
-                      borderRadius: 999,
-                      px: 1.4,
-                      py: 0.3,
-                      border: "1px solid #e2e8f0",
-                      backgroundColor:
-                        chartType === c.key ? "#eef2ff" : "white",
-                      color: chartType === c.key ? "#4f46e5" : "#475569",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.16em",
+                      color: "#64748b",
                     }}
                   >
-                    {c.label}
-                  </Button>
-                ))}
+                    Trend Studio
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 18, fontWeight: 600, mt: 0.4 }}>
+                    {trendTitle}
+                  </Typography>
+
+                  <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 0.5 }}>
+                    Visualise Spend, Conversion, ROAS across quarters.
+                  </Typography>
+                </Box>
+
+                <IconButton
+                  size="small"
+                  onClick={() => setTrendState(null)}
+                  sx={{
+                    color: "#475569",
+                    borderRadius: 999,
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#f8fafc",
+                  }}
+                >
+                  ✕
+                </IconButton>
               </Box>
- 
+
               <Box
                 sx={{
                   display: "flex",
                   flexWrap: "wrap",
-                  gap: 0.6,
-                  justifyContent: "flex-end",
+                  gap: 1,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
                 }}
               >
-                {METRICS.map((m) => {
-                  const active = selectedMetrics.includes(m.key);
-                  return (
-                    <Chip
-                      key={m.key}
-                      label={m.label}
+                <Box sx={{ display: "flex", gap: 0.5 }}>
+                  {[
+                    { key: "line", label: "Line" },
+                    { key: "area", label: "Area" },
+                    { key: "bar", label: "Bar" },
+                  ].map((c) => (
+                    <Button
+                      key={c.key}
                       size="small"
-                      onClick={() => toggleMetric(m.key)}
+                      onClick={() => setChartType(c.key)}
                       sx={{
+                        textTransform: "none",
                         fontSize: 11,
-                        height: 24,
                         borderRadius: 999,
-                        bgcolor: active ? "rgba(99,102,241,0.15)" : "#f3f4f6",
-                        color: active ? "#4f46e5" : "#475569",
-                        border: active
-                          ? "1px solid #6366F1"
-                          : "1px solid #e5e7eb",
-                        "&:hover": {
-                          bgcolor: active ? "rgba(99,102,241,0.24)" : "#e2e8f0",
-                        },
+                        px: 1.4,
+                        py: 0.3,
+                        border: "1px solid #e2e8f0",
+                        backgroundColor:
+                          chartType === c.key ? "#eef2ff" : "white",
+                        color: chartType === c.key ? "#4f46e5" : "#475569",
                       }}
-                    />
-                  );
-                })}
+                    >
+                      {c.label}
+                    </Button>
+                  ))}
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 0.6,
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  {METRICS.map((m) => {
+                    const active = selectedMetrics.includes(m.key);
+                    return (
+                      <Chip
+                        key={m.key}
+                        label={m.label}
+                        size="small"
+                        onClick={() => toggleMetric(m.key)}
+                        sx={{
+                          fontSize: 11,
+                          height: 24,
+                          borderRadius: 999,
+                          bgcolor: active ? "rgba(99,102,241,0.15)" : "#f3f4f6",
+                          color: active ? "#4f46e5" : "#475569",
+                          border: active
+                            ? "1px solid #6366F1"
+                            : "1px solid #e5e7eb",
+                          "&:hover": {
+                            bgcolor: active ? "rgba(99,102,241,0.24)" : "#e2e8f0",
+                          },
+                        }}
+                      />
+                    );
+                  })}
+                </Box>
               </Box>
-            </Box>
- 
-            <Box
-              sx={{
-                flex: 1,
-                mt: 0.5,
-                borderRadius: 2,
-                border: "1px solid #e5e7eb",
-                background: "#fafafa",
-                overflow: "hidden",
-              }}
-            >
-              <Box sx={{ mt: 1, height: 320 }}>
-                <EChartsWrapper
-                  option={getTrendOption()}
-                  style={{ height: "100%", width: "100%" }}
-                />
+
+              <Box
+                sx={{
+                  flex: 1,
+                  mt: 0.5,
+                  borderRadius: 2,
+                  border: "1px solid #e5e7eb",
+                  background: "#fafafa",
+                  overflow: "hidden",
+                }}
+              >
+                <Box sx={{ mt: 1, height: 320 }}>
+                  <EChartsWrapper
+                    option={getTrendOption()}
+                    style={{ height: "100%", width: "100%" }}
+                  />
+                </Box>
               </Box>
             </Box>
           </Box>
-        </Box>
-      )}
-              <PerformanceTrendDatas
-          open={showTrends}
-          onClose={() => setShowTrends(false)}
-          selectedColumn="Blinkit"
-          dynamicKey="Performance_marketing"
-        />
+        )
+      }
+      <PerformanceTrendDatas
+        open={showTrends}
+        onClose={() => setShowTrends(false)}
+        selectedColumn="Blinkit"
+        dynamicKey="Performance_marketing"
+      />
     </>
   );
 }
- 
- 
