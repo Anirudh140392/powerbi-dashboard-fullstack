@@ -527,7 +527,7 @@ const SAMPLE_SKUS = [
             { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
             { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
             { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
-            
+
         ],
     },
     {
@@ -588,6 +588,15 @@ function SignalCard({ sku, metricType }) {
     const kpiKeys =
         metricType === "visibility" ? visibilityKpiOrder : availabilityKpiOrder;
 
+    const PRIMARY_METRICS = {
+        visibility: { label: "Overall SOV", key: "overallSov" },
+        availability: { label: "Overall OSA", key: "weightedOsa" }
+    };
+
+    const primary = PRIMARY_METRICS[metricType] || { label: "Offtake", key: "offtakeValue" };
+    // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
+    const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
+
     return (
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px]">
             <div>
@@ -610,8 +619,8 @@ function SignalCard({ sku, metricType }) {
 
                 <div className="mt-3 flex justify-between text-xs">
                     <div>
-                        <div className="text-slate-400">Offtake</div>
-                        <div className="text-base font-semibold">{sku.offtakeValue}</div>
+                        <div className="text-slate-400">{primary.label}</div>
+                        <div className="text-base font-semibold">{primaryValue}</div>
                     </div>
                     <ImpactPill value={sku.impact} />
                 </div>

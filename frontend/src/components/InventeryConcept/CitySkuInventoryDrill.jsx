@@ -326,7 +326,9 @@ export default function CitySkuInventoryDrill() {
                         <thead className="bg-slate-50 text-slate-600">
                             <tr>
                                 <th className="sticky left-0 z-10 bg-slate-50 px-6 py-3 text-left w-[220px]">City / SKU</th>
-                                <th className="sticky left-[220px] z-10 bg-slate-50 px-3 py-3 text-left w-[220px]">SKU</th>
+                                {expanded.size > 0 && (
+                                    <th className="sticky left-[220px] z-10 bg-slate-50 px-3 py-3 text-left w-[220px]">SKU</th>
+                                )}
                                 <th className="px-3 py-3 text-right">DRR Qty</th>
                                 <th className="px-3 py-3 text-right">Current DOH</th>
                                 <th className="px-3 py-3 text-right">Req PO Qty</th>
@@ -347,9 +349,11 @@ export default function CitySkuInventoryDrill() {
                                             {row.level === "city" ? row.city : ""}
                                         </span>
                                     </td>
-                                    <td className="sticky left-[220px] bg-white px-3 py-3 text-slate-600">
-                                        {row.level === "sku" ? row.sku : ""}
-                                    </td>
+                                    {expanded.size > 0 && (
+                                        <td className="sticky left-[220px] bg-white px-3 py-3 text-slate-600">
+                                            {row.level === "sku" ? row.sku : ""}
+                                        </td>
+                                    )}
                                     <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drrQty)}</td>
                                     <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.currentDoh)}</td>
                                     <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.reqPoQty)}</td>
