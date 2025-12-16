@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { Box } from "@mui/material";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -29,6 +30,365 @@ function cn(...classes) {
 /* -------------------------------------------------------------------------- */
 
 /* Card */
+const DASHBOARD_DATA = {
+  /* =====================================================================
+     TRENDS (MAIN LINE CHART)
+  ===================================================================== */
+  trends: {
+    context: {
+      level: "MRP",
+      audience: "Platform",
+    },
+
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Daily",
+
+    metrics: [
+      {
+        id: "Offtakes",
+        label: "Offtakes",
+        color: "#2563EB",
+        axis: "left",
+        default: true,
+      },
+      {
+        id: "Spend",
+        label: "Spend",
+        color: "#DC2626",
+        axis: "left",
+        default: true,
+      },
+      {
+        id: "ROAS",
+        label: "ROAS",
+        color: "#16A34A",
+        axis: "right",
+        default: true,
+      },
+      {
+        id: "InorgSales",
+        label: "Inorg Sales",
+        color: "#7C3AED",
+        axis: "right",
+      },
+      {
+        id: "DspSales",
+        label: "DSP Sales",
+        color: "#0EA5E9",
+        axis: "right",
+      },
+      {
+        id: "Conversion",
+        label: "Conversion",
+        color: "#F97316",
+        axis: "left",
+      },
+      {
+        id: "Availability",
+        label: "Availability",
+        color: "#22C55E",
+        axis: "left",
+      },
+      { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
+      {
+        id: "MarketShare",
+        label: "Market Share",
+        color: "#9333EA",
+        axis: "right",
+      },
+      {
+        id: "PromoMyBrand",
+        label: "Promo – My Brand",
+        color: "#F59E0B",
+        axis: "left",
+      },
+      {
+        id: "PromoCompete",
+        label: "Promo – Compete",
+        color: "#FB7185",
+        axis: "left",
+      },
+      { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
+      { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
+    ],
+
+    points: [
+      {
+        date: "06 Sep'25",
+        Offtakes: 57,
+        Spend: 18.4,
+        ROAS: 7.1,
+        InorgSales: 21,
+        DspSales: 14,
+        Conversion: 3.4,
+        Availability: 84,
+        SOS: 42,
+        MarketShare: 18.1,
+        PromoMyBrand: 12.4,
+        PromoCompete: 9.8,
+        CPM: 146,
+        CPC: 9.6,
+      },
+      {
+        date: "08 Sep'25",
+        Offtakes: 49,
+        Spend: 20.1,
+        ROAS: 6.2,
+        InorgSales: 17,
+        DspSales: 11,
+        Conversion: 2.9,
+        Availability: 79,
+        SOS: 38,
+        MarketShare: 16.9,
+        PromoMyBrand: 14.8,
+        PromoCompete: 11.2,
+        CPM: 162,
+        CPC: 10.8,
+      },
+      {
+        date: "10 Sep'25",
+        Offtakes: 52,
+        Spend: 17.8,
+        ROAS: 6.9,
+        InorgSales: 19,
+        DspSales: 13,
+        Conversion: 3.2,
+        Availability: 78,
+        SOS: 40,
+        MarketShare: 17.2,
+        PromoMyBrand: 11.9,
+        PromoCompete: 9.3,
+        CPM: 142,
+        CPC: 9.2,
+      },
+      {
+        date: "13 Sep'25",
+        Offtakes: 44,
+        Spend: 21.4,
+        ROAS: 5.8,
+        InorgSales: 15,
+        DspSales: 10,
+        Conversion: 2.6,
+        Availability: 72,
+        SOS: 35,
+        MarketShare: 16.1,
+        PromoMyBrand: 15.6,
+        PromoCompete: 12.9,
+        CPM: 171,
+        CPC: 11.6,
+      },
+      {
+        date: "16 Sep'25",
+        Offtakes: 51,
+        Spend: 16.9,
+        ROAS: 7.3,
+        InorgSales: 22,
+        DspSales: 15,
+        Conversion: 3.5,
+        Availability: 82,
+        SOS: 43,
+        MarketShare: 18.0,
+        PromoMyBrand: 10.8,
+        PromoCompete: 8.6,
+        CPM: 138,
+        CPC: 8.9,
+      },
+      {
+        date: "18 Sep'25",
+        Offtakes: 47,
+        Spend: 19.7,
+        ROAS: 6.4,
+        InorgSales: 18,
+        DspSales: 12,
+        Conversion: 3.0,
+        Availability: 76,
+        SOS: 39,
+        MarketShare: 16.8,
+        PromoMyBrand: 13.9,
+        PromoCompete: 10.7,
+        CPM: 155,
+        CPC: 10.3,
+      },
+      {
+        date: "20 Sep'25",
+        Offtakes: 56,
+        Spend: 19.6,
+        ROAS: 7.4,
+        InorgSales: 24,
+        DspSales: 16,
+        Conversion: 3.6,
+        Availability: 85,
+        SOS: 45,
+        MarketShare: 18.9,
+        PromoMyBrand: 14.6,
+        PromoCompete: 10.5,
+        CPM: 151,
+        CPC: 10.1,
+      },
+      {
+        date: "23 Sep'25",
+        Offtakes: 42,
+        Spend: 22.8,
+        ROAS: 5.5,
+        InorgSales: 14,
+        DspSales: 9,
+        Conversion: 2.4,
+        Availability: 70,
+        SOS: 33,
+        MarketShare: 15.6,
+        PromoMyBrand: 16.8,
+        PromoCompete: 13.5,
+        CPM: 178,
+        CPC: 12.2,
+      },
+      {
+        date: "26 Sep'25",
+        Offtakes: 50,
+        Spend: 17.2,
+        ROAS: 7.0,
+        InorgSales: 20,
+        DspSales: 14,
+        Conversion: 3.3,
+        Availability: 81,
+        SOS: 41,
+        MarketShare: 17.7,
+        PromoMyBrand: 11.6,
+        PromoCompete: 9.1,
+        CPM: 144,
+        CPC: 9.4,
+      },
+      {
+        date: "30 Sep'25",
+        Offtakes: 58,
+        Spend: 18.9,
+        ROAS: 7.8,
+        InorgSales: 26,
+        DspSales: 18,
+        Conversion: 3.9,
+        Availability: 87,
+        SOS: 47,
+        MarketShare: 19.4,
+        PromoMyBrand: 13.2,
+        PromoCompete: 9.7,
+        CPM: 148,
+        CPC: 9.0,
+      },
+    ],
+  },
+
+  /* =====================================================================
+     COMPARE SKUs
+  ===================================================================== */
+  compareSkus: {
+    context: { level: "MRP" },
+
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Weekly",
+
+    metrics: [
+      {
+        id: "Offtakes",
+        label: "Offtakes",
+        color: "#2563EB",
+        default: true,
+      },
+      { id: "Spend", label: "Spend", color: "#DC2626", default: true },
+      { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
+      { id: "MarketShare", label: "Market Share", color: "#9333EA" },
+      { id: "Conversion", label: "Conversion", color: "#F97316" },
+    ],
+
+    x: ["W1", "W2", "W3", "W4"],
+
+    trendsBySku: {
+      1: [
+        {
+          x: "W1",
+          Offtakes: 54,
+          Spend: 4.2,
+          ROAS: 6.8,
+          MarketShare: 17.6,
+          Conversion: 3.2,
+        },
+        {
+          x: "W2",
+          Offtakes: 55,
+          Spend: 4.5,
+          ROAS: 7.0,
+          MarketShare: 17.9,
+          Conversion: 3.3,
+        },
+        {
+          x: "W3",
+          Offtakes: 56,
+          Spend: 4.8,
+          ROAS: 7.2,
+          MarketShare: 18.1,
+          Conversion: 3.4,
+        },
+        {
+          x: "W4",
+          Offtakes: 57,
+          Spend: 5.0,
+          ROAS: 7.4,
+          MarketShare: 18.4,
+          Conversion: 3.5,
+        },
+      ],
+    },
+  },
+
+  /* =====================================================================
+     COMPETITION TABLE
+  ===================================================================== */
+  competition: {
+    context: {
+      level: "MRP",
+      region: "All × Chennai",
+    },
+
+    tabs: ["Brands", "SKUs"],
+
+    periodToggle: {
+      primary: "MTD",
+      compare: "Previous Month",
+    },
+
+    columns: [
+      { id: "brand", label: "Brand / SKU", type: "text" },
+      { id: "Offtakes", label: "Offtakes", type: "metric" },
+      { id: "Spend", label: "Spend", type: "metric" },
+      { id: "ROAS", label: "ROAS", type: "metric" },
+      { id: "SOS", label: "SOS", type: "metric" },
+      { id: "MarketShare", label: "Market Share", type: "metric" },
+    ],
+
+    brands: [
+      {
+        brand: "Colgate",
+        Offtakes: { value: 32.9, delta: -4.5 },
+        Spend: { value: 6.8, delta: 0.4 },
+        ROAS: { value: 7.3, delta: 0.2 },
+        SOS: { value: 44, delta: 1.2 },
+        MarketShare: { value: 18.8, delta: 0.4 },
+      },
+      {
+        brand: "Sensodyne",
+        Offtakes: { value: 19.6, delta: 2.2 },
+        Spend: { value: 5.1, delta: -0.3 },
+        ROAS: { value: 6.9, delta: -0.1 },
+        SOS: { value: 39, delta: -0.8 },
+        MarketShare: { value: 18.5, delta: -0.3 },
+      },
+    ],
+  },
+};
 
 const Card = ({ className, children }) => (
   <div
@@ -708,46 +1068,88 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   );
 };
 
+const MetricChip = ({ label, color, active, onClick }) => {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.8,
+        px: 1.5,
+        py: 0.6,
+        borderRadius: "999px",
+        cursor: "pointer",
+        border: `1px solid ${active ? color : "#E5E7EB"}`,
+        backgroundColor: active ? `${color}20` : "white",
+        color: active ? color : "#0f172a",
+        fontSize: "12px",
+        fontWeight: 600,
+        userSelect: "none",
+        transition: "all 0.15s ease",
+      }}
+    >
+      {/* CHECKBOX ICON */}
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          border: `2px solid ${active ? color : "#CBD5E1"}`,
+          backgroundColor: active ? color : "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 10,
+          lineHeight: 1,
+        }}
+      >
+        {active && "✓"}
+      </Box>
+
+      {label}
+    </Box>
+  );
+};
 /* -------------------------------------------------------------------------- */
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
 const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+  // ✅ single selected KPI
+  const [activeMetric, setActiveMetric] = useState("offtakes");
+
+  const metricMeta =
+    KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+
   const isBrandMode = mode === "brand";
 
+  /* ---------------- SELECTED IDS ---------------- */
   const selectedIds = useMemo(() => {
     if (isBrandMode) {
-      const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
-      let rows = allRows;
+      let rows = DATA_MODEL.brandSummaryByCity[city] || [];
 
-      if (filters.categories.length) {
+      if (filters.categories.length)
         rows = rows.filter((r) => filters.categories.includes(r.category));
-      }
-      if (filters.brands.length) {
+      if (filters.brands.length)
         rows = rows.filter((r) => filters.brands.includes(r.name));
-      }
 
-      const ids = rows.map((r) => r.id);
-      return ids.length
-        ? ids.slice(0, 4)
-        : allRows.slice(0, 3).map((r) => r.id);
+      return rows.length
+        ? rows.slice(0, 4).map((r) => r.id)
+        : [];
     }
 
-    const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
-    let rows = allRows;
+    let rows = DATA_MODEL.skuSummaryByCity[city] || [];
 
-    if (filters.categories.length) {
+    if (filters.categories.length)
       rows = rows.filter((r) => filters.categories.includes(r.category));
-    }
-    if (filters.brands.length) {
+    if (filters.brands.length)
       rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    }
-    if (filters.skus.length) {
+    if (filters.skus.length)
       rows = rows.filter((r) => filters.skus.includes(r.name));
-    }
 
-    const ids = rows.map((r) => r.id);
-    return ids.length ? ids.slice(0, 5) : allRows.slice(0, 5).map((r) => r.id);
+    return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
   }, [isBrandMode, filters, city]);
 
   const selectedLabels = useMemo(
@@ -758,38 +1160,48 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
     [selectedIds, isBrandMode]
   );
 
-  /* ---------------- FIXED CHART DATA ---------------- */
+  /* ---------------- CHART DATA ---------------- */
   const chartData = useMemo(() => {
     const days = DATA_MODEL.days;
 
-    if (isBrandMode) {
-      return days.map((date, idx) => {
-        const row = { date };
-        selectedIds.forEach((id) => {
-          const series = DATA_MODEL.brandTrendsByCity?.[city]?.[id];
-          if (series) row[id] = series[idx]?.availability ?? null;
-        });
-        return row;
-      });
-    }
-
     return days.map((date, idx) => {
       const row = { date };
+
       selectedIds.forEach((id) => {
-        const series = DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-        if (series) row[id] = series[idx]?.availability ?? null;
+        const series = isBrandMode
+          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
+          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
+
+        if (series) row[id] = series[idx]?.[activeMetric] ?? null;
       });
+
       return row;
     });
-  }, [selectedIds, isBrandMode, city]);
+  }, [selectedIds, city, isBrandMode, activeMetric]);
+
+  const formatValue = (v) => {
+    if (metricMeta.unit) return `${v}${metricMeta.unit}`;
+    if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
+    if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
+    return v;
+  };
 
   return (
     <Card className="mt-4">
-      <CardHeader className="flex items-center justify-between border-b pb-3">
-        <div className="space-y-1">
-          <CardTitle className="text-base font-semibold">
-            Availability % Trend
-          </CardTitle>
+      <CardHeader className="flex items-start justify-between border-b pb-3">
+        <div className="space-y-2">
+          {/* KPI CHIP SELECTOR */}
+          <Box display="flex" gap={1} flexWrap="wrap">
+            {KPI_KEYS.map((m) => (
+              <MetricChip
+                key={m.key}
+                label={m.label}
+                color={m.color}
+                active={activeMetric === m.key}
+                onClick={() => setActiveMetric(m.key)}
+              />
+            ))}
+          </Box>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
@@ -815,27 +1227,27 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
       <CardContent className="pt-4">
         <div className="h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 12, left: -16, right: 12 }}
-            >
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
               <YAxis
-                tickFormatter={(v) => `${v}%`}
-                fontSize={11}
                 tickLine={false}
+                fontSize={11}
+                tickFormatter={formatValue}
               />
-              <Tooltip formatter={(v) => `${v}%`} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Tooltip formatter={formatValue} />
+              <Legend />
 
               {selectedIds.map((id) => (
                 <Line
                   key={id}
                   type="monotone"
                   dataKey={id}
-                  name={isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]}
+                  name={
+                    isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+                  }
                   dot={false}
+                  stroke={metricMeta.color}
                   strokeWidth={2}
                 />
               ))}
@@ -847,24 +1259,105 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
   );
 };
 
+
 /* -------------------------------------------------------------------------- */
 /*                             KPI Compare View                               */
 /* -------------------------------------------------------------------------- */
 
+// const KPI_KEYS = [
+//   { key: "offtakes", label: "Offtakes" },
+//   { key: "spend", label: "Spend" },
+//   { key: "roas", label: "ROAS" },
+//   { key: "inorgSales", label: "Inorg Sales" },
+//   { key: "dspSales", label: "DSP Sales" },
+//   { key: "conversion", label: "Conversion" },
+//   { key: "availability", label: "Availability" },
+//   { key: "sos", label: "SOS" },
+//   { key: "marketShare", label: "Market Share" },
+//   { key: "promoMyBrand", label: "Promo – My Brand" },
+//   { key: "promoCompete", label: "Promo – Compete" },
+//   { key: "cpm", label: "CPM" },
+//   { key: "cpc", label: "CPC" },
+// ];
+
 const KPI_KEYS = [
-  { key: "offtakes", label: "Offtakes" },
-  { key: "spend", label: "Spend" },
-  { key: "roas", label: "ROAS" },
-  { key: "inorgSales", label: "Inorg Sales" },
-  { key: "dspSales", label: "DSP Sales" },
-  { key: "conversion", label: "Conversion" },
-  { key: "availability", label: "Availability" },
-  { key: "sos", label: "SOS" },
-  { key: "marketShare", label: "Market Share" },
-  { key: "promoMyBrand", label: "Promo – My Brand" },
-  { key: "promoCompete", label: "Promo – Compete" },
-  { key: "cpm", label: "CPM" },
-  { key: "cpc", label: "CPC" },
+  {
+    key: "offtakes",
+    label: "Offtakes",
+    color: "#16A34A", // green
+  },
+  {
+    key: "spend",
+    label: "Spend",
+    color: "#DC2626", // red
+    prefix: "₹",
+  },
+  {
+    key: "roas",
+    label: "ROAS",
+    color: "#7C3AED", // purple
+    suffix: "x",
+  },
+  {
+    key: "inorgSales",
+    label: "Inorg Sales",
+    color: "#0EA5E9", // sky blue
+    prefix: "₹",
+  },
+  {
+    key: "dspSales",
+    label: "DSP Sales",
+    color: "#14B8A6", // teal
+    prefix: "₹",
+  },
+  {
+    key: "conversion",
+    label: "Conversion",
+    color: "#F59E0B", // amber
+    unit: "%",
+  },
+  {
+    key: "availability",
+    label: "Availability",
+    color: "#2563EB", // blue
+    unit: "%",
+  },
+  {
+    key: "sos",
+    label: "SOS",
+    color: "#F97316", // orange
+    unit: "%",
+  },
+  {
+    key: "marketShare",
+    label: "Market Share",
+    color: "#22C55E", // emerald
+    unit: "%",
+  },
+  {
+    key: "promoMyBrand",
+    label: "Promo – My Brand",
+    color: "#EC4899", // pink
+    unit: "%",
+  },
+  {
+    key: "promoCompete",
+    label: "Promo – Compete",
+    color: "#8B5CF6", // violet
+    unit: "%",
+  },
+  {
+    key: "cpm",
+    label: "CPM",
+    color: "#64748B", // slate
+    prefix: "₹",
+  },
+  {
+    key: "cpc",
+    label: "CPC",
+    color: "#475569", // dark slate
+    prefix: "₹",
+  },
 ];
 
 const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
