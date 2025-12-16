@@ -331,6 +331,8 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Chennai", metric: "Placement 55", change: "-1.9%" },
       { city: "Coimbatore", metric: "Index 67", change: "-1.4%" },
+      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
   {
@@ -631,9 +633,9 @@ function VisibilityCard({ item, expanded, toggleExpand }) {
         {/* Offtake & Impact */}
         <div className="mt-2 flex items-center justify-between">
           <div>
-            <div className="text-[11px] text-slate-400">Offtake</div>
+            <div className="text-[11px] text-slate-400">Overall SOV</div>
             <div className="text-[17px] font-semibold text-slate-900">
-              {item.offtake}
+              {item.kpis.overallSov}
             </div>
           </div>
 
