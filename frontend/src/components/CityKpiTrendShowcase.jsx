@@ -895,7 +895,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                            transition hover:shadow-sm 
                                            ${cellClasses}`}
                               >
-                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}%` : ""}</span>
+                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}` : ""}</span>
 
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full border 
@@ -941,7 +941,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
-      ) :( 
+      ) : (
         <VisibilityTrendsCompetitionDrawer
           open={openTrend}
           onClose={() => setOpenTrend(false)}
