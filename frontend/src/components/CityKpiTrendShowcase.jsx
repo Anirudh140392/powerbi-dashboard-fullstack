@@ -638,25 +638,18 @@ function MatrixVariant({ dynamicKey, data, title }) {
   const [filterRules, setFilterRules] = useState(null);
 
   const filterOptions = React.useMemo(() => {
-    return {
-      keywords: [],
-      brands: [
-        { id: "colgate", label: "Colgate", value: 100 },
-        { id: "pepsodent", label: "Pepsodent", value: 80 },
-        { id: "sensodyne", label: "Sensodyne", value: 60 },
-        { id: "dabur", label: "Dabur", value: 40 },
-        { id: "closeup", label: "Closeup", value: 20 },
-      ],
-      categories: [
-        { id: "toothpaste", label: "Toothpaste", value: 50 },
-        { id: "toothbrush", label: "Toothbrush", value: 30 },
-        { id: "mouthwash", label: "Mouthwash", value: 20 },
-      ],
-      skus: [],
-      cities: columns.slice(1).map((c, i) => ({ id: c, label: c, value: i })),
-      platforms: [],
-      kpiFields: rows ? rows.map(r => ({ id: r.kpi, label: r.kpi, type: 'number' })) : []
-    };
+    return [
+      { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+      { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
+      { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+      { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+      { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+      { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
+      { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
+      { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
+      { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
+      { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+    ];
   }, [rows, columns]);
 
   // Value Logic Filter (Legacy - kept for reference or removal)
@@ -790,22 +783,9 @@ function MatrixVariant({ dynamicKey, data, title }) {
             {/* Panel Content */}
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
               <KpiFilterPanel
-                keywords={filterOptions.keywords}
-                brands={filterOptions.brands}
-                categories={filterOptions.categories}
-                skus={filterOptions.skus}
-                cities={filterOptions.cities}
-                platforms={filterOptions.platforms}
-                kpiFields={filterOptions.kpiFields}
-                onRulesChange={setFilterRules}
-                // Mock handlers for demo
-                onKeywordChange={(ids) => console.log("Keywords:", ids)}
-                onBrandChange={(ids) => console.log("Brands:", ids)}
-                onCategoryChange={(ids) => console.log("Categories:", ids)}
-                onSkuChange={(ids) => console.log("SKUs:", ids)}
-                onCityChange={(ids) => console.log("Cities:", ids)}
-                onPlatformChange={(ids) => console.log("Platforms:", ids)}
+                sectionConfig={filterOptions}
               />
+
             </div>
 
             {/* Modal Footer */}
@@ -895,7 +875,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                            transition hover:shadow-sm 
                                            ${cellClasses}`}
                               >
-                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}%` : ""}</span>
+                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}` : ""}</span>
 
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full border 
@@ -941,7 +921,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
-      ) :( 
+      ) : (
         <VisibilityTrendsCompetitionDrawer
           open={openTrend}
           onClose={() => setOpenTrend(false)}

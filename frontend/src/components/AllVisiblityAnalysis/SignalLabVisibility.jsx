@@ -1,4 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import CityDetailedTable from "./CityDetailedTable";
+import { KpiFilterPanel } from "../KpiFilterPanel";
+import {
+    X,
+    SlidersHorizontal,
+    ChevronLeft,
+    ChevronRight,
+    ArrowUpDown,
+    Download
+} from "lucide-react";
 
 /* ------------------------------------------------------
    KPI ORDER CONFIG
@@ -18,8 +28,25 @@ const availabilityKpiOrder = [
     "doi",
     "stockoutRisk",
     "weightedOsa",
-    "potentialSalesLoss",
-    "fillrate",
+];
+
+const salesKpiOrder = [
+    "orders",
+    "asp",
+    "revenueShare",
+];
+
+const performanceKpiOrder = [
+    "roas",
+    "ctr",
+    "clicks",
+    "atc",
+];
+
+const inventoryKpiOrder = [
+    "drr",
+    "oos",
+    "expiryRisk",
 ];
 
 /* ------------------------------------------------------
@@ -40,6 +67,19 @@ const KPI_LABELS = {
     weightedOsa: "Weighted OSA",
     potentialSalesLoss: "Potential Sales Loss",
     fillrate: "Fillrate",
+
+    orders: "Orders",
+    asp: "ASP",
+    revenueShare: "Rev Share",
+
+    roas: "ROAS",
+    ctr: "CTR",
+    clicks: "Clicks",
+    atc: "ATC",
+
+    drr: "DRR",
+    oos: "OOS",
+    expiryRisk: "Expiry Risk",
 };
 
 /* ------------------------------------------------------
@@ -87,14 +127,12 @@ function SegmentedSwitch({ options, value, onChange }) {
 }
 
 /* ------------------------------------------------------
-   FULL SAMPLE DATA (20 SKUs)
+   FULL SAMPLE DATA
 -------------------------------------------------------*/
 const SAMPLE_SKUS = [
-    /* --------------------------------------------------
-       VISIBILITY — DRAINERS (5)
-    -------------------------------------------------- */
+    /* --- VISIBILITY --- */
     {
-        id: "KW-V-D01",
+        id: "VIS-D01",
         type: "drainer",
         metricType: "visibility",
         skuCode: "KW V01",
@@ -118,7 +156,7 @@ const SAMPLE_SKUS = [
         ],
     },
     {
-        id: "KW-V-D02",
+        id: "VIS-D02",
         type: "drainer",
         metricType: "visibility",
         skuCode: "KW V02",
@@ -142,83 +180,56 @@ const SAMPLE_SKUS = [
         ],
     },
     {
-        id: "KW-V-D03",
+        id: "VIS-D03",
         type: "drainer",
         metricType: "visibility",
         skuCode: "KW V03",
-        skuName: "Magnum Almond",
-        packSize: "80 ml",
+        skuName: "Magnum Classic",
+        packSize: "90 ml",
         platform: "Instamart",
         categoryTag: "Stick",
-        offtakeValue: "₹ 3.1 lac",
-        impact: "-5.4%",
+        offtakeValue: "₹ 2.5 lac",
+        impact: "-3.8%",
         kpis: {
             adPosition: "5",
-            adSov: "7.1%",
+            adSov: "7.5%",
             organicPosition: "25",
-            overallSov: "6.5%",
+            overallSov: "6.8%",
             volumeShare: "4.9%",
-            organicSov: "3.7%",
+            organicSov: "3.5%",
         },
         topCities: [
-            { city: "Pune", metric: "Ad SOV 5.1%", change: "-2.3%" },
-            { city: "Nashik", metric: "Organic Pos. 24", change: "-1.8%" },
+            { city: "Bangalore", metric: "Ad SOV 5.8%", change: "-2.1%" },
+            { city: "Chennai", metric: "Volume Share 4.2%", change: "-1.5%" },
         ],
     },
     {
-        id: "KW-V-D04",
+        id: "VIS-D04",
         type: "drainer",
         metricType: "visibility",
         skuCode: "KW V04",
-        skuName: "Feast Chocolate Bar",
-        packSize: "90 ml",
-        platform: "Blinkit",
-        categoryTag: "Stick",
-        offtakeValue: "₹ 2.6 lac",
-        impact: "-3.8%",
+        skuName: "Choco Chip Tub",
+        packSize: "750 ml",
+        platform: "Flipkart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 2.2 lac",
+        impact: "-3.5%",
         kpis: {
             adPosition: "6",
-            adSov: "6.5%",
-            organicPosition: "21",
-            overallSov: "7.2%",
-            volumeShare: "4.7%",
-            organicSov: "3.8%",
-        },
-        topCities: [
-            { city: "Bangalore", metric: "Overall SOV 6.1%", change: "-1.9%" },
-            { city: "Hyderabad", metric: "Ad SOV 5.7%", change: "-2.2%" },
-        ],
-    },
-    {
-        id: "KW-V-D05",
-        type: "drainer",
-        metricType: "visibility",
-        skuCode: "KW V05",
-        skuName: "Chocobar Classic",
-        packSize: "60 ml",
-        platform: "Zepto",
-        categoryTag: "Stick",
-        offtakeValue: "₹ 3.0 lac",
-        impact: "-4.1%",
-        kpis: {
-            adPosition: "7",
-            adSov: "5.9%",
-            organicPosition: "23",
-            overallSov: "6.8%",
-            volumeShare: "4.4%",
+            adSov: "6.2%",
+            organicPosition: "28",
+            overallSov: "5.5%",
+            volumeShare: "4.1%",
             organicSov: "3.1%",
         },
         topCities: [
-            { city: "Chennai", metric: "Volume Share 4.2%", change: "-1.5%" },
-            { city: "Coimbatore", metric: "Organic SOV 3.0%", change: "-1.8%" },
+            { city: "Hyderabad", metric: "Overall SOV 4.9%", change: "-1.8%" },
+            { city: "Pune", metric: "Organic SOV 2.8%", change: "-1.2%" },
         ],
     },
 
-    /* --------------------------------------------------
-       VISIBILITY — GAINERS (5)
-    -------------------------------------------------- */
     {
-        id: "KW-V-G01",
+        id: "VIS-G01",
         type: "gainer",
         metricType: "visibility",
         skuCode: "KW V06",
@@ -242,11 +253,11 @@ const SAMPLE_SKUS = [
         ],
     },
     {
-        id: "KW-V-G02",
+        id: "VIS-G02",
         type: "gainer",
         metricType: "visibility",
         skuCode: "KW V07",
-        skuName: "Feast Chocolate Bar",
+        skuName: "Feast Bar",
         packSize: "90 ml",
         platform: "Instamart",
         categoryTag: "Stick",
@@ -262,89 +273,61 @@ const SAMPLE_SKUS = [
         },
         topCities: [
             { city: "Pune", metric: "Overall SOV 16.2%", change: "+4.2%" },
-            { city: "Navi Mumbai", metric: "Ad SOV 21.5%", change: "+3.7%" },
+            { city: "Mumbai", metric: "Ad SOV 21.5%", change: "+3.7%" },
         ],
     },
     {
-        id: "KW-V-G03",
+        id: "VIS-G03",
         type: "gainer",
         metricType: "visibility",
         skuCode: "KW V08",
-        skuName: "Cornetto Butterscotch",
-        packSize: "135 ml",
+        skuName: "Oreo Cone",
+        packSize: "110 ml",
         platform: "Zepto",
         categoryTag: "Cone",
-        offtakeValue: "₹ 4.1 lac",
-        impact: "+6.3%",
+        offtakeValue: "₹ 3.5 lac",
+        impact: "+4.8%",
         kpis: {
-            adPosition: "1",
-            adSov: "18.1%",
-            organicPosition: "6",
-            overallSov: "14.7%",
-            volumeShare: "12.3%",
-            organicSov: "10.1%",
+            adPosition: "2",
+            adSov: "20.1%",
+            organicPosition: "8",
+            overallSov: "12.5%",
+            volumeShare: "10.1%",
+            organicSov: "8.4%",
         },
         topCities: [
-            { city: "Delhi", metric: "Ad SOV 20.2%", change: "+5.2%" },
-            { city: "Gurgaon", metric: "Organic SOV 11.1%", change: "+3.2%" },
-            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+            { city: "Delhi", metric: "Volume Share 11.2%", change: "+3.5%" },
+            { city: "Gurgaon", metric: "Overall SOV 13.1%", change: "+2.9%" },
         ],
     },
     {
-        id: "KW-V-G04",
+        id: "VIS-G04",
         type: "gainer",
         metricType: "visibility",
         skuCode: "KW V09",
-        skuName: "Choco Fudge Cup",
+        skuName: "Trixy Cookie",
         packSize: "100 ml",
         platform: "Blinkit",
-        categoryTag: "Cup",
-        offtakeValue: "₹ 3.6 lac",
-        impact: "+4.7%",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 3.2 lac",
+        impact: "+4.2%",
         kpis: {
             adPosition: "3",
-            adSov: "15.4%",
-            organicPosition: "9",
-            overallSov: "12.2%",
-            volumeShare: "9.8%",
-            organicSov: "8.7%",
+            adSov: "18.5%",
+            organicPosition: "10",
+            overallSov: "11.2%",
+            volumeShare: "9.5%",
+            organicSov: "7.8%",
         },
         topCities: [
-            { city: "Lucknow", metric: "Volume Share 10.4%", change: "+2.8%" },
-            { city: "Kanpur", metric: "Ad SOV 14.8%", change: "+2.1%" },
-        ],
-    },
-    {
-        id: "KW-V-G05",
-        type: "gainer",
-        metricType: "visibility",
-        skuCode: "KW V10",
-        skuName: "Strawberry Cup",
-        packSize: "100 ml",
-        platform: "Instamart",
-        categoryTag: "Cup",
-        offtakeValue: "₹ 3.3 lac",
-        impact: "+3.9%",
-        kpis: {
-            adPosition: "4",
-            adSov: "13.8%",
-            organicPosition: "11",
-            overallSov: "10.9%",
-            volumeShare: "8.9%",
-            organicSov: "7.5%",
-        },
-        topCities: [
-            { city: "Chennai", metric: "Overall SOV 11.8%", change: "+2.5%" },
-            { city: "Coimbatore", metric: "Volume Share 9.1%", change: "+1.8%" },
+            { city: "Chennai", metric: "Ad SOV 19.8%", change: "+3.1%" },
+            { city: "Bangalore", metric: "Organic SOV 8.5%", change: "+2.5%" },
         ],
     },
 
-    /* --------------------------------------------------
-   AVAILABILITY — DRAINERS (5)
--------------------------------------------------- */
+    /* --- AVAILABILITY --- */
     {
-        id: "KW-A-D01",
+        id: "AVL-D01",
         type: "drainer",
         metricType: "availability",
         skuCode: "KW A01",
@@ -362,12 +345,10 @@ const SAMPLE_SKUS = [
         topCities: [
             { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
             { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
-            { city: "Delhi", metric: "OSA 80.1%", change: "-3.4%" },
-            { city: "Gurgaon", metric: "Fillrate 86.7%", change: "-2.3%" },
         ],
     },
     {
-        id: "KW-A-D02",
+        id: "AVL-D02",
         type: "drainer",
         metricType: "availability",
         skuCode: "KW A02",
@@ -385,83 +366,53 @@ const SAMPLE_SKUS = [
         topCities: [
             { city: "Chennai", metric: "Stock out 2.3 days", change: "-2.9%" },
             { city: "Coimbatore", metric: "OSA 76.8%", change: "-3.3%" },
-            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
-            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
         ],
     },
     {
-        id: "KW-A-D03",
+        id: "AVL-D03",
         type: "drainer",
         metricType: "availability",
         skuCode: "KW A03",
-        skuName: "Kulfi Assorted Box",
-        packSize: "10 sticks",
+        skuName: "Vanilla Cup 100ml",
+        packSize: "100 ml",
         platform: "Instamart",
-        categoryTag: "Box",
-        offtakeValue: "₹ 3.2 lac",
-        impact: "-3.3%",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 4.8 lac",
+        impact: "-3.2%",
         kpis: {
-            soh: "1.5 days",
-            doi: "6.7",
-            weightedOsa: "78.4%",
+            soh: "2.1 days",
+            doi: "8.5",
+            weightedOsa: "82.4%",
         },
         topCities: [
-            { city: "Jaipur", metric: "OSA 77.1%", change: "-2.7%" },
-            { city: "Udaipur", metric: "Fillrate 85.4%", change: "-2.0%" },
-            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
-            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
+            { city: "Bangalore", metric: "OSA 85.2%", change: "-3.8%" },
+            { city: "Mysore", metric: "Fillrate 86.5%", change: "-2.5%" },
         ],
     },
     {
-        id: "KW-A-D04",
+        id: "AVL-D04",
         type: "drainer",
         metricType: "availability",
         skuCode: "KW A04",
-        skuName: "Summer Special Mango Bar",
-        packSize: "65 ml",
-        platform: "Blinkit",
-        categoryTag: "Stick",
-        offtakeValue: "₹ 2.9 lac",
-        impact: "-4.6%",
-        kpis: {
-            soh: "1.7 days",
-            doi: "8.1",
-            weightedOsa: "81.3%",
-        },
-        topCities: [
-            { city: "Delhi", metric: "OSA 80.1%", change: "-3.4%" },
-            { city: "Gurgaon", metric: "Fillrate 86.7%", change: "-2.3%" },
-            { city: "Delhi", metric: "OSA 84.1%", change: "-4.5%" },
-            { city: "Lucknow", metric: "Fillrate 88.0%", change: "-3.1%" },
-        ],
-    },
-    {
-        id: "KW-A-D05",
-        type: "drainer",
-        metricType: "availability",
-        skuCode: "KW A05",
-        skuName: "Mini Cup Strawberry",
-        packSize: "85 ml",
+        skuName: "Strawberry Cone",
+        packSize: "110 ml",
         platform: "Zepto",
-        categoryTag: "Cup",
-        offtakeValue: "₹ 2.5 lac",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 3.9 lac",
         impact: "-2.9%",
         kpis: {
-            soh: "1.2 days",
-            doi: "5.9",
-            weightedOsa: "83.1%",
+            soh: "2.5 days",
+            doi: "9.2",
+            weightedOsa: "85.1%",
         },
         topCities: [
-            { city: "Ahmedabad", metric: "OSA 81.3%", change: "-2.1%" },
-            { city: "Surat", metric: "Fillrate 85.9%", change: "-1.8%" },
+            { city: "Mumbai", metric: "Stock out 1.5 d", change: "-2.1%" },
+            { city: "Pune", metric: "OSA 82.3%", change: "-1.8%" },
         ],
     },
 
-    /* --------------------------------------------------
-       AVAILABILITY — GAINERS (5)
-    -------------------------------------------------- */
     {
-        id: "KW-A-G01",
+        id: "AVL-G01",
         type: "gainer",
         metricType: "availability",
         skuCode: "KW AG01",
@@ -470,7 +421,7 @@ const SAMPLE_SKUS = [
         platform: "Zepto",
         categoryTag: "Tub",
         offtakeValue: "₹ 4.2 lac",
-        impact: "+6.9%",
+        impact: "-6.9%",
         kpis: {
             soh: "4.6 days",
             doi: "15.2",
@@ -479,16 +430,14 @@ const SAMPLE_SKUS = [
         topCities: [
             { city: "Bangalore", metric: "OSA 99.1%", change: "+3.4%" },
             { city: "Mysore", metric: "Fillrate 99.5%", change: "+2.2%" },
-            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
-            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
         ],
     },
     {
-        id: "KW-A-G02",
+        id: "AVL-G02",
         type: "gainer",
         metricType: "availability",
         skuCode: "KW AG02",
-        skuName: "Chocobar Mini Multi Pack",
+        skuName: "Chocobar Mini Multi",
         packSize: "6 x 45 ml",
         platform: "Instamart",
         categoryTag: "Mini",
@@ -502,91 +451,496 @@ const SAMPLE_SKUS = [
         topCities: [
             { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
             { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
-            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
         ],
     },
     {
-        id: "KW-A-G03",
+        id: "AVL-G03",
         type: "gainer",
         metricType: "availability",
         skuCode: "KW AG03",
-        skuName: "Butterscotch Family Tub",
-        packSize: "1.2 L",
+        skuName: "Black Currant Tub",
+        packSize: "750 ml",
         platform: "Blinkit",
         categoryTag: "Tub",
-        offtakeValue: "₹ 4.4 lac",
-        impact: "+5.1%",
+        offtakeValue: "₹ 3.5 lac",
+        impact: "+3.8%",
         kpis: {
-            soh: "4.9 days",
-            doi: "16.4",
-            weightedOsa: "97.9%",
+            soh: "5.1 days",
+            doi: "16.5",
+            weightedOsa: "96.8%",
         },
         topCities: [
             { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
             { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
             { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
             { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
-            
+
         ],
     },
     {
-        id: "KW-A-G04",
+        id: "AVL-G04",
         type: "gainer",
         metricType: "availability",
         skuCode: "KW AG04",
-        skuName: "Chocolate Brick Pack",
-        packSize: "750 ml",
-        platform: "Zepto",
-        categoryTag: "Brick",
-        offtakeValue: "₹ 3.5 lac",
-        impact: "+3.6%",
+        skuName: "Mango Stick",
+        packSize: "60 ml",
+        platform: "Flipkart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 3.1 lac",
+        impact: "+3.2%",
         kpis: {
-            soh: "4.3 days",
-            doi: "15.1",
-            weightedOsa: "96.7%",
+            soh: "4.8 days",
+            doi: "15.9",
+            weightedOsa: "95.5%",
         },
         topCities: [
-            { city: "Delhi", metric: "OSA 97.7%", change: "+1.9%" },
-            { city: "Pune", metric: "Fillrate 98.3%", change: "+1.4%" },
-            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
-        ],
-    },
-    {
-        id: "KW-A-G05",
-        type: "gainer",
-        metricType: "availability",
-        skuCode: "KW AG05",
-        skuName: "Kesar Pista Cup",
-        packSize: "85 ml",
-        platform: "Instamart",
-        categoryTag: "Cup",
-        offtakeValue: "₹ 3.2 lac",
-        impact: "+3.1%",
-        kpis: {
-            soh: "3.8 days",
-            doi: "14.2",
-            weightedOsa: "97.3%",
-        },
-        topCities: [
-            { city: "Chennai", metric: "OSA 98.6%", change: "+1.6%" },
-            { city: "Coimbatore", metric: "Fillrate 98.1%", change: "+1.2%" },
-            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
+            { city: "Chennai", metric: "Assortment 98%", change: "+2.2%" },
+            { city: "Coimbatore", metric: "OSA 96.1%", change: "+1.5%" },
         ],
     },
 
+    /* --- SALES --- */
+    {
+        id: "SA-KW-D01",
+        type: "drainer",
+        metricType: "sales",
+        skuCode: "KW-D-MPK",
+        skuName: "Family Pack Ice Cream",
+        packSize: "Mixed",
+        platform: "Zepto",
+        categoryTag: "Family Pack",
+        offtakeValue: "₹ 6.2 lac",
+        impact: "-4.8%",
+        kpis: { orders: "8.1k", asp: "₹ 76", revenueShare: "4.9%" },
+        topCities: [
+            { city: "Mumbai", metric: "Offtake ₹ 2.1 lac", change: "-2.1%" },
+            { city: "Pune", metric: "Orders 2.4k", change: "-1.4%" },
+        ],
+    },
+    {
+        id: "SA-KW-D02",
+        type: "drainer",
+        metricType: "sales",
+        skuCode: "KW-D-KUL",
+        skuName: "Kulfi",
+        packSize: "Single",
+        platform: "Blinkit",
+        categoryTag: "Kulfi",
+        offtakeValue: "₹ 4.7 lac",
+        impact: "-3.2%",
+        kpis: { orders: "6.6k", asp: "₹ 71", revenueShare: "3.8%" },
+        topCities: [
+            { city: "Delhi", metric: "Offtake ₹ 1.9 lac", change: "-1.8%" },
+            { city: "Gurgaon", metric: "Orders 1.6k", change: "-1.1%" },
+        ],
+    },
+    {
+        id: "SA-SKU-D01",
+        type: "drainer",
+        metricType: "sales",
+        skuCode: "KW-701",
+        skuName: "Butterscotch 700ml",
+        packSize: "700 ml",
+        platform: "Flipkart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 3.8 lac",
+        impact: "-5.6%",
+        kpis: { orders: "4.2k", asp: "₹ 91", revenueShare: "2.6%" },
+        topCities: [
+            { city: "Chennai", metric: "Offtake ₹ 1.2 lac", change: "-2.0%" },
+            { city: "Coimbatore", metric: "Orders 1.1k", change: "-1.3%" },
+        ],
+    },
+    {
+        id: "SA-SKU-D02",
+        type: "drainer",
+        metricType: "sales",
+        skuCode: "KW-703",
+        skuName: "Vanilla Party Pack",
+        packSize: "1 L",
+        platform: "Instamart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 3.5 lac",
+        impact: "-4.2%",
+        kpis: { orders: "3.8k", asp: "₹ 85", revenueShare: "2.1%" },
+        topCities: [
+            { city: "Bangalore", metric: "Offtake ₹ 1.1 lac", change: "-1.7%" },
+            { city: "Mysore", metric: "Orders 1.0k", change: "-0.9%" },
+        ],
+    },
+
+    {
+        id: "SA-KW-G01",
+        type: "gainer",
+        metricType: "sales",
+        skuCode: "KW-G-CON",
+        skuName: "Cone Ice Cream",
+        packSize: "Mixed",
+        platform: "Instamart",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 8.9 lac",
+        impact: "+6.0%",
+        kpis: { orders: "12.4k", asp: "₹ 72", revenueShare: "6.1%" },
+        topCities: [
+            { city: "Hyderabad", metric: "Offtake ₹ 2.6 lac", change: "+2.9%" },
+            { city: "Bangalore", metric: "Orders 3.1k", change: "+2.1%" },
+        ],
+    },
+    {
+        id: "SA-SKU-G01",
+        type: "gainer",
+        metricType: "sales",
+        skuCode: "KW-702",
+        skuName: "Magnum Truffle 80ml",
+        packSize: "80 ml",
+        platform: "Blinkit",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 7.1 lac",
+        impact: "+4.2%",
+        kpis: { orders: "9.6k", asp: "₹ 74", revenueShare: "5.4%" },
+        topCities: [
+            { city: "Delhi", metric: "Offtake ₹ 2.2 lac", change: "+1.7%" },
+            { city: "Gurgaon", metric: "Orders 2.3k", change: "+1.2%" },
+        ],
+    },
+    {
+        id: "SA-KW-G02",
+        type: "gainer",
+        metricType: "sales",
+        skuCode: "KW-G-BAR",
+        skuName: "Choco Bar",
+        packSize: "Single",
+        platform: "Zepto",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 6.5 lac",
+        impact: "+5.1%",
+        kpis: { orders: "10.2k", asp: "₹ 64", revenueShare: "4.8%" },
+        topCities: [
+            { city: "Mumbai", metric: "Offtake ₹ 1.8 lac", change: "+2.4%" },
+            { city: "Thane", metric: "Orders 2.1k", change: "+1.9%" },
+        ],
+    },
+    {
+        id: "SA-SKU-G02",
+        type: "gainer",
+        metricType: "sales",
+        skuCode: "KW-704",
+        skuName: "Cornetto Oreo",
+        packSize: "110 ml",
+        platform: "Flipkart",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 5.9 lac",
+        impact: "+4.5%",
+        kpis: { orders: "7.8k", asp: "₹ 75", revenueShare: "4.1%" },
+        topCities: [
+            { city: "Pune", metric: "Offtake ₹ 1.5 lac", change: "+2.0%" },
+            { city: "Nashik", metric: "Orders 1.4k", change: "+1.5%" },
+        ],
+    },
+
+    /* --- PERFORMANCE MARKETING --- */
+    {
+        id: "PM-KW-D01",
+        type: "drainer",
+        metricType: "performance",
+        skuCode: "KW-P-TUB",
+        skuName: "Ice Cream Tub",
+        packSize: "Mixed",
+        platform: "Blinkit",
+        categoryTag: "Discovery",
+        offtakeValue: "₹ 2.9 lac",
+        impact: "-3.6%",
+        kpis: { roas: "2.1x", ctr: "0.8%", clicks: "18k", atc: "2.4k" },
+        topCities: [
+            { city: "Delhi", metric: "ROAS 1.9x", change: "-0.2x" },
+            { city: "Gurgaon", metric: "CTR 0.7%", change: "-0.1%" },
+        ],
+    },
+    {
+        id: "PM-SKU-D01",
+        type: "drainer",
+        metricType: "performance",
+        skuCode: "KW-801",
+        skuName: "Belgian Chocolate 500ml",
+        packSize: "500 ml",
+        platform: "Instamart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 2.0 lac",
+        impact: "-4.1%",
+        kpis: { roas: "1.8x", ctr: "0.7%", clicks: "12k", atc: "1.3k" },
+        topCities: [
+            { city: "Pune", metric: "ROAS 1.6x", change: "-0.3x" },
+            { city: "Nashik", metric: "Clicks 2.1k", change: "-420" },
+        ],
+    },
+    {
+        id: "PM-KW-D02",
+        type: "drainer",
+        metricType: "performance",
+        skuCode: "KW-P-CUP",
+        skuName: "Cup Ice Cream",
+        packSize: "Small",
+        platform: "Zepto",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 1.8 lac",
+        impact: "-3.2%",
+        kpis: { roas: "1.9x", ctr: "0.75%", clicks: "14k", atc: "1.8k" },
+        topCities: [
+            { city: "Bangalore", metric: "ROAS 1.7x", change: "-0.2x" },
+            { city: "Chennai", metric: "CTR 0.6%", change: "-0.1%" },
+        ],
+    },
+    {
+        id: "PM-SKU-D02",
+        type: "drainer",
+        metricType: "performance",
+        skuCode: "KW-803",
+        skuName: "Vanilla Cup 100ml",
+        packSize: "100 ml",
+        platform: "Flipkart",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 1.5 lac",
+        impact: "-3.8%",
+        kpis: { roas: "1.7x", ctr: "0.6%", clicks: "10k", atc: "1.1k" },
+        topCities: [
+            { city: "Hyderabad", metric: "ROAS 1.5x", change: "-0.3x" },
+            { city: "Mysore", metric: "Clicks 1.5k", change: "-300" },
+        ],
+    },
+
+    {
+        id: "PM-KW-G01",
+        type: "gainer",
+        metricType: "performance",
+        skuCode: "KW-P-MAG",
+        skuName: "Magnum Ice Cream",
+        packSize: "Stick",
+        platform: "Zepto",
+        categoryTag: "Premium",
+        offtakeValue: "₹ 4.1 lac",
+        impact: "+5.2%",
+        kpis: { roas: "3.7x", ctr: "1.6%", clicks: "41k", atc: "5.8k" },
+        topCities: [
+            { city: "Mumbai", metric: "ROAS 3.9x", change: "+0.4x" },
+            { city: "Thane", metric: "ATC 1.6k", change: "+320" },
+        ],
+    },
+    {
+        id: "PM-SKU-G01",
+        type: "gainer",
+        metricType: "performance",
+        skuCode: "KW-802",
+        skuName: "Cornetto Double Choco",
+        packSize: "110 ml",
+        platform: "Flipkart",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 3.7 lac",
+        impact: "+3.9%",
+        kpis: { roas: "3.2x", ctr: "1.3%", clicks: "27k", atc: "3.9k" },
+        topCities: [
+            { city: "Chennai", metric: "ROAS 3.4x", change: "+0.2x" },
+            { city: "Coimbatore", metric: "ATC 980", change: "+140" },
+        ],
+    },
+    {
+        id: "PM-KW-G02",
+        type: "gainer",
+        metricType: "performance",
+        skuCode: "KW-P-FAM",
+        skuName: "Family Packs",
+        packSize: "Large",
+        platform: "Blinkit",
+        categoryTag: "Bulk",
+        offtakeValue: "₹ 5.2 lac",
+        impact: "+4.5%",
+        kpis: { roas: "3.5x", ctr: "1.4%", clicks: "35k", atc: "4.5k" },
+        topCities: [
+            { city: "Delhi", metric: "ROAS 3.8x", change: "+0.3x" },
+            { city: "Gurgaon", metric: "ATC 1.2k", change: "+250" },
+        ],
+    },
+    {
+        id: "PM-SKU-G02",
+        type: "gainer",
+        metricType: "performance",
+        skuCode: "KW-804",
+        skuName: "Trixy Cookie",
+        packSize: "100 ml",
+        platform: "Instamart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 3.5 lac",
+        impact: "+4.1%",
+        kpis: { roas: "3.1x", ctr: "1.2%", clicks: "25k", atc: "3.2k" },
+        topCities: [
+            { city: "Bangalore", metric: "ROAS 3.3x", change: "+0.2x" },
+            { city: "Pune", metric: "ATC 850", change: "+180" },
+        ],
+    },
+
+    /* --- INVENTORY --- */
+    {
+        id: "IN-KW-D01",
+        type: "drainer",
+        metricType: "inventory",
+        skuCode: "KW-I-KUL",
+        skuName: "Kulfi",
+        packSize: "Mixed",
+        platform: "Blinkit",
+        categoryTag: "Kulfi",
+        offtakeValue: "₹ 1.8 lac",
+        impact: "-2.8%",
+        kpis: { doi: "6.1", drr: "82", oos: "11%", expiryRisk: "High" },
+        topCities: [
+            { city: "Delhi", metric: "DOI 5.4", change: "-0.8" },
+            { city: "Gurgaon", metric: "DRR 88", change: "+6" },
+        ],
+    },
+    {
+        id: "IN-SKU-D01",
+        type: "drainer",
+        metricType: "inventory",
+        skuCode: "KW-901",
+        skuName: "Butterscotch 700ml",
+        packSize: "700 ml",
+        platform: "Instamart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 2.1 lac",
+        impact: "-3.5%",
+        kpis: { doi: "4.9", drr: "96", oos: "13%", expiryRisk: "Med" },
+        topCities: [
+            { city: "Pune", metric: "DOI 4.1", change: "-0.7" },
+            { city: "Nashik", metric: "OOS 14%", change: "+2%" },
+        ],
+    },
+    {
+        id: "IN-KW-D02",
+        type: "drainer",
+        metricType: "inventory",
+        skuCode: "KW-I-CUP",
+        skuName: "Cup Ice Cream",
+        packSize: "Small",
+        platform: "Zepto",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 1.6 lac",
+        impact: "-2.5%",
+        kpis: { doi: "5.5", drr: "88", oos: "10%", expiryRisk: "Med" },
+        topCities: [
+            { city: "Mumbai", metric: "DOI 5.0", change: "-0.5" },
+            { city: "Thane", metric: "DRR 92", change: "+5" },
+        ],
+    },
+    {
+        id: "IN-SKU-D02",
+        type: "drainer",
+        metricType: "inventory",
+        skuCode: "KW-903",
+        skuName: "Vanilla Cup 100ml",
+        packSize: "100 ml",
+        platform: "Flipkart",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 1.4 lac",
+        impact: "-3.1%",
+        kpis: { doi: "4.5", drr: "92", oos: "12%", expiryRisk: "High" },
+        topCities: [
+            { city: "Chennai", metric: "DOI 4.0", change: "-0.6" },
+            { city: "Coimbatore", metric: "OOS 13%", change: "+1.5%" },
+        ],
+    },
+
+    {
+        id: "IN-KW-G01",
+        type: "gainer",
+        metricType: "inventory",
+        skuCode: "KW-I-CON",
+        skuName: "Cone Ice Cream",
+        packSize: "Mixed",
+        platform: "Zepto",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 3.2 lac",
+        impact: "+3.1%",
+        kpis: { doi: "14.7", drr: "55", oos: "4%", expiryRisk: "Low" },
+        topCities: [
+            { city: "Mumbai", metric: "DOI 15.3", change: "+1.2" },
+            { city: "Thane", metric: "DRR 52", change: "-4" },
+        ],
+    },
+    {
+        id: "IN-SKU-G01",
+        type: "gainer",
+        metricType: "inventory",
+        skuCode: "KW-902",
+        skuName: "Magnum Truffle 80ml",
+        packSize: "80 ml",
+        platform: "Flipkart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 2.9 lac",
+        impact: "+2.6%",
+        kpis: { doi: "12.2", drr: "61", oos: "5%", expiryRisk: "Low" },
+        topCities: [
+            { city: "Chennai", metric: "DOI 12.8", change: "+0.6" },
+            { city: "Coimbatore", metric: "DRR 59", change: "-3" },
+        ],
+    },
+    {
+        id: "IN-KW-G02",
+        type: "gainer",
+        metricType: "inventory",
+        skuCode: "KW-I-BAR",
+        skuName: "Choco Bar",
+        packSize: "Single",
+        platform: "Instamart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 2.7 lac",
+        impact: "+2.9%",
+        kpis: { doi: "13.5", drr: "58", oos: "6%", expiryRisk: "Low" },
+        topCities: [
+            { city: "Bangalore", metric: "DOI 14.1", change: "+0.8" },
+            { city: "Mysore", metric: "DRR 56", change: "-2" },
+        ],
+    },
+    {
+        id: "IN-SKU-G02",
+        type: "gainer",
+        metricType: "inventory",
+        skuCode: "KW-904",
+        skuName: "Cornetto Oreo",
+        packSize: "110 ml",
+        platform: "Blinkit",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 3.0 lac",
+        impact: "+3.0%",
+        kpis: { doi: "14.0", drr: "54", oos: "4.5%", expiryRisk: "Low" },
+        topCities: [
+            { city: "Delhi", metric: "DOI 14.8", change: "+1.0" },
+            { city: "Gurgaon", metric: "DRR 50", change: "-4" },
+        ],
+    },
 ];
 
 /* ------------------------------------------------------
    SIGNAL CARD UI
 -------------------------------------------------------*/
-function SignalCard({ sku, metricType }) {
+function SignalCard({ sku, metricType, onShowDetails }) {
     const [showAllCities, setShowAllCities] = useState(false);
     const citiesToShow = showAllCities ? sku.topCities : sku.topCities.slice(0, 2);
-    const kpiKeys =
-        metricType === "visibility" ? visibilityKpiOrder : availabilityKpiOrder;
+
+    const kpiOrderMap = {
+        visibility: visibilityKpiOrder,
+        availability: availabilityKpiOrder,
+        sales: salesKpiOrder,
+        performance: performanceKpiOrder,
+        inventory: inventoryKpiOrder,
+    };
+    const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
+
+    const PRIMARY_METRICS = {
+        visibility: { label: "Overall SOV", key: "overallSov" },
+        availability: { label: "Overall OSA", key: "weightedOsa" }
+    };
+
+    const primary = PRIMARY_METRICS[metricType] || { label: "Offtake", key: "offtakeValue" };
+    // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
+    const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
     return (
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px]">
@@ -610,8 +964,12 @@ function SignalCard({ sku, metricType }) {
 
                 <div className="mt-3 flex justify-between text-xs">
                     <div>
-                        <div className="text-slate-400">Offtake</div>
-                        <div className="text-base font-semibold">{sku.offtakeValue}</div>
+                        <div className="text-slate-400">
+                            {metricType === "inventory" ? "DOI" : "Offtake"}
+                        </div>
+                        <div className="text-base font-semibold">
+                            {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
+                        </div>
                     </div>
                     <ImpactPill value={sku.impact} />
                 </div>
@@ -647,17 +1005,14 @@ function SignalCard({ sku, metricType }) {
                     ))}
                 </div>
 
-                {sku.topCities.length > 2 && (
-                    <div className="mt-2 flex justify-end">
-                        <button
-                            onClick={() => setShowAllCities(!showAllCities)}
-                            className="text-[12px] font-semibold text-sky-600 hover:underline"
-                        >
-                            {showAllCities ? "Show less" : "More cities"}
-                        </button>
-                    </div>
-                )}
-
+                <div className="mt-2 flex justify-end">
+                    <button
+                        onClick={onShowDetails}
+                        className="text-[12px] font-semibold text-sky-600 hover:underline"
+                    >
+                        More cities
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -668,39 +1023,50 @@ function SignalCard({ sku, metricType }) {
 -------------------------------------------------------*/
 function SignalLabBase({ metricType }) {
     const [signalType, setSignalType] = useState("drainer");
+    const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
 
     const filtered = SAMPLE_SKUS.filter(
         (sku) => sku.metricType === metricType && sku.type === signalType
     );
 
     return (
-        <div className="w-full bg-slate-50 py-6 px-1">
-            <div className="mx-auto max-w-7xl bg-white border rounded-3xl px-6 py-5 shadow">
-                <div className="flex justify-between items-center flex-wrap gap-4">
-                    <h2 className="text-lg font-semibold">
-                        Signal Lab — Kwality Wall&apos;s ({metricType})
-                    </h2>
+        <>
+            <div className="flex justify-between items-center flex-wrap gap-4">
+                <h2 className="text-lg font-semibold capitalize">
+                    Signal Lab — Kwality Wall&apos;s ({metricType === "performance" ? "Performance Marketing" : metricType})
+                </h2>
 
-                    <SegmentedSwitch
-                        value={signalType}
-                        onChange={setSignalType}
-                        options={[
-                            { value: "drainer", label: "Drainers" },
-                            { value: "gainer", label: "Gainers" },
-                        ]}
-                    />
-                </div>
-
-                <div className="mt-5">
-                    <div className="grid grid-cols-4 gap-4 items-start">
-                        {filtered.slice(0, 4).map((s) => (
-                            <SignalCard key={s.id} sku={s} metricType={metricType} />
-                        ))}
-                    </div>
-                </div>
-
+                <SegmentedSwitch
+                    value={signalType}
+                    onChange={setSignalType}
+                    options={[
+                        { value: "drainer", label: "Drainers" },
+                        { value: "gainer", label: "Gainers" },
+                    ]}
+                />
             </div>
-        </div>
+
+            <div className="mt-5">
+                <div className="grid grid-cols-4 gap-4 items-start">
+                    {filtered.slice(0, 4).map((s) => (
+                        <SignalCard
+                            key={s.id}
+                            sku={s}
+                            metricType={metricType}
+                            onShowDetails={() => setSelectedSkuForDetails(s)}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* Detailed Table Overlay */}
+            {selectedSkuForDetails && (
+                <CityDetailedTable
+                    sku={selectedSkuForDetails}
+                    onClose={() => setSelectedSkuForDetails(null)}
+                />
+            )}
+        </>
     );
 }
 
@@ -708,5 +1074,3 @@ function SignalLabBase({ metricType }) {
 export function SignalLabVisibility({ type }) {
     return <SignalLabBase metricType={type} />;
 }
-
-
