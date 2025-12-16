@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // MUI Date Picker Providers
 import { LocalizationProvider } from "@mui/x-date-pickers";
+import SalesMainPage from "./pages/Sales/SalesMainPage";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import WatchTower from "./pages/ControlTower/WatchTower";
 import CategoryRca from "./pages/Analytics/CategoryRca";
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/content-score" element={<ContentScoreDashboards />} />
             <Route path="/pricing-analysis" element={<PricingAnalysis />} />
             <Route path="/market-share" element={<MarketShares />} />
+            <Route path="/sales" element={<SalesMainPage />} />
             <Route path="/piy" element={<PiyConcept />} />
             <Route path="/inventory" element={<InventeryConceptMains />} />
           </Routes>
