@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import CitySkuInventoryDrill from "./CitySkuInventoryDrill";
 import InventoryDrill from "./InventoryMainDrill";
+import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 
 // Single-page Inventory & DOH dashboard
 // Layout intentionally mirrors your Visibility page: overview cards, KPI matrix tabs,
@@ -268,8 +269,8 @@ function MultiChipFilter({ label, options, selected, onChange }) {
               type="button"
               onClick={() => toggle(opt)}
               className={`rounded-full border px-3 py-1 text-xs transition ${active
-                  ? "border-sky-500 bg-sky-50 text-sky-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                ? "border-sky-500 bg-sky-50 text-sky-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
             >
               {opt}
@@ -396,11 +397,15 @@ function InventeryConceptMain() {
     let sumDoiBe = 0;
     let sumFeDoh = 0;
     let high = 0;
+    let sumDrr = 0;
+    let sumBoxes = 0;
 
     filteredSkus.forEach((r) => {
       sumDoiFeBe += r.doiFeBe;
       sumDoiBe += r.doiBe;
       sumFeDoh += r.feDoh;
+      sumDrr += r.avgDailySales || 0;
+      sumBoxes += r.reqBoxes || 0;
       if (r.psl === "High") high += 1;
     });
 
@@ -410,172 +415,62 @@ function InventeryConceptMain() {
       totalDoiBe: sumDoiBe / n,
       avgFeDoh: sumFeDoh / n,
       totalPslHigh: high,
+      totalDrr: sumDrr,
+      totalBoxesRequired: sumBoxes,
     };
   }, [filteredSkus]);
 
-  const matrixPlatform = useMemo(() => {
-    const byPlatform = groupBy(filteredSkus, (r) => r.platform);
-    return PLATFORMS.map((p) => {
-      const rows = byPlatform.get(p) || [];
-      if (!rows.length) {
-        return {
-          platform: p,
-          totalDoh: 0,
-          doiFeBe: 0,
-          doiBe: 0,
-          health: "watch",
-        };
-      }
-      const n = rows.length;
-      const totalDoh = rows.reduce((s, r) => s + r.feDoh, 0) / n;
-      const doiFeBe = rows.reduce((s, r) => s + r.doiFeBe, 0) / n;
-      const doiBe = rows.reduce((s, r) => s + r.doiBe, 0) / n;
-
-      const health =
-        totalDoh >= THRESHOLD_DOH
-          ? "healthy"
-          : totalDoh >= THRESHOLD_DOH - 2
-            ? "watch"
-            : "action";
-
-      return { platform: p, totalDoh, doiFeBe, doiBe, health };
-    });
-  }, [filteredSkus]);
-
-  const matrixFormat = useMemo(() => {
-    const byFormat = groupBy(filteredSkus, (r) => r.format);
-    return Array.from(byFormat.entries()).map(([format, rows]) => {
-      const n = rows.length || 1;
-      const totalDoh = rows.reduce((s, r) => s + r.feDoh, 0) / n;
-      const doiFeBe = rows.reduce((s, r) => s + r.doiFeBe, 0) / n;
-      const doiBe = rows.reduce((s, r) => s + r.doiBe, 0) / n;
-
-      const health =
-        totalDoh >= THRESHOLD_DOH
-          ? "healthy"
-          : totalDoh >= THRESHOLD_DOH - 2
-            ? "watch"
-            : "action";
-
-      return { format, totalDoh, doiFeBe, doiBe, health };
-    });
-  }, [filteredSkus]);
-
-  const matrixCity = useMemo(() => {
-    const byCity = groupBy(filteredSkus, (r) => r.city);
-    return Array.from(byCity.entries()).map(([city, rows]) => {
-      const n = rows.length || 1;
-      const totalDoh = rows.reduce((s, r) => s + r.feDoh, 0) / n;
-      const doiFeBe = rows.reduce((s, r) => s + r.doiFeBe, 0) / n;
-      const doiBe = rows.reduce((s, r) => s + r.doiBe, 0) / n;
-
-      const health =
-        totalDoh >= THRESHOLD_DOH
-          ? "healthy"
-          : totalDoh >= THRESHOLD_DOH - 2
-            ? "watch"
-            : "action";
-
-      return { city, totalDoh, doiFeBe, doiBe, health };
-    });
-  }, [filteredSkus]);
-
-  const openTrend = (title, baseValue, unit = "days") => {
-    setTrendContext({ title, baseValue, unit });
+  const formatDays = (value) => `${value.toFixed(1)} d`;
+  const formatLargeNumber = (num) => {
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
   };
 
-  const formatDays = (value) => `${value.toFixed(1)} d`;
+  const cards = [
+    {
+      title: "DOH",
+      value: overview.totalDoiFeBe.toFixed(1),
+      sub: "Days",
+      change: "▲3.1 pts (from 82.1%)",
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "High risk stores: 12",
+      extraChange: "▼4 stores",
+      extraChangeColor: "green",
+      sparklineData: [90, 40, 45, 75, 65, 50, 85],
+    },
+    {
+      title: "DRR",
+      value: Math.round(overview.totalDrr).toString(),
+      sub: "Daily Rate",
+      change: "▼5.3% (from 65.9)",
+      changeColor: "red",
+      prevText: "vs Comparison Period",
+      extra: "Target band: 55-65 days",
+      extraChange: "Within target range",
+      extraChangeColor: "green",
+      sparklineData: [55, 75, 45, 46, 45, 48, 60],
+    },
+    {
+      title: "Total Boxes Required",
+      value: formatLargeNumber(overview.totalBoxesRequired),
+      sub: "Replenishment",
+      change: "▼2.0 pts (from 80.5%)",
+      changeColor: "red",
+      prevText: "vs Comparison Period",
+      extra: "Orders delayed: 6%",
+      extraChange: "▼1.2 pts",
+      extraChangeColor: "green",
+      sparklineData: [50, 60, 35, 38, 40, 45, 55],
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900">
+    <div className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900" >
       {/* Top Inventory & DOH Overview */}
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">
-              Inventory & DOH Overview
-            </h1>
-            <p className="text-xs text-slate-500">
-              Combined view of frontend and backend inventory, aligned to your
-              visibility layout.
-            </p>
-          </div>
-          <button className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow">
-            MTD vs Previous Month
-          </button>
-        </div>
-
-        {/* OVERVIEW CARDS */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <div className="rounded-3xl bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-semibold text-slate-500">
-              Total DOI (FE + BE)
-            </h2>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {overview.totalDoiFeBe.toFixed(1)} days
-            </p>
-            <p className="mt-1 text-[11px] text-emerald-600">
-              Estimated coverage across all platforms and cities.
-            </p>
-            <div className="mt-3">
-              <Sparkline
-                values={generateTrendSeries(overview.totalDoiFeBe || 10)}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-semibold text-slate-500">
-              Backend DOI (BE)
-            </h2>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {overview.totalDoiBe.toFixed(1)} days
-            </p>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Days of stock at warehouses supporting darkstore replenishment.
-            </p>
-            <div className="mt-3">
-              <Sparkline
-                values={generateTrendSeries(overview.totalDoiBe || 12)}
-              />
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-semibold text-slate-500">
-              Frontend DOH (FE)
-            </h2>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {overview.avgFeDoh.toFixed(1)} days
-            </p>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Average days of stock visible to customers across darkstores.
-            </p>
-            <div className="mt-3">
-              <Sparkline values={generateTrendSeries(overview.avgFeDoh || 7)} />
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-white p-4 shadow-sm">
-            <h2 className="text-xs font-semibold text-slate-500">
-              Potential Sales Loss (PSL)
-            </h2>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {overview.totalPslHigh}
-              <span className="ml-1 text-sm font-normal text-slate-500">
-                high-risk SKUs
-              </span>
-            </p>
-            <p className="mt-1 text-[11px] text-rose-600">
-              Prioritise replenishment for high PSL items.
-            </p>
-            <div className="mt-3">
-              <Sparkline
-                values={generateTrendSeries(overview.totalPslHigh || 5)}
-              />
-            </div>
-          </div>
-        </div>
+      < div className="mx-auto max-w-6xl space-y-6" >
+        {/* REPLACED WITH METRIC CARD CONTAINER */}
+        < MetricCardContainer title="Inventory & DOH Overview" cards={cards} />
 
         {/* MATRIX + FILTERS */}
         {/* <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
@@ -734,7 +629,7 @@ function InventeryConceptMain() {
             </div>
           </div>
           {/* FILTERS PANEL */}
-          {/* <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
+        {/* <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-slate-900">Filters</h2>
 
             <div className="grid grid-cols-2 gap-3 text-[11px]">
@@ -914,7 +809,7 @@ function InventeryConceptMain() {
               ))}
           </div>
         </div> */}
-      </div> 
+      </div >
 
       <TrendModal
         context={trendContext}
@@ -925,7 +820,7 @@ function InventeryConceptMain() {
         <InventoryDrill />
         <CitySkuInventoryDrill />
       </div>
-    </div>
+    </div >
   );
 }
 
