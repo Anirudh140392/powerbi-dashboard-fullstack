@@ -41,66 +41,56 @@ const insightKPIs = [
   },
 ];
 
-export default function InsightHorizontalKpis() {
+export default function InsightHorizontalKpis({
+  selectedInsight = "All",
+  setSelectedInsight = () => {},
+}) {
   return (
-    <Card
-      sx={{
-        p: 3,
-        borderRadius: 3,
-        border: "1px solid #e2e8f0",
-      }}
-    >
-      {/* HEADER */}
+    <Card sx={{ p: 3, borderRadius: 3, border: "1px solid #e2e8f0" }}>
       <Typography variant="h6" fontWeight={700}>
         Actionable & Insights
       </Typography>
 
       <Box sx={{ height: 1, borderBottom: "1px solid #e5e7eb", my: 2 }} />
 
-      {/* TITLE */}
       <Typography
         variant="subtitle1"
         fontWeight={700}
-        sx={{
-          bgcolor: "#f8fafc",
-          p: 1.2,
-          borderRadius: 2,
-          mb: 2,
-        }}
+        sx={{ bgcolor: "#f8fafc", p: 1.2, borderRadius: 2, mb: 2 }}
       >
-        All Product Summary
+        {selectedInsight}
       </Typography>
 
-      {/* KPI CARDS */}
       <Grid container spacing={2}>
-        {insightKPIs.map((item, i) => {
+        {insightKPIs.map((item) => {
           const Icon = Icons[item.icon];
+          const active = selectedInsight === item.label;
 
           return (
-            <Grid item xs={12} sm={6} md={2.4} key={i}>
+            <Grid item xs={12} sm={6} md={2.4} key={item.label}>
               <Card
+                onClick={() => setSelectedInsight(item.label)}
                 sx={{
                   p: 2,
                   height: 140,
                   borderRadius: 3,
-                  border: "1px solid #e2e8f0",
-                  display: "flex",
+                  border: active ? "1px solid #6366F2" : "1px solid #e2e8f0",
+                  cursor: "pointer",
                   flexDirection: "column",
                   justifyContent: "space-between",
-                  transition: "0.25s ease",
+                  transform: active && "scale(1.03)",
+                  boxShadow: active && "0 10px 35px rgba(0,0,0,0.12)",
+                  transition: "0.25s",
                   "&:hover": {
-                    transform: "translateY(-6px)",
+                    transform: active ? "scale(1.03)":"translateY(-6px)",
                     boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
                   },
                 }}
               >
                 <Box display="flex" justifyContent="space-between">
-                  <Typography
-                    sx={{ fontSize: 13, fontWeight: 600, color: "#64748b" }}
-                  >
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
                     {item.label}
                   </Typography>
-
                   <Icon size={22} color={item.color} />
                 </Box>
 

@@ -949,7 +949,7 @@ const TestingVisibility = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-6 text-slate-900">
       <div className="mx-auto max-w-7xl space-y-4">
         {/* HEADER */}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        {/* <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-sky-600">
               Visibility KPI Studio
@@ -969,7 +969,7 @@ const TestingVisibility = () => {
               </span>
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* FILTER BAR */}
         <div className="sticky top-4 z-10 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
