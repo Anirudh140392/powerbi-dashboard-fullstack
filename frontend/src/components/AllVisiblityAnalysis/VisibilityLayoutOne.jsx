@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import CityDetailedTable from "./CityDetailedTable";
 
 /* -------------------------------------------------------------------------- */
 /*                               KPI DEFINITIONS                              */
@@ -9,8 +10,6 @@ const VISIBILITY_KEYWORD_KPIS = [
   "organicSov",
   "overallSov",
   "volumeShare",
-  "demandClicks",
-  "adCtr",
 ];
 const VISIBILITY_DATA = [
   // KEYWORD – DRAINERS (5)
@@ -585,8 +584,8 @@ function LevelSwitch({ value, onChange }) {
 /*                               CARD COMPONENT                                */
 /* -------------------------------------------------------------------------- */
 
-function VisibilityCard({ item, expanded, toggleExpand }) {
-  const citiesToShow = expanded ? item.cities : item.cities.slice(0, 2);
+function VisibilityCard({ item, onShowDetails }) {
+  const citiesToShow = item.cities.slice(0, 2);
 
   const isKeyword = item.level === "keyword";
   const kpiKeys = isKeyword ? VISIBILITY_KEYWORD_KPIS : VISIBILITY_SKU_KPIS;
@@ -633,9 +632,9 @@ function VisibilityCard({ item, expanded, toggleExpand }) {
         {/* Offtake & Impact */}
         <div className="mt-2 flex items-center justify-between">
           <div>
-            <div className="text-[11px] text-slate-400">Overall SOV</div>
+            <div className="text-[11px] text-slate-400">Offtake</div>
             <div className="text-[17px] font-semibold text-slate-900">
-              {item.kpis.overallSov}
+              {item.offtake}
             </div>
           </div>
 
@@ -688,18 +687,15 @@ function VisibilityCard({ item, expanded, toggleExpand }) {
           ))}
         </div>
 
-        {item.cities.length > 2 && (
-          <div className="mt-2 flex justify-end">
-            <button
-              onClick={toggleExpand}
-              className="text-[12px] font-semibold text-sky-600 hover:underline"
-            >
-              {expanded ? "Show less" : "More cities"}
-            </button>
+        <div className="mt-2 flex justify-end">
+          <button
+            onClick={onShowDetails}
+            className="text-[12px] font-semibold text-sky-600 hover:underline"
+          >
+            More cities
+          </button>
 
-          </div>
-
-        )}
+        </div>
 
 
       </div>
@@ -715,56 +711,51 @@ function VisibilityCard({ item, expanded, toggleExpand }) {
 export function VisibilityLayoutOne() {
   const [signalType, setSignalType] = useState("drainer");
   const [level, setLevel] = useState("keyword");
-  const [expandedCards, setExpandedCards] = useState({});
-
-  const toggleExpand = (id) => {
-    setExpandedCards((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-
+  const [selectedItemForDetails, setSelectedItemForDetails] = useState(null);
 
   const filtered = VISIBILITY_DATA.filter(
     (row) => row.type === signalType && row.level === level
   );
 
   return (
-    <div className=" bg-slate-50 py-1 px-0">
-      <div className="mx-auto rounded-3xl border bg-white shadow px-3 py-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              Visibility Signals — Keyword & SKU
-            </h2>
-            {/* <p className="mt-1 text-xs text-slate-500 max-w-xl">
+    <div className="w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Visibility Signals — Keyword & SKU
+          </h2>
+          {/* <p className="mt-1 text-xs text-slate-500 max-w-xl">
               Auto-ranked Kwality Walls drainers and gainers based on visibility
               KPIs at keyword and SKU level across quick commerce platforms.
             </p> */}
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <SignalTypeSwitch value={signalType} onChange={setSignalType} />
-            <LevelSwitch value={level} onChange={setLevel} />
-          </div>
         </div>
 
-        <div className="mt-2 pb-1">
-          <div className="grid grid-cols-4 gap-3 w-full items-start">
-            {filtered.slice(0, 4).map((item) => (
-              <VisibilityCard
-                key={item.id}
-                item={item}
-                expanded={expandedCards[item.id]}   // ✅ passing expanded state
-                toggleExpand={() => toggleExpand(item.id)}  // ✅ passing handler
-              />
-            ))}
-
-          </div>
+        <div className="flex flex-wrap gap-3">
+          <SignalTypeSwitch value={signalType} onChange={setSignalType} />
+          <LevelSwitch value={level} onChange={setLevel} />
         </div>
-
       </div>
+
+      <div className="mt-2 pb-1">
+        <div className="grid grid-cols-4 gap-3 w-full items-start">
+          {filtered.slice(0, 4).map((item) => (
+            <VisibilityCard
+              key={item.id}
+              item={item}
+              onShowDetails={() => setSelectedItemForDetails(item)}
+            />
+          ))}
+
+        </div>
+      </div>
+
+      {/* Detailed Table Overlay */}
+      {selectedItemForDetails && (
+        <CityDetailedTable
+          sku={selectedItemForDetails}
+          onClose={() => setSelectedItemForDetails(null)}
+        />
+      )}
     </div>
   );
 }

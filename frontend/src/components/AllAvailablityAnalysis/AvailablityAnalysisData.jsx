@@ -1086,7 +1086,7 @@ export const AvailablityAnalysisData = () => {
 
 
           <MetricCardContainer title="Availability Overview" cards={cards} />
-          <SignalLabVisibility type="availability" />
+          {/* <SignalLabVisibility type="availability" /> */}
           <TabbedHeatmapTable />
           <OsaHeatmapTable />
 

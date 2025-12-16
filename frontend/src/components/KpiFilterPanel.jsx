@@ -40,8 +40,16 @@ export function KpiFilterPanel({
   onPlatformChange,
   onRulesChange,
   pageSize = 5,
+  sectionConfig = SECTION_LABELS,
 }) {
-  const [activeSection, setActiveSection] = useState("keywords");
+  const [activeSection, setActiveSection] = useState(sectionConfig[0]?.id || "keywords");
+
+  // Ensure activeSection is valid (if config changes)
+  useMemo(() => {
+    if (!sectionConfig.find(s => s.id === activeSection)) {
+      setActiveSection(sectionConfig[0]?.id || "");
+    }
+  }, [sectionConfig, activeSection]);
 
   return (
     <div className="flex h-full gap-6 text-slate-900">
@@ -51,7 +59,7 @@ export function KpiFilterPanel({
           Filters
         </div>
         <nav className="flex-1 space-y-1 px-2 pb-2 overflow-y-auto">
-          {SECTION_LABELS.map((section) => {
+          {sectionConfig.map((section) => {
             const isActive = section.id === activeSection;
             return (
               <button
@@ -79,69 +87,102 @@ export function KpiFilterPanel({
 
       {/* Right content area */}
       <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        {activeSection === "keywords" && (
-          <MultiSelectSection
-            title="Keyword filter"
-            description="Search and select keywords to filter the hierarchy."
-            options={keywords}
-            pageSize={pageSize}
-            onChange={onKeywordChange}
-          />
-        )}
+        {sectionConfig.map(section => {
+          if (activeSection !== section.id) return null;
 
-        {activeSection === "brands" && (
-          <MultiSelectSection
-            title="Brand filter"
-            description="Filter by specific brands."
-            options={brands}
-            pageSize={pageSize}
-            onChange={onBrandChange}
-          />
-        )}
+          // Legacy mappings
+          if (section.id === "keywords" && keywords) {
+            return (
+              <MultiSelectSection
+                key="keywords"
+                title={section.label + " filter"}
+                description="Search and select keywords to filter the hierarchy."
+                options={keywords}
+                pageSize={pageSize}
+                onChange={onKeywordChange}
+              />
+            );
+          }
+          if (section.id === "brands" && brands) {
+            return (
+              <MultiSelectSection
+                key="brands"
+                title={section.label + " filter"}
+                description="Filter by specific items."
+                options={brands}
+                pageSize={pageSize}
+                onChange={onBrandChange}
+              />
+            );
+          }
+          if (section.id === "categories" && categories) {
+            return (
+              <MultiSelectSection
+                key="categories"
+                title={section.label + " filter"}
+                description="Filter by specific groups."
+                options={categories}
+                pageSize={pageSize}
+                onChange={onCategoryChange}
+              />
+            );
+          }
+          if (section.id === "skus" && skus) {
+            return (
+              <MultiSelectSection
+                key="skus"
+                title={section.label + " filter"}
+                description="Filter on specific SKUs within the selected hierarchy."
+                options={skus}
+                pageSize={pageSize}
+                onChange={onSkuChange}
+              />
+            );
+          }
+          if (section.id === "cities" && cities) {
+            return (
+              <MultiSelectSection
+                key="cities"
+                title={section.label + " filter"}
+                description="Limit data to one or more cities."
+                options={cities}
+                pageSize={pageSize}
+                onChange={onCityChange}
+              />
+            );
+          }
+          if (section.id === "platforms" && platforms) {
+            return (
+              <MultiSelectSection
+                key="platforms"
+                title={section.label + " filter"}
+                description="Choose which platforms to keep in the view."
+                options={platforms}
+                pageSize={pageSize}
+                onChange={onPlatformChange}
+              />
+            );
+          }
+          if (section.id === "kpiRules") {
+            return <KpiRuleBuilder key="kpiRules" fields={kpiFields} onRulesChange={onRulesChange} />;
+          }
 
-        {activeSection === "categories" && (
-          <MultiSelectSection
-            title="Category filter"
-            description="Filter by specific categories."
-            options={categories}
-            pageSize={pageSize}
-            onChange={onCategoryChange}
-          />
-        )}
+          // Dynamic / New sections
+          if (section.options) {
+            return (
+              <MultiSelectSection
+                key={section.id}
+                title={section.label + " filter"}
+                description={`Filter by ${section.label.toLowerCase()}.`}
+                options={section.options}
+                pageSize={pageSize}
+                onChange={(vals) => console.log(section.id, vals)} // Placeholder handler
+              />
+            );
+          }
 
-        {activeSection === "skus" && (
-          <MultiSelectSection
-            title="SKU filter"
-            description="Filter on specific SKUs within the selected hierarchy."
-            options={skus}
-            pageSize={pageSize}
-            onChange={onSkuChange}
-          />
-        )}
-
-        {activeSection === "cities" && (
-          <MultiSelectSection
-            title="City filter"
-            description="Limit data to one or more cities."
-            options={cities}
-            pageSize={pageSize}
-            onChange={onCityChange}
-          />
-        )}
-
-        {activeSection === "platforms" && (
-          <MultiSelectSection
-            title="Platform filter"
-            description="Choose which platforms to keep in the view."
-            options={platforms}
-            pageSize={pageSize}
-            onChange={onPlatformChange}
-          />
-        )}
-
-        {activeSection === "kpiRules" && (
-          <KpiRuleBuilder fields={kpiFields} onRulesChange={onRulesChange} />
-        )}
+          return <div key={section.id} className="p-4 text-slate-400">Section content not configured.</div>;
+        })}
       </div>
     </div>
   );
