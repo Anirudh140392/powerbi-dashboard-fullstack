@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from "react";
+import CitySkuInventoryDrill from "./CitySkuInventoryDrill";
+import InventoryDrill from "./InventoryMainDrill";
 
 // Single-page Inventory & DOH dashboard
 // Layout intentionally mirrors your Visibility page: overview cards, KPI matrix tabs,
@@ -223,9 +225,8 @@ function SegmentToggle({ options, value, onChange }) {
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
-            className={`min-w-[90px] rounded-full px-3 py-1 text-xs font-medium transition ${
-              active ? "bg-white shadow-sm text-slate-900" : "text-slate-500"
-            }`}
+            className={`min-w-[90px] rounded-full px-3 py-1 text-xs font-medium transition ${active ? "bg-white shadow-sm text-slate-900" : "text-slate-500"
+              }`}
           >
             {opt}
           </button>
@@ -266,11 +267,10 @@ function MultiChipFilter({ label, options, selected, onChange }) {
               key={opt}
               type="button"
               onClick={() => toggle(opt)}
-              className={`rounded-full border px-3 py-1 text-xs transition ${
-                active
+              className={`rounded-full border px-3 py-1 text-xs transition ${active
                   ? "border-sky-500 bg-sky-50 text-sky-700"
                   : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-              }`}
+                }`}
             >
               {opt}
             </button>
@@ -435,8 +435,8 @@ function InventeryConceptMain() {
         totalDoh >= THRESHOLD_DOH
           ? "healthy"
           : totalDoh >= THRESHOLD_DOH - 2
-          ? "watch"
-          : "action";
+            ? "watch"
+            : "action";
 
       return { platform: p, totalDoh, doiFeBe, doiBe, health };
     });
@@ -454,8 +454,8 @@ function InventeryConceptMain() {
         totalDoh >= THRESHOLD_DOH
           ? "healthy"
           : totalDoh >= THRESHOLD_DOH - 2
-          ? "watch"
-          : "action";
+            ? "watch"
+            : "action";
 
       return { format, totalDoh, doiFeBe, doiBe, health };
     });
@@ -473,8 +473,8 @@ function InventeryConceptMain() {
         totalDoh >= THRESHOLD_DOH
           ? "healthy"
           : totalDoh >= THRESHOLD_DOH - 2
-          ? "watch"
-          : "action";
+            ? "watch"
+            : "action";
 
       return { city, totalDoh, doiFeBe, doiBe, health };
     });
@@ -578,7 +578,7 @@ function InventeryConceptMain() {
         </div>
 
         {/* MATRIX + FILTERS */}
-        <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
+        {/* <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
           <div className="rounded-3xl bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -596,8 +596,8 @@ function InventeryConceptMain() {
                   matrixTab === "platform"
                     ? "Platform"
                     : matrixTab === "format"
-                    ? "Format"
-                    : "City"
+                      ? "Format"
+                      : "City"
                 }
                 onChange={(label) => {
                   if (label === "Platform") setMatrixTab("platform");
@@ -653,8 +653,8 @@ function InventeryConceptMain() {
                             row.key === "totalDoh"
                               ? p.totalDoh
                               : row.key === "doiFeBe"
-                              ? p.doiFeBe
-                              : p.doiBe;
+                                ? p.doiFeBe
+                                : p.doiBe;
 
                           return (
                             <td key={p.platform} className="px-3 py-1">
@@ -680,8 +680,8 @@ function InventeryConceptMain() {
                             row.key === "totalDoh"
                               ? f.totalDoh
                               : row.key === "doiFeBe"
-                              ? f.doiFeBe
-                              : f.doiBe;
+                                ? f.doiFeBe
+                                : f.doiBe;
 
                           return (
                             <td key={f.format} className="px-3 py-1">
@@ -707,8 +707,8 @@ function InventeryConceptMain() {
                             row.key === "totalDoh"
                               ? c.totalDoh
                               : row.key === "doiFeBe"
-                              ? c.doiFeBe
-                              : c.doiBe;
+                                ? c.doiFeBe
+                                : c.doiBe;
 
                           return (
                             <td key={c.city} className="px-3 py-1">
@@ -734,7 +734,7 @@ function InventeryConceptMain() {
             </div>
           </div>
           {/* FILTERS PANEL */}
-          <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
+          {/* <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-slate-900">Filters</h2>
 
             <div className="grid grid-cols-2 gap-3 text-[11px]">
@@ -802,11 +802,11 @@ function InventeryConceptMain() {
                 ? "No rows for current filters"
                 : `${filteredSkus.length} SKU-city rows after filters`}
             </div>
-          </div>
-        </div>
+          </div> */}
+        {/* </div> */}
 
         {/* INVENTORY AT A GLANCE – HIERARCHY */}
-        <div className="rounded-3xl bg-white p-4 shadow-sm">
+        {/* <div className="rounded-3xl bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">
               Inventory at a glance
@@ -846,16 +846,15 @@ function InventeryConceptMain() {
                           row.feDoh >= THRESHOLD_DOH
                             ? "healthy"
                             : row.feDoh >= THRESHOLD_DOH - 2
-                            ? "watch"
-                            : "action"
+                              ? "watch"
+                              : "action"
                         }
                       />
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`rounded-full border px-2 py-1 text-[10px] ${
-                          PSL_COLOR[row.psl]
-                        }`}
+                        className={`rounded-full border px-2 py-1 text-[10px] ${PSL_COLOR[row.psl]
+                          }`}
                       >
                         {row.psl}
                       </span>
@@ -865,10 +864,10 @@ function InventeryConceptMain() {
               </tbody>
             </table>
           </div>
-        </div>
+        </div> */}
 
         {/* INVENTORY SIGNALS */}
-        <div className="rounded-3xl bg-white p-4 shadow-sm">
+        {/* <div className="rounded-3xl bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">
             Inventory Signals – City & SKU
           </h2>
@@ -914,13 +913,18 @@ function InventeryConceptMain() {
                 </div>
               ))}
           </div>
-        </div>
-      </div>
+        </div> */}
+      </div> 
 
       <TrendModal
         context={trendContext}
         onClose={() => setTrendContext(null)}
       />
+
+      <div className="mt-8 space-y-8">
+        <InventoryDrill />
+        <CitySkuInventoryDrill />
+      </div>
     </div>
   );
 }

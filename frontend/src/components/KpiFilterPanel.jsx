@@ -13,6 +13,8 @@ import React, { useMemo, useState } from "react";
 
 const SECTION_LABELS = [
   { id: "keywords", label: "Keywords" },
+  { id: "brands", label: "Brands" },
+  { id: "categories", label: "Categories" },
   { id: "skus", label: "SKUs" },
   { id: "cities", label: "Cities" },
   { id: "platforms", label: "Platforms" },
@@ -24,11 +26,15 @@ const makeId = () =>
 
 export function KpiFilterPanel({
   keywords,
+  brands,
+  categories,
   skus,
   cities,
   platforms,
   kpiFields,
   onKeywordChange,
+  onBrandChange,
+  onCategoryChange,
   onSkuChange,
   onCityChange,
   onPlatformChange,
@@ -44,7 +50,7 @@ export function KpiFilterPanel({
         <div className="px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Filters
         </div>
-        <nav className="flex-1 space-y-1 px-2 pb-2">
+        <nav className="flex-1 space-y-1 px-2 pb-2 overflow-y-auto">
           {SECTION_LABELS.map((section) => {
             const isActive = section.id === activeSection;
             return (
@@ -80,6 +86,26 @@ export function KpiFilterPanel({
             options={keywords}
             pageSize={pageSize}
             onChange={onKeywordChange}
+          />
+        )}
+
+        {activeSection === "brands" && (
+          <MultiSelectSection
+            title="Brand filter"
+            description="Filter by specific brands."
+            options={brands}
+            pageSize={pageSize}
+            onChange={onBrandChange}
+          />
+        )}
+
+        {activeSection === "categories" && (
+          <MultiSelectSection
+            title="Category filter"
+            description="Filter by specific categories."
+            options={categories}
+            pageSize={pageSize}
+            onChange={onCategoryChange}
           />
         )}
 

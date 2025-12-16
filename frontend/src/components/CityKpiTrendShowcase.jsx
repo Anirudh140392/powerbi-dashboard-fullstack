@@ -640,6 +640,18 @@ function MatrixVariant({ dynamicKey, data, title }) {
   const filterOptions = React.useMemo(() => {
     return {
       keywords: [],
+      brands: [
+        { id: "colgate", label: "Colgate", value: 100 },
+        { id: "pepsodent", label: "Pepsodent", value: 80 },
+        { id: "sensodyne", label: "Sensodyne", value: 60 },
+        { id: "dabur", label: "Dabur", value: 40 },
+        { id: "closeup", label: "Closeup", value: 20 },
+      ],
+      categories: [
+        { id: "toothpaste", label: "Toothpaste", value: 50 },
+        { id: "toothbrush", label: "Toothbrush", value: 30 },
+        { id: "mouthwash", label: "Mouthwash", value: 20 },
+      ],
       skus: [],
       cities: columns.slice(1).map((c, i) => ({ id: c, label: c, value: i })),
       platforms: [],
@@ -779,6 +791,8 @@ function MatrixVariant({ dynamicKey, data, title }) {
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
               <KpiFilterPanel
                 keywords={filterOptions.keywords}
+                brands={filterOptions.brands}
+                categories={filterOptions.categories}
                 skus={filterOptions.skus}
                 cities={filterOptions.cities}
                 platforms={filterOptions.platforms}
@@ -786,6 +800,8 @@ function MatrixVariant({ dynamicKey, data, title }) {
                 onRulesChange={setFilterRules}
                 // Mock handlers for demo
                 onKeywordChange={(ids) => console.log("Keywords:", ids)}
+                onBrandChange={(ids) => console.log("Brands:", ids)}
+                onCategoryChange={(ids) => console.log("Categories:", ids)}
                 onSkuChange={(ids) => console.log("SKUs:", ids)}
                 onCityChange={(ids) => console.log("Cities:", ids)}
                 onPlatformChange={(ids) => console.log("Platforms:", ids)}
