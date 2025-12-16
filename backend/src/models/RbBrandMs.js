@@ -14,6 +14,7 @@ const RbBrandMs = sequelize.define('rb_brand_ms', {
   id: {
     type: DataTypes.INTEGER,
     allowNull: false,
+    primaryKey: true,
   },
   ingested_on: {
     type: DataTypes.DATE,
@@ -40,6 +41,9 @@ const RbBrandMs = sequelize.define('rb_brand_ms', {
     type: DataTypes.STRING,
   },
   sub_category: {
+    type: DataTypes.STRING,
+  },
+  Platform: {
     type: DataTypes.STRING,
   },
   sub_category_brand_market_share: {

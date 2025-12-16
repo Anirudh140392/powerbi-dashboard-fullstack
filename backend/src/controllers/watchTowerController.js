@@ -18,6 +18,18 @@ export const watchTowerOverview = async (req, res) => {
     }
 }
 
+export const getTrendData = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log("trend data api call received", filters);
+        const data = await watchTowerService.getTrendData(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching trend data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const getPlatforms = async (req, res) => {
     try {
         const platforms = await watchTowerService.getPlatforms();
@@ -58,6 +70,73 @@ export const getLocations = async (req, res) => {
     } catch (error) {
         console.error('Error fetching locations:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getBrandCategories = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const categories = await watchTowerService.getBrandCategories(platform);
+        res.json(categories);
+    } catch (error) {
+        console.error('Error fetching brand categories:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getMetrics = async (req, res) => {
+    try {
+        const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
+        const metrics = await getAllMetricKeys();
+        res.json(metrics);
+    } catch (error) {
+        console.error('Error fetching metrics:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getWatchTowerData = async (req, res) => {
+    try {
+        const {
+            platform,
+            months,
+            timeStep,
+            brand,
+            location,
+            keyword,
+            startDate,
+            endDate,
+            compareStartDate,
+            compareEndDate,
+            monthOverviewPlatform, // Extract it
+            categoryOverviewPlatform,
+            brandsOverviewPlatform,
+            brandsOverviewCategory
+        } = req.query;
+
+        console.log("Processing Watch Tower request with filters:", req.query);
+
+        // Use optimized function for parallel fetching with section-wise caching
+        const data = await watchTowerService.getSummaryMetricsOptimized({
+            platform,
+            months,
+            timeStep,
+            brand,
+            location,
+            keyword,
+            startDate,
+            endDate,
+            compareStartDate,
+            compareEndDate,
+            monthOverviewPlatform,
+            categoryOverviewPlatform,
+            brandsOverviewPlatform,
+            brandsOverviewCategory
+        });
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching watch tower data:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
 
@@ -142,3 +221,81 @@ export const debugAvailability = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// ==================== NEW: Dedicated Section Endpoints ====================
+
+/**
+ * Get Overview Data (topMetrics, summaryMetrics, performanceMetricsKpis)
+ */
+export const getOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getOverview] API call received with filters:', filters);
+        const data = await watchTowerService.getOverview(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching overview:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get Platform Overview Data
+ */
+export const getPlatformOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getPlatformOverview] API call received with filters:', filters);
+        const data = await watchTowerService.getPlatformOverview(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching platform overview:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get Month Overview Data
+ */
+export const getMonthOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getMonthOverview] API call received with filters:', filters);
+        const data = await watchTowerService.getMonthOverview(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching month overview:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get Category Overview Data
+ */
+export const getCategoryOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getCategoryOverview] API call received with filters:', filters);
+        const data = await watchTowerService.getCategoryOverview(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching category overview:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get Brands Overview Data
+ */
+export const getBrandsOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getBrandsOverview] API call received with filters:', filters);
+        const data = await watchTowerService.getBrandsOverview(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching brands overview:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+

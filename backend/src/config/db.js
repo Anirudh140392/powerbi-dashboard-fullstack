@@ -11,6 +11,16 @@ const sequelize = new Sequelize(
     dialect: "mysql",
     port: process.env.DB_PORT || 3306,
     logging: false, // set true if you want SQL logs
+    pool: {
+      max: 50,        // Increased from 10 to handle parallel SOS queries
+      min: 5,         // Maintain minimum connections
+      acquire: 120000, // Increased from 60s to 120s
+      idle: 20000,    // inincreased idle timeout
+      evict: 10000    // Check for idle connections every 10s
+    },
+    dialectOptions: {
+      connectTimeout: 120000 // Increased from 60s to 120s
+    }
   }
 );
 

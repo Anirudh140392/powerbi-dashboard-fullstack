@@ -20,7 +20,9 @@ export const FilterProvider = ({ children }) => {
             try {
                 const response = await axiosInstance.get("/watchtower/platforms");
                 const fetchedPlatforms = response.data;
-                setPlatforms(fetchedPlatforms);
+                // Add All option
+                const options = ["All", ...fetchedPlatforms.filter(p => p !== "All")];
+                setPlatforms(options);
 
                 // Optional: Set default platform if needed, but keeping "Zepto" as default for now
             } catch (error) {
@@ -31,8 +33,9 @@ export const FilterProvider = ({ children }) => {
     }, []);
 
     // Date Ranges
-    const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
-    const [timeEnd, setTimeEnd] = useState(dayjs("2025-10-06"));
+    // Default date range: 1st of current month to today
+    const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
+    const [timeEnd, setTimeEnd] = useState(dayjs());
     const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
 
@@ -59,12 +62,14 @@ export const FilterProvider = ({ children }) => {
                     params: { platform: platform }
                 });
                 const fetchedBrands = response.data;
-                setBrands(fetchedBrands);
+                // Add All option
+                const options = ["All", ...fetchedBrands.filter(b => b !== "All")];
+                setBrands(options);
 
                 // Set default brand if not already selected or if current selection is not in new list
                 // For simplicity, always default to first brand when platform changes to ensure validity
-                if (fetchedBrands.length > 0) {
-                    setSelectedBrand(fetchedBrands[0]);
+                if (options.length > 0) {
+                    setSelectedBrand(options[0]);
                 } else {
                     setSelectedBrand(null);
                 }
@@ -108,11 +113,13 @@ export const FilterProvider = ({ children }) => {
                     }
                 });
                 const fetchedLocations = response.data;
-                setLocations(fetchedLocations);
+                // Add All option
+                const options = ["All", ...fetchedLocations.filter(l => l !== "All")];
+                setLocations(options);
 
                 // Set default location if available
-                if (fetchedLocations.length > 0) {
-                    setSelectedLocation(fetchedLocations[0]);
+                if (options.length > 0) {
+                    setSelectedLocation(options[0]);
                 } else {
                     setSelectedLocation(null);
                 }

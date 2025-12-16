@@ -1,0 +1,7 @@
+[dotenv@17.2.3] injecting env (5) from .env -- tip: ⚙️  suppress all logs with { quiet: true }
+DB_HOST: 15.207.197.27
+Starting Debug...
+Database connected.
+Calling getSummaryMetrics with: { months: 1, brand: 'Aer', platform: 'Zepto', location: 'All' }
+Manual Debug Date Range: 2025-11-09T00:00:00+05:30 to 2025-12-09T23:59:59+05:30
+Manual Count (Exact Platform): 1173731

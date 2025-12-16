@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   DRILL_COLUMNS,
   FORMAT_MATRIX,
@@ -93,87 +92,102 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = () => {
+const TabbedHeatmapTable = ({ apiData }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // 🔥 Utility to compute unified trend + series for ANY item
-  const buildRows = (dataArray, columnList) => {
-    return dataArray.map((item) => {
-      const primaryTrendSeries = item.trend?.["Spend"] || [];
-      const valid = primaryTrendSeries.length >= 2;
+  const platformData = useMemo(() => {
+    const baseRows = (FORMAT_MATRIX.PlatformData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend,
+    }));
 
-      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+    if (apiData?.metrics?.assortment?.breakdown) {
+      const assortmentRow = baseRows.find((r) => r.kpi === "Assortment");
+      if (assortmentRow) {
+        // Iterate over ALL columns to ensure we overwrite hardcoded values
+        FORMAT_MATRIX.PlatformColumns.forEach((platform) => {
+          const apiValue = apiData.metrics.assortment.breakdown[platform];
+          // Check for exact match or case-insensitive match if needed
 
-      const globalDelta = Number((lastVal - prevVal).toFixed(1));
+          if (apiValue !== undefined) {
+            assortmentRow[platform] = apiValue;
+          } else {
+            // Try case-insensitive lookup
+            const lowerPlatform = platform.toLowerCase();
+            const matchKey = Object.keys(apiData.metrics.assortment.breakdown).find(k => k && k.toLowerCase() === lowerPlatform);
+            if (matchKey) {
+              assortmentRow[platform] = apiData.metrics.assortment.breakdown[matchKey];
+            } else {
+              assortmentRow[platform] = 0;
+            }
+          }
+        });
+      }
+    }
 
-      const trendObj = {};
-      const seriesObj = {};
+    return {
+      columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
+      rows: baseRows,
+    };
+  }, [apiData]);
 
-      columnList.forEach((col) => {
-        trendObj[col] = globalDelta;              // 🔥 apply SAME delta to every column
-        seriesObj[col] = primaryTrendSeries;      // 🔥 sparkline same for each column
-      });
-
-      return {
-        kpi: item.kpi,
-        ...item.values,
-        trend: trendObj,
-        series: seriesObj,
-      };
-    });
-  };
-
-  // ---------------- PLATFORM ----------------
-  const platformData = {
-    columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
-    rows: buildRows(FORMAT_MATRIX.PlatformData, FORMAT_MATRIX.PlatformColumns),
-  };
-
-  // ---------------- FORMAT ----------------
+  // ---------------- FORMAT LEVEL DATA ----------------
   const formatData = {
     columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
-    rows: buildRows(FORMAT_MATRIX.FormatData, FORMAT_MATRIX.formatColumns),
+    rows: (FORMAT_MATRIX.FormatData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
   };
 
-  // ---------------- CITY ----------------
   const cityData = {
     columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
-    rows: buildRows(FORMAT_MATRIX.CityData, FORMAT_MATRIX.CityColumns),
+    rows: (FORMAT_MATRIX.CityData ?? []).map((r) => ({
+      kpi: r.kpi,
+      ...r.values,
+      trend: r.trend, // ← FIXED
+    })),
   };
 
-  // ---------------- TABS ----------------
+  // ---------------- TAB DEFINITIONS ----------------
   const tabs = [
     { key: "platform", label: "Platform", data: platformData },
     { key: "format", label: "Format", data: formatData },
     { key: "city", label: "City", data: cityData },
   ];
 
-  const active = tabs.find((t) => t.key === activeTab);
+  const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
   return (
     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
-
-      {/* -------- TABS -------- */}
-      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+      {/* Tabs */}
+      <div className="flex gap-2">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-1.5 text-sm rounded-full transition-all 
-              ${activeTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`px-4 py-2 rounded-full text-sm border transition ${activeTab === t.key
+              ? "bg-slate-900 text-white"
+              : "bg-slate-100 text-slate-700 border-slate-300"
+              }`}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
+      <SimpleTableWithTabs
+        title={active.label}
+        subtitle="Heatmap View"
+        data={active.data}
+        cellHeat={cellHeat}
+        trendKey="trend" // ← REQUIRED
+      />
     </div>
   );
 };
-
 
 const PowerHierarchyHeat = () => {
   return (
@@ -988,105 +1002,69 @@ const FormatPerformanceStudio = () => {
   );
 };
 
-const cards = [
-  {
-    title: "Stock Availability",
-    value: "85.2%",
-    sub: "MTD on-shelf coverage",
-    change: "▲3.1 pts (from 82.1%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "High risk stores: 12",
-    extraChange: "▼4 stores",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Days of Inventory (DOI)",
-    value: "62.4",
-    sub: "Network average days of cover",
-    change: "▼5.3% (from 65.9)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Target band: 55–65 days",
-    extraChange: "Within target range",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Fill Rate",
-    value: "93.7%",
-    sub: "Supplier fulfillment rate",
-    change: "▲1.8 pts (from 91.9%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 6%",
-    extraChange: "▼1.2 pts",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Metro City Stock Availability",
-    value: "78.5%",
-    sub: "MTD availability across metro cities",
-    change: "▼2.0 pts (from 80.5%)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Top 10 stores: 84.2%",
-    extraChange: "▲0.6 pts",
-    extraChangeColor: "green",
-  }
-];
 
 
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = () => {
+export const AvailablityAnalysisData = ({ apiData }) => {
   const [olaMode, setOlaMode] = useState("absolute");
-  const [availability, setAvailability] = useState("absolute");
+
+  const cards = useMemo(() => [
+    {
+      title: "Assortments",
+      value: (apiData?.metrics?.assortment?.total !== undefined && apiData?.metrics?.assortment?.total !== null)
+        ? `${apiData.metrics.assortment.total} on ${apiData.metrics.assortment.date ? new Date(apiData.metrics.assortment.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : 'Unknown Date'}`
+        : "Loading...",
+      sub: "Active SKUs in store",
+      change: "▲4.3% (+4 SKUs)", // Placeholder for trend
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "New launches this month: 7", // Placeholder
+      extraChange: "▲12.5%",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Stock Availability",
+      value: "52.4%",
+      sub: "MTD on-shelf coverage",
+      change: "▼8.6 pts (from 61.0%)",
+      changeColor: "red",
+      prevText: "vs Comparison Period",
+      extra: "Top 50 SKUs: 82.3%",
+      extraChange: "▲0.9 pts",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Days of Inventory (DOI)",
+      value: "68.3",
+      sub: "Network average days of cover",
+      change: "▲19.5% (from 57.1)",
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "Target band: 55–65 days",
+      extraChange: "Slightly above target",
+      extraChangeColor: "orange",
+    },
+    {
+      title: "Wt. OSA",
+      value: "76.9%",
+      sub: "Weighted on-shelf availability (MTD)",
+      change: "▲1.2 pts (from 75.7%)",
+      changeColor: "green",
+      prevText: "vs Comparison Period",
+      extra: "Top 50 SKUs: 82.3%",
+      extraChange: "▲0.9 pts",
+      extraChangeColor: "green",
+    },
+  ], [apiData]);
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-white via-white to-slate-50 text-slate-900 px-4 py-6">
+    <div className="min-h-screen w-full bg-gradient-to-br from-amber-50 via-white to-sky-50 text-slate-900 px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-5">
         <div className="space-y-4">
-          {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
-
-          {/* MARKET SHARE TOGGLE BLOCK */}
-          {/* AVAILABILITY TOGGLE BLOCK */}
-          <div className="flex justify-center">
-            <div className="relative w-full md:w-[420px]">
-              <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-                <motion.div
-                  layout
-                  className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
-                  initial={false}
-                  animate={{ x: availability === "absolute" ? 0 : "100%" }}
-                  transition={{ type: "spring", stiffness: 260, damping: 26 }}
-                />
-
-                {[
-                  { key: "absolute", label: "Absolute OLA" },
-                  { key: "weighted", label: "Weighted OLA" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setAvailability(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
-                      ? "text-slate-900"
-                      : "text-slate-500 hover:text-slate-700"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-
-
-
+          <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
           <MetricCardContainer title="Availability Overview" cards={cards} />
-          <SignalLabVisibility type="availability" />
           <TabbedHeatmapTable />
           <OsaHeatmapTable />
 

@@ -159,11 +159,20 @@ function getTagColors(tone) {
 export default function PerformanceMatric({
   cardWidth = 240,
   cardHeight = 120,
+  data,
 }) {
+  // Debug: Check if data is being received
+  console.log("PerformanceMetric received data:", data);
+
+  // Use backend data if available, otherwise fall back to static KPI_CARDS
+  const KPI_CARDS_DATA = data && data.length > 0 ? data : KPI_CARDS;
+
+  console.log("Using KPI_CARDS_DATA:", KPI_CARDS_DATA);
+
   const [activeTrendId, setActiveTrendId] = useState(null);
   const [showTrends, setShowTrends] = useState(false);
 
-  const activeCard = KPI_CARDS.find((c) => c.id === activeTrendId) || null;
+  const activeCard = KPI_CARDS_DATA.find((c) => c.id === activeTrendId) || null;
 
   return (
     <div
@@ -184,7 +193,7 @@ export default function PerformanceMatric({
           paddingTop: 2,
         }}
       >
-        {KPI_CARDS.map((card) => (
+        {KPI_CARDS_DATA.map((card) => (
           <KpiCard
             key={card.id}
             card={card}

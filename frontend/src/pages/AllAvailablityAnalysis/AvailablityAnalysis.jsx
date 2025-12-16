@@ -68,6 +68,23 @@ export default function AvailablityAnalysis() {
     setShowTrends(true);
   };
 
+  const [apiData, setApiData] = useState(null);
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const queryParams = new URLSearchParams(filters).toString();
+        const response = await fetch(`http://localhost:5000/api/availability-analysis?${queryParams}`);
+        const data = await response.json();
+        setApiData(data);
+      } catch (error) {
+        console.error("Error fetching availability data:", error);
+      }
+    };
+
+    fetchData();
+  }, [filters]);
+
   return (
     <>
       <CommonContainer
@@ -75,7 +92,7 @@ export default function AvailablityAnalysis() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        <AvailablityAnalysisData />
+        <AvailablityAnalysisData apiData={apiData} />
       </CommonContainer>
     </>
   );
