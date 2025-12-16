@@ -1,101 +1,60 @@
-import React from "react";
-import { Box, Typography, Divider } from "@mui/material";
+import React, { useState } from "react";
+import { Box, Typography } from "@mui/material";
+import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import SalesSummaryCards from "./SalesSummaryCards";
+import CityKpiTrendShowcase from "../../components/CityKpiTrendShowcase";
+import SalesGainerDrainerWrapper from "./SalesGainerDrainerWrapper";
+import { SALES_MATRIX_DATA } from "./SalesData";
+import RegionSalesTable from "../../components/Sales/RegionSalesTable";
 
 export default function SalesMainPage() {
+  const [filters, setFilters] = useState({
+    platform: "Zepto",
+  });
+
   return (
-    <Box
-      sx={{
-        height: "100%",
-        width: "100%",
-        padding: "24px",
-        backgroundColor: "#0f172a", // match dark theme
-      }}
+    <CommonContainer
+      title="Sales"
+      filters={filters}
+      onFiltersChange={setFilters}
     >
-      {/* ---------------- Page Header ---------------- */}
-      <Box sx={{ mb: 3 }}>
-        <Typography
-          variant="h5"
-          sx={{ fontWeight: 600, color: "#e5e7eb" }}
+      {/* ---------------- Page Content ---------------- */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+
+        {/* Description / Header inside content if needed */}
+        <Box>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Sales performance, trends and contribution analysis and everything else
+          </Typography>
+        </Box>
+
+        {/* ---------------- Main Page Container ---------------- */}
+        <Box
+          sx={{
+            bgcolor: "background.paper",
+            borderRadius: 4,
+            boxShadow: 1,
+            p: 3,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4
+          }}
         >
-          Sales
-        </Typography>
+          {/* ---------------- KPI Cards ---------------- */}
+          <SalesSummaryCards />
 
-        <Typography
-          variant="body2"
-          sx={{ color: "#94a3b8", mt: 0.5 }}
-        >
-          Sales performance, trends and contribution analysis
-        </Typography>
+          {/* ---------------- Gainers / Drainers ---------------- */}
+          <SalesGainerDrainerWrapper />
+
+          {/* ---------------- Sales Matrix Table (By Format) ---------------- */}
+          <CityKpiTrendShowcase
+            title="By Format"
+            data={SALES_MATRIX_DATA}
+          />
+
+          <RegionSalesTable />
+        </Box>
       </Box>
-
-      <Divider sx={{ borderColor: "#1e293b", mb: 3 }} />
-
-      {/* ---------------- Filters Section (Empty) ---------------- */}
-      <Box
-        sx={{
-          mb: 3,
-          minHeight: "60px",
-          borderRadius: "8px",
-          border: "1px dashed #334155",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#64748b",
-          fontSize: "14px",
-        }}
-      >
-        Filters will come here
-      </Box>
-
-      {/* ---------------- KPI Cards Section (Empty) ---------------- */}
-      <Box
-        sx={{
-          mb: 3,
-          minHeight: "120px",
-          borderRadius: "8px",
-          border: "1px dashed #334155",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#64748b",
-          fontSize: "14px",
-        }}
-      >
-        KPI cards will come here
-      </Box>
-
-      {/* ---------------- Charts Section (Empty) ---------------- */}
-      <Box
-        sx={{
-          mb: 3,
-          minHeight: "220px",
-          borderRadius: "8px",
-          border: "1px dashed #334155",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#64748b",
-          fontSize: "14px",
-        }}
-      >
-        Charts & trends will come here
-      </Box>
-
-      {/* ---------------- Table Section (Empty) ---------------- */}
-      <Box
-        sx={{
-          minHeight: "260px",
-          borderRadius: "8px",
-          border: "1px dashed #334155",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#64748b",
-          fontSize: "14px",
-        }}
-      >
-        Sales table / drill-down will come here
-      </Box>
-    </Box>
+    </CommonContainer>
   );
 }
