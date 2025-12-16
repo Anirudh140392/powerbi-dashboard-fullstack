@@ -5,37 +5,37 @@ const CardMetric = ({ data }) => {
   const defaultCards = [
     {
       title: "Offtake",
-      value: "₹14.8 Cr",
+      value: "₹0",
       sub: "MTD (Month-to-Date)",
-      change: "▲6.4% (₹89.3 lac)",
-      changeColor: "green",
+      change: "0%",
+      changeColor: "grey",
       prevText: "vs Previous Month",
-      extra: "#Units: 7.1 lac",
-      extraChange: "▲4.2%",
-      extraChangeColor: "green",
+      extra: "#Units: 0",
+      extraChange: "0%",
+      extraChangeColor: "grey",
     },
     {
       title: "Availability",
-      value: "96.8%",
+      value: "0%",
       sub: "MTD Coverage",
-      change: "▲1.8% (+1.7 pts)",
-      changeColor: "green",
+      change: "0%",
+      changeColor: "grey",
       prevText: "vs Previous Month",
     },
     {
       title: "Promo Spends %",
-      value: "5.21%",
+      value: "0%",
       sub: "MTD (Avg.)",
-      change: "▼0.7% (-0.04 pts)",
-      changeColor: "red",
+      change: "0%",
+      changeColor: "grey",
       prevText: "vs Previous Month",
     },
     {
       title: "Market Share",
-      value: "24.3%",
+      value: "0%",
       sub: "MTD",
-      change: "▲3.9% (+0.92 pts)",
-      changeColor: "green",
+      change: "0%",
+      changeColor: "grey",
       prevText: "vs Previous Month",
     },
   ];
@@ -45,12 +45,13 @@ const CardMetric = ({ data }) => {
     value: item.label,
     sub: item.subtitle,
     change: item.trend,
-    changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
+    changeColor: (item.trendType === 'positive' || item.trendType === 'up') ? '#22c55e' : (item.trendType === 'negative' || item.trendType === 'down') ? '#ef4444' : 'grey',
     prevText: item.comparison,
     extra: item.units ? `#Units: ${item.units}` : null,
     extraChange: item.unitsTrend,
     extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
-    chart: item.chart
+    chart: item.chart,
+    labels: item.labels
   })) : defaultCards;
 
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
@@ -120,12 +121,13 @@ const CardMetric = ({ data }) => {
           {cards.map((card, index) => {
             const values = generateValues(card);
             const color = isProfit(card.change) ? "#28a745" : "#dc3545";
+            const cardLabels = card.labels || months; // Fallback to hardcoded if missing
 
             return (
               <MiniChartCard
                 key={index}
                 card={card}
-                months={months} // Note: months are hardcoded, might not match data
+                months={cardLabels}
                 values={values}
                 color={color}
                 scrollNeeded={scrollNeeded}

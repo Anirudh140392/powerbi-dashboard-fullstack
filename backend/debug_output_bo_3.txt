@@ -1,0 +1,151 @@
+[dotenv@17.2.3] injecting env (5) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+Starting Brands Overview Debug...
+Database connected.
+Calling getSummaryMetrics with: {
+  months: 1,
+  brand: 'All',
+  platform: 'Zepto',
+  location: 'All',
+  brandsOverviewPlatform: 'Zepto',
+  brandsOverviewCategory: 'All'
+}
+Processing Watch Tower request with filters: {
+  months: 1,
+  brand: 'All',
+  platform: 'Zepto',
+  location: 'All',
+  brandsOverviewPlatform: 'Zepto',
+  brandsOverviewCategory: 'All'
+}
+Date Range: 2025-11-09 to 2025-12-09
+Calculating Month Overview for Platform: Blinkit
+--- Brands Overview Result ---
+Found 28 brands.
+[
+  {
+    "brand": "Ariel",
+    "offtakes": {
+      "value": "₹0.00",
+      "sub": "#0.00 lac units",
+      "trend": "▲0.0%"
+    },
+    "spend": {
+      "value": "₹0.00",
+      "sub": "#₹0.00",
+      "trend": "▲0.0%"
+    },
+    "roas": {
+      "value": "0.0x",
+      "sub": "#₹0.00 return",
+      "trend": "▲0.0%"
+    },
+    "inorgSales": {
+      "value": "₹0.00",
+      "sub": "#0.00 lac units",
+      "trend": "▲0.0%"
+    },
+    "conversion": {
+      "value": "0.0%",
+      "sub": "#0.0k conversions",
+      "trend": "▲0.0 pp"
+    },
+    "availability": {
+      "value": "29.1%",
+      "sub": "#120120 stores",
+      "trend": "▲29.1 pp"
+    },
+    "sos": {
+      "value": "0.0%",
+      "sub": "#0.0 shelf index",
+      "trend": "▲0.0 pp"
+    },
+    "marketShare": {
+      "value": "0.3%",
+      "sub": "Category: ₹0.00",
+      "trend": "▲0.3 pp"
+    },
+    "promoMyBrand": {
+      "value": "18.2%",
+      "sub": "Depth 18.2%",
+      "trend": "▲18.2 pp"
+    },
+    "promoCompete": {
+      "value": "8.3%",
+      "sub": "Depth 8.3%",
+      "trend": "▲8.3 pp"
+    },
+    "cpm": {
+      "value": "₹0",
+      "sub": "#0.0 lac impressions",
+      "trend": "▲0.0%"
+    },
+    "cpc": {
+      "value": "₹0.0",
+      "sub": "#0.00 lac clicks",
+      "trend": "▲0.0%"
+    }
+  },
+  {
+    "brand": "Bblunt",
+    "offtakes": {
+      "value": "₹0.00",
+      "sub": "#0.00 lac units",
+      "trend": "▲0.0%"
+    },
+    "spend": {
+      "value": "₹0.00",
+      "sub": "#₹0.00",
+      "trend": "▲0.0%"
+    },
+    "roas": {
+      "value": "0.0x",
+      "sub": "#₹0.00 return",
+      "trend": "▲0.0%"
+    },
+    "inorgSales": {
+      "value": "₹0.00",
+      "sub": "#0.00 lac units",
+      "trend": "▲0.0%"
+    },
+    "conversion": {
+      "value": "0.0%",
+      "sub": "#0.0k conversions",
+      "trend": "▲0.0 pp"
+    },
+    "availability": {
+      "value": "10.5%",
+      "sub": "#132132 stores",
+      "trend": "▲10.5 pp"
+    },
+    "sos": {
+      "value": "0.0%",
+      "sub": "#0.0 shelf index",
+      "trend": "▲0.0 pp"
+    },
+    "marketShare": {
+      "value": "0.0%",
+      "sub": "Category: ₹0.00",
+      "trend": "▲0.0 pp"
+    },
+    "promoMyBrand": {
+      "value": "7.1%",
+      "sub": "Depth 7.1%",
+      "trend": "▲7.1 pp"
+    },
+    "promoCompete": {
+      "value": "8.7%",
+      "sub": "Depth 8.7%",
+      "trend": "▲8.7 pp"
+    },
+    "cpm": {
+      "value": "₹0",
+      "sub": "#0.0 lac impressions",
+      "trend": "▲0.0%"
+    },
+    "cpc": {
+      "value": "₹0.0",
+      "sub": "#0.00 lac clicks",
+      "trend": "▲0.0%"
+    }
+  }
+]

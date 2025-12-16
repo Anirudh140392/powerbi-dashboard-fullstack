@@ -1,4 +1,5 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview } from '../controllers/watchTowerController.js';
+import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 
 export default (app) => {
     /**
@@ -39,6 +40,7 @@ export default (app) => {
      *                   type: array
      */
     app.get('/api/watchtower', watchTowerOverview);
+    app.get('/api/watchtower/summary-metrics', watchTowerOverview);
 
     /**
      * @swagger
@@ -106,6 +108,37 @@ export default (app) => {
      */
     app.get('/api/watchtower/locations', getLocations);
 
+    /**
+     * @swagger
+     * /api/watchtower/platforms:
+     *   get:
+     *     summary: Get list of available platforms
+     *     description: Retrieve a list of distinct platforms from the database.
+     *     responses:
+     *       200:
+     *         description: Successful response with list of platforms
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: array
+     *               items:
+     *                 type: string
+     *     tags: [WatchTower]
+     */
+    app.get('/api/watchtower/platforms', getPlatforms);
+
     app.get('/api/watchtower/debug', debugAvailability);
+    app.get('/api/watchtower/trend', getTrendData);
+    app.get('/api/watchtower/categories', getBrandCategories);
+    app.get('/api/watchtower/metrics', getMetrics);
+    app.get('/api/watchtower/sku-metrics', getSkuMetricsData);
+
+    // ==================== NEW: Dedicated Section Endpoints ====================
+    // These endpoints enable concurrent fetching of individual sections
+    app.get('/api/watchtower/overview', getOverview);
+    app.get('/api/watchtower/platform-overview', getPlatformOverview);
+    app.get('/api/watchtower/month-overview', getMonthOverview);
+    app.get('/api/watchtower/category-overview', getCategoryOverview);
+    app.get('/api/watchtower/brands-overview', getBrandsOverview);
 
 };
