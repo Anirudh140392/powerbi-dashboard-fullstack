@@ -7,7 +7,7 @@ import {
 } from "@mui/material";
 
 import {
-  
+
   Menu as MenuIcon,
 } from "@mui/icons-material";
 
@@ -16,8 +16,9 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 
 const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
-  const [timeStart, setTimeStart] = React.useState(dayjs("2025-10-01"));
-  const [timeEnd, setTimeEnd] = React.useState(dayjs("2025-10-06"));
+  // Default date range: 1st of current month to today
+  const [timeStart, setTimeStart] = React.useState(dayjs().startOf('month'));
+  const [timeEnd, setTimeEnd] = React.useState(dayjs());
 
   const [compareStart, setCompareStart] = React.useState(dayjs("2025-09-01"));
   const [compareEnd, setCompareEnd] = React.useState(dayjs("2025-09-06"));
@@ -58,7 +59,7 @@ const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
           </IconButton>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          
+
 
             <Typography variant="h6" sx={{ fontWeight: 700, color: "#111827" }}>
               {title}
@@ -143,7 +144,7 @@ const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
 
         {/* MRP / SP Toggle */}
         <Box sx={{ display: "flex", gap: 1 }}>
-          
+
           <Button
             variant={priceMode === "MRP" ? "contained" : "outlined"}
             onClick={() => setPriceMode("MRP")}

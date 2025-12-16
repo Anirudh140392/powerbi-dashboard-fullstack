@@ -21,13 +21,13 @@ import { Download } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
 
 export default function CategoryTable({
-  categories,
+  categories = [],
   activeTab = "",
   selectedMetric: externalSelectedMetric,
   onMetricChange,
   loading = false
 }) {
-  const platforms = Object.keys(categories[0] || {}).filter((k) => k !== "name");
+  const platforms = categories.length > 0 ? Object.keys(categories[0] || {}).filter((k) => k !== "name") : [];
   const [searchTerm, setSearchTerm] = useState("");
   const [metricsFromDB, setMetricsFromDB] = useState([]);
   const [selectedMetricKey, setSelectedMetricKey] = useState(externalSelectedMetric || "");
@@ -70,7 +70,7 @@ export default function CategoryTable({
     if (externalSelectedMetric && externalSelectedMetric !== selectedMetricKey) {
       setSelectedMetricKey(externalSelectedMetric);
     }
-  }, [externalSelectedMetric]);
+  }, [externalSelectedMetric, availableMetrics]); // Also depend on availableMetrics
 
   // Set default metric if not set
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function CategoryTable({
     key,
   }));
 
-  const selectedMetric = metricOptions.find(m => m.key === selectedMetricKey) || metricOptions[0];
+  const selectedMetric = metricOptions.find(m => m.key === selectedMetricKey) || metricOptions[0] || { label: "Loading...", key: "" };
   const theme = useTheme();
 
   /* --------------------- FILTER --------------------- */
@@ -198,21 +198,27 @@ export default function CategoryTable({
               Metrics:
             </Typography>
 
-            <Select
-              size="small"
-              value={selectedMetricKey || ""}
-              sx={{ minWidth: 120 }}
-              onChange={(e) => {
-                setSelectedMetricKey(e.target.value);
-                onMetricChange && onMetricChange(e.target.value);
-              }}
-            >
-              {metricOptions.map((opt) => (
-                <MenuItem key={opt.key} value={opt.key}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </Select>
+            {metricOptions.length > 0 ? (
+              <Select
+                size="small"
+                value={selectedMetricKey || ""}
+                sx={{ minWidth: 120 }}
+                onChange={(e) => {
+                  setSelectedMetricKey(e.target.value);
+                  onMetricChange && onMetricChange(e.target.value);
+                }}
+              >
+                {metricOptions.map((opt) => (
+                  <MenuItem key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            ) : (
+              <Typography variant="body2" sx={{ color: "#9ca3af" }}>
+                Loading...
+              </Typography>
+            )}
 
             {/* SEARCH */}
             <TextField
@@ -247,8 +253,20 @@ export default function CategoryTable({
           </Box>
         )}
 
+        {/* EMPTY STATE */}
+        {!loading && categories.length === 0 && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No SKU data available
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Try adjusting your filters or select a different metric
+            </Typography>
+          </Box>
+        )}
+
         {/* TABLE */}
-        {!loading && (
+        {!loading && categories.length > 0 && (
           <TableContainer
             component={Paper}
             sx={{ background: theme.palette.background.paper }}
@@ -370,7 +388,7 @@ export default function CategoryTable({
         )}
 
         {/* PAGINATION */}
-        {!loading && (
+        {!loading && categories.length > 0 && (
           <Box
             display="flex"
             justifyContent="flex-end"

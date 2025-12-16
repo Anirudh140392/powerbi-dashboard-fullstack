@@ -516,7 +516,8 @@ const PlatformOverview = ({
   brandsOverviewPlatform,
   onBrandsPlatformChange,
   brandsOverviewCategory,
-  onBrandsCategoryChange
+  onBrandsCategoryChange,
+  filters = {} // Accept filters from parent
 }) => {
   const theme = useTheme();
 
@@ -574,19 +575,21 @@ const PlatformOverview = ({
   React.useEffect(() => {
     const fetchMetrics = async () => {
       try {
+        console.log('[SKU Metrics] Fetching metrics list...');
         const response = await axiosInstance.get("/watchtower/metrics");
         if (response.data && response.data.length > 0) {
+          console.log('[SKU Metrics] Received metrics:', response.data);
           setMetricsList(response.data);
-          // Set first metric as default category for Skus Overview
-          if (activeKpisTab === "Skus Overview") {
-            setPlatformFilter(prev => ({
-              ...prev,
-              category: response.data[0] // Set to first metric name
-            }));
+          // Set first metric as default for Skus Overview
+          if (!selectedSkuMetric) {
+            console.log('[SKU Metrics] Setting default metric to:', response.data[0]);
+            setSelectedSkuMetric(response.data[0]);
           }
+        } else {
+          console.warn('[SKU Metrics] No metrics received from API');
         }
       } catch (error) {
-        console.error("Error fetching metrics:", error);
+        console.error("[SKU Metrics] Error fetching metrics:", error);
       }
     };
     fetchMetrics();
@@ -595,20 +598,38 @@ const PlatformOverview = ({
   // Fetch SKU data when metric changes
   React.useEffect(() => {
     const fetchSkuData = async () => {
+      console.log('[SKU Data] Effect triggered. selectedSkuMetric:', selectedSkuMetric, 'activeKpisTab:', activeKpisTab);
+
       if (!selectedSkuMetric || activeKpisTab !== "Skus Overview") {
+        console.log('[SKU Data] Skipping fetch. Metric:', selectedSkuMetric, 'Tab:', activeKpisTab);
         return;
       }
 
       setLoadingSkuData(true);
       try {
+        // Build params object with all active filters
+        const params = {
+          metric: selectedSkuMetric
+        };
+
+        // Add filters if they exist
+        if (filters.platform) params.platform = filters.platform;
+        if (filters.brand) params.brand = filters.brand;
+        if (filters.location) params.location = filters.location;
+        if (filters.startDate) params.dateFrom = filters.startDate;
+        if (filters.endDate) params.dateTo = filters.endDate;
+
+        console.log('[SKU Data] Fetching SKU metrics with params:', params);
+
         const response = await axiosInstance.get("/watchtower/sku-metrics", {
-          params: { metric: selectedSkuMetric }
+          params
         });
+        console.log('[SKU Data] Received response:', response.data?.length, 'SKUs');
         if (response.data) {
           setSkuData(response.data);
         }
       } catch (error) {
-        console.error("Error fetching SKU metrics data:", error);
+        console.error("[SKU Data] Error fetching SKU metrics data:", error);
         setSkuData([]);
       } finally {
         setLoadingSkuData(false);
@@ -616,17 +637,9 @@ const PlatformOverview = ({
     };
 
     fetchSkuData();
-  }, [selectedSkuMetric, activeKpisTab]);
+  }, [selectedSkuMetric, activeKpisTab, filters]);
 
-  // Set default category when switching to Skus Overview tab
-  React.useEffect(() => {
-    if (activeKpisTab === "Skus Overview" && metricsList.length > 0 && !platformFilter.category) {
-      setPlatformFilter(prev => ({
-        ...prev,
-        category: metricsList[0]
-      }));
-    }
-  }, [activeKpisTab, metricsList]);
+
 
   const sortedPlatforms = React.useMemo(() => {
     let filteredData = data;
@@ -821,13 +834,8 @@ const PlatformOverview = ({
                     <>
                       <Select
                         size="small"
-                        value={platformFilter.category || ""}
-                        onChange={(e) =>
-                          setPlatformFilter((p) => ({
-                            ...p,
-                            category: e.target.value,
-                          }))
-                        }
+                        value={selectedSkuMetric || ""}
+                        onChange={(e) => setSelectedSkuMetric(e.target.value)}
                         sx={{
                           minWidth: 130,
                           height: 36,
@@ -929,93 +937,124 @@ const PlatformOverview = ({
               },
             }}
           >
-            {sortedPlatforms.map((platform) => (
-              <Box sx={{ minWidth: 280 }} key={platform.key}>
-                <Card
-                  sx={{
-                    p: 2,
-                    borderRadius: 3,
-                    background: theme.palette.background.default,
-                    boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
-                  }}
+            {sortedPlatforms.length === 0 ? (
+              <Box
+                sx={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  minHeight: "400px",
+                  flexDirection: "column",
+                  gap: 2,
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  color="text.secondary"
+                  sx={{ fontWeight: 500 }}
                 >
-                  {/* ---------------- PREMIUM INLINE HEADER ---------------- */}
-                  <Box sx={{ mb: 1.5 }}>
-                    {/* First Row: Logo + Title + Inline Buttons */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        width: "100%",
-                      }}
-                    >
-                      {/* Left: Logo + Name */}
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                        {platform.logo && (
-                          <img
-                            src={platform.logo}
-                            alt={platform.label}
-                            style={{
-                              width: 34,
-                              height: 34,
-                              borderRadius: "50%",
-                              background: "#fff",
-                              padding: 3,
-                              objectFit: "contain",
-                            }}
-                          />
-                        )}
+                  No {activeKpisTab.toLowerCase()} data available
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ textAlign: "center", maxWidth: 500 }}
+                >
+                  {activeKpisTab === "Brands Overview"
+                    ? "No brands found for the selected platform and category. Try adjusting your filter selections or selecting a different platform/category combination."
+                    : "No data available for the selected filters. Please adjust your filter selections."}
+                </Typography>
+              </Box>
+            ) : (
+              sortedPlatforms.map((platform) => (
+                <Box sx={{ minWidth: 280 }} key={platform.key}>
+                  <Card
+                    sx={{
+                      p: 2,
+                      borderRadius: 3,
+                      background: theme.palette.background.default,
+                      boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    {/* ---------------- PREMIUM INLINE HEADER ---------------- */}
+                    <Box sx={{ mb: 1.5 }}>
+                      {/* First Row: Logo + Title + Inline Buttons */}
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          width: "100%",
+                        }}
+                      >
+                        {/* Left: Logo + Name */}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                          {platform.logo && (
+                            <img
+                              src={platform.logo}
+                              alt={platform.label}
+                              style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                background: "#fff",
+                                padding: 3,
+                                objectFit: "contain",
+                              }}
+                            />
+                          )}
 
-                        <Typography fontWeight={700} fontSize="0.95rem">
-                          {platform.label}
-                        </Typography>
+                          <Typography fontWeight={700} fontSize="0.95rem">
+                            {platform.label}
+                          </Typography>
+                        </Box>
+
+                        {/* Right: Inline Buttons */}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                          <Tooltip title="View platform trend performance" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => onViewTrends(platform.label)}
+                              sx={{
+                                borderRadius: 2,
+                                border: "1px solid #e5e7eb",
+                                background:
+                                  "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(56,189,248,0.08))",
+                                width: 32,
+                                height: 32,
+                              }}
+                            >
+                              <TrendingUp size={17} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+
                       </Box>
 
-                      {/* Right: Inline Buttons */}
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <Tooltip title="View platform trend performance" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => onViewTrends(platform.label)}
-                            sx={{
-                              borderRadius: 2,
-                              border: "1px solid #e5e7eb",
-                              background:
-                                "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(56,189,248,0.08))",
-                              width: 32,
-                              height: 32,
-                            }}
-                          >
-                            <TrendingUp size={17} />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-
+                      {/* Second Row: Platform Type */}
+                      <Typography
+                        color="text.secondary"
+                        fontSize="0.75rem"
+                        sx={{ mt: 0.5, ml: 5.5 }}
+                      >
+                        {platform.type}
+                      </Typography>
                     </Box>
 
-                    {/* Second Row: Platform Type */}
-                    <Typography
-                      color="text.secondary"
-                      fontSize="0.75rem"
-                      sx={{ mt: 0.5, ml: 5.5 }}
-                    >
-                      {platform.type}
-                    </Typography>
-                  </Box>
-
-                  {/* SORTED KPI CARDS (VERTICAL) */}
-                  {platform.columns.map((col, i) => (
-                    <SmallCard key={i} item={col} />
-                  ))}
-                </Card>
-              </Box>
-            ))}
+                    {/* SORTED KPI CARDS (VERTICAL) */}
+                    {platform.columns.map((col, i) => (
+                      <SmallCard key={i} item={col} />
+                    ))}
+                  </Card>
+                </Box>
+              ))
+            )}
           </Box>
         </Card>
       ) : (
         <CategoryTable
-          categories={skuData.length > 0 ? skuData : allProducts}
+          categories={skuData}
           activeTab={activeKpisTab}
           selectedMetric={selectedSkuMetric}
           onMetricChange={(metric) => setSelectedSkuMetric(metric)}
