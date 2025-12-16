@@ -13,6 +13,7 @@ import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 import KpiTrendShowcase from "./KpiTrendShowcase";
+import OsaHeatmapTable from "./OsaDetailView";
 import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
 
 // ---------------------------------------------------------------------------
@@ -1087,18 +1088,8 @@ export const AvailablityAnalysisData = () => {
           <MetricCardContainer title="Availability Overview" cards={cards} />
           <SignalLabVisibility type="availability" />
           <TabbedHeatmapTable />
-          <DrillHeatTable
-            title="One View Drilldown"
-            data={ONE_VIEW_DRILL_DATA}
-            columns={DRILL_COLUMNS}
-            computeQuarterValues={(vals) => vals}
-            computeRowAvg={() => 0}
-            getHeatStyle={(v) => ({
-              bg: v > 85 ? "#c6f6d5" : "#fed7d7",
-              color: "#111",
-            })}
-            levels={["Platform", "Zone", "City", "Product", "ID"]}
-          />
+          <OsaHeatmapTable />
+
         </div>
       </div>
     </div>
