@@ -37,6 +37,7 @@ export function KpiFilterPanel({
   onBrandChange,
   onCategoryChange,
   onSkuChange,
+  onWeekendChange,
   onCityChange,
   onPlatformChange,
   onRulesChange,
@@ -137,6 +138,25 @@ export function KpiFilterPanel({
                 options={skus}
                 pageSize={pageSize}
                 onChange={onSkuChange}
+              />
+            );
+          }
+          if (section.id === "weekendFlag") {
+            const opts = [
+              { id: "Weekend", label: "Weekend" },
+              { id: "Weekday", label: "Weekday" },
+            ];
+
+            return (
+              <MultiSelectSection
+                key="weekendFlag"
+                title={section.label + " filter"}
+                description="Choose weekend or weekday data."
+                options={opts}
+                pageSize={pageSize}
+                onChange={(vals) => {
+                  if (onWeekendChange) onWeekendChange(vals || []);
+                }}
               />
             );
           }
