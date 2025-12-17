@@ -107,15 +107,15 @@ export default function OsaDetailTableLight() {
     const filterOptions = useMemo(() => {
         return [
             { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-            { id: "month", label: "Month", options: [{id: "all", label: "All"}, { id: "jan", label: "January"}, {id: "feb", label: "February"}] },
-            { id: "platform", label: "Platform", options: [{id: "blinkit", label: "Blinkit"}, {id: "zepto", label: "Zepto"}] },
-            { id: "productName", label: "Product Name", options: [{id: "p1", label: "Cornetto Double Chocolate"}, {id: "p2", label: "Magnum Truffle"}] },
-            { id: "format", label: "Format", options: [{id: "cone", label: "Cone"}, {id: "cup", label: "Cup"}, {id: "stick", label: "Stick"}] },
-            { id: "zone", label: "Zone", options: [{id: "north", label: "North"}, {id: "south", label: "South"}] },
-            { id: "city", label: "City", options: [{id: "delhi", label: "Delhi"}, {id: "mumbai", label: "Mumbai"}] },
-            { id: "pincode", label: "Pincode", options: [{id: "110001", label: "110001"}, {id: "400001", label: "400001"}] },
-            { id: "metroFlag", label: "Metro Flag", options: [{id: "metro", label: "Metro"}, {id: "non-metro", label: "Non-Metro"}] },
-            { id: "classification", label: "Classification", options: [{id: "gnow", label: "GNOW"}] },
+            { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
+            { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+            { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+            { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+            { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
+            { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
+            { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
+            { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
+            { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
         ];
     }, []);
 
@@ -189,351 +189,304 @@ export default function OsaDetailTableLight() {
     const dayCols = DAYS.slice(0, visibleDays);
 
     return (
-        <div className="min-h-screen w-full bg-slate-50 p-6">
-            <div className="mx-auto max-w-[1400px]">
-                {/* Title + Legend */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div className="text-xl font-semibold text-slate-900">OSA % Detail View</div>
-                        <div className="text-sm text-slate-500">
-                            Last {visibleDays} Days • Sortable • Paginated
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Filter Button */}
-                        <button
-                            onClick={() => setShowFilterPanel(true)}
-                            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition shadow-sm"
-                        >
-                            <SlidersHorizontal className="h-4 w-4" />
-                            Filters
-                            {statusFilter.length > 0 && (
-                                <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold">
-                                    {statusFilter.length}
-                                </span>
-                            )}
-                        </button>
-
-                        <div className="h-6 w-px bg-slate-200 mx-2" />
-
-
-                        <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-sm ring-1 ring-slate-200">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" /> <span className="text-slate-700 font-medium">Healthy</span>
-                        </span>
-                        <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-sm ring-1 ring-amber-200">
-                            <span className="h-2 w-2 rounded-full bg-amber-500" /> <span className="text-amber-700 font-medium">Watch</span>
-                        </span>
-                        <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-sm ring-1 ring-rose-200">
-                            <span className="h-2 w-2 rounded-full bg-rose-500" /> <span className="text-rose-700 font-medium">Action</span>
-                        </span>
-                    </div>
-                </div>
-
-                {/* Controls */}
-                <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
-                    {/* <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <div className="relative">
-                            <input
-                                value={query}
-                                onChange={(e) => {
-                                    setPage(1);
-                                    setQuery(e.target.value);
-                                }}
-                                placeholder="Search SKU or name…"
-                                className="w-full sm:w-[320px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-100"
-                            />
-                            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                ⌕
+        <div className="rounded-3xl flex-col bg-slate-50 relative">
+            <div className="flex flex-1 overflow-hidden">
+                <div className="flex-1 overflow-auto p-0 pr-0">
+                    <div className="rounded-3xl border bg-white p-4 shadow">
+                        {/* Title + Legend */}
+                        <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
+                            <div className="flex flex-col">
+                                <div className="text-lg">OSA % Detail View</div>
+                                <div className="text-[11px] text-slate-500 font-normal">
+                                    Last {visibleDays} Days • Sortable • Paginated
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm text-slate-600">Rows</label>
-                            <select
-                                value={rowsPerPage}
-                                onChange={(e) => {
-                                    setPage(1);
-                                    setRowsPerPage(parseInt(e.target.value, 10));
-                                }}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={15}>15</option>
-                            </select>
-                        </div>
-                    </div> */}
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Filter Button */}
-
-                        <div className="inline-flex rounded-xl bg-slate-100 p-1">
-                            {[7, 14, 31].map((n) => (
+                            <div className="flex items-center gap-2">
+                                {/* Filter Button */}
                                 <button
-                                    key={n}
-                                    onClick={() => {
-                                        setVisibleDays(n);
-                                        setSortKey("avg7");
-                                        setSortDir("desc");
-                                    }}
-                                    className={
-                                        "px-3 py-1.5 text-sm rounded-lg transition " +
-                                        (visibleDays === n
-                                            ? "bg-white shadow-sm ring-1 ring-slate-200 text-slate-900"
-                                            : "text-slate-600 hover:text-slate-900")
-                                    }
+                                    onClick={() => setShowFilterPanel(true)}
+                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all"
                                 >
-                                    Last {n}
+                                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                                    <span>Filters</span>
                                 </button>
-                            ))}
-                        </div>
 
-
-
-
-
-                        <div className="text-sm text-slate-500">
-                            Showing <span className="font-medium text-slate-800">{pageRows.length}</span> of{" "}
-                            <span className="font-medium text-slate-800">{sorted.length}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Table */}
-                <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-                    <div className="overflow-auto">
-                        <table className="min-w-[1200px] w-full border-separate border-spacing-0">
-                            <thead className="sticky top-0 z-10 bg-white">
-                                <tr>
-                                    {/* Sticky first column header */}
-                                    <th
-                                        className="sticky left-0 z-20 bg-white text-left px-4 py-3 text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200"
-                                        style={{ minWidth: 280 }}
-                                    >
-                                        PRODUCT / SKU
-                                    </th>
-
-                                    <th
-                                        className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
-                                        onClick={() => headerSort("avg7")}
-                                    >
-                                        7D AVG <SortIcon dir={sortKey === "avg7" ? sortDir : undefined} />
-                                    </th>
-
-                                    <th
-                                        className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
-                                        onClick={() => headerSort("avg31")}
-                                    >
-                                        {visibleDays}D AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
-                                    </th>
-
-                                    <th className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200">
-                                        STATUS
-                                    </th>
-
-                                    {dayCols.map((d) => (
-                                        <th
-                                            key={d}
-                                            className="px-2 py-3 text-center text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none whitespace-nowrap"
-                                            onClick={() => headerSort(`day_${d}`)}
-                                        >
-                                            DAY {d}
-                                            <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {pageRows.map((r) => {
-                                    const st = statusStyles(r.status);
-                                    const avgND =
-                                        visibleDays === 31
-                                            ? r.avg31
-                                            : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
-
-                                    return (
-                                        <tr key={r.sku} className={"group " + st.rowAccent}>
-                                            <td
-                                                className="sticky left-0 z-10 bg-white px-4 py-3 border-b border-slate-100"
-                                                style={{ minWidth: 280 }}
-                                            >
-                                                <div>
-                                                    <div className="font-medium text-slate-900 leading-5">{r.name}</div>
-                                                    <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
-                                                </div>
-                                            </td>
-
-                                            <td className="px-3 py-3 border-b border-slate-100 text-sm text-slate-900">
-                                                {r.avg7}%
-                                            </td>
-
-                                            <td className="px-3 py-3 border-b border-slate-100 text-sm text-slate-900">
-                                                {avgND}%
-                                            </td>
-
-                                            <td className="px-3 py-3 border-b border-slate-100">
-                                                <span
-                                                    className={
-                                                        "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ring-1 " +
-                                                        st.chip
-                                                    }
-                                                >
-                                                    <span className={"h-2 w-2 rounded-full " + st.dot} />
-                                                    {r.status}
-                                                </span>
-                                            </td>
-
-                                            {dayCols.map((d) => {
-                                                const v = r.values[d - 1];
-                                                return (
-                                                    <td
-                                                        key={d}
-                                                        className="px-2 py-3 border-b border-slate-100 text-center"
-                                                        title={`${r.name} • Day ${d}: ${v}%`}
-                                                    >
-                                                        <span
-                                                            className={
-                                                                "inline-flex min-w-[42px] justify-center rounded-lg px-2 py-1 text-xs font-semibold text-slate-900 " +
-                                                                cellTone(v)
-                                                            }
-                                                        >
-                                                            {v}%
-                                                        </span>
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    );
-                                })}
-
-                                {pageRows.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4 + dayCols.length} className="px-4 py-10 text-center text-slate-500">
-                                            No rows found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Pagination */}
-                    <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="text-sm text-slate-600">
-                            Page <span className="font-medium text-slate-900">{safePage}</span> of{" "}
-                            <span className="font-medium text-slate-900">{totalPages}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setPage(1)}
-                                disabled={safePage === 1}
-                                className={
-                                    "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                    (safePage === 1 ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                }
-                            >
-                                First
-                            </button>
-                            <button
-                                onClick={() => setPage((p) => clamp(p - 1, 1, totalPages))}
-                                disabled={safePage === 1}
-                                className={
-                                    "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                    (safePage === 1 ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                }
-                            >
-                                Prev
-                            </button>
-
-                            <div className="hidden sm:flex items-center gap-1">
-                                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                    .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
-                                    .map((p) => (
+                                {/* Last Days Toggles */}
+                                <div className="flex items-center gap-2 ml-2">
+                                    {[7, 14, 31].map((n) => (
                                         <button
-                                            key={p}
-                                            onClick={() => setPage(p)}
-                                            className={
-                                                "h-9 w-9 rounded-xl text-sm ring-1 ring-slate-200 transition " +
-                                                (p === safePage
-                                                    ? "bg-slate-900 text-white"
-                                                    : "bg-white text-slate-700 hover:bg-slate-50")
-                                            }
+                                            key={n}
+                                            onClick={() => {
+                                                setVisibleDays(n);
+                                                setSortKey("avg7");
+                                                setSortDir("desc");
+                                            }}
+                                            className={`
+                                                flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all
+                                                ${visibleDays === n
+                                                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                                                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
+                                            `}
                                         >
-                                            {p}
+                                            Last {n}
                                         </button>
                                     ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Status Legend - Moved below header */}
+                        <div className="mb-4 flex items-center gap-3 text-xs text-slate-500">
+                            {/* <span className="font-semibold text-slate-700">Legend:</span> */}
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-100">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 border border-amber-100">
+                                <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 border border-rose-100">
+                                <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
+                            </span>
+                        </div>
+
+                        {/* Controls */}
+                        {/* Table */}
+                        <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                            <div className="overflow-auto">
+                                <table className="min-w-[1200px] w-full border-separate border-spacing-0">
+                                    <thead className="sticky top-0 z-10 bg-white">
+                                        <tr>
+                                            {/* Sticky first column header */}
+                                            <th
+                                                className="sticky left-0 z-20 bg-[#f8fafc] text-left px-3 py-2 text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200"
+                                                style={{ minWidth: 280 }}
+                                            >
+                                                PRODUCT / SKU
+                                            </th>
+
+                                            <th
+                                                className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
+                                                onClick={() => headerSort("avg7")}
+                                            >
+                                                7D AVG <SortIcon dir={sortKey === "avg7" ? sortDir : undefined} />
+                                            </th>
+
+                                            <th
+                                                className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
+                                                onClick={() => headerSort("avg31")}
+                                            >
+                                                {visibleDays}D AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                                            </th>
+
+                                            <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200">
+                                                STATUS
+                                            </th>
+
+                                            {dayCols.map((d) => (
+                                                <th
+                                                    key={d}
+                                                    className="px-2 py-2 text-center text-[10px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none whitespace-nowrap"
+                                                    onClick={() => headerSort(`day_${d}`)}
+                                                >
+                                                    DAY {d}
+                                                    <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        {pageRows.map((r) => {
+                                            const st = statusStyles(r.status);
+                                            const avgND =
+                                                visibleDays === 31
+                                                    ? r.avg31
+                                                    : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+
+                                            return (
+                                                <tr key={r.sku} className={"group " + st.rowAccent}>
+                                                    <td
+                                                        className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
+                                                        style={{ minWidth: 280 }}
+                                                    >
+                                                        <div>
+                                                            <div className="font-medium text-slate-900 leading-5 text-[11px]">{r.name}</div>
+                                                            <div className="text-[10px] text-slate-500 mt-0.5">{r.sku}</div>
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900">
+                                                        {r.avg7}%
+                                                    </td>
+
+                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900">
+                                                        {avgND}%
+                                                    </td>
+
+                                                    <td className="px-3 py-2 border-b border-slate-100">
+                                                        <span
+                                                            className={
+                                                                "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
+                                                                st.chip
+                                                            }
+                                                        >
+                                                            <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
+                                                            {r.status}
+                                                        </span>
+                                                    </td>
+
+                                                    {dayCols.map((d) => {
+                                                        const v = r.values[d - 1];
+                                                        return (
+                                                            <td
+                                                                key={d}
+                                                                className="px-2 py-2 border-b border-slate-100 text-center"
+                                                                title={`${r.name} • Day ${d}: ${v}%`}
+                                                            >
+                                                                <span
+                                                                    className={
+                                                                        "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
+                                                                        cellTone(v)
+                                                                    }
+                                                                >
+                                                                    {v}%
+                                                                </span>
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            );
+                                        })}
+
+                                        {pageRows.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
+                                                    No rows found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
 
-                            <button
-                                onClick={() => setPage((p) => clamp(p + 1, 1, totalPages))}
-                                disabled={safePage === totalPages}
-                                className={
-                                    "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                    (safePage === totalPages ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                }
-                            >
-                                Next
-                            </button>
-                            <button
-                                onClick={() => setPage(totalPages)}
-                                disabled={safePage === totalPages}
-                                className={
-                                    "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                    (safePage === totalPages ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                }
-                            >
-                                Last
-                            </button>
+                            {/* Pagination */}
+                            <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="text-sm text-slate-600">
+                                    Page <span className="font-medium text-slate-900">{safePage}</span> of{" "}
+                                    <span className="font-medium text-slate-900">{totalPages}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setPage(1)}
+                                        disabled={safePage === 1}
+                                        className={
+                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
+                                            (safePage === 1 ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
+                                        }
+                                    >
+                                        First
+                                    </button>
+                                    <button
+                                        onClick={() => setPage((p) => clamp(p - 1, 1, totalPages))}
+                                        disabled={safePage === 1}
+                                        className={
+                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
+                                            (safePage === 1 ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
+                                        }
+                                    >
+                                        Prev
+                                    </button>
+
+                                    <div className="hidden sm:flex items-center gap-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                            .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
+                                            .map((p) => (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => setPage(p)}
+                                                    className={
+                                                        "h-9 w-9 rounded-xl text-sm ring-1 ring-slate-200 transition " +
+                                                        (p === safePage
+                                                            ? "bg-slate-900 text-white"
+                                                            : "bg-white text-slate-700 hover:bg-slate-50")
+                                                    }
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setPage((p) => clamp(p + 1, 1, totalPages))}
+                                        disabled={safePage === totalPages}
+                                        className={
+                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
+                                            (safePage === totalPages ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
+                                        }
+                                    >
+                                        Next
+                                    </button>
+                                    <button
+                                        onClick={() => setPage(totalPages)}
+                                        disabled={safePage === totalPages}
+                                        className={
+                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
+                                            (safePage === totalPages ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
+                                        }
+                                    >
+                                        Last
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                    {/* ------------------ KPI FILTER MODAL ------------------ */}
+                    {showFilterPanel && (
+                        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
+                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                {/* Modal Header */}
+                                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                                        <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowFilterPanel(false)}
+                                        className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+
+                                {/* Panel Content */}
+                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+                                    <KpiFilterPanel
+                                        sectionConfig={filterOptions}
+                                    />
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                                    <button
+                                        onClick={() => setShowFilterPanel(false)}
+                                        className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => setShowFilterPanel(false)}
+                                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                    >
+                                        Apply Filters
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
-            {/* ------------------ KPI FILTER MODAL ------------------ */}
-            {showFilterPanel && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
-                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
-                            </div>
-                            <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        {/* Panel Content */}
-                        <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
-                            <KpiFilterPanel
-                                sectionConfig={filterOptions}
-                            />
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
-                            <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                            >
-                                Apply Filters
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

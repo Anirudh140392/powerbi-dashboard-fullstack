@@ -539,28 +539,28 @@ export default function Visibility4() {
 
     // Heatmap color function for Keywords/SKUs views
     const getHeatmapColor = (kpi, value) => {
-        if (value === undefined || value === null) return 'transparent'
+        if (value === undefined || value === null) return {}
 
         // For position metrics, lower is better
         if (kpi === 'adPos' || kpi === 'orgPos') {
-            if (value <= 3) return 'rgba(34, 197, 94, 0.2)' // green
-            if (value <= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
-            return 'rgba(239, 68, 68, 0.2)' // red
+            if (value <= 3) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
+            if (value <= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
+            return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
         }
 
         // For SOV and catImpShare metrics, higher is better
-        if (value >= 50) return 'rgba(34, 197, 94, 0.2)' // green
-        if (value >= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
-        if (value >= 1) return 'rgba(251, 146, 60, 0.2)' // orange
-        return 'rgba(239, 68, 68, 0.2)' // red
+        if (value >= 50) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
+        if (value >= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
+        if (value >= 1) return { backgroundColor: 'rgba(249, 115, 22, 0.12)', color: '#9a3412' } // orange
+        return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
     }
 
     const renderValueCell = (metrics, kpi) => {
-        const bgColor = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : 'rgb(248, 250, 252)'
+        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' }
         return (
             <span
-                className="block rounded-md px-2 py-1 text-center font-semibold"
-                style={{ backgroundColor: bgColor }}
+                className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-medium"
+                style={style}
             >
                 {formatMetric(kpi, metrics[kpi])}
             </span>
@@ -581,24 +581,24 @@ export default function Visibility4() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                    <div className="flex rounded-full bg-slate-100 p-1">
+                    <div className="flex rounded-full bg-[#f3f4f6] p-[3px]">
                         <button
                             onClick={() => setActiveView('keywords')}
-                            className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             Keywords
                         </button>
                         <button
                             onClick={() => setActiveView('skus')}
-                            className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'skus' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'skus' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             SKUs
                         </button>
                         <button
                             onClick={() => setActiveView('platforms')}
-                            className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'platforms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'platforms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             Platforms
@@ -613,7 +613,7 @@ export default function Visibility4() {
             <div className="flex flex-1 overflow-hidden p-6 pt-3">
                 <div className="flex-1 overflow-auto rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
                     <div className="mb-2 text-xs text-slate-500">
-                        {activeView === 'keywords' && 'Keyword Type → Keyword → SKU → City'}
+                        {activeView === 'keywords' && 'Keyword Type → Brand → Keyword → SKU → City'}
                         {activeView === 'skus' && 'SKU → Keyword → City'}
                         {activeView === 'platforms' && 'Category drilldown → Keywords with expandable KPI columns'}
                     </div>
@@ -854,12 +854,12 @@ export default function Visibility4() {
                                         {allKpis.flatMap((kpi) =>
                                             activeView === 'platforms' && expandedKpis.has(kpi)
                                                 ? visiblePlatforms.map((p) => (
-                                                    <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-right align-middle border-l border-slate-100">
+                                                    <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
                                                         {renderValueCell(row.platforms[p] ?? {}, kpi)}
                                                     </td>
                                                 ))
                                                 : (
-                                                    <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-right align-middle border-l border-slate-100">
+                                                    <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
                                                         {renderValueCell(row.metrics, kpi)}
                                                     </td>
                                                 )
