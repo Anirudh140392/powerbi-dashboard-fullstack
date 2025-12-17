@@ -868,18 +868,18 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
                               {/* CITY-STYLE CELL BUTTON */}
                               <button
-                                className={`flex w-full items-center justify-between gap-2 
+                                className={`flex w-full items-center justify-between 
                                            rounded-lg border px-2 py-1.5 
                                            text-[11px] font-semibold 
                                            shadow-[0_0_0_1px_rgba(15,23,42,0.05)] 
                                            transition hover:shadow-sm 
                                            ${cellClasses}`}
                               >
-                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}` : ""}</span>
+                                <span className="pl-4">{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}` : ""}</span>
 
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full border 
-                                              px-2 py-0.5 text-[10px] ${trendMeta.pill}`}
+                                              px-2 py-0.5 text-[10px] mr-2 ${trendMeta.pill}`}
                                 >
                                   {Icon && <Icon className="h-3 w-3" />}
                                   <span>{trend > 0 ? `+${trend}` : trend}</span>
