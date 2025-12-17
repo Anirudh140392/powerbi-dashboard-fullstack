@@ -66,7 +66,7 @@ const Sidebar = ({
     "Market Share": [{ label: "Market Share" }],
     "Portfolio Analysis": [{ label: "Portfolio Analysis" }],
 
-    "PERFORMANCE MARKETING": [{ label: "Blinkit" }],
+    "Performance Marketing": [{ label: "Performance Marketing" }],
 
     "Content Analysis": [{ label: "Content Analysis" }],
 
@@ -220,8 +220,8 @@ const Sidebar = ({
                       }
                       // performance marketing
                       if (
-                        sectionName === "PERFORMANCE MARKETING" &&
-                        item.label === "Blinkit"
+                        sectionName === "Performance Marketing" &&
+                        item.label === "Performance Marketing"
                       ) {
                         navigate("/performance-marketing");
                       }

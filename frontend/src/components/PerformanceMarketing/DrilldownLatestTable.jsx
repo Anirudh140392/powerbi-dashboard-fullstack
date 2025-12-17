@@ -194,14 +194,10 @@ const quarterMonths = {
 
 const FROZEN_WIDTHS = {
   format: 110,
-  tdp: 37,
-  weekend: 62,
-  day: 40,
+  day: 80,
 }
 
-const LEFT_TDP = FROZEN_WIDTHS.format
-const LEFT_WEEKEND = FROZEN_WIDTHS.format + FROZEN_WIDTHS.tdp
-const LEFT_DAY = FROZEN_WIDTHS.format + FROZEN_WIDTHS.tdp + FROZEN_WIDTHS.weekend
+const LEFT_DAY = FROZEN_WIDTHS.format
 
 // ---------------- FILTER COMPONENT ----------------
 const FilterSelect = ({ label, value, options, onChange }) => (
@@ -373,71 +369,22 @@ export default function DrilldownLatestTable() {
         hasChildren: true,
       })
 
+      // Direct drilldown: expand format -> individual day rows (skip tdp/weekend levels)
       if (!expandedRows.has(formatId)) return
 
-      const byTdp = new Map()
-      formatRows.forEach((r) => {
-        if (!byTdp.has(r.tdp)) byTdp.set(r.tdp, [])
-        byTdp.get(r.tdp).push(r)
-      })
-
-      Array.from(byTdp.entries()).forEach(([tdp, tdpRows]) => {
-        const tdpId = `${formatId}-tdp-${tdp}`
+      formatRows.forEach((r, idx) => {
+        const dayId = `${formatId}-d-${idx}`
 
         rows.push({
-          id: tdpId,
+          id: dayId,
           depth: 1,
-          label: tdp,
-          level: 'tdp',
+          label: r.day == null ? 'All days' : String(r.day),
+          level: 'day',
           format,
-          tdp,
-          quarters: aggregateQuarterKpis(tdpRows),
-          months: aggregateMonthKpis(tdpRows),
-          hasChildren: true,
-        })
-
-        if (!expandedRows.has(tdpId)) return
-
-        const byWeekend = new Map()
-        tdpRows.forEach((r) => {
-          if (!byWeekend.has(r.weekendFlag)) byWeekend.set(r.weekendFlag, [])
-          byWeekend.get(r.weekendFlag).push(r)
-        })
-
-        Array.from(byWeekend.entries()).forEach(([weekend, weekendRows]) => {
-          const weekendId = `${tdpId}-w-${weekend}`
-
-          rows.push({
-            id: weekendId,
-            depth: 2,
-            label: weekend,
-            level: 'weekend',
-            format,
-            tdp,
-            weekendFlag: weekend,
-            quarters: aggregateQuarterKpis(weekendRows),
-            months: aggregateMonthKpis(weekendRows),
-            hasChildren: true,
-          })
-
-          /* 🔥 FIX APPLIED HERE */
-          if (expandedRows.has(weekendId)) {
-            const dayId = `${weekendId}-d-all`
-
-            rows.push({
-              id: dayId,
-              depth: 3,
-              label: 'All days',
-              level: 'day',
-              format,
-              tdp,
-              weekendFlag: weekend,
-              day: null,
-              quarters: aggregateQuarterKpis(weekendRows),
-              months: aggregateMonthKpis(weekendRows),
-              hasChildren: false,
-            })
-          }
+          day: r.day,
+          quarters: r.quarters || {},
+          months: aggregateMonthKpis([r]),
+          hasChildren: false,
         })
       })
     })
@@ -488,7 +435,7 @@ export default function DrilldownLatestTable() {
     <div className="rounded-3xl flex-col bg-slate-50 relative">
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {filterPanelOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-40 transition-all backdrop-blur-sm">
           <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -513,11 +460,22 @@ export default function DrilldownLatestTable() {
                 skus={[]}
                 cities={[]}
                 platforms={[]}
-                kpiFields={[]}
+                kpiFields={Object.keys(KPI_LABELS).map(key => ({
+                  id: key,
+                  label: KPI_LABELS[key],
+                  type: 'number'
+                }))}
                 onKeywordChange={() => { }}
                 onBrandChange={() => { }}
                 onCategoryChange={() => { }}
                 onSkuChange={() => { }}
+                onWeekendChange={(vals) => {
+                  const sel = (vals || []);
+                  let wf = 'All';
+                  if (sel.length === 1) wf = sel[0] === 'Weekend' ? 'Weekend' : sel[0] === 'Weekday' ? 'Weekday' : 'All';
+                  if (sel.length >= 2) wf = 'All';
+                  setFilters((prev) => ({ ...prev, weekendFlag: wf }));
+                }}
                 onCityChange={() => { }}
                 onPlatformChange={() => { }}
               />
@@ -562,28 +520,6 @@ export default function DrilldownLatestTable() {
             <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
               {Object.keys(KPI_LABELS).map((k) => {
                 const isActive = visibleKpis[k];
-                const colorKeyMap = {
-                  impressions: "blue",
-                  conversion: "emerald",
-                  spend: "purple",
-                  cpm: "orange",
-                  roas: "cyan",
-                  sales: "indigo",
-                  inorganic: "rose",
-                };
-                const colorTheme = colorKeyMap[k] || "slate";
-
-                const styles = {
-                  blue: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: "text-blue-600" },
-                  emerald: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: "text-emerald-600" },
-                  purple: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", icon: "text-purple-600" },
-                  orange: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", icon: "text-orange-600" },
-                  cyan: { bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", icon: "text-cyan-600" },
-                  indigo: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", icon: "text-indigo-600" },
-                  rose: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", icon: "text-rose-600" },
-                  slate: { bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200", icon: "text-slate-600" },
-                };
-                const style = styles[colorTheme];
 
                 return (
                   <button
@@ -592,13 +528,13 @@ export default function DrilldownLatestTable() {
                     className={`
                       flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold transition-all
                       ${isActive
-                        ? `${style.bg} ${style.text} ${style.border}`
+                        ? "bg-blue-50 text-slate-900 border-blue-200"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }
                     `}
                   >
                     {isActive ? (
-                      <div className={`flex h-3.5 w-3.5 items-center justify-center rounded-full ${style.icon} bg-current`}>
+                      <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-900">
                         <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="h-2 w-2">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
@@ -615,7 +551,7 @@ export default function DrilldownLatestTable() {
             {/* PATH LEGEND */}
             <div className="mb-4 flex items-center gap-2 text-[11px] text-slate-500">
               <span className="px-2 py-1 rounded-full bg-slate-50 border">Path</span>
-              Format → TDP → Weekend → Day
+              Format → Day
             </div>
 
             {/* TABLE WRAPPER */}
@@ -638,33 +574,7 @@ export default function DrilldownLatestTable() {
                       Format
                     </th>
 
-                    <th
-                      rowSpan={expandedQuarters.size ? 3 : 2}
-                      className="px-2 py-2 text-left font-semibold"
-                      style={{
-                        position: 'sticky',
-                        left: LEFT_TDP,
-                        top: 0,
-                        background: '#f8fafc',
-                        width: FROZEN_WIDTHS.tdp,
-                      }}
-                    >
-                      TDP
-                    </th>
-
-                    <th
-                      rowSpan={expandedQuarters.size ? 3 : 2}
-                      className="px-2 py-2 text-left font-semibold"
-                      style={{
-                        position: 'sticky',
-                        left: LEFT_WEEKEND,
-                        top: 0,
-                        background: '#f8fafc',
-                        width: FROZEN_WIDTHS.weekend,
-                      }}
-                    >
-                      Weekend
-                    </th>
+                    {/* TDP and Weekend columns removed */}
 
                     <th
                       rowSpan={expandedQuarters.size ? 3 : 2}
@@ -785,8 +695,8 @@ export default function DrilldownLatestTable() {
                                 return next
                               })
                             }
-                            className={`flex h-8 w-8 items-center justify-center rounded-2xl border ${row.hasChildren
-                              ? 'border-slate-200 bg-white text-slate-600'
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${row.hasChildren
+                              ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                               : 'border-transparent text-transparent'
                               }`}
                             disabled={!row.hasChildren}
@@ -798,35 +708,9 @@ export default function DrilldownLatestTable() {
                         </div>
                       </td>
 
-                      {/* TDP */}
-                      <td
-                        className="px-2 py-2"
-                        style={{
-                          position: 'sticky',
-                          left: LEFT_TDP,
-                          background: row.depth % 2 ? '#f8fafc' : '#fff',
-                          borderRight: '1px solid #e5e7eb',
-                        }}
-                      >
-                        {row.tdp || ''}
-                      </td>
-
-                      {/* WEEKEND */}
-                      <td
-                        className="px-2 py-2"
-                        style={{
-                          position: 'sticky',
-                          left: LEFT_WEEKEND,
-                          background: row.depth % 2 ? '#f8fafc' : '#fff',
-                          borderRight: '1px solid #e5e7eb',
-                        }}
-                      >
-                        {row.weekendFlag || ''}
-                      </td>
-
                       {/* DAY */}
                       <td
-                        className="px-2 py-2"
+                        className="px-2 py-2 text-center"
                         style={{
                           position: 'sticky',
                           left: LEFT_DAY,
@@ -834,7 +718,15 @@ export default function DrilldownLatestTable() {
                           borderRight: '1px solid #e5e7eb',
                         }}
                       >
-                        {row.day ?? ''}
+                        {(() => {
+                          // Show a simple hardcoded/derived value in the Day column:
+                          // - Format rows: show "All days"
+                          // - TDP / Weekend rows: show their label
+                          // - Day rows: show the actual day number
+                          if (row.level === 'format') return 'All days'
+                          if (row.level === 'tdp' || row.level === 'weekend') return row.label || ''
+                          return row.day ?? ''
+                        })()}
                       </td>
 
                       {/* QUARTER → MONTH → KPI VALUES */}
@@ -859,7 +751,7 @@ export default function DrilldownLatestTable() {
                                   className={`px-1.5 py-1 text-center ${mi % 2 ? 'bg-white' : 'bg-slate-50'
                                     }`}
                                 >
-                                  <span className={`block rounded-md px-2 py-1 ${heatClass}`}>
+                                  <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
                                     {display}
                                   </span>
                                 </td>
@@ -885,7 +777,7 @@ export default function DrilldownLatestTable() {
                               key={`${row.id}-${q}-${k}`}
                               className="px-1.5 py-1 text-center bg-slate-50"
                             >
-                              <span className={`block rounded-md px-2 py-1 ${heatClass}`}>
+                              <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
                                 {display}
                               </span>
                             </td>

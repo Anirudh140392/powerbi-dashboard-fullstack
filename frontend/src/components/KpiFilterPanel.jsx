@@ -824,3 +824,23 @@ export default function DemoKpiFilterPanel() {
     </div>
   );
 }
+<div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
+  <div className="w-[1100px] max-w-full">
+    <KpiFilterPanel
+      keywords={mockKeywords}
+      skus={mockSkus}
+      cities={mockCities}
+      platforms={mockPlatforms}
+      kpiFields={mockKpiFields}
+      onKeywordChange={(ids) => setDebug(`Keywords: ${ids.join(", ")}`)}
+      onRulesChange={(tree) =>
+        setDebug(`Rule tree updated. Size ~${JSON.stringify(tree).length} chars`)
+      }
+    />
+    <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-2 text-[11px] text-slate-500">
+      {debug || "Interact with filters / KPI rules to see debug text here."}
+    </div>
+  </div>
+</div>
+  );
+}
