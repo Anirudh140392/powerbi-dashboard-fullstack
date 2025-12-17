@@ -37,12 +37,16 @@ const MONTHS = [
   "December",
 ];
 
+// --------- CATEGORIES ----------
+const CATEGORIES = ["All", "Cones & Sticks", "Cakes & Desserts", "Premium", "Family Packs"];
+
 // --------- SAMPLE N-LEVEL DATA ----------
 const momKeywordData = {
   title: "Keyword Analysis",
   keywords: [
     {
       keyword: "Sandwich, Cakes & Others",
+      category: "Cakes & Desserts",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 20 + idx * 2,
@@ -54,6 +58,7 @@ const momKeywordData = {
       children: [
         {
           keyword: "Cakes",
+          category: "Cakes & Desserts",
           months: MONTHS.map((m, idx) => ({
             month: m,
             impressions: 10 + idx * 3,
@@ -65,6 +70,7 @@ const momKeywordData = {
           children: [
             {
               keyword: "Birthday Cakes",
+              category: "Cakes & Desserts",
               months: MONTHS.map((m, idx) => ({
                 month: m,
                 impressions: 6 + idx * 2,
@@ -81,6 +87,7 @@ const momKeywordData = {
 
     {
       keyword: "ice cream cake",
+      category: "Cakes & Desserts",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 14 + idx,
@@ -92,6 +99,7 @@ const momKeywordData = {
       children: [
         {
           keyword: "Premium Ice Cream Cakes",
+          category: "Premium",
           months: MONTHS.map((m, idx) => ({
             month: m,
             impressions: 9 + idx * 2,
@@ -106,6 +114,7 @@ const momKeywordData = {
 
     {
       keyword: "ice cream",
+      category: "Cones & Sticks",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 10 + idx * 3,
@@ -118,6 +127,7 @@ const momKeywordData = {
 
     {
       keyword: "Gourmet",
+      category: "Premium",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 8 + idx * 2,
@@ -191,16 +201,17 @@ const buildAggTree = (node, monthFilter) => {
   return { ...node, agg, children };
 };
 
-const filterTree = (node, search, minImp) => {
+const filterTree = (node, search, minImp, categoryFilter) => {
   const matchesSearch =
     !search || node.keyword.toLowerCase().includes(search.toLowerCase());
   const matchesImp = !minImp || node.agg.impressions >= minImp;
+  const matchesCategory = !categoryFilter || categoryFilter === "All" || node.category === categoryFilter;
 
   const filteredChildren = (node.children || [])
-    .map((c) => filterTree(c, search, minImp))
+    .map((c) => filterTree(c, search, minImp, categoryFilter))
     .filter(Boolean);
 
-  if (matchesSearch && matchesImp)
+  if (matchesSearch && matchesImp && matchesCategory)
     return { ...node, children: filteredChildren };
   if (filteredChildren.length) return { ...node, children: filteredChildren };
   return null;
@@ -211,6 +222,7 @@ export default function KeywordAnalysisTable() {
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [minImpressions, setMinImpressions] = useState("");
 
   const [sortConfig, setSortConfig] = useState({
@@ -228,7 +240,7 @@ export default function KeywordAnalysisTable() {
 
     let tree = momKeywordData.keywords.map((k) => buildAggTree(k, monthFilter));
 
-    tree = tree.map((n) => filterTree(n, searchTrim, minNum)).filter(Boolean);
+    tree = tree.map((n) => filterTree(n, searchTrim, minNum, categoryFilter)).filter(Boolean);
 
     const { key, direction } = sortConfig;
     const dir = direction === "asc" ? 1 : -1;
@@ -236,11 +248,11 @@ export default function KeywordAnalysisTable() {
     tree.sort((a, b) => (a.agg[key] - b.agg[key]) * dir);
 
     return tree;
-  }, [search, monthFilter, minImpressions, sortConfig]);
+  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, monthFilter, minImpressions, sortConfig]);
+  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * rowsPerPage;
@@ -302,7 +314,7 @@ export default function KeywordAnalysisTable() {
             <IconButton
               size="small"
               onClick={() => setExpanded((p) => ({ ...p, [key]: !isOpen }))}
-              sx={{ border: "1px solid #e5e7eb", width: 26, height: 26 }}
+              sx={{ border: "1px solid #e5e7eb", width: 26, height: 26, borderRadius: 1, '&:hover': { backgroundColor: '#f8fafc' } }}
             >
               {isOpen ? <Minus size={14} /> : <Plus size={14} />}
             </IconButton>
@@ -310,10 +322,23 @@ export default function KeywordAnalysisTable() {
 
           <TableCell>
             <Box sx={{ ml: level * 2 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
                 {node.keyword}
               </Typography>
             </Box>
+          </TableCell>
+
+          <TableCell sx={{ fontSize: 12 }}>
+            <Chip
+              label={node.category}
+              size="small"
+              sx={{
+                fontSize: 11,
+                height: 22,
+                backgroundColor: '#f1f5f9',
+                color: '#475569'
+              }}
+            />
           </TableCell>
 
           <TableCell sx={{ fontSize: 12 }}>
@@ -365,6 +390,18 @@ export default function KeywordAnalysisTable() {
                       {node.keyword}
                     </Typography>
                   </Box>
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    label={node.category}
+                    size="small"
+                    sx={{
+                      fontSize: 10,
+                      height: 20,
+                      backgroundColor: '#f8fafc',
+                      color: '#64748b'
+                    }}
+                  />
                 </TableCell>
                 <TableCell>{m.month}</TableCell>
                 <TableCell align="right">{m.impressions}</TableCell>
@@ -430,6 +467,20 @@ export default function KeywordAnalysisTable() {
             ))}
           </Select>
         </FormControl>
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Category</InputLabel>
+          <Select
+            label="Category"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            {CATEGORIES.map((cat) => (
+              <MenuItem key={cat} value={cat}>
+                {cat}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </Box>
 
       {/* TABLE */}
@@ -442,6 +493,7 @@ export default function KeywordAnalysisTable() {
             <TableRow>
               <TableCell />
               <TableCell>Keyword</TableCell>
+              <TableCell>Category</TableCell>
               <TableCell>Month</TableCell>
               <TableCell align="right">
                 {renderSortLabel("Impressions", "impressions")}

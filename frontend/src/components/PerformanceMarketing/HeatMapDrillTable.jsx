@@ -224,6 +224,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     skus: [],
     platforms: [],
     kpiRules: null,
+    weekendFlag: [],
   });
 
   // ---------- DATA EXTRACTION FOR FILTERS ----------
@@ -276,6 +277,13 @@ export default function HeatMapDrillTable({ selectedInsight }) {
       const res = [];
       for (const node of nodes) {
         let keep = true;
+
+        // Weekend flag filter (if configured)
+        const wf = activeFilters.weekendFlag || [];
+        // If user selected one of Weekend/Weekday (but not both), apply filter when node has weekendFlag
+        if (wf.length === 1 && node.weekendFlag) {
+          if (!wf.includes(node.weekendFlag)) keep = false;
+        }
 
         // 1. Check Level Filters
         if (level === 0 && hasBrandFilter && !brands.includes(node.label)) keep = false;
@@ -595,6 +603,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                           width: 26,
                           height: 26,
                           borderRadius: 1,
+                          '&:hover': { backgroundColor: '#f8fafc' }
                         }}
                       >
                         {isOpen ? <Minus size={14} /> : <Plus size={14} />}
@@ -621,7 +630,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           {qVals.map((v, i) => {
             const heat = i >= 3 ? getHeatStyle(v) : {};
             return (
-              <TableCell key={i} align="right">
+              <TableCell key={i} align="center">
                 <Box
                   sx={{
                     px: 1,
@@ -629,7 +638,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     borderRadius: 1,
                     fontSize: 11,
                     display: "inline-flex",
-                    justifyContent: "flex-end",
+                    justifyContent: "center",
                     backgroundColor: i >= 3 ? heat.backgroundColor : "#f3f4f6",
                     color: i >= 3 ? heat.color : "#111",
                   }}
@@ -640,7 +649,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             );
           })}
 
-          <TableCell align="right">
+          <TableCell align="center">
             {avg !== "–" ? (
               <Box
                 sx={{
@@ -714,6 +723,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               <KpiFilterPanel
                 sectionConfig={[
                   { id: "brands", label: "Format" },
+                  { id: "weekendFlag", label: "Weekend Flag" },
                   { id: "categories", label: "Region" },
                   { id: "cities", label: "City" },
                   { id: "keywords", label: "Keyword" },
@@ -729,6 +739,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 onKeywordChange={(ids) => setActiveFilters(p => ({ ...p, keywords: ids }))}
                 onBrandChange={(ids) => setActiveFilters(p => ({ ...p, brands: ids }))}
                 onCategoryChange={(ids) => setActiveFilters(p => ({ ...p, categories: ids }))}
+                onWeekendChange={(vals) => setActiveFilters(p => ({ ...p, weekendFlag: vals || [] }))}
                 onCityChange={(ids) => setActiveFilters(p => ({ ...p, cities: ids }))}
                 onRulesChange={(tree) => setActiveFilters(p => ({ ...p, kpiRules: tree }))}
               />
@@ -935,17 +946,17 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
 
                 {collectedData?.headers.slice(1).map((col) => (
-                  <TableCell key={col} align="right">
+                  <TableCell key={col} align="center">
                     <Box
                       sx={{
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "flex-end",
+                        justifyContent: "center",
                         gap: 0.6,
                       }}
                     >
                       {/* Column Title */}
-                      <Typography sx={{ fontSize: 10, fontWeight: 600 }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
                         {col} ({selectedQuarter})
                       </Typography>
 
@@ -966,7 +977,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   </TableCell>
                 ))}
 
-                <TableCell align="right" sx={{ fontSize: 12, fontWeight: 550 }}>Row Avg</TableCell>
+                <TableCell align="center" sx={{ fontSize: 12, fontWeight: 550 }}>Row Avg</TableCell>
                 {/* <TableCell align="right">Trend</TableCell> */}
               </TableRow>
             </TableHead>
@@ -986,7 +997,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 </TableCell>
 
                 {drillTotals.map((v, i) => (
-                  <TableCell key={i} align="right" sx={{ fontWeight: 700 }}>
+                  <TableCell key={i} align="center" sx={{ fontWeight: 700 }}>
                     {v || "–"}
                   </TableCell>
                 ))}
