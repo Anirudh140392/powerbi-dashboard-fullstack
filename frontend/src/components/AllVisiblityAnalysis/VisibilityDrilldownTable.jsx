@@ -25,7 +25,6 @@ const sampleHierarchy = [
     {
         id: 'generic',
         label: 'Generic',
-
         level: 'keyword-type',
         metrics: { catImpShare: 65.6, adSov: 0.6, orgSov: 1.0, overallSov: 0.8 },
         platforms: {
@@ -36,161 +35,132 @@ const sampleHierarchy = [
         },
         children: [
             {
-                id: 'generic-ice-cream-delivery',
-                label: 'ice cream delivery',
-
-                level: 'keyword',
-                metrics: { catImpShare: 6.2, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
+                id: 'generic-brand-kwality',
+                label: 'Kwality Walls',
+                level: 'brand',
+                metrics: { catImpShare: 65.6, adSov: 0.6, orgSov: 1.0, overallSov: 0.8 },
                 platforms: {
-                    Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 6.2 },
-                    Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 5.8 },
+                    Blinkit: { overallSov: 0.8, adSov: 0.6, orgSov: 1.0, catImpShare: 65.6 },
                 },
                 children: [
                     {
-                        id: 'generic-delivery-cornetto',
-                        label: 'Cornetto Double Chocolate',
-
-                        level: 'sku',
-                        metrics: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 12 },
+                        id: 'generic-ice-cream-delivery',
+                        label: 'ice cream delivery',
+                        level: 'keyword',
+                        metrics: { catImpShare: 6.2, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 11 },
-                            Zepto: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 13 },
+                            Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 6.2 },
+                            Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 5.8 },
                         },
                         children: [
                             {
-                                id: 'generic-delivery-cornetto-delhi',
-                                label: 'Delhi NCR',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 3, orgPos: 10 },
+                                id: 'generic-delivery-cornetto',
+                                label: 'Cornetto Double Chocolate',
+                                level: 'sku',
+                                metrics: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 12 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 2, orgPos: 9 },
-                                    Zepto: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 4, orgPos: 11 },
-                                }
-                            },
-                            {
-                                id: 'generic-delivery-cornetto-mumbai',
-                                label: 'Mumbai',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.0, overallSov: 0.2, adPos: 5, orgPos: 12 },
-                                platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.0, overallSov: 0.2, adPos: 4, orgPos: 11 },
-                                }
-                            },
-                            {
-                                id: 'generic-delivery-cornetto-bangalore',
-                                label: 'Bangalore',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.0, overallSov: 0.2, adPos: 6, orgPos: 14 },
-                                platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.0, overallSov: 0.2, adPos: 5, orgPos: 13 },
-                                }
+                                    Blinkit: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 11 },
+                                    Zepto: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 13 },
+                                },
+                                children: [
+                                    {
+                                        id: 'generic-delivery-cornetto-delhi',
+                                        label: 'Delhi NCR',
+                                        level: 'city',
+                                        metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 3, orgPos: 10 },
+                                        platforms: {
+                                            Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 2, orgPos: 9 },
+                                        }
+                                    },
+                                    {
+                                        id: 'generic-delivery-cornetto-mumbai',
+                                        label: 'Mumbai',
+                                        level: 'city',
+                                        metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 3, orgPos: 10 },
+                                        platforms: {
+                                            Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 2, orgPos: 9 },
+                                        }
+                                    }
+                                ],
                             },
                         ],
                     },
-                ],
-            },
-            {
-                id: 'generic-cone-ice-cream',
-                label: 'cone ice cream',
-
-                level: 'keyword',
-                metrics: { catImpShare: 5.1, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
-                platforms: {
-                    Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 5.1 },
-                    Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 4.8 },
-                },
-                children: [
                     {
-                        id: 'generic-cone-kwality',
-                        label: 'Kwality Walls Crunchy Cone',
-
-                        level: 'sku',
-                        metrics: { catImpShare: 0.2, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 7, orgPos: 16 },
+                        id: 'generic-cone-ice-cream',
+                        label: 'cone ice cream',
+                        level: 'keyword',
+                        metrics: { catImpShare: 5.1, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.2, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 14 },
-                            Zepto: { catImpShare: 0.2, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 18 },
+                            Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 5.1 },
+                            Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 4.8 },
                         },
                         children: [
                             {
-                                id: 'generic-cone-kwality-delhi',
-                                label: 'Delhi NCR',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 12 },
+                                id: 'generic-cone-cornetto',
+                                label: 'Cornetto Disc',
+                                level: 'sku',
+                                metrics: { catImpShare: 2.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 11 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 10 },
-                                    Zepto: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 14 },
-                                }
-                            },
-                            {
-                                id: 'generic-cone-kwality-mumbai',
-                                label: 'Mumbai',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 7, orgPos: 15 },
-                                platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 13 },
-                                }
-                            },
+                                    Blinkit: { catImpShare: 2.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 10 },
+                                    Zepto: { catImpShare: 2.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 12 },
+                                },
+                                children: [
+                                    {
+                                        id: 'generic-cone-cornetto-delhi',
+                                        label: 'Delhi NCR',
+                                        level: 'city',
+                                        metrics: { catImpShare: 1.0, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 10 },
+                                        platforms: {
+                                            Blinkit: { catImpShare: 1.0, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 9 },
+                                        }
+                                    }
+                                ]
+                            }
                         ],
-                    },
-                ],
-            },
+                    }
+                ]
+            }
         ],
     },
     {
         id: 'brand',
         label: 'Brand',
-
         level: 'keyword-type',
         metrics: { catImpShare: 0.5, adSov: 88.4, orgSov: 83.0, overallSov: 85.1 },
         platforms: {
             Blinkit: { catImpShare: 0.5, adSov: 88.4, orgSov: 83.0, overallSov: 85.1 },
-            Zepto: { catImpShare: 0.4, adSov: 87.2, orgSov: 81.5, overallSov: 84.0 },
-            Instamart: { catImpShare: 0.6, adSov: 89.1, orgSov: 84.2, overallSov: 86.3 },
-            BigBasket: { catImpShare: 0.5, adSov: 88.0, orgSov: 82.8, overallSov: 85.0 },
         },
         children: [
             {
                 id: 'brand-kwality-walls',
                 label: 'kwality walls ice cream',
-
-                level: 'keyword',
+                level: 'brand',
                 metrics: { catImpShare: 14.2, adSov: 41.2, orgSov: 36.7, overallSov: 38.4 },
                 platforms: {
                     Blinkit: { overallSov: 38.4, adSov: 41.2, orgSov: 36.7, catImpShare: 14.2 },
-                    Zepto: { overallSov: 37.3, adSov: 40.2, orgSov: 35.3, catImpShare: 13.8 },
                 },
                 children: [
                     {
-                        id: 'brand-kwality-magnum',
-                        label: 'Magnum Almond',
-
-                        level: 'sku',
-                        metrics: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 2, orgPos: 8 },
+                        id: 'brand-kwality-keyword-1',
+                        label: 'ice cream',
+                        level: 'keyword',
+                        metrics: { catImpShare: 14.2, adSov: 41.2, orgSov: 36.7, overallSov: 38.4 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 1, orgPos: 7 },
-                            Zepto: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 3, orgPos: 9 },
+                            Blinkit: { overallSov: 38.4, adSov: 41.2, orgSov: 36.7, catImpShare: 14.2 },
                         },
                         children: [
                             {
-                                id: 'brand-kwality-magnum-delhi',
-                                label: 'Delhi NCR',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 2, orgPos: 7 },
+                                id: 'brand-kwality-magnum',
+                                label: 'Magnum Almond',
+                                level: 'sku',
+                                metrics: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 2, orgPos: 8 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 1, orgPos: 6 },
-                                }
-                            },
-                            {
-                                id: 'brand-kwality-magnum-mumbai',
-                                label: 'Mumbai',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 8 },
-                                platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 2, orgPos: 7 },
-                                }
+                                    Blinkit: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 1, orgPos: 7 },
+                                },
+                                children: [],
                             },
                         ],
-                    },
+                    }
                 ],
             },
         ],
@@ -198,59 +168,32 @@ const sampleHierarchy = [
     {
         id: 'competition',
         label: 'Competition',
-
         level: 'keyword-type',
         metrics: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
         platforms: {
             Blinkit: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
-            Zepto: { catImpShare: 32.8, adSov: 0.7, orgSov: 0.2, overallSov: 0.3 },
-            Instamart: { catImpShare: 34.5, adSov: 0.9, orgSov: 0.3, overallSov: 0.5 },
-            BigBasket: { catImpShare: 33.2, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
         },
         children: [
             {
                 id: 'competition-amul',
-                label: 'amul ice cream',
-
-                level: 'keyword',
-                metrics: { catImpShare: 8.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3 },
+                label: 'Amul',
+                level: 'brand',
+                metrics: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
                 platforms: {
-                    Blinkit: { overallSov: 0.3, adSov: 0.2, orgSov: 0.1, catImpShare: 8.1 },
-                    Zepto: { overallSov: 0.2, adSov: 0.2, orgSov: 0.1, catImpShare: 7.8 },
+                    Blinkit: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
                 },
                 children: [
                     {
                         id: 'competition-amul-cone',
                         label: 'Amul Cone',
-
-                        level: 'sku',
+                        level: 'keyword',
                         metrics: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 9, orgPos: 18 },
                         platforms: {
                             Blinkit: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 17 },
-                            Zepto: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 10, orgPos: 19 },
                         },
-                        children: [
-                            {
-                                id: 'competition-amul-cone-delhi',
-                                label: 'Delhi NCR',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 16 },
-                                platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 7, orgPos: 15 },
-                                }
-                            },
-                            {
-                                id: 'competition-amul-cone-mumbai',
-                                label: 'Mumbai',
-                                level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 9, orgPos: 17 },
-                                platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 16 },
-                                }
-                            },
-                        ],
-                    },
-                ],
+                        children: [],
+                    }
+                ]
             },
         ],
     },
@@ -312,9 +255,12 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
             } else {
                 // Standard hierarchy
                 if (depth === 0) {
-                    // Keyword Type -> Keyword
+                    // Keyword Type -> Brand
+                    hasAppropriateChildren = node.children.some(c => c.level === 'brand')
+                } else if (depth === 1 && node.level === 'brand') {
+                    // Brand -> Keyword
                     hasAppropriateChildren = node.children.some(c => c.level === 'keyword')
-                } else if (depth === 1 && node.level === 'keyword') {
+                } else if (node.level === 'keyword') {
                     // Keyword -> SKU
                     hasAppropriateChildren = node.children.some(c => c.level === 'sku')
                 } else if (node.level === 'sku') {
@@ -328,6 +274,17 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
             id: node.id,
             depth,
             keywordType: keywordTypePath,
+            brand: depth === 0 && view !== 'skus' ? (node.level === 'brand' ? node.label : undefined) : parentPaths.brand, // Capture brand if depth 0 (rare) or if current node is brand? Wait.
+            // Logic:
+            // walk(node, depth, parentPaths)
+            // If node.level == 'brand', this node IS the brand.
+            // If we are at 'keyword' level, parentPaths.brand should hold the brand.
+
+            // Let's refine capturing in the 'walk' call below. 
+            // Here we just map what we have.
+            // Actually, we construct the row object here.
+
+            brand: node.level === 'brand' ? node.label : parentPaths.brand,
             keyword: keywordPath,
             sku: skuPath,
             city: cityPath,
@@ -348,15 +305,22 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
                 else if (depth === 1) childrenToShow = node.children.filter(c => c.level === 'city')
             } else {
                 if (depth === 0) {
+                    childrenToShow = node.children.filter(c => c.level === 'brand')
+                } else if (depth === 1 && node.level === 'brand') {
                     childrenToShow = node.children.filter(c => c.level === 'keyword')
-                } else if (depth === 1 && node.level === 'keyword') {
+                } else if (node.level === 'keyword') {
                     childrenToShow = node.children.filter(c => c.level === 'sku')
                 } else if (node.level === 'sku') {
                     childrenToShow = node.children.filter(c => c.level === 'city')
                 }
             }
 
-            childrenToShow.forEach((child) => walk(child, depth + 1, { keywordType: keywordTypePath, keyword: keywordPath, sku: skuPath }))
+            childrenToShow.forEach((child) => walk(child, depth + 1, {
+                keywordType: keywordTypePath,
+                brand: node.level === 'brand' ? node.label : parentPaths.brand,
+                keyword: keywordPath,
+                sku: skuPath
+            }))
         }
     }
 
@@ -366,16 +330,14 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
 
 const FROZEN_WIDTHS = {
     keywordType: 140,
+    brand: 120,
     keyword: 160,
     sku: 160,
     city: 120,
     spacer: 40,
 }
 
-const LEFT_KEYWORD = FROZEN_WIDTHS.keywordType
-const LEFT_SKU = FROZEN_WIDTHS.keywordType + FROZEN_WIDTHS.keyword
-const LEFT_CITY = FROZEN_WIDTHS.keywordType + FROZEN_WIDTHS.keyword + FROZEN_WIDTHS.sku
-const LEFT_SPACER = FROZEN_WIDTHS.keywordType + FROZEN_WIDTHS.keyword + FROZEN_WIDTHS.sku + FROZEN_WIDTHS.city
+
 
 const filterOptions = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
@@ -400,7 +362,7 @@ export default function VisibilityDrilldownTable() {
     })
 
     const [showFilterPanel, setShowFilterPanel] = useState(false);
-    const [activeView, setActiveView] = useState('platforms')
+    const [activeView, setActiveView] = useState('keywords')
     const [expandedRows, setExpandedRows] = useState(new Set())
     const [expandedKpis, setExpandedKpis] = useState(new Set())
     const [filters, setFilters] = useState({ keyword: null, sku: null, city: null, platform: 'All' })
@@ -408,60 +370,64 @@ export default function VisibilityDrilldownTable() {
     const [pageSize, setPageSize] = useState(20)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
 
+
+
     // Restructure hierarchy for SKUs view: SKU → Keyword → City
     const restructureForSkus = (data) => {
         const skuMap = new Map()
 
         // Traverse all data and collect SKUs with their keywords and cities
         data.forEach(keywordType => {
-            keywordType.children?.forEach(keyword => {
-                keyword.children?.forEach(sku => {
-                    if (sku.level === 'sku') {
-                        const skuId = sku.id
+            keywordType.children?.forEach(brand => {
+                brand.children?.forEach(keyword => {
+                    keyword.children?.forEach(sku => {
+                        if (sku.level === 'sku') {
+                            const skuId = sku.id
 
-                        if (!skuMap.has(skuId)) {
-                            // Create new SKU entry
-                            skuMap.set(skuId, {
-                                id: skuId,
-                                label: sku.label,
-                                subtitle: sku.subtitle,
-                                level: 'sku',
-                                metrics: sku.metrics,
-                                platforms: sku.platforms,
-                                children: []
-                            })
-                        }
-
-                        const skuNode = skuMap.get(skuId)
-
-                        // Add keyword under this SKU if not already present
-                        let keywordNode = skuNode.children?.find(k => k.id === keyword.id)
-                        if (!keywordNode) {
-                            keywordNode = {
-                                id: keyword.id,
-                                label: keyword.label,
-                                subtitle: keyword.subtitle,
-                                level: 'keyword',
-                                metrics: keyword.metrics,
-                                platforms: keyword.platforms,
-                                children: []
-                            }
-                            skuNode.children?.push(keywordNode)
-                        }
-
-                        // Add cities under the keyword
-                        sku.children?.forEach(city => {
-                            if (city.level === 'city') {
-                                keywordNode.children?.push({
-                                    id: `${skuId}-${keyword.id}-${city.id}`,
-                                    label: city.label,
-                                    level: 'city',
-                                    metrics: city.metrics,
-                                    platforms: city.platforms
+                            if (!skuMap.has(skuId)) {
+                                // Create new SKU entry
+                                skuMap.set(skuId, {
+                                    id: skuId,
+                                    label: sku.label,
+                                    subtitle: sku.subtitle,
+                                    level: 'sku',
+                                    metrics: sku.metrics,
+                                    platforms: sku.platforms,
+                                    children: []
                                 })
                             }
-                        })
-                    }
+
+                            const skuNode = skuMap.get(skuId)
+
+                            // Add keyword under this SKU if not already present
+                            let keywordNode = skuNode.children?.find(k => k.id === keyword.id)
+                            if (!keywordNode) {
+                                keywordNode = {
+                                    id: keyword.id,
+                                    label: keyword.label,
+                                    subtitle: keyword.subtitle,
+                                    level: 'keyword',
+                                    metrics: keyword.metrics,
+                                    platforms: keyword.platforms,
+                                    children: []
+                                }
+                                skuNode.children?.push(keywordNode)
+                            }
+
+                            // Add cities under the keyword
+                            sku.children?.forEach(city => {
+                                if (city.level === 'city') {
+                                    keywordNode.children?.push({
+                                        id: `${skuId}-${keyword.id}-${city.id}`,
+                                        label: city.label,
+                                        level: 'city',
+                                        metrics: city.metrics,
+                                        platforms: city.platforms
+                                    })
+                                }
+                            })
+                        }
+                    })
                 })
             })
         })
@@ -480,6 +446,24 @@ export default function VisibilityDrilldownTable() {
 
     const totalPages = Math.max(1, Math.ceil(flatRows.length / pageSize))
     const pageRows = flatRows.slice(page * pageSize, page * pageSize + pageSize)
+
+    // Check if any keyword type (level 0) is expanded to show Brand column
+    const showBrandColumn = useMemo(() => {
+        if (activeView !== 'keywords') return false
+        // Check if any expanded row corresponds to a keyword type (depth 0 / level 'keyword-type')
+        // effectively, if expandedRows contains any ID that is a keyword type.
+        // Since we don't have easy O(1) access to row object by ID here, 
+        // we can iterate pageRows (visible rows) and check if any visible row is a 'brand' (level 1).
+        // If a brand row is visible, it means a keyword type was expanded.
+        return pageRows.some(r => r.level === 'brand')
+    }, [activeView, pageRows])
+    const brandWidth = showBrandColumn ? FROZEN_WIDTHS.brand : 0
+
+    const LEFT_BRAND = FROZEN_WIDTHS.keywordType
+    const LEFT_KEYWORD = FROZEN_WIDTHS.keywordType + brandWidth
+    const LEFT_SKU = LEFT_KEYWORD + FROZEN_WIDTHS.keyword
+    const LEFT_CITY = LEFT_SKU + FROZEN_WIDTHS.sku
+    const LEFT_SPACER = LEFT_CITY + FROZEN_WIDTHS.city
 
     // Columns detection
     const showKeywordColumn = useMemo(() => {
@@ -517,11 +501,19 @@ export default function VisibilityDrilldownTable() {
         })
     }
 
-    const keywordOptions = useMemo(() => sampleHierarchy.map((n) => ({ id: n.label, label: n.label })), [])
+    const keywordOptions = useMemo(() =>
+        sampleHierarchy
+            .flatMap((n) => n.children ?? []) // brands
+            .flatMap((b) => b.children ?? []) // keywords
+            .map((k) => ({ id: k.label, label: k.label })),
+        []
+    )
     const skuOptions = useMemo(
         () =>
             sampleHierarchy
-                .flatMap((n) => n.children ?? [])
+                .flatMap((n) => n.children ?? []) // brands
+                .flatMap((b) => b.children ?? []) // keywords
+                .flatMap((k) => k.children ?? []) // skus
                 .filter((c) => c.level === 'sku')
                 .map((c) => ({ id: c.label, label: c.label })),
         []
@@ -529,8 +521,10 @@ export default function VisibilityDrilldownTable() {
     const cityOptions = useMemo(
         () =>
             sampleHierarchy
-                .flatMap((n) => n.children ?? [])
-                .flatMap((c) => c.children ?? [])
+                .flatMap((n) => n.children ?? []) // brands
+                .flatMap((b) => b.children ?? []) // keywords
+                .flatMap((k) => k.children ?? []) // skus
+                .flatMap((s) => s.children ?? []) // cities
                 .filter((c) => c.level === 'city')
                 .map((c) => ({ id: c.label, label: c.label })),
         []
@@ -562,28 +556,28 @@ export default function VisibilityDrilldownTable() {
 
     // Heatmap color function for Keywords/SKUs views
     const getHeatmapColor = (kpi, value) => {
-        if (value === undefined || value === null) return 'transparent'
+        if (value === undefined || value === null) return {}
 
         // For position metrics, lower is better
         if (kpi === 'adPos' || kpi === 'orgPos') {
-            if (value <= 3) return 'rgba(34, 197, 94, 0.2)' // green
-            if (value <= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
-            return 'rgba(239, 68, 68, 0.2)' // red
+            if (value <= 3) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
+            if (value <= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
+            return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
         }
 
         // For SOV and catImpShare metrics, higher is better
-        if (value >= 50) return 'rgba(34, 197, 94, 0.2)' // green
-        if (value >= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
-        if (value >= 1) return 'rgba(251, 146, 60, 0.2)' // orange
-        return 'rgba(239, 68, 68, 0.2)' // red
+        if (value >= 50) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
+        if (value >= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
+        if (value >= 1) return { backgroundColor: 'rgba(249, 115, 22, 0.12)', color: '#9a3412' } // orange
+        return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
     }
 
     const renderValueCell = (metrics, kpi) => {
-        const bgColor = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : 'rgb(248, 250, 252)'
+        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' }
         return (
             <span
-                className="block rounded-md px-2 py-1 text-center font-semibold"
-                style={{ backgroundColor: bgColor }}
+                className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-medium"
+                style={style}
             >
                 {formatMetric(kpi, metrics[kpi])}
             </span>
@@ -593,28 +587,30 @@ export default function VisibilityDrilldownTable() {
     return (
         <div className="flex w-full flex-col">
             <div className="px-6 pt-4">
-                <div className="inline-flex rounded-full bg-slate-100 p-1">
-                    <button
-                        onClick={() => setActiveView('keywords')}
-                        className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                    >
-                        Keywords
-                    </button>
-                    <button
-                        onClick={() => setActiveView('skus')}
-                        className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'skus' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                    >
-                        SKUs
-                    </button>
-                    <button
-                        onClick={() => setActiveView('platforms')}
-                        className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'platforms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                    >
-                        Platforms
-                    </button>
+                <div className="flex items-center gap-2 text-xs">
+                    <div className="flex rounded-full bg-[#f3f4f6] p-[3px]">
+                        <button
+                            onClick={() => setActiveView('keywords')}
+                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            Keywords
+                        </button>
+                        <button
+                            onClick={() => setActiveView('skus')}
+                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'skus' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            SKUs
+                        </button>
+                        <button
+                            onClick={() => setActiveView('platforms')}
+                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'platforms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                                }`}
+                        >
+                            Platforms
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -641,15 +637,15 @@ export default function VisibilityDrilldownTable() {
                             </button>
                             <div className="h-6 w-px bg-slate-200"></div>
                             <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50/50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                                     Healthy
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50/50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
                                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                                     Watch
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50/50 px-2.5 py-1 text-[11px] font-medium text-rose-700">
                                     <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
                                     Action
                                 </span>
@@ -659,7 +655,7 @@ export default function VisibilityDrilldownTable() {
 
                     <div className="flex-1 overflow-auto p-4">
                         <div className="mb-2 text-xs text-slate-500">
-                            {activeView === 'keywords' && 'Keyword Type → Keyword → SKU → City'}
+                            {activeView === 'keywords' && 'Keyword Type → Brand → Keyword → SKU → City'}
                             {activeView === 'skus' && 'SKU → Keyword → City'}
                             {activeView === 'platforms' && 'Category drilldown → Keywords with expandable KPI columns'}
                         </div>
@@ -674,6 +670,16 @@ export default function VisibilityDrilldownTable() {
                                         >
                                             {activeView === 'skus' ? 'SKU' : 'Keyword Type'}
                                         </th>
+                                        {showBrandColumn && (
+                                            <th
+                                                className="px-2 py-2"
+                                                style={{ position: 'sticky', left: LEFT_BRAND, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.brand, minWidth: FROZEN_WIDTHS.brand }}
+                                            >
+                                                <div className="flex items-center gap-1">
+                                                    <span>Brand</span>
+                                                </div>
+                                            </th>
+                                        )}
                                         {showKeywordColumn && (
                                             <th
                                                 className="px-2 py-2"
@@ -747,6 +753,12 @@ export default function VisibilityDrilldownTable() {
                                             className="px-3 py-2"
                                             style={{ position: 'sticky', left: 0, top: 40, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keywordType, minWidth: FROZEN_WIDTHS.keywordType }}
                                         />
+                                        {showBrandColumn && (
+                                            <th
+                                                className="px-2 py-2"
+                                                style={{ position: 'sticky', left: LEFT_BRAND, top: 40, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.brand, minWidth: FROZEN_WIDTHS.brand }}
+                                            />
+                                        )}
                                         {showKeywordColumn && (
                                             <th
                                                 className="px-2 py-2"
@@ -810,7 +822,7 @@ export default function VisibilityDrilldownTable() {
                                                 style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
                                             >
                                                 <div className="flex flex-row items-center justify-start text-left gap-2">
-                                                    {row.hasChildren && (
+                                                    {row.hasChildren && row.depth === 0 && (
                                                         <button
                                                             onClick={() => toggleExpand(row.id)}
                                                             className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
@@ -825,23 +837,44 @@ export default function VisibilityDrilldownTable() {
                                                 </div>
                                             </td>
 
+                                            {showBrandColumn && (
+                                                <td
+                                                    className="px-2 py-2 text-left"
+                                                    style={{ position: 'sticky', left: LEFT_BRAND, background: '#ffffff', minWidth: FROZEN_WIDTHS.brand }}
+                                                >
+                                                    <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
+                                                        <div className="shrink-0 w-4 h-4 flex items-center justify-center">
+                                                            {row.level === 'brand' && (
+                                                                <button
+                                                                    onClick={() => toggleExpand(row.id)}
+                                                                    className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
+                                                                >
+                                                                    {expandedRows.has(row.id) ? '−' : '+'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <span>{row.level === 'brand' ? row.label : ''}</span>
+                                                    </div>
+                                                </td>
+                                            )}
+
                                             {showKeywordColumn && (
                                                 <td
                                                     className="px-2 py-2 text-left"
                                                     style={{ position: 'sticky', left: LEFT_KEYWORD, background: '#ffffff', minWidth: FROZEN_WIDTHS.keyword }}
                                                 >
-                                                    <div className="flex items-start">
-                                                        {row.hasChildren && row.depth > 0 && (
-                                                            <button
-                                                                onClick={() => toggleExpand(row.id)}
-                                                                className="mr-2 flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                                                            >
-                                                                {expandedRows.has(row.id) ? '−' : '+'}
-                                                            </button>
-                                                        )}
-                                                        <div>
-                                                            {row.level === 'keyword' && <div className="font-medium text-slate-900">{row.label}</div>}
+                                                    <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
+                                                        <div className="shrink-0 w-4 h-4 flex items-center justify-center">
+                                                            {row.level === 'keyword' && (
+                                                                <button
+                                                                    onClick={() => toggleExpand(row.id)}
+                                                                    className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
+                                                                >
+                                                                    {expandedRows.has(row.id) ? '−' : '+'}
+                                                                </button>
+                                                            )}
                                                         </div>
+                                                        <span>{row.level === 'keyword' ? row.label : ''}</span>
                                                     </div>
                                                 </td>
                                             )}
@@ -900,12 +933,12 @@ export default function VisibilityDrilldownTable() {
                                             {allKpis.flatMap((kpi) =>
                                                 activeView === 'platforms' && expandedKpis.has(kpi)
                                                     ? visiblePlatforms.map((p) => (
-                                                        <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-right align-middle border-l border-slate-100">
+                                                        <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
                                                             {renderValueCell(row.platforms[p] ?? {}, kpi)}
                                                         </td>
                                                     ))
                                                     : (
-                                                        <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-right align-middle border-l border-slate-100">
+                                                        <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
                                                             {renderValueCell(row.metrics, kpi)}
                                                         </td>
                                                     )
@@ -1040,69 +1073,71 @@ export default function VisibilityDrilldownTable() {
                     </>
                 )}
             </AnimatePresence>
-            {showFilterPanel && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
-                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+            {
+                showFilterPanel && (
+                    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
+                        <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                                    <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowFilterPanel(false)}
+                                    className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
                             </div>
-                            <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
 
-                        {/* Panel Content */}
-                        <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
-                            <KpiFilterPanel
-                                sectionConfig={filterOptions}
-                                onChange={(values) => {
-                                    setPopupFilters(prev => ({
-                                        ...prev,
-                                        ...values,
-                                    }))
-                                }}
-                            />
+                            {/* Panel Content */}
+                            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+                                <KpiFilterPanel
+                                    sectionConfig={filterOptions}
+                                    onChange={(values) => {
+                                        setPopupFilters(prev => ({
+                                            ...prev,
+                                            ...values,
+                                        }))
+                                    }}
+                                />
 
 
-                        </div>
+                            </div>
 
-                        {/* Modal Footer */}
-                        <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
-                            <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setFilters(prev => ({
-                                        ...prev,
-                                        keyword: popupFilters.keyword || null,
-                                        sku: popupFilters.sku || null,
-                                        city: popupFilters.city || null,
-                                        platform: popupFilters.platform || 'All',
-                                    }))
+                            {/* Modal Footer */}
+                            <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                                <button
+                                    onClick={() => setShowFilterPanel(false)}
+                                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setFilters(prev => ({
+                                            ...prev,
+                                            keyword: popupFilters.keyword || null,
+                                            sku: popupFilters.sku || null,
+                                            city: popupFilters.city || null,
+                                            platform: popupFilters.platform || 'All',
+                                        }))
 
-                                    setPage(0)
-                                    setExpandedRows(new Set())
-                                    setShowFilterPanel(false)
-                                }}
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                            >
-                                Apply Filters
-                            </button>
+                                        setPage(0)
+                                        setExpandedRows(new Set())
+                                        setShowFilterPanel(false)
+                                    }}
+                                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                >
+                                    Apply Filters
+                                </button>
 
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }
