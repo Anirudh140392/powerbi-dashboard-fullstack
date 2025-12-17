@@ -7,8 +7,8 @@ export default function SalesGainerDrainerWrapper() {
     const [activeTab, setActiveTab] = useState("availability");
 
     return (
-        <div className="w-full bg-slate-50 py-6 px-1">
-            <div className="mx-auto max-w-7xl bg-white border rounded-3xl px-6 py-5 shadow">
+        <div className="w-full">
+            <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
                 {/* Toggle at the top start of the card */}
                 <div className="flex justify-start mb-6">
                     <div className="flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">

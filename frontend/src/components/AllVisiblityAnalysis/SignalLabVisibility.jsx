@@ -507,7 +507,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-D-MPK",
         skuName: "Family Pack Ice Cream",
         packSize: "Mixed",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Family Pack",
         offtakeValue: "₹ 6.2 lac",
         impact: "-4.8%",
@@ -541,7 +541,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-701",
         skuName: "Butterscotch 700ml",
         packSize: "700 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 3.8 lac",
         impact: "-5.6%",
@@ -558,7 +558,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-703",
         skuName: "Vanilla Party Pack",
         packSize: "1 L",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 3.5 lac",
         impact: "-4.2%",
@@ -576,7 +576,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-G-CON",
         skuName: "Cone Ice Cream",
         packSize: "Mixed",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 8.9 lac",
         impact: "+6.0%",
@@ -610,7 +610,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-G-BAR",
         skuName: "Choco Bar",
         packSize: "Single",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 6.5 lac",
         impact: "+5.1%",
@@ -627,7 +627,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-704",
         skuName: "Cornetto Oreo",
         packSize: "110 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 5.9 lac",
         impact: "+4.5%",
@@ -953,7 +953,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                         </span>
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-50 border text-sky-700">
-                        {sku.platform}
+                        Blinkit
                     </span>
                 </div>
 
@@ -997,7 +997,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                     {citiesToShow.map((c) => (
-                        <div key={c.city} className="p-2 border rounded-xl bg-slate-50">
+                        <div key={c.city} className="p-2 border rounded-xl bg-slate-50 flex flex-col items-center text-center">
                             <div className="font-medium">{c.city}</div>
                             <div className="text-[10px] text-slate-500">{c.metric}</div>
                             <ImpactPill value={c.change} />
