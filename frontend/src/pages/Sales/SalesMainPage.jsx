@@ -7,6 +7,8 @@ import SalesGainerDrainerWrapper from "./SalesGainerDrainerWrapper";
 import { SALES_MATRIX_DATA } from "./SalesData";
 import RegionSalesTable from "../../components/Sales/RegionSalesTable";
 
+import DrillDownSalesTable from "../../components/Sales/DrillDownSalesTable";
+
 export default function SalesMainPage() {
   const [filters, setFilters] = useState({
     platform: "Zepto",
@@ -43,11 +45,13 @@ export default function SalesMainPage() {
 
           {/* ---------------- Sales Matrix Table (By Format) ---------------- */}
           <CityKpiTrendShowcase
-            title="By Format"
+            dynamicKey='sales_category_table'
+            title="By Category"
             data={SALES_MATRIX_DATA}
           />
 
-          <RegionSalesTable />
+          {/* ---------------- Drill Down Sales Table ---------------- */}
+          <DrillDownSalesTable />
         </Box>
       </Box>
     </CommonContainer>
