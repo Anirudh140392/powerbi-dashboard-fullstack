@@ -292,17 +292,17 @@ export default function RegionSalesTable() {
         <div className="w-full bg-white rounded-lg shadow-sm border border-slate-200 text-sm overflow-hidden flex flex-col">
             {/* Table Container */}
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[800px]">
+                <table className="w-full text-left border-collapse min-w-[800px] table-fixed">
                     <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-xs uppercase tracking-wider">
                         <tr>
-                            <th className="py-3 px-4 w-[250px]">Platform / Region / City</th>
-                            <th className="py-3 px-4 w-[100px]">Level</th>
-                            <th className="py-3 px-4 text-right">MTD Sales</th>
-                            <th className="py-3 px-4 text-right">Prev Month MTD</th>
-                            <th className="py-3 px-4 text-right">Current DRR</th>
-                            <th className="py-3 px-4 text-right">YTD Sales</th>
-                            <th className="py-3 px-4 text-right">Last Year Sales</th>
-                            <th className="py-3 px-4 text-right">Projected Sales</th>
+                            <th className="py-3 px-4 w-[24%]">Platform / Region / City</th>
+                            <th className="py-3 px-4 w-[10%]">Level</th>
+                            <th className="py-3 px-4 text-right w-[11%]">MTD Sales</th>
+                            <th className="py-3 px-4 text-right w-[11%]">Prev Month MTD</th>
+                            <th className="py-3 px-4 text-right w-[11%]">Current DRR</th>
+                            <th className="py-3 px-4 text-right w-[11%]">YTD Sales</th>
+                            <th className="py-3 px-4 text-right w-[11%]">Last Year Sales</th>
+                            <th className="py-3 px-4 text-right w-[11%]">Projected Sales</th>
                         </tr>
                     </thead>
                     <tbody>
