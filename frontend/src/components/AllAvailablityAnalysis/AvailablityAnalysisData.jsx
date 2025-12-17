@@ -1044,7 +1044,7 @@ export const AvailablityAnalysisData = () => {
   const [availability, setAvailability] = useState("absolute");
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-white via-white to-slate-50 text-slate-900 px-4 py-6">
+
       <div className="max-w-7xl mx-auto space-y-5">
         <div className="space-y-4">
           {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
@@ -1092,7 +1092,6 @@ export const AvailablityAnalysisData = () => {
 
         </div>
       </div>
-    </div>
   );
 };
 

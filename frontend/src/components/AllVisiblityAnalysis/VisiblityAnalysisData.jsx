@@ -768,7 +768,7 @@ const VisiblityAnalysisData = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-6 text-slate-900">
+
       <div className="mx-auto max-w-7xl space-y-4">
 
         {/* HEADER */}
@@ -973,7 +973,6 @@ const VisiblityAnalysisData = () => {
         )}
 
       </div>
-    </div >
   )
 }
 
