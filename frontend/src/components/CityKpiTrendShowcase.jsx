@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
 import { Visibility } from "@mui/icons-material";
 import VisibilityTrendsCompetitionDrawer from "./AllVisiblityAnalysis/VisibilityTrendsCompetitionDrawer";
+import SalesTrendsDrawer from "./Sales/SalesTrendsDrawer";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -621,6 +622,7 @@ function TrendIcon({ trend }) {
 //   );
 // }
 function MatrixVariant({ dynamicKey, data, title }) {
+  console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
 
   const [openTrend, setOpenTrend] = useState(false);
@@ -812,14 +814,14 @@ function MatrixVariant({ dynamicKey, data, title }) {
         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
           <div className="min-w-[1000px]">
 
-            <table className="w-full border-separate border-spacing-0 text-xs">
+            <table className="w-full border-separate border-spacing-0 text-xs table-fixed">
 
               {/* ---------------- HEADER ROW ---------------- */}
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 
+                  <th className="sticky left-0 z-20 bg-slate-0 py-3 pl-4 pr-4 
                                  text-left text-[11px] font-semibold uppercase 
-                                 tracking-[0.12em] text-slate-500">
+                                 tracking-[0.12em] text-slate-500 w-[12%]">
                     KPI
                   </th>
 
@@ -828,7 +830,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                       key={col}
                       className="border-b border-slate-100 bg-slate-50 py-3 px-3 
                                  text-left text-[11px] font-semibold uppercase 
-                                 tracking-[0.12em] text-slate-500"
+                                 tracking-[0.12em] text-slate-500 w-[11%]"
                     >
                       <div className="flex flex-col gap-1">
                         <div className="flex text-xs font-semibold text-slate-900">{col} <span onClick={() => {
@@ -921,6 +923,13 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
+      ) : dynamicKey === 'sales_category_table' ? (
+        <SalesTrendsDrawer
+          open={openTrend}
+          onClose={() => setOpenTrend(false)}
+          selectedColumn='Blinkit'
+          dynamicKey={dynamicKey}
+        />
       ) : (
         <VisibilityTrendsCompetitionDrawer
           open={openTrend}
@@ -929,7 +938,8 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
-      )}
+      )
+      }
 
     </Card >
   );

@@ -200,23 +200,23 @@ export default function CategoryTable({ categories, activeTab = "" }) {
           <Table stickyHeader>
             <TableHead>
               <TableRow>
-            <TableCell
-  sx={{
-    background:
-      theme.palette.mode === "dark"
-        ? theme.palette.background.default
-        : "#f9fafb",
-    position: "sticky",
-    left: 0,
-    zIndex: 10,
+                <TableCell
+                  sx={{
+                    background:
+                      theme.palette.mode === "dark"
+                        ? theme.palette.background.default
+                        : "#f9fafb",
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 10,
 
-    fontSize: 16,     // ⬆ same as body
-    fontWeight: 500,  // medium, clean
-    lineHeight: 1.4,
-  }}
->
-  {activeTab === "Split by Category" ? "Category" : "SKU"}
-</TableCell>
+                    fontSize: 16,     // ⬆ same as body
+                    fontWeight: 500,  // medium, clean
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {activeTab === "Split by Category" ? "Category" : "SKU"}
+                </TableCell>
 
 
 
@@ -269,18 +269,18 @@ export default function CategoryTable({ categories, activeTab = "" }) {
               {paginatedRows.map((cat, i) => (
                 <TableRow key={i} hover>
                   <TableCell
-  sx={{
-    position: "sticky",
-    left: 0,
-    background: theme.palette.background.paper,
+                    sx={{
+                      position: "sticky",
+                      left: 0,
+                      background: theme.palette.background.paper,
 
-    fontSize: 16,      // ⬆ increased size
-    fontWeight: 500,   // ⬆ ~10–15% bolder than 500
-    lineHeight: 1.4,
-  }}
->
-  {cat.name}
-</TableCell>
+                      fontSize: 16,      // ⬆ increased size
+                      fontWeight: 500,   // ⬆ ~10–15% bolder than 500
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {cat.name}
+                  </TableCell>
                   {platforms.map((p) => {
                     const main = cat[p][selectedMetric.key];
                     const change = cat[p][selectedMetric.key + "_change"];
