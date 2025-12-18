@@ -17,6 +17,7 @@ import {
   Paper,
   IconButton,
   Chip,
+  Button,
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, ChevronUp, ChevronDown } from "lucide-react";
@@ -232,7 +233,7 @@ export default function KeywordAnalysisTable() {
 
   // pagination
   const [page, setPage] = useState(1);
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   const processedKeywords = useMemo(() => {
     const searchTrim = search.trim();
@@ -322,13 +323,13 @@ export default function KeywordAnalysisTable() {
 
           <TableCell>
             <Box sx={{ ml: level * 2 }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
                 {node.keyword}
               </Typography>
             </Box>
           </TableCell>
 
-          <TableCell sx={{ fontSize: 12 }}>
+          <TableCell sx={{ fontSize: 11 }}>
             <Chip
               label={node.category}
               size="small"
@@ -341,7 +342,7 @@ export default function KeywordAnalysisTable() {
             />
           </TableCell>
 
-          <TableCell sx={{ fontSize: 12 }}>
+          <TableCell sx={{ fontSize: 11 }}>
             {monthFilter === "All" ? "All Months" : monthFilter}
           </TableCell>
 
@@ -363,10 +364,11 @@ export default function KeywordAnalysisTable() {
               {node.agg.conversion.toFixed(1)}%
             </Box>
           </TableCell>
-
-          <TableCell align="right">{node.agg.spend}</TableCell>
-          <TableCell align="right">{node.agg.cpm.toFixed(0)}</TableCell>
-          <TableCell align="right">{node.agg.roas.toFixed(1)}</TableCell>
+          <TableCell align="right" sx={{ fontSize: 11 }}>{node.agg.spend}</TableCell>
+          <TableCell align="right" sx={{ fontSize: 11 }}>{node.agg.clicks}</TableCell>
+          <TableCell align="right" sx={{ fontSize: 11 }}>{node.agg.conversions}</TableCell>
+          <TableCell align="right" sx={{ fontSize: 11 }}>{node.agg.revenue}</TableCell>
+          <TableCell align="right" sx={{ fontSize: 11 }}>{node.agg.roas}</TableCell>
         </TableRow>
 
         {isOpen &&
@@ -387,7 +389,7 @@ export default function KeywordAnalysisTable() {
                 <TableCell>
                   <Box sx={{ ml: (level + 1) * 2 }}>
                     <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                      {node.keyword}
+                      {/* Empty for monthly rows to avoid duplication */}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -486,28 +488,28 @@ export default function KeywordAnalysisTable() {
       {/* TABLE */}
       <TableContainer
         component={Paper}
-        sx={{ mt: 2, maxHeight: 520, overflow: "auto" }}
+        sx={{ mt: 2, maxHeight: 520, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: 'none' }}
       >
         <Table size="small" stickyHeader>
           <TableHead>
-            <TableRow>
-              <TableCell />
-              <TableCell>Keyword</TableCell>
-              <TableCell>Category</TableCell>
-              <TableCell>Month</TableCell>
-              <TableCell align="right">
+            <TableRow sx={{ borderTop: "1px solid #e5e7eb" }}>
+              <TableCell sx={{ backgroundColor: 'white' }} />
+              <TableCell sx={{ backgroundColor: 'white' }}>Keyword</TableCell>
+              <TableCell sx={{ backgroundColor: 'white' }}>Category</TableCell>
+              <TableCell sx={{ backgroundColor: 'white' }}>Month</TableCell>
+              <TableCell align="right" sx={{ backgroundColor: 'white' }}>
                 {renderSortLabel("Impressions", "impressions")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" sx={{ backgroundColor: 'white' }}>
                 {renderSortLabel("Conversion", "conversion")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" sx={{ backgroundColor: 'white' }}>
                 {renderSortLabel("Spend", "spend")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" sx={{ backgroundColor: 'white' }}>
                 {renderSortLabel("CPM", "cpm")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="right" sx={{ backgroundColor: 'white' }}>
                 {renderSortLabel("ROAS", "roas")}
               </TableCell>
             </TableRow>
@@ -523,51 +525,87 @@ export default function KeywordAnalysisTable() {
         </Table>
       </TableContainer>
 
-      {/* ➜ RIGHT-ALIGNED SIMPLE TEXT PAGINATION */}
       <Box
-        mt={2}
-        display="flex"
-        justifyContent="flex-end"
-        alignItems="center"
-        gap={3}
-        sx={{ fontSize: 14, fontWeight: 500 }}
+        sx={{
+          mt: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
       >
-        {/* PREV */}
-        <Box
-          sx={{
-            color: page === 1 ? "#9ca3af" : "#2563eb",
-            cursor: page === 1 ? "default" : "pointer",
-            userSelect: "none",
-          }}
-          onClick={() => page > 1 && setPage(page - 1)}
-        >
-          PREV
+        {/* Left: Prev | Page X / Y | Next */}
+        <Box display="flex" alignItems="center" gap={1}>
+          <Button
+            size="small"
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            sx={{
+              minWidth: 'auto',
+              borderRadius: 999,
+              px: 2,
+              py: 0.5,
+              border: '1px solid #e2e8f0',
+              color: '#64748b',
+              textTransform: 'none',
+              backgroundColor: 'white',
+              '&:hover': { backgroundColor: '#f8fafc' },
+              '&:disabled': { opacity: 0.5 }
+            }}
+          >
+            Prev
+          </Button>
+
+          <Typography sx={{ fontSize: 12, color: "#334155", fontWeight: 500, mx: 1 }}>
+            Page {page} / {Math.ceil(processedKeywords.length / rowsPerPage)}
+          </Typography>
+
+          <Button
+            size="small"
+            disabled={page >= Math.ceil(processedKeywords.length / rowsPerPage)}
+            onClick={() => setPage((p) => p + 1)}
+            sx={{
+              minWidth: 'auto',
+              borderRadius: 999,
+              px: 2,
+              py: 0.5,
+              border: '1px solid #e2e8f0',
+              color: '#64748b',
+              textTransform: 'none',
+              backgroundColor: 'white',
+              '&:hover': { backgroundColor: '#f8fafc' },
+              '&:disabled': { opacity: 0.5 }
+            }}
+          >
+            Next
+          </Button>
         </Box>
 
-        {/* PAGE COUNTER */}
-        <Box sx={{ color: "#374151" }}>
-          Page {page} of {Math.ceil(processedKeywords.length / rowsPerPage)}
-        </Box>
-
-        {/* NEXT */}
-        <Box
-          sx={{
-            color:
-              page === Math.ceil(processedKeywords.length / rowsPerPage)
-                ? "#9ca3af"
-                : "#2563eb",
-            cursor:
-              page === Math.ceil(processedKeywords.length / rowsPerPage)
-                ? "default"
-                : "pointer",
-            userSelect: "none",
-          }}
-          onClick={() =>
-            page < Math.ceil(processedKeywords.length / rowsPerPage) &&
-            setPage(page + 1)
-          }
-        >
-          NEXT
+        {/* Right: Rows/page selector */}
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography sx={{ fontSize: 12, color: "#64748b" }}>
+            Rows/page
+          </Typography>
+          <Select
+            value={rowsPerPage}
+            onChange={(e) => {
+              setRowsPerPage(Number(e.target.value));
+              setPage(1);
+            }}
+            size="small"
+            sx={{
+              height: 32,
+              fontSize: 12,
+              borderRadius: 2,
+              backgroundColor: 'white',
+              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
+            }}
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
+                {n}
+              </MenuItem>
+            ))}
+          </Select>
         </Box>
       </Box>
     </Card>
