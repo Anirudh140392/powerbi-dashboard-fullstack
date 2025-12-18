@@ -649,12 +649,13 @@ const FormatPerformanceStudio = () => {
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
+      style={{ fontFamily: 'Roboto, sans-serif' }}
     >
       <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold bg">Category performance</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-lg font-semibold bg" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '1.2rem' }}>Category performance</h2>
+            <p className="text-xs text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
@@ -670,8 +671,8 @@ const FormatPerformanceStudio = () => {
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
                 className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                    ? "border-sky-400 bg-sky-50 shadow-sm"
-                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                  ? "border-sky-400 bg-sky-50 shadow-sm"
+                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
                   }`}
                 whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
@@ -693,15 +694,15 @@ const FormatPerformanceStudio = () => {
 
                   {/* TEXT */}
                   <div className="text-left">
-                    <div className="font-medium">{f.name}</div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="font-medium" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '0.95rem' }}>{f.name}</div>
+                    <div className="text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
                       Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
                 </div>
 
                 {/* RIGHT SIDE */}
-                <div className="flex flex-col items-end text-[10px] text-slate-500">
+                <div className="flex flex-col items-end text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, fontSize: '0.75rem' }}>
                   <span>MS {f.marketSharePct}%</span>
                   <span>Conv {f.conversionPct}%</span>
                 </div>

@@ -107,7 +107,7 @@ const categoryLogo = "https://cdn-icons-png.flaticon.com/512/711/711284.png";
 //   {
 //     key: "blinkit",
 //     label: "Blinkit",
-//     type: "Q-commerce",
+//     type: "Q-com",
 //     logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
 //     columns: [
 //       {
@@ -189,7 +189,7 @@ const categoryLogo = "https://cdn-icons-png.flaticon.com/512/711/711284.png";
 //   {
 //     key: "zepto",
 //     label: "Zepto",
-//     type: "Q-commerce",
+//     type: "Q-com",
 //     logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
 //     columns: [
 //       {
@@ -527,7 +527,7 @@ const categoryLogo = "https://cdn-icons-png.flaticon.com/512/711/711284.png";
 //   {
 //     key: "blinkit",
 //     label: "Blinkit",
-//     type: "Q-commerce",
+//     type: "Q-com",
 //     logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
 //     columns: [
 //       {
@@ -618,7 +618,7 @@ const categoryLogo = "https://cdn-icons-png.flaticon.com/512/711/711284.png";
 //   {
 //     key: "zepto",
 //     label: "Zepto",
-//     type: "Q-commerce",
+//     type: "Q-com",
 //     logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
 //     columns: [
 //       {
@@ -705,11 +705,11 @@ const categoryLogo = "https://cdn-icons-png.flaticon.com/512/711/711284.png";
 //     ],
 //   },
 
-//   // ---------------- SWIGGY (changed to Q-commerce) ----------------
+//   // ---------------- SWIGGY (changed to Q-com) ----------------
 //   {
 //     key: "swiggy",
 //     label: "Swiggy",
-//     type: "Q-commerce",
+//     type: "Q-com",
 //     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
 //     columns: [
 //       {
@@ -983,7 +983,7 @@ export const defaultPlatforms = [
   {
     key: "blinkit",
     label: "Blinkit",
-    type: "Q-commerce",
+    type: "Q-com",
     logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg",
     columns: [
       {
@@ -1074,7 +1074,7 @@ export const defaultPlatforms = [
   {
     key: "zepto",
     label: "Zepto",
-    type: "Q-commerce",
+    type: "Q-com",
     logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png",
     columns: [
       {
@@ -1161,11 +1161,11 @@ export const defaultPlatforms = [
     ],
   },
 
-  // ---------------- SWIGGY (Q-commerce) ----------------
+  // ---------------- SWIGGY (Q-com) ----------------
   {
     key: "swiggy",
     label: "Swiggy",
-    type: "Q-commerce",
+    type: "Q-com",
     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
     columns: [
       {
