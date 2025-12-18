@@ -51,7 +51,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
               Availability Control Tower
             </h1>
             <p className="text-xs text-slate-500">
-              Absolute OLA · Light Theme · Motion-first UI
+              Absolute OSA · Light Theme · Motion-first UI
             </p>
           </div>
         </div>
@@ -65,7 +65,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
                 : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
-            Absolute OLA
+            Absolute OSA
           </button>
 
           <button
@@ -76,7 +76,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
                 : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
-            Weighted OLA
+            Weighted OSA
           </button>
 
           <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
@@ -1045,53 +1045,53 @@ export const AvailablityAnalysisData = () => {
 
   return (
 
-      <div className="max-w-7xl mx-auto space-y-5">
-        <div className="space-y-4">
-          {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="space-y-4">
+        {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
-          {/* MARKET SHARE TOGGLE BLOCK */}
-          {/* AVAILABILITY TOGGLE BLOCK */}
-          <div className="flex justify-center">
-            <div className="relative w-full md:w-[420px]">
-              <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-                <motion.div
-                  layout
-                  className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
-                  initial={false}
-                  animate={{ x: availability === "absolute" ? 0 : "100%" }}
-                  transition={{ type: "spring", stiffness: 260, damping: 26 }}
-                />
+        {/* MARKET SHARE TOGGLE BLOCK */}
+        {/* AVAILABILITY TOGGLE BLOCK */}
+        <div className="flex justify-center">
+          <div className="relative w-full md:w-[420px]">
+            <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
+              <motion.div
+                layout
+                className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
+                initial={false}
+                animate={{ x: availability === "absolute" ? 0 : "100%" }}
+                transition={{ type: "spring", stiffness: 260, damping: 26 }}
+              />
 
-                {[
-                  { key: "absolute", label: "Absolute OLA" },
-                  { key: "weighted", label: "Weighted OLA" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setAvailability(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
-                      ? "text-slate-900"
-                      : "text-slate-500 hover:text-slate-700"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              {[
+                { key: "absolute", label: "Absolute OSA" },
+                { key: "weighted", label: "Weighted OSA" },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setAvailability(option.key)}
+                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
-
-
-
-
-          <MetricCardContainer title="Availability Overview" cards={cards} />
-          {/* <SignalLabVisibility type="availability" /> */}
-          <TabbedHeatmapTable />
-          <OsaHeatmapTable />
-
         </div>
+
+
+
+
+        <MetricCardContainer title="Availability Overview" cards={cards} />
+        {/* <SignalLabVisibility type="availability" /> */}
+        <TabbedHeatmapTable />
+        <OsaHeatmapTable />
+
       </div>
+    </div>
   );
 };
 
