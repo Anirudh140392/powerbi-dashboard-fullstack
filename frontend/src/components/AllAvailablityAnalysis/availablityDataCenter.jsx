@@ -1,4 +1,32 @@
-const PRODUCT_MATRIX = {
+// Helper function to apply variance for weighted data
+function applyWeightedVariance(value, variancePercent = 12) {
+  if (typeof value !== 'number') return value;
+  const variance = (Math.random() - 0.5) * 2 * variancePercent;
+  const newValue = Math.round(value * (1 + variance / 100));
+  return Math.max(0, Math.min(100, newValue)); // Clamp between 0-100
+}
+
+// Helper to create weighted variant of product matrix data
+function createWeightedProductMatrix(absolute) {
+  return {
+    formatColumns: absolute.formatColumns,
+    data: absolute.data.map(format => ({
+      format: format.format,
+      products: format.products.map(product => ({
+        sku: product.sku,
+        name: product.name,
+        values: Object.fromEntries(
+          Object.entries(product.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+        ),
+        losses: Object.fromEntries(
+          Object.entries(product.losses).map(([key, val]) => [key, parseFloat((val * (0.9 + Math.random() * 0.2)).toFixed(2))])
+        )
+      }))
+    }))
+  };
+}
+
+const PRODUCT_MATRIX_ABSOLUTE = {
   formatColumns: ["Blinkit", "Instamart", "Virtual Store", "Zepto"],
   data: [
     {
@@ -117,7 +145,28 @@ const PRODUCT_MATRIX = {
   ],
 };
 
-const OLA_Detailed = [
+const PRODUCT_MATRIX = {
+  absolute: PRODUCT_MATRIX_ABSOLUTE,
+  weighted: createWeightedProductMatrix(PRODUCT_MATRIX_ABSOLUTE)
+};
+
+// Helper to create weighted variant of OLA_Detailed
+function createWeightedOLADetailed(absolute) {
+  return absolute.map(platform => ({
+    platform: platform.platform,
+    ola: applyWeightedVariance(platform.ola),
+    zones: platform.zones.map(zone => ({
+      zone: zone.zone,
+      ola: applyWeightedVariance(zone.ola),
+      cities: zone.cities.map(city => ({
+        city: city.city,
+        ola: applyWeightedVariance(city.ola)
+      }))
+    }))
+  }));
+}
+
+const OLA_Detailed_ABSOLUTE = [
   {
     platform: "Blinkit",
     ola: 90, // auto-calculated below
@@ -185,6 +234,11 @@ const OLA_Detailed = [
   }
 ];
 
+const OLA_Detailed = {
+  absolute: OLA_Detailed_ABSOLUTE,
+  weighted: createWeightedOLADetailed(OLA_Detailed_ABSOLUTE)
+};
+
 function generateTrend(base, points = 8, variance = 8) {
   return Array.from({ length: points }, (_, i) =>
     Math.max(
@@ -207,7 +261,37 @@ function generateTrendMulti(base) {
   };
 }
 
-const FORMAT_MATRIX = {
+// Helper to create weighted variant of FORMAT_MATRIX
+function createWeightedFormatMatrix(absolute) {
+  return {
+    PlatformColumns: absolute.PlatformColumns,
+    formatColumns: absolute.formatColumns,
+    CityColumns: absolute.CityColumns,
+    PlatformData: absolute.PlatformData.map(item => ({
+      kpi: item.kpi,
+      values: Object.fromEntries(
+        Object.entries(item.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+      ),
+      trend: item.trend
+    })),
+    FormatData: absolute.FormatData.map(item => ({
+      kpi: item.kpi,
+      values: Object.fromEntries(
+        Object.entries(item.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+      ),
+      trend: item.trend
+    })),
+    CityData: absolute.CityData.map(item => ({
+      kpi: item.kpi,
+      values: Object.fromEntries(
+        Object.entries(item.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+      ),
+      trend: item.trend
+    }))
+  };
+}
+
+const FORMAT_MATRIX_ABSOLUTE = {
   PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
 
   formatColumns: [
@@ -354,6 +438,11 @@ const FORMAT_MATRIX = {
   ]
 };
 
+const FORMAT_MATRIX = {
+  absolute: FORMAT_MATRIX_ABSOLUTE,
+  weighted: createWeightedFormatMatrix(FORMAT_MATRIX_ABSOLUTE)
+};
+
 
 const FORMAT_MATRIX_Visibility = {
   PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
@@ -448,7 +537,22 @@ const FORMAT_MATRIX_Visibility = {
 };
 
 
-const FORMAT_ROWS = [
+// Helper to create weighted variant of FORMAT_ROWS
+function createWeightedFormatRows(absolute) {
+  return absolute.map(row => ({
+    ...row,
+    offtakes: Math.max(0, Math.round(row.offtakes * (0.9 + Math.random() * 0.2))),
+    spend: Math.max(0, Math.round(row.spend * (0.9 + Math.random() * 0.2))),
+    roas: Math.max(0, parseFloat((row.roas * (0.9 + Math.random() * 0.2)).toFixed(1))),
+    inorgSalesPct: applyWeightedVariance(row.inorgSalesPct),
+    conversionPct: Math.max(0, parseFloat((row.conversionPct * (0.9 + Math.random() * 0.2)).toFixed(1))),
+    marketSharePct: applyWeightedVariance(row.marketSharePct),
+    cpm: Math.max(0, Math.round(row.cpm * (0.9 + Math.random() * 0.2))),
+    cpc: Math.max(0, Math.round(row.cpc * (0.9 + Math.random() * 0.2)))
+  }));
+}
+
+const FORMAT_ROWS_ABSOLUTE = [
   {
     name: "Cassata",
     offtakes: 4,
@@ -541,6 +645,11 @@ const FORMAT_ROWS = [
     cpc: 16,
   },
 ];
+
+const FORMAT_ROWS = {
+  absolute: FORMAT_ROWS_ABSOLUTE,
+  weighted: createWeightedFormatRows(FORMAT_ROWS_ABSOLUTE)
+};
 
 const ONE_VIEW_DRILL_DATA = [
   {

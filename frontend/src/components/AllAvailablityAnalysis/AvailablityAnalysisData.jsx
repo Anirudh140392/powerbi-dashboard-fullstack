@@ -51,7 +51,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
               Availability Control Tower
             </h1>
             <p className="text-xs text-slate-500">
-              Absolute OLA · Light Theme · Motion-first UI
+              Absolute OSA · Light Theme · Motion-first UI
             </p>
           </div>
         </div>
@@ -65,7 +65,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
                 : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
-            Absolute OLA
+            Absolute OSA
           </button>
 
           <button
@@ -76,7 +76,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
                 : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
-            Weighted OLA
+            Weighted OSA
           </button>
 
           <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
@@ -93,7 +93,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = () => {
+const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
   // 🔥 Utility to compute unified trend + series for ANY item
@@ -126,20 +126,20 @@ const TabbedHeatmapTable = () => {
 
   // ---------------- PLATFORM ----------------
   const platformData = {
-    columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
-    rows: buildRows(FORMAT_MATRIX.PlatformData, FORMAT_MATRIX.PlatformColumns),
+    columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
+    rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns),
   };
 
   // ---------------- FORMAT ----------------
   const formatData = {
-    columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
-    rows: buildRows(FORMAT_MATRIX.FormatData, FORMAT_MATRIX.formatColumns),
+    columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
+    rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns),
   };
 
   // ---------------- CITY ----------------
   const cityData = {
-    columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
-    rows: buildRows(FORMAT_MATRIX.CityData, FORMAT_MATRIX.CityColumns),
+    columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
+    rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns),
   };
 
   // ---------------- TABS ----------------
@@ -175,7 +175,7 @@ const TabbedHeatmapTable = () => {
 };
 
 
-const PowerHierarchyHeat = () => {
+const PowerHierarchyHeat = ({ olaMode = "absolute" }) => {
   return (
     <div className="rounded-3xl bg-white border border-slate-100 shadow-[0_12px_40px_rgba(15,23,42,0.08)] p-5 flex flex-col gap-3">
       {/* Header */}
@@ -201,7 +201,7 @@ const PowerHierarchyHeat = () => {
               <th className="px-3 py-2 font-semibold text-slate-600">Region</th>
               <th className="px-3 py-2 font-semibold text-slate-600">City</th>
 
-              {FORMAT_MATRIX.formatColumns.map((f) => (
+              {FORMAT_MATRIX[olaMode].formatColumns.map((f) => (
                 <th
                   key={f}
                   className="px-3 py-2 font-semibold text-center text-slate-600 whitespace-nowrap"
@@ -213,7 +213,7 @@ const PowerHierarchyHeat = () => {
           </thead>
 
           <tbody>
-            {FORMAT_MATRIX.cityFormatData.map((row, idx) => (
+            {FORMAT_MATRIX[olaMode].cityFormatData?.map((row, idx) => (
               <tr key={idx} className="border-t border-slate-100">
                 <td className="px-3 py-2 text-slate-800">{row.platform}</td>
                 <td className="px-3 py-2 text-slate-700">{row.region}</td>
@@ -221,7 +221,7 @@ const PowerHierarchyHeat = () => {
                   {row.city}
                 </td>
 
-                {FORMAT_MATRIX.formatColumns.map((f) => {
+                {FORMAT_MATRIX[olaMode].formatColumns.map((f) => {
                   const val = row.values[f] ?? 0;
                   return (
                     <td key={f} className="px-3 py-2 text-center">
@@ -240,12 +240,12 @@ const PowerHierarchyHeat = () => {
   );
 };
 
-const ProductLevelHeat = () => {
+const ProductLevelHeat = ({ olaMode = "absolute" }) => {
   const [expandedFormats, setExpandedFormats] = useState({});
   const [expandedProducts, setExpandedProducts] = useState({});
 
   const formats = useMemo(
-    () => PRODUCT_MATRIX.data.map((row) => row.format),
+    () => PRODUCT_MATRIX[olaMode].data.map((row) => row.format),
     []
   );
 
@@ -256,7 +256,7 @@ const ProductLevelHeat = () => {
     const f = {};
     const p = {};
 
-    PRODUCT_MATRIX.data.forEach((row) => {
+    PRODUCT_MATRIX[olaMode].data.forEach((row) => {
       f[row.format] = true;
       row.products.forEach((prod) => {
         p[`${row.format}|${prod.sku}`] = true;
@@ -283,7 +283,7 @@ const ProductLevelHeat = () => {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-            Product Level OLA
+            Platform-Level OSA Drill
           </p>
           <p className="text-sm text-slate-600">
             Format → Product → Sales Loss drill-down.
@@ -293,13 +293,13 @@ const ProductLevelHeat = () => {
         <div className="flex gap-2">
           <button
             onClick={expandAll}
-            className="px-3 py-2 border rounded-full text-sm"
+            className="px-3 py-2 border rounded-full text-xs"
           >
             Expand All
           </button>
           <button
             onClick={collapseAll}
-            className="px-3 py-2 border rounded-full text-sm"
+            className="px-3 py-2 border rounded-full text-xs"
           >
             Collapse All
           </button>
@@ -315,7 +315,7 @@ const ProductLevelHeat = () => {
 
               {showProductColumn && <th className="px-3 py-2 w-52">Product</th>}
 
-              {PRODUCT_MATRIX.formatColumns.map((f) => (
+              {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
                 <th key={f} className="px-3 py-2 text-center">
                   {f}
                 </th>
@@ -324,12 +324,12 @@ const ProductLevelHeat = () => {
           </thead>
 
           <tbody>
-            {PRODUCT_MATRIX.data.map((row) => {
+            {PRODUCT_MATRIX[olaMode].data.map((row) => {
               const formatOpen = expandedFormats[row.format];
 
               // calculate format level avg
               const formatAvg = {};
-              PRODUCT_MATRIX.formatColumns.forEach((f) => {
+              PRODUCT_MATRIX[olaMode].formatColumns.forEach((f) => {
                 const vals = row.products.map((p) => p.values[f] ?? 0);
                 formatAvg[f] = vals.length
                   ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
@@ -358,7 +358,7 @@ const ProductLevelHeat = () => {
                       {row.format}
                     </td>
 
-                    {PRODUCT_MATRIX.formatColumns.map((f) => (
+                    {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
                       <td key={f} className="px-3 py-2 text-center">
                         <span
                           className={`px-2 py-1 rounded ${cellHeat(
@@ -401,7 +401,7 @@ const ProductLevelHeat = () => {
                               </td>
                             )}
 
-                            {PRODUCT_MATRIX.formatColumns.map((f) => (
+                            {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
                               <td key={f} className="px-3 py-2 text-center">
                                 <span
                                   className={`px-2 py-1 rounded ${cellHeat(
@@ -425,7 +425,7 @@ const ProductLevelHeat = () => {
                                 </td>
                               )}
 
-                              {PRODUCT_MATRIX.formatColumns.map((f) => (
+                              {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
                                 <td key={f} className="px-3 py-2 text-center">
                                   {p.losses[f]}
                                 </td>
@@ -445,16 +445,16 @@ const ProductLevelHeat = () => {
   );
 };
 
-const OLADrillTable = () => {
+const OLADrillTable = ({ olaMode = "absolute" }) => {
   const [expandedPlatforms, setExpandedPlatforms] = useState({});
   const [expandedZones, setExpandedZones] = useState({});
 
-  const platforms = useMemo(() => OLA_Detailed.map((p) => p.platform), []);
+  const platforms = useMemo(() => OLA_Detailed[olaMode].map((p) => p.platform), [olaMode]);
 
   const expandAll = () => {
     const p = {};
     const z = {};
-    OLA_Detailed.forEach((row) => {
+    OLA_Detailed[olaMode].forEach((row) => {
       p[row.platform] = true;
       row.zones.forEach((zone) => {
         z[`${row.platform}|${zone.zone}`] = true;
@@ -489,13 +489,13 @@ const OLADrillTable = () => {
         <div className="flex gap-2">
           <button
             onClick={expandAll}
-            className="px-3 py-1 border rounded-full text-sm"
+            className="px-3 py-1 border rounded-full text-xs"
           >
             Expand All
           </button>
           <button
             onClick={collapseAll}
-            className="px-3 py-1 border rounded-full text-sm"
+            className="px-3 py-1 border rounded-full text-xs"
           >
             Collapse All
           </button>
@@ -514,7 +514,7 @@ const OLADrillTable = () => {
           </thead>
 
           <tbody>
-            {OLA_Detailed.map((p) => {
+            {OLA_Detailed[olaMode].map((p) => {
               const platformOpen = expandedPlatforms[p.platform];
 
               const platformAvg = Math.round(
@@ -647,24 +647,24 @@ const OLADrillTable = () => {
 // Format VS studio (same as your version, left static for now)
 // ---------------------------------------------------------------------------
 
-const FormatPerformanceStudio = () => {
-  const [activeName, setActiveName] = useState(FORMAT_ROWS[0]?.name);
+const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
+  const [activeName, setActiveName] = useState(FORMAT_ROWS[olaMode][0]?.name);
   const [compareName, setCompareName] = useState(null);
 
   const active = useMemo(
-    () => FORMAT_ROWS.find((f) => f.name === activeName) ?? FORMAT_ROWS[0],
-    [activeName]
+    () => FORMAT_ROWS[olaMode].find((f) => f.name === activeName) ?? FORMAT_ROWS[olaMode][0],
+    [activeName, olaMode]
   );
   const compare = useMemo(
     () =>
       compareName
-        ? FORMAT_ROWS.find((f) => f.name === compareName) ?? null
+        ? FORMAT_ROWS[olaMode].find((f) => f.name === compareName) ?? null
         : null,
-    [compareName]
+    [compareName, olaMode]
   );
   const maxOfftakes = useMemo(
-    () => Math.max(...FORMAT_ROWS.map((f) => f.offtakes || 1)),
-    []
+    () => Math.max(...FORMAT_ROWS[olaMode].map((f) => f.offtakes || 1)),
+    [olaMode]
   );
 
   const kpiBands = [
@@ -736,7 +736,7 @@ const FormatPerformanceStudio = () => {
         </div>
 
         <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-          {FORMAT_ROWS.map((f) => {
+          {FORMAT_ROWS[olaMode].map((f) => {
             const intensity = clamp01(f.offtakes / maxOfftakes);
             const isActive = f.name === activeName;
             return (
@@ -988,7 +988,7 @@ const FormatPerformanceStudio = () => {
   );
 };
 
-const cards = [
+const cardsAbsolute = [
   {
     title: "Stock Availability",
     value: "85.2%",
@@ -1035,6 +1035,58 @@ const cards = [
   }
 ];
 
+const cardsWeighted = [
+  {
+    title: "Stock Availability",
+    value: "79.8%",
+    sub: "MTD on-shelf coverage",
+    change: "▲2.7 pts (from 77.1%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "High risk stores: 16",
+    extraChange: "▼2 stores",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Days of Inventory (DOI)",
+    value: "58.1",
+    sub: "Network average days of cover",
+    change: "▼6.8% (from 62.3)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Within target range",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Fill Rate",
+    value: "88.9%",
+    sub: "Supplier fulfillment rate",
+    change: "▲1.2 pts (from 87.7%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Orders delayed: 8%",
+    extraChange: "▼0.8 pts",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Metro City Stock Availability",
+    value: "73.1%",
+    sub: "MTD availability across metro cities",
+    change: "▼2.8 pts (from 75.9%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Top 10 stores: 79.6%",
+    extraChange: "▲0.4 pts",
+    extraChangeColor: "green",
+  }
+];
+
+const cards = {
+  absolute: cardsAbsolute,
+  weighted: cardsWeighted
+};
+
 
 // ---------------------------------------------------------------------------
 // Root dashboard
@@ -1045,53 +1097,53 @@ export const AvailablityAnalysisData = () => {
 
   return (
 
-      <div className="max-w-7xl mx-auto space-y-5">
-        <div className="space-y-4">
-          {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="space-y-4">
+        {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
-          {/* MARKET SHARE TOGGLE BLOCK */}
-          {/* AVAILABILITY TOGGLE BLOCK */}
-          <div className="flex justify-center">
-            <div className="relative w-full md:w-[420px]">
-              <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-                <motion.div
-                  layout
-                  className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
-                  initial={false}
-                  animate={{ x: availability === "absolute" ? 0 : "100%" }}
-                  transition={{ type: "spring", stiffness: 260, damping: 26 }}
-                />
+        {/* MARKET SHARE TOGGLE BLOCK */}
+        {/* AVAILABILITY TOGGLE BLOCK */}
+        <div className="flex justify-center">
+          <div className="relative w-full md:w-[420px]">
+            <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
+              <motion.div
+                layout
+                className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
+                initial={false}
+                animate={{ x: availability === "absolute" ? 0 : "100%" }}
+                transition={{ type: "spring", stiffness: 260, damping: 26 }}
+              />
 
-                {[
-                  { key: "absolute", label: "Absolute OLA" },
-                  { key: "weighted", label: "Weighted OLA" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setAvailability(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
-                      ? "text-slate-900"
-                      : "text-slate-500 hover:text-slate-700"
-                      }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              {[
+                { key: "absolute", label: "Absolute OSA" },
+                { key: "weighted", label: "Weighted OSA" },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setAvailability(option.key)}
+                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
-
-
-
-
-          <MetricCardContainer title="Availability Overview" cards={cards} />
-          {/* <SignalLabVisibility type="availability" /> */}
-          <TabbedHeatmapTable />
-          <OsaHeatmapTable />
-
         </div>
+
+
+
+
+        <MetricCardContainer title="Availability Overview" cards={cards[availability]} />
+        {/* <SignalLabVisibility type="availability" /> */}
+        <TabbedHeatmapTable olaMode={availability} />
+        <OsaHeatmapTable olaMode={availability} />
+
       </div>
+    </div>
   );
 };
 
