@@ -173,10 +173,10 @@ const DetailPanel = ({ selected }) => {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                     Today’s Focus
                 </p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                <h2 className="mt-1 text-lg font-semibold text-slate-900" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "1.2rem" }}>
                     {selected.label}
                 </h2>
-                <p className="text-sm text-slate-500">{selected.subtitle}</p>
+                <p className="text-sm text-slate-500" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}>{selected.subtitle}</p>
             </div>
             <div className="flex flex-col items-end gap-2">
                 <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-600">
@@ -207,15 +207,16 @@ const DetailPanel = ({ selected }) => {
                                 key={kpi.name}
                                 className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs"
                             >
-                                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
                                     {kpi.name}
                                 </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-900">
+                                <p className="mt-1 text-sm font-semibold text-slate-900" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
                                     {kpi.value}
                                 </p>
                                 <p
                                     className={`text-[11px] font-medium ${negative ? "text-rose-500" : "text-emerald-600"
                                         }`}
+                                    style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}
                                 >
                                     Δ {kpi.delta}
                                 </p>
@@ -228,10 +229,10 @@ const DetailPanel = ({ selected }) => {
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                     <div className="mb-2 flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-medium text-slate-600">
+                            <p className="text-xs font-medium text-slate-600" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
                                 Average OSA of top 4 SKUs across 62 dark stores
                             </p>
-                            <p className="text-[11px] text-slate-500">
+                            <p className="text-[11px] text-slate-500" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}>
                                 Compare current period vs last week / last month.
                             </p>
                         </div>
@@ -388,10 +389,10 @@ const DetailPanel = ({ selected }) => {
                         <div className="max-h-[80vh] w-full max-w-4xl rounded-3xl bg-white p-5 shadow-xl">
                             <div className="mb-3 flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-sm font-semibold text-slate-900">
+                                    <h3 className="text-sm font-semibold text-slate-900" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "1.2rem" }}>
                                         All 62 dark stores – OSA by SKU
                                     </h3>
-                                    <p className="text-[11px] text-slate-500">
+                                    <p className="text-[11px] text-slate-500" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}>
                                         Use this grid to assign store-level actions to city and
                                         supply teams.
                                     </p>
@@ -480,15 +481,16 @@ const DetailPanel = ({ selected }) => {
                             key={kpi.name}
                             className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs"
                         >
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
                                 {kpi.name}
                             </p>
-                            <p className="mt-1 text-sm font-semibold text-slate-900">
+                            <p className="mt-1 text-sm font-semibold text-slate-900" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
                                 {kpi.value}
                             </p>
                             <p
                                 className={`text-[11px] font-medium ${negative ? "text-rose-500" : "text-emerald-600"
                                     }`}
+                                style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}
                             >
                                 {kpi.delta}
                             </p>
@@ -500,7 +502,7 @@ const DetailPanel = ({ selected }) => {
             {/* KPI DETAIL TABLE */}
             <div className="rounded-2xl border border-slate-100 bg-white p-4">
                 <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-medium text-slate-600">KPI detail view</p>
+                    <p className="text-xs font-medium text-slate-600" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>KPI detail view</p>
                     <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
                         All KPIs for this issue
                     </span>
@@ -666,15 +668,15 @@ const LayoutOne = () => {
 
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-sm font-semibold text-slate-900">
+                        <h2 className="text-sm font-semibold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '1.2rem' }}>
                             Top actions – top actions for today
                         </h2>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
                             Ranked by 7-day leak and opportunity.
                         </p>
                     </div>
 
-                    <button className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-xs">
+                    <button className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-xs" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500 }}>
                         View full playbook
                     </button>
                 </div>
@@ -698,10 +700,10 @@ const LayoutOne = () => {
                                         #{idx + 1}
                                     </div>
                                     <div>
-                                        <p className="text-xs font-semibold text-slate-900">
+                                        <p className="text-xs font-semibold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '0.95rem' }}>
                                             {item.label}
                                         </p>
-                                        <p className="text-[11px] text-slate-500 line-clamp-1">
+                                        <p className="text-[11px] text-slate-500 line-clamp-1" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
                                             {item.subtitle}
                                         </p>
                                     </div>
@@ -731,7 +733,7 @@ const LayoutOne = () => {
 
 const TopActionsLayoutsShowcase = () => {
     return (
-        <div className="min-h-[500px] w-full bg-white p-4">
+        <div className="min-h-[500px] w-full bg-white p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
             <LayoutOne />
         </div>
     );

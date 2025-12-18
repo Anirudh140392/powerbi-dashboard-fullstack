@@ -13,7 +13,7 @@ import {
   IconButton,
 } from "@mui/material";
 import CategoryTable from "./CategoryTable";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Monitor, Calendar, Grid3x3, Tag, Package } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 
 /* ---------------- SMALL KPI CARD ---------------- */
@@ -32,21 +32,23 @@ const SmallCard = ({ item }) => {
       }}
     >
       <CardContent sx={{ py: 1.2, px: 1.5 }}>
-        <Typography fontSize="0.8rem" fontWeight={500} color="text.secondary">
+        <Typography fontSize="0.75rem" fontWeight={400} color="text.secondary" fontFamily="Roboto, sans-serif">
           {title}
         </Typography>
 
-        <Typography fontWeight={700} fontSize="1.05rem" mt={0.3}>
+        <Typography fontWeight={700} fontSize="0.95rem" mt={0.3} fontFamily="Roboto, sans-serif">
           {value ?? "—"}
         </Typography>
 
         {meta && (
           <Box display="flex" alignItems="center" gap={1} mt={0.4}>
-            <Typography fontSize="0.75rem" color="text.secondary">
+            <Typography fontSize="0.75rem" color="text.secondary" fontFamily="Roboto, sans-serif" fontWeight={400}>
               #{meta.units}
             </Typography>
             <Typography
               fontSize="0.75rem"
+              fontFamily="Roboto, sans-serif"
+              fontWeight={400}
               sx={{
                 color: isPositive
                   ? theme.palette.success.main
@@ -104,6 +106,24 @@ const PlatformOverview = ({
     return formatted;
   }, [sortType, searchTerm, data]);
 
+  /* ---------------- ICON MAPPING ---------------- */
+  const getTabIcon = () => {
+    switch (activeKpisTab) {
+      case "Platform Overview":
+        return <Monitor size={18} color={theme.palette.primary.main} />;
+      case "Month Overview":
+        return <Calendar size={18} color={theme.palette.primary.main} />;
+      case "Category Overview":
+        return <Grid3x3 size={18} color={theme.palette.primary.main} />;
+      case "Brands Overview":
+        return <Tag size={18} color={theme.palette.primary.main} />;
+      case "Skus Overview":
+        return <Package size={18} color={theme.palette.primary.main} />;
+      default:
+        return <BsGrid3X3GapFill size={18} color={theme.palette.primary.main} />;
+    }
+  };
+
   return (
     <Box>
       {activeKpisTab !== "Skus Overview" ? (
@@ -137,10 +157,10 @@ const PlatformOverview = ({
                   alignItems: "center",
                 }}
               >
-                <BsGrid3X3GapFill size={18} color={theme.palette.primary.main} />
+                {getTabIcon()}
               </Box>
 
-              <Typography ml={1.2} fontWeight={700} fontSize="1.2rem">
+              <Typography ml={1.2} fontWeight={700} fontSize="1.2rem" fontFamily="Roboto, sans-serif">
                 {activeKpisTab}
               </Typography>
             </Box>
@@ -248,10 +268,8 @@ const PlatformOverview = ({
                 <BsSearch size={15} color={theme.palette.text.secondary} />
               </Box>
 
-              {/* SORT BUTTONS */}
-              <Button size="small" variant={sortType === "asc" ? "contained" : "outlined"} onClick={() => setSortType("asc")}>A → Z</Button>
-              <Button size="small" variant={sortType === "desc" ? "contained" : "outlined"} onClick={() => setSortType("desc")}>Z → A</Button>
-              <Button size="small" variant={sortType === "default" ? "contained" : "outlined"} onClick={() => setSortType("default")}>Default</Button>
+
+
             </Box>
           </Box>
 
@@ -288,47 +306,95 @@ const PlatformOverview = ({
                         width: "100%",
                       }}
                     >
-                      {/* Left: Logo + Name */}
+                      {/* Left: Icon + Name */}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                        <img
-                          src={platform.logo}
-                          alt={platform.label}
-                          style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: "50%",
-                            background: "#fff",
-                            padding: 3,
-                            objectFit: "contain",
-                          }}
-                        />
+                        {activeKpisTab === "Brands Overview" ? (
+                          <Box
+                            sx={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              border: `1px solid ${theme.palette.divider}`,
+                            }}
+                          >
+                            <Tag size={18} color={theme.palette.primary.main} />
+                          </Box>
+                        ) : (
+                          <img
+                            src={platform.logo}
+                            alt={platform.label}
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              padding: 3,
+                              objectFit: "contain",
+                            }}
+                          />
+                        )}
 
-                        <Typography fontWeight={700} fontSize="0.95rem">
-                          {platform.label}
-                        </Typography>
+                        <Box
+                          onClick={() => {
+                            if (sortType === "default") setSortType("asc");
+                            else if (sortType === "asc") setSortType("desc");
+                            else setSortType("default");
+                          }}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                            cursor: "pointer",
+                            "&:hover": {
+                              opacity: 0.7
+                            }
+                          }}
+                        >
+                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                            {platform.label}
+                          </Typography>
+                          {sortType !== "default" && (
+                            <Box sx={{ display: "flex", flexDirection: "column", ml: 0.3 }}>
+                              {sortType === "asc" ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M12 19V5M5 12l7-7 7 7" />
+                                </svg>
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M12 5v14M5 12l7 7 7-7" />
+                                </svg>
+                              )}
+                            </Box>
+                          )}
+                        </Box>
                       </Box>
 
                       {/* Right: Inline Buttons */}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-  <Tooltip title="View platform trend performance" arrow>
-    <IconButton
-      size="small"
-      onClick={() => onViewTrends(platform.label)}
-      sx={{
-        borderRadius: 2,
-        border: "1px solid #e5e7eb",
-        background:
-          "#EEF2F7",
-        width: 32,
-        height: 32,
-      }}
-    >
-      <TrendingUp size={17} />
-    </IconButton>
-  </Tooltip>
+                        <Tooltip title="View platform trend performance" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => onViewTrends(platform.label)}
+                            className="trend-icon"
+                            sx={{
+                              borderRadius: 2,
+                              border: "1px solid #e5e7eb",
+                              background:
+                                "#EEF2F7",
+                              width: 32,
+                              height: 32,
+                            }}
+                          >
+                            <TrendingUp size={17} />
+                          </IconButton>
+                        </Tooltip>
 
-  {/* Competition button stays same */}
-  {/* <Tooltip title="Compare performance with competitors" arrow>
+                        {/* Competition button stays same */}
+                        {/* <Tooltip title="Compare performance with competitors" arrow>
     <Button
       variant="text"
       size="small"
@@ -346,7 +412,7 @@ const PlatformOverview = ({
       Competition <span style={{ fontSize: "1rem" }}>›</span>
     </Button>
   </Tooltip> */}
-</Box>
+                      </Box>
 
                     </Box>
 
@@ -354,6 +420,8 @@ const PlatformOverview = ({
                     <Typography
                       color="text.secondary"
                       fontSize="0.75rem"
+                      fontWeight={400}
+                      fontFamily="Roboto, sans-serif"
                       sx={{ mt: 0.5, ml: 5.5 }}
                     >
                       {platform.type}

@@ -51,7 +51,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
   }, [searchTerm, categories]);
 
   /* -------------------- PAGINATION -------------------- */
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(0);
 
   const paginatedRows = useMemo(() => {
@@ -59,7 +59,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
       page * rowsPerPage,
       page * rowsPerPage + rowsPerPage
     );
-  }, [filteredCategories, page]);
+  }, [filteredCategories, page, rowsPerPage]);
 
   const totalPages = Math.ceil(filteredCategories.length / rowsPerPage);
 
@@ -140,30 +140,35 @@ export default function CategoryTable({ categories, activeTab = "" }) {
               <TableChartIcon sx={{ color: theme.palette.primary.main }} />
             </Box>
 
-            <Typography fontSize="1.25rem" fontWeight={700}>
+            <Typography fontSize="1.2rem" fontWeight={700} fontFamily="Roboto, sans-serif">
               {activeTab}
             </Typography>
           </Box>
 
           {/* RIGHT CONTROLS */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600 }}>
+            {/* <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600, fontFamily: "Roboto, sans-serif" }}>
               Metrics:
-            </Typography>
+            </Typography> */}
 
             <Select
               size="small"
               value={selectedMetric.key}
-              sx={{ minWidth: 120 }}
               onChange={(e) =>
                 setSelectedMetric(
                   metricOptions.find((m) => m.key === e.target.value)
                 )
               }
+              sx={{
+                minWidth: 130,
+                height: 36,
+                fontSize: "0.85rem",
+                background: "#f3f4f6",
+              }}
             >
               {metricOptions.map((opt) => (
                 <MenuItem key={opt.key} value={opt.key}>
-                  {opt.label}
+                  {opt.label.toLowerCase().charAt(0).toUpperCase() + opt.label.toLowerCase().slice(1)}
                 </MenuItem>
               ))}
             </Select>
@@ -209,10 +214,11 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                     position: "sticky",
                     left: 0,
                     zIndex: 10,
-
-                    fontSize: 16,     // ⬆ same as body
-                    fontWeight: 500,  // medium, clean
+                    textAlign: "center",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
                     lineHeight: 1.4,
+                    fontFamily: "Roboto, sans-serif",
                   }}
                 >
                   {activeTab === "Split by Category" ? "Category" : "SKU"}
@@ -229,10 +235,14 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                         theme.palette.mode === "dark"
                           ? theme.palette.background.default
                           : "#f9fafb",
-                      fontWeight: 600,
+                      fontWeight: 700,
+                      fontSize: "0.95rem",
+                      fontFamily: "Roboto, sans-serif",
                     }}
                   >
-                    {p.toUpperCase()}
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </Typography>
                   </TableCell>
                 ))}
               </TableRow>
@@ -256,11 +266,12 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                         ? theme.palette.background.default
                         : "#f9fafb",
                     color: theme.palette.text.primary,
-                    fontWeight: 600,
-                    fontSize: ".9rem",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    fontFamily: "Roboto, sans-serif",
                   }}
                 >
-                  {selectedMetric.label}
+                  {selectedMetric.label.toLowerCase().charAt(0).toUpperCase() + selectedMetric.label.toLowerCase().slice(1)}
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -273,13 +284,14 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                       position: "sticky",
                       left: 0,
                       background: theme.palette.background.paper,
-
-                      fontSize: 16,      // ⬆ increased size
-                      fontWeight: 500,   // ⬆ ~10–15% bolder than 500
+                      fontSize: "0.95rem",
+                      fontWeight: 700,
                       lineHeight: 1.4,
+                      fontFamily: "Roboto, sans-serif",
+                      textAlign: "center",
                     }}
                   >
-                    {cat.name}
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
                   </TableCell>
                   {platforms.map((p) => {
                     const main = cat[p][selectedMetric.key];
@@ -292,12 +304,15 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                           alignItems="center"
                         >
                           <Typography
-                            fontSize={16}   // or 14 if you want it more prominent
-                            fontWeight={500}
+                            fontSize="0.95rem"
+                            fontWeight={700}
+                            fontFamily="Roboto, sans-serif"
                           >
-                            {main}
+                            <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                              {main}
+                            </Typography>
                           </Typography>
-                          <Typography fontSize=".82rem">
+                          <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
                             {renderChange(change)}
                           </Typography>
                         </Box>
@@ -311,35 +326,48 @@ export default function CategoryTable({ categories, activeTab = "" }) {
         </TableContainer>
 
         {/* PAGINATION */}
-        <Box
-          display="flex"
-          justifyContent="flex-end"
-          alignItems="center"
-          mt={2}
-          gap={2}
-        >
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={page === 0}
-            onClick={() => setPage((prev) => prev - 1)}
-          >
-            Prev
-          </Button>
+        <div className="mt-3 flex items-center justify-between text-[11px]" style={{ fontFamily: 'Roboto, sans-serif' }}>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
+            >
+              Prev
+            </button>
 
-          <Typography fontWeight={500}>
-            Page {page + 1} of {totalPages}
-          </Typography>
+            <span>
+              Page <b>{page + 1}</b> / {totalPages}
+            </span>
 
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={page + 1 >= totalPages}
-            onClick={() => setPage((prev) => prev + 1)}
-          >
-            Next
-          </Button>
-        </Box>
+            <button
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div>
+              Rows/page
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0); // Reset to first page when changing rows per page
+                }}
+                className="ml-1 rounded-full border px-2 py-1"
+              >
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </Card>
     </Box>
   );
