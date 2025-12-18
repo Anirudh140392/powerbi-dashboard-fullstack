@@ -37,7 +37,7 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           sx={{
             display: "flex",
             gap: 2,
-            overflowX: scrollNeeded ? "auto" : "hidden",
+            overflowX: scrollNeeded ? "auto" : "visible",
             pb: 1,
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
