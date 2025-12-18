@@ -877,8 +877,8 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
                               {/* CITY-STYLE CELL BUTTON */}
                               <button
-                                className={`flex w-full items-center justify-center gap-3 
-                                           rounded-md border border-transparent px-3 py-1.5 
+                                className={`flex w-max mx-auto items-center justify-center gap-2 
+                                           rounded-md border border-transparent px-2 py-1.5 
                                            text-xs font-semibold 
                                            transition-all duration-200
                                            hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
@@ -889,11 +889,11 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                 </span>
 
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded-full border 
-                                              px-1.5 py-0.5 text-[10px] ${trendMeta.pill}`}
+                                  className={`inline-flex items-center gap-[1px] rounded-full border 
+                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
-                                  {Icon && <Icon className="h-2.5 w-2.5" />}
-                                  <span className="font-medium">{trend > 0 ? `+${trend}` : trend}</span>
+                                  {Icon && <Icon className="h-2 w-2" />}
+                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : trend}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
