@@ -194,9 +194,11 @@ export default function OsaDetailTableLight() {
                     <div className="rounded-3xl border bg-white p-4 shadow">
                         {/* Title + Legend */}
                         <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
-                            <div className="flex flex-col">
-                                <div className="text-lg">OSA % Detail View</div>
-                                <div className="text-[11px] text-slate-500 font-normal">
+                            <div className="flex flex-col gap-0.5">
+                                <div className="text-sm font-semibold text-slate-900">
+                                    OSA % Detail View
+                                </div>
+                                <div className="text-xs text-slate-500 font-normal">
                                     Last {visibleDays} Days • Sortable • Paginated
                                 </div>
                             </div>
@@ -213,13 +215,13 @@ export default function OsaDetailTableLight() {
 
                                 {/* Status Legend - Moved from body */}
                                 <div className="flex items-center gap-2 ml-2">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 border border-amber-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
                                         <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 border border-rose-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
                                         <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
                                     </span>
                                 </div>
@@ -237,7 +239,7 @@ export default function OsaDetailTableLight() {
                                         <tr>
                                             {/* Sticky first column header */}
                                             <th
-                                                className="sticky left-0 z-20 bg-[#f8fafc] text-left px-3 py-2 text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200"
+                                                className="sticky left-0 z-20 bg-[#f8fafc] text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200"
                                                 style={{ minWidth: 280 }}
                                             >
                                                 <div className="flex items-center h-full">PRODUCT / SKU</div>
@@ -391,13 +393,6 @@ export default function OsaDetailTableLight() {
                                             <option value={50}>50</option>
                                         </select>
                                     </div>
-
-                                    <button
-                                        onClick={() => setShowFilterPanel(true)}
-                                        className="rounded-full bg-slate-900 px-4 py-1.5 text-white hover:bg-slate-800 transition-colors shadow-sm font-medium"
-                                    >
-                                        Filters
-                                    </button>
                                 </div>
                             </div>
                         </div>
