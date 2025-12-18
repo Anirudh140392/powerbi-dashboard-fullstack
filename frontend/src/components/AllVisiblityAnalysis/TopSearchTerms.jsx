@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowUp, ArrowDown, X, LineChart } from "lucide-react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 // Mock Data focused on "Kwality Walls"
 const MOCK_DATA = [
@@ -147,12 +147,31 @@ const getCompetitorData = (keyword) => [
 ];
 
 const DeltaIndicator = ({ value }) => {
-    if (value === 0) return <span className="text-amber-500 text-[10px] ml-1">0.0%</span>;
-    const isPositive = value > 0;
+    const num = Number(value || 0);
+    const absValue = Math.abs(num).toFixed(1); // Removed % as per screenshot
+
+    if (num > 0) {
+        return (
+            <span className="inline-flex items-center gap-[1px] rounded-full border border-emerald-200 bg-emerald-50 px-0.5 py-0 text-[9px] font-medium text-emerald-700 h-[13px] leading-none">
+                <TrendingUp size={8} />
+                {absValue}
+            </span>
+        );
+    }
+
+    if (num < 0) {
+        return (
+            <span className="inline-flex items-center gap-[1px] rounded-full border border-rose-200 bg-rose-50 px-0.5 py-0 text-[9px] font-medium text-rose-700 h-[13px] leading-none">
+                <TrendingDown size={8} />
+                {absValue}
+            </span>
+        );
+    }
+
     return (
-        <span className={`text-[10px] ml-1 flex items-center ${isPositive ? "text-emerald-500" : "text-rose-500"}`}>
-            {isPositive ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
-            {Math.abs(value).toFixed(1)}%
+        <span className="inline-flex items-center gap-[1px] rounded-full border border-slate-200 bg-slate-50 px-0.5 py-0 text-[9px] font-medium text-slate-600 h-[13px] leading-none">
+            <Minus size={8} />
+            {absValue}
         </span>
     );
 };
@@ -214,11 +233,11 @@ export default function TopSearchTerms() {
                                 Top Brand <span className="text-[9px] font-normal text-slate-500">(by Overall Share of Visibility)</span>
                             </th>
                             <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[25%] text-center">Overall Share of Visibility</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
+                            <th className="px-1 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
                             <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[25%] text-center">Organic Share of Visibility</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
+                            <th className="px-1 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
                             <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[15%] text-center">Paid Share of Visibility</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
+                            <th className="px-1 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -238,19 +257,19 @@ export default function TopSearchTerms() {
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     {row.overallSov}%
                                 </td>
-                                <td className="px-6 py-2 text-center">
+                                <td className="px-1 py-2 text-center">
                                     <DeltaIndicator value={row.overallDelta} />
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     {row.organicSov}%
                                 </td>
-                                <td className="px-6 py-2 text-center">
+                                <td className="px-1 py-2 text-center">
                                     <DeltaIndicator value={row.organicDelta} />
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     {row.paidSov}%
                                 </td>
-                                <td className="px-6 py-2 text-center">
+                                <td className="px-1 py-2 text-center">
                                     <DeltaIndicator value={row.paidDelta} />
                                 </td>
                             </tr>
