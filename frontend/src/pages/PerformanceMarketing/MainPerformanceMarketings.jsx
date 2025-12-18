@@ -196,11 +196,11 @@ export default function MainPerformanceMarketings() {
   return (
     <>
       <CommonContainer
-        title="Performace Marketing"
+        title="Performance Marketing"
         filters={filters}
         onFiltersChange={setFilters}
       >
-    <MainPerformanceMarketing />;
+        <MainPerformanceMarketing />;
       </CommonContainer>
 
       {/* Trend Drawer */}

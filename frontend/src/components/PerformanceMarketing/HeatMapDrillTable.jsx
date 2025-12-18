@@ -14,6 +14,8 @@ import {
   Paper,
   IconButton,
   Chip,
+  Select,
+  MenuItem,
 } from "@mui/material";
 
 import { motion } from "framer-motion";
@@ -194,19 +196,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  const LEVEL_TITLES =
-    selectedInsight === "All Campaign Summary"
-      ? {
-        0: "Format",
-        1: "Region",
-        2: "City",
-        3: "Keyword",
-      }
-      : {
-        0: "AD Property",
-        1: "Group",
-        2: "Keyword",
-      };
+  const LEVEL_TITLES = ["Keyword Type", "Brand", "Keyword", "SKU", "City"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
@@ -214,7 +204,6 @@ export default function HeatMapDrillTable({ selectedInsight }) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState("Q1");
   const [page, setPage] = useState(0);
-
   // ---------- FILTERS STATE ----------
   const [activeFilters, setActiveFilters] = useState({
     brands: [],     // Formats
@@ -338,7 +327,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     "roas",
   ]);
 
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   // Max hierarchy depth (data-driven)
   const maxDepth = getMaxDepth(collectedData?.rows, 0);
@@ -584,7 +573,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   zIndex: 10,
                   backgroundColor: rowBg,
                   minWidth: 150,
-                  borderRight: "1px solid #e5e7eb",
+                  borderRight: "1px solid transparent",
                 }
                 : {};
 
@@ -600,9 +589,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                         }
                         sx={{
                           border: "1px solid #e5e7eb",
-                          width: 26,
-                          height: 26,
-                          borderRadius: 1,
+                          width: 20,
+                          height: 20,
+                          borderRadius: 2,
+                          backgroundColor: 'white',
                           '&:hover': { backgroundColor: '#f8fafc' }
                         }}
                       >
@@ -622,7 +612,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
             return (
               <TableCell key={col} sx={sticky}>
-                –{/* placeholder for collapsed hierarchy */}
+                {/* placeholder for collapsed hierarchy */}
               </TableCell>
             );
           })}
@@ -769,24 +759,23 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           p: 3,
           borderRadius: 3,
           border: "1px solid #e5e7eb",
-          boxShadow: "0 18px 45px rgba(15,23,42,0.12)",
-          background:
-            "radial-gradient(circle at top left, #eef2ff 0, transparent 50%), white",
+          boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+          background: "white",
         }}
       >
         {/* HEADER */}
         <Box mb={2} display="flex" justifyContent="space-between">
           <Box>
-            <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-              {selectedInsight === "All Campaign Summary"
-                ? "FORMAT → REGION → CITY → KEYWORD"
-                : "AD Property → GROUP → KEYWORD"}
-            </Typography>
-
             <Typography
               sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
             >
               {collectedData?.title}
+            </Typography>
+
+            <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+              {selectedInsight === "All Campaign Summary"
+                ? "Keyword Type → Brand → Keyword → SKU"
+                : "AD Property → GROUP → KEYWORD"}
             </Typography>
           </Box>
 
@@ -828,7 +817,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       borderRadius: 999,
                       px: 1.6,
                       backgroundColor:
-                        selectedQuarter === q ? "#6366F1" : "transparent",
+                        selectedQuarter === q ? "#0f172a" : "transparent",
                       color: selectedQuarter === q ? "white" : "#6b7280",
                     }}
                   >
@@ -848,9 +837,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   borderRadius: 999,
                   px: 1.8,
                   py: 0.4,
-                  backgroundColor: "#e0f2fe",
-                  color: "#0369a1",
-                  border: "1px solid #bae6fd",
+                  backgroundColor: "#f1f5f9",
+                  color: "#334155",
+                  border: "1px solid #e2e8f0",
                 }}
               >
                 Expand All
@@ -879,12 +868,12 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         {/* TABLE */}
         < TableContainer
           component={Paper}
-          sx={{ maxHeight: 520, borderRadius: 2 }
+          sx={{ maxHeight: 520, borderRadius: 2, boxShadow: 'none', border: '1px solid #e2e8f0' }
           }
         >
           <Table stickyHeader size="small">
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ borderTop: "1px solid #e5e7eb" }}>
                 {/* {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
                   <TableCell
                     key={i}
@@ -905,17 +894,23 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 ))} */}
                 {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
                   <TableCell
-                    key={i}
+                    key={LEVEL_TITLES[i]}
                     sx={
                       i === 0
                         ? {
                           position: "sticky",
                           left: 0,
-                          background: "#f9fafb",
+                          background: "white",
                           zIndex: 10,
                           minWidth: 150,
+                          alignItems: "flex-end",
+                          display: "flex",
+                          pb: 1.5,
+                          borderLeft: i > 0 ? "1px solid #f1f5f9" : "none",
+                          color: "#1e293b",
+                          fontWeight: 700,
                         }
-                        : {}
+                        : { background: "white", verticalAlign: "bottom", borderLeft: "1px solid #f1f5f9", pb: 1.5 }
                     }
                   >
                     <Box
@@ -929,8 +924,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
                         {LEVEL_TITLES[i]}
                       </Typography>
-
-                      {/* ✅ Trend icon ONLY for Region / City / Keyword */}
+                      {/* MOCK DATA GENERATOR
+// Hierarchy: Format -> Region -> City -> Keyword
+// Renamed to match requested structure: Keyword Type -> Brand -> Keyword -> SKU -> City
+const HIERARCHY_LEVELS = ["Keyword Type", "Brand", "Keyword", "SKU", "City"]; */}
                       {i > 0 && (
                         <IconButton
                           size="small"
@@ -945,8 +942,13 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 ))}
 
 
-                {collectedData?.headers.slice(1).map((col) => (
-                  <TableCell key={col} align="center">
+                {collectedData?.headers.slice(1).map((col, ci) => (
+                  <TableCell key={col} align="center" sx={{
+                    background: ci % 2 === 0 ? "#f8fafc" : "white",
+                    verticalAlign: "bottom",
+                    pb: 1.5,
+                    borderLeft: "1px solid #f1f5f9"
+                  }}>
                     <Box
                       sx={{
                         display: "flex",
@@ -977,7 +979,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   </TableCell>
                 ))}
 
-                <TableCell align="center" sx={{ fontSize: 12, fontWeight: 550 }}>Row Avg</TableCell>
+                <TableCell align="center" sx={{ fontSize: 12, fontWeight: 550, background: "white" }}>Row Avg</TableCell>
                 {/* <TableCell align="right">Trend</TableCell> */}
               </TableRow>
             </TableHead>
@@ -987,56 +989,95 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                 .map((row) => renderRow(row, 0, []))}
 
-              {/* TOTAL ROW */}
-              <TableRow sx={{ background: "#f8fafc" }}>
-                <TableCell
-                  colSpan={visibleHierarchyCols}
-                  sx={{ fontWeight: 700 }}
-                >
-                  TOTAL ({selectedQuarter})
-                </TableCell>
 
-                {drillTotals.map((v, i) => (
-                  <TableCell key={i} align="center" sx={{ fontWeight: 700 }}>
-                    {v || "–"}
-                  </TableCell>
-                ))}
-
-                <TableCell>–</TableCell>
-                <TableCell />
-              </TableRow>
             </TableBody>
           </Table>
         </TableContainer >
 
         {/* SIMPLE PAGINATION */}
-        < Box
+        <Box
           sx={{
-            mt: 1.5,
+            mt: 2,
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: 1,
           }}
         >
-          <Button
-            size="small"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Prev
-          </Button>
-          <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-            Page {page + 1} of {Math.ceil(filteredRows.length / rowsPerPage)}
-          </Typography>
-          <Button
-            size="small"
-            disabled={page >= Math.ceil(filteredRows.length / rowsPerPage) - 1}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-        </Box >
+          {/* Left: Prev | Page X / Y | Next */}
+          <Box display="flex" alignItems="center" gap={1}>
+            <Button
+              size="small"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+              sx={{
+                minWidth: 'auto',
+                borderRadius: 999,
+                px: 2,
+                py: 0.5,
+                border: '1px solid #e2e8f0',
+                color: '#64748b',
+                textTransform: 'none',
+                backgroundColor: 'white',
+                '&:hover': { backgroundColor: '#f8fafc' },
+                '&:disabled': { opacity: 0.5 }
+              }}
+            >
+              Prev
+            </Button>
+
+            <Typography sx={{ fontSize: 12, color: "#334155", fontWeight: 500, mx: 1 }}>
+              Page {page + 1} / {Math.ceil(filteredRows.length / rowsPerPage)}
+            </Typography>
+
+            <Button
+              size="small"
+              disabled={page >= Math.ceil(filteredRows.length / rowsPerPage) - 1}
+              onClick={() => setPage((p) => p + 1)}
+              sx={{
+                minWidth: 'auto',
+                borderRadius: 999,
+                px: 2,
+                py: 0.5,
+                border: '1px solid #e2e8f0',
+                color: '#64748b',
+                textTransform: 'none',
+                backgroundColor: 'white',
+                '&:hover': { backgroundColor: '#f8fafc' },
+                '&:disabled': { opacity: 0.5 }
+              }}
+            >
+              Next
+            </Button>
+          </Box>
+
+          {/* Right: Rows/page selector */}
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography sx={{ fontSize: 12, color: "#64748b" }}>
+              Rows/page
+            </Typography>
+            <Select
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(Number(e.target.value));
+                setPage(0);
+              }}
+              size="small"
+              sx={{
+                height: 32,
+                fontSize: 12,
+                borderRadius: 2,
+                backgroundColor: 'white',
+                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
+              }}
+            >
+              {[5, 10, 20, 50].map((n) => (
+                <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
+                  {n}
+                </MenuItem>
+              ))}
+            </Select>
+          </Box>
+        </Box>
       </Card >
 
       {/* TREND DRAWER */}
