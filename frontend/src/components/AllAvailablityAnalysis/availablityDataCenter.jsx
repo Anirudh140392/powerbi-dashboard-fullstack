@@ -251,6 +251,13 @@ const FORMAT_MATRIX = {
         Blinkit: 72, Zepto: 69, Instamart: 61, "Virtual Store": 66, Swiggy: 64
       },
       trend: generateTrendMulti(66)
+    },
+    {
+      kpi: "PSL",
+      values: {
+        Blinkit: 18, Zepto: 12, Instamart: 25, "Virtual Store": 10, Swiggy: 20
+      },
+      trend: generateTrendMulti(15)
     }
   ],
 
@@ -289,6 +296,14 @@ const FORMAT_MATRIX = {
         "KW Sticks": 94, "Premium Tub": 88, Sandwich: 55
       },
       trend: generateTrendMulti(85)
+    },
+    {
+      kpi: "PSL",
+      values: {
+        Cassata: 28, "Core Tub": 4, Cornetto: 10, Magnum: 9,
+        "KW Sticks": 6, "Premium Tub": 12, Sandwich: 45
+      },
+      trend: generateTrendMulti(20)
     }
   ],
 
@@ -327,6 +342,14 @@ const FORMAT_MATRIX = {
         Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78
       },
       trend: generateTrendMulti(76)
+    },
+    {
+      kpi: "PSL",
+      values: {
+        Ajmer: 27, Amritsar: 15, Bathinda: 21, Bhopal: 12,
+        Chandigarh: 19, Gwalior: 37, Indore: 8, Jaipur: 22
+      },
+      trend: generateTrendMulti(25)
     }
   ]
 };

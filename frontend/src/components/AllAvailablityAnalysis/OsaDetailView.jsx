@@ -2,17 +2,17 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { SlidersHorizontal, X } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
- 
+
 // Single-file React component (JSX)
 // Light theme, paginated (default 5 rows/page), sortable columns.
 // Removed the “# < 70” column as requested.
- 
+
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
- 
+
 function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
 }
- 
+
 function seededRandom(seed) {
     let t = seed % 2147483647;
     if (t <= 0) t += 2147483646;
@@ -21,7 +21,7 @@ function seededRandom(seed) {
         return (t - 1) / 2147483646;
     };
 }
- 
+
 function makeRow(seed, name, sku, base) {
     const rnd = seededRandom(seed);
     const values = DAYS.map((d) => {
@@ -30,15 +30,15 @@ function makeRow(seed, name, sku, base) {
         const v = clamp(Math.round(base + drift + weekdayWave), 55, 96);
         return v;
     });
- 
+
     const avg7 = Math.round(values.slice(-7).reduce((a, b) => a + b, 0) / 7);
     const avg31 = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
- 
+
     const status = avg7 >= 85 ? "Healthy" : avg7 >= 70 ? "Watch" : "Action";
- 
+
     return { name, sku, values, avg7, avg31, status };
 }
- 
+
 const SAMPLE_ROWS = [
     makeRow(85045, "KW CORNETTO - DOUBLE CHOC...", "85045", 80),
     makeRow(85047, "KW CORNETTO - BUTTERSCOTCH", "85047", 84),
@@ -53,7 +53,7 @@ const SAMPLE_ROWS = [
     makeRow(85555, "KW Oreo Tub 2x700ml", "85555", 89),
     makeRow(85570, "KW AAMRAS 70ml", "85570", 86),
 ];
- 
+
 function statusStyles(status) {
     if (status === "Healthy")
         return {
@@ -73,37 +73,36 @@ function statusStyles(status) {
         rowAccent: "border-l-4 border-rose-200",
     };
 }
- 
+
 function cellTone(v) {
     if (v >= 85) return "bg-emerald-50";
     if (v >= 70) return "bg-amber-50";
     return "bg-rose-50";
 }
- 
+
 function SortIcon({ dir }) {
     return (
         <span className="inline-flex items-center ml-1 text-slate-400">
-            {dir === "asc" ? "▲" : dir === "desc" ? "▼" : "↕"}
         </span>
     );
 }
- 
+
 export default function OsaDetailTableLight() {
     const [query, setQuery] = useState("");
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
- 
+
     const [sortKey, setSortKey] = useState("avg7");
     const [sortDir, setSortDir] = useState("desc");
- 
- 
- 
+
+
+
     const [visibleDays, setVisibleDays] = useState(31); // 7/14/31 toggle
- 
+
     const [statusFilter, setStatusFilter] = useState([]);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [filterRules, setFilterRules] = useState(null);
- 
+
     const filterOptions = useMemo(() => {
         return [
             { id: "date", label: "Date", options: [] }, // Date range picker would be custom
@@ -118,11 +117,11 @@ export default function OsaDetailTableLight() {
             { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
         ];
     }, []);
- 
+
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q && statusFilter.length === 0) return SAMPLE_ROWS;
- 
+
         let res = SAMPLE_ROWS;
         if (q) {
             res = res.filter(
@@ -134,13 +133,13 @@ export default function OsaDetailTableLight() {
         }
         return res;
     }, [query, statusFilter]);
- 
+
     const sorted = useMemo(() => {
         const dirMul = sortDir === "asc" ? 1 : -1;
- 
+
         const isDayKey = typeof sortKey === "string" && sortKey.startsWith("day_");
         const dayIndex = isDayKey ? parseInt(sortKey.replace("day_", ""), 10) : null;
- 
+
         const getVal = (r) => {
             if (dayIndex != null) {
                 const idx = clamp(dayIndex - 1, 0, 30);
@@ -148,32 +147,32 @@ export default function OsaDetailTableLight() {
             }
             return r[sortKey];
         };
- 
+
         return [...filtered].sort((a, b) => {
             const va = getVal(a);
             const vb = getVal(b);
- 
+
             if (typeof va === "string" || typeof vb === "string") {
                 return String(va).localeCompare(String(vb)) * dirMul;
             }
             return (va - vb) * dirMul;
         });
     }, [filtered, sortKey, sortDir]);
- 
+
     const totalPages = Math.max(1, Math.ceil(sorted.length / rowsPerPage));
     const safePage = clamp(page, 1, totalPages);
- 
+
     const pageRows = useMemo(() => {
         const start = (safePage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
         return sorted.slice(start, end);
     }, [sorted, safePage, rowsPerPage]);
- 
+
     useEffect(() => {
         if (page !== safePage) setPage(safePage);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [safePage]);
- 
+
     const headerSort = (key) => {
         setPage(1);
         setSortKey((prev) => {
@@ -185,9 +184,9 @@ export default function OsaDetailTableLight() {
             return key;
         });
     };
- 
+
     const dayCols = DAYS.slice(0, visibleDays);
- 
+
     return (
         <div className="rounded-3xl flex-col bg-slate-50 relative">
             <div className="flex flex-1 overflow-hidden">
@@ -201,7 +200,7 @@ export default function OsaDetailTableLight() {
                                     Last {visibleDays} Days • Sortable • Paginated
                                 </div>
                             </div>
- 
+
                             <div className="flex items-center gap-2">
                                 {/* Filter Button */}
                                 <button
@@ -211,7 +210,7 @@ export default function OsaDetailTableLight() {
                                     <SlidersHorizontal className="h-3.5 w-3.5" />
                                     <span>Filters</span>
                                 </button>
- 
+
                                 {/* Last Days Toggles */}
                                 <div className="flex items-center gap-2 ml-2">
                                     {[7, 14, 31].map((n) => (
@@ -235,7 +234,7 @@ export default function OsaDetailTableLight() {
                                 </div>
                             </div>
                         </div>
- 
+
                         {/* Status Legend - Moved below header */}
                         <div className="mb-4 flex items-center gap-3 text-xs text-slate-500">
                             {/* <span className="font-semibold text-slate-700">Legend:</span> */}
@@ -249,7 +248,7 @@ export default function OsaDetailTableLight() {
                                 <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
                             </span>
                         </div>
- 
+
                         {/* Controls */}
                         {/* Table */}
                         <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
@@ -264,25 +263,25 @@ export default function OsaDetailTableLight() {
                                             >
                                                 PRODUCT / SKU
                                             </th>
- 
-                                            <th
+
+                                            {/* <th
                                                 className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
                                                 onClick={() => headerSort("avg7")}
                                             >
                                                 7D AVG <SortIcon dir={sortKey === "avg7" ? sortDir : undefined} />
-                                            </th>
- 
+                                            </th> */}
+
                                             <th
                                                 className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
                                                 onClick={() => headerSort("avg31")}
                                             >
-                                                {visibleDays}D AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                                                AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
                                             </th>
- 
+
                                             <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200">
                                                 STATUS
                                             </th>
- 
+
                                             {dayCols.map((d) => (
                                                 <th
                                                     key={d}
@@ -295,7 +294,7 @@ export default function OsaDetailTableLight() {
                                             ))}
                                         </tr>
                                     </thead>
- 
+
                                     <tbody>
                                         {pageRows.map((r) => {
                                             const st = statusStyles(r.status);
@@ -303,7 +302,7 @@ export default function OsaDetailTableLight() {
                                                 visibleDays === 31
                                                     ? r.avg31
                                                     : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
- 
+
                                             return (
                                                 <tr key={r.sku} className={"group " + st.rowAccent}>
                                                     <td
@@ -315,15 +314,15 @@ export default function OsaDetailTableLight() {
                                                             <div className="text-[10px] text-slate-500 mt-0.5">{r.sku}</div>
                                                         </div>
                                                     </td>
- 
+
                                                     <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900">
                                                         {r.avg7}%
                                                     </td>
- 
+
                                                     <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900">
                                                         {avgND}%
                                                     </td>
- 
+
                                                     <td className="px-3 py-2 border-b border-slate-100">
                                                         <span
                                                             className={
@@ -335,7 +334,7 @@ export default function OsaDetailTableLight() {
                                                             {r.status}
                                                         </span>
                                                     </td>
- 
+
                                                     {dayCols.map((d) => {
                                                         const v = r.values[d - 1];
                                                         return (
@@ -358,7 +357,7 @@ export default function OsaDetailTableLight() {
                                                 </tr>
                                             );
                                         })}
- 
+
                                         {pageRows.length === 0 && (
                                             <tr>
                                                 <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
@@ -369,14 +368,14 @@ export default function OsaDetailTableLight() {
                                     </tbody>
                                 </table>
                             </div>
- 
+
                             {/* Pagination */}
                             <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="text-sm text-slate-600">
                                     Page <span className="font-medium text-slate-900">{safePage}</span> of{" "}
                                     <span className="font-medium text-slate-900">{totalPages}</span>
                                 </div>
- 
+
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setPage(1)}
@@ -398,7 +397,7 @@ export default function OsaDetailTableLight() {
                                     >
                                         Prev
                                     </button>
- 
+
                                     <div className="hidden sm:flex items-center gap-1">
                                         {Array.from({ length: totalPages }, (_, i) => i + 1)
                                             .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
@@ -417,7 +416,7 @@ export default function OsaDetailTableLight() {
                                                 </button>
                                             ))}
                                     </div>
- 
+
                                     <button
                                         onClick={() => setPage((p) => clamp(p + 1, 1, totalPages))}
                                         disabled={safePage === totalPages}
@@ -459,14 +458,14 @@ export default function OsaDetailTableLight() {
                                         <X className="h-5 w-5" />
                                     </button>
                                 </div>
- 
+
                                 {/* Panel Content */}
                                 <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
                                     />
                                 </div>
- 
+
                                 {/* Modal Footer */}
                                 <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
                                     <button

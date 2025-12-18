@@ -254,7 +254,6 @@ const VISIBILITY_DATA = [
     skuName: "Butterscotch 700ml",
     platform: "Zepto",
     impact: "-7.3%",
-    offtake: "₹ 2.8 lac",
     kpis: {
       indexScore: "62",
       placementScore: "54",
@@ -276,7 +275,6 @@ const VISIBILITY_DATA = [
     skuName: "Belgian Chocolate 500ml",
     platform: "Blinkit",
     impact: "-5.9%",
-    offtake: "₹ 2.3 lac",
     kpis: {
       indexScore: "68",
       placementScore: "57",
@@ -298,7 +296,6 @@ const VISIBILITY_DATA = [
     skuName: "Kulfi Malai 60ml",
     platform: "Instamart",
     impact: "-4.7%",
-    offtake: "₹ 1.9 lac",
     kpis: {
       indexScore: "71",
       placementScore: "59",
@@ -320,7 +317,6 @@ const VISIBILITY_DATA = [
     skuName: "Mini Sticks Chocolate (6x40ml)",
     platform: "Flipkart",
     impact: "-4.2%",
-    offtake: "₹ 2.0 lac",
     kpis: {
       indexScore: "69",
       placementScore: "58",
@@ -632,7 +628,7 @@ function VisibilityCard({ item, onShowDetails }) {
         {/* Offtake & Impact */}
         <div className="mt-2 flex items-center justify-between">
           <div>
-            <div className="text-[11px] text-slate-400">Offtake</div>
+            <div className="text-[11px] text-slate-400">Most Viewed Positions</div>
             <div className="text-[17px] font-semibold text-slate-900">
               {item.offtake}
             </div>

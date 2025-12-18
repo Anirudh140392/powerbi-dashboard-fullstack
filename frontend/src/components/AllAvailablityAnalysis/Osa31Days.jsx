@@ -270,7 +270,7 @@ export default function OsaDetailTableLight() {
                     className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
                     onClick={() => headerSort("avg31")}
                   >
-                    {visibleDays}D AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                    AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
                   </th>
 
                   <th className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200">
@@ -437,7 +437,7 @@ export default function OsaDetailTableLight() {
         </div>
 
         <div className="mt-3 text-xs text-slate-500">
-          Tip: Click any header (7D Avg / 31D Avg / Day columns) to sort. Use “Last 7/14/31” to reduce column density.
+          Tip: Click any header (7D Avg / AVG / Day columns) to sort. Use “Last 7/14/31” to reduce column density.
         </div>
       </div>
     </div>
