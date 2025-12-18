@@ -830,7 +830,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                       key={col}
                       className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 
                                    text-center text-[11px] font-bold uppercase 
-                                   tracking-widest text-slate-900 min-w-[160px]"
+                                   tracking-widest text-slate-900 min-w-[110px]"
                     >
                       <div className="flex items-center justify-center gap-2">
                         <span>{col}</span>
