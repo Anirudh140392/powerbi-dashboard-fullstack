@@ -30,6 +30,7 @@ import MetricCardContainer from '../CommonLayout/MetricCardContainer'
 
 import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
+import TopSearchTerms from './TopSearchTerms';
 import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
 // ------------------------------
@@ -769,29 +770,29 @@ const VisiblityAnalysisData = () => {
 
   return (
 
-      <div className="mx-auto max-w-7xl space-y-4">
+    <div className="mx-auto max-w-7xl space-y-4">
 
-        {/* HEADER */}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          {/* <div>
+      {/* HEADER */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        {/* <div>
             <p className="text-xs uppercase tracking-[0.25em] text-sky-600">Visibility KPI Studio</p>
             <h1 className="text-2xl font-bold">Visibility Workspace</h1>
             <p className="text-sm text-slate-500">Premium analytics studio for Visibility Share</p>
           </div> */}
-          {/* <div className="flex flex-wrap gap-2">
+        {/* <div className="flex flex-wrap gap-2">
             {['Insights', 'Actionable', 'Live filters'].map((c) => (
               <span key={c} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                 {c}
               </span>
             ))}
           </div> */}
-        </div>
+      </div>
 
-        {/* MODAL SECTION */}
-        <MetricCardContainer title="Visibility Overview" cards={cards} />
-        <TabbedHeatmapTable />
-        {/* PULSEBOARD */}
-        {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* MODAL SECTION */}
+      <MetricCardContainer title="Visibility Overview" cards={cards} />
+      <TabbedHeatmapTable />
+      {/* PULSEBOARD */}
+      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
             data={sampleData}
             title="Keyword level Sos"
@@ -829,150 +830,153 @@ const VisiblityAnalysisData = () => {
           />
 
         // </div> */}
-        {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <VisibilityDrilldownTable />
-        </div>
-        {/* <SignalLabVisibility type="visibility" /> */}
-        {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <VisibilityDrilldownTable />
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <TopSearchTerms />
+      </div>
+      {/* <SignalLabVisibility type="visibility" /> */}
+      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <VisibilityLayoutOne />
 
         </div> */}
-        {modal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-            <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
-                  <p className="text-xs text-slate-500">Interactive view</p>
-                </div>
-                <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
-                  <CloseIcon fontSize="small" />
-                </button>
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
+                <p className="text-xs text-slate-500">Interactive view</p>
               </div>
+              <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
+                <CloseIcon fontSize="small" />
+              </button>
+            </div>
 
-              {/* COMPETITION MODAL */}
-              {modal.type === 'competition' && (
-                <div className="space-y-3">
-                  {/* TAG SELECTOR */}
-                  <div className="flex flex-wrap gap-2">
-                    {competitorSeries.map((c) => {
-                      const active = selectedCompetitors.includes(c.name)
-                      return (
-                        <button
-                          key={c.name}
-                          onClick={() => {
-                            const set = new Set(selectedCompetitors)
-                            if (set.has(c.name)) set.delete(c.name)
-                            else set.add(c.name)
-                            setSelectedCompetitors(Array.from(set))
-                          }}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
-                            }`}
-                        >
-                          {c.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* COMPETITOR LINE CHART */}
-                  <div className="h-80">
-                    <ResponsiveContainer>
-                      <LineChart
-                        data={competitorSeries[0].values.map((_, idx) => {
-                          const point = { date: competitorSeries[0].values[idx].date }
-                          competitorSeries.forEach((c) => {
-                            point[c.name] = c.values[idx]?.value ?? 0
-                          })
-                          return point
-                        })}
+            {/* COMPETITION MODAL */}
+            {modal.type === 'competition' && (
+              <div className="space-y-3">
+                {/* TAG SELECTOR */}
+                <div className="flex flex-wrap gap-2">
+                  {competitorSeries.map((c) => {
+                    const active = selectedCompetitors.includes(c.name)
+                    return (
+                      <button
+                        key={c.name}
+                        onClick={() => {
+                          const set = new Set(selectedCompetitors)
+                          if (set.has(c.name)) set.delete(c.name)
+                          else set.add(c.name)
+                          setSelectedCompetitors(Array.from(set))
+                        }}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
+                          }`}
                       >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
-                        <Legend />
-                        {competitorSeries
-                          .filter((c) => selectedCompetitors.includes(c.name))
-                          .map((c) => (
-                            <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
-                          ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                        {c.name}
+                      </button>
+                    )
+                  })}
                 </div>
-              )}
 
-              {/* CATEGORY TREND MODAL */}
-              {modal.type === 'trends' && (
+                {/* COMPETITOR LINE CHART */}
                 <div className="h-80">
                   <ResponsiveContainer>
                     <LineChart
-                      data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
+                      data={competitorSeries[0].values.map((_, idx) => {
+                        const point = { date: competitorSeries[0].values[idx].date }
+                        competitorSeries.forEach((c) => {
+                          point[c.name] = c.values[idx]?.value ?? 0
+                        })
+                        return point
+                      })}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="idx" />
-                      <YAxis />
-                      <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
                       <Legend />
-                      <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
+                      {competitorSeries
+                        .filter((c) => selectedCompetitors.includes(c.name))
+                        .map((c) => (
+                          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
+                        ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* INSIGHTS MODAL */}
-              {modal.type === 'insights' && (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Gainers</p>
-                    <ul className="mt-2 space-y-1 text-xs">
-                      {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
-                        <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
-                          <span>{b}</span>
-                          <span className="font-semibold text-emerald-600">+0.8%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            {/* CATEGORY TREND MODAL */}
+            {modal.type === 'trends' && (
+              <div className="h-80">
+                <ResponsiveContainer>
+                  <LineChart
+                    data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="idx" />
+                    <YAxis />
+                    <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
+                    <Legend />
+                    <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Drainers</p>
-                    <ul className="mt-2 space-y-1 text-xs">
-                      {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
-                        <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
-                          <span>{b}</span>
-                          <span className="font-semibold text-rose-600">-0.6%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            {/* INSIGHTS MODAL */}
+            {modal.type === 'insights' && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Gainers</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
+                      <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
+                        <span>{b}</span>
+                        <span className="font-semibold text-emerald-600">+0.8%</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              )}
 
-              {/* CROSS PLATFORM MODAL */}
-              {modal.type === 'cross' && (
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Date comparison</p>
-                    <p className="text-xs text-slate-500">Custom vs Previous month</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
-                    <p className="text-xs text-slate-500">Distributor · Store · Web</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Customer selection</p>
-                    <p className="text-xs text-slate-500">All customers · Custom segments</p>
-                  </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Drainers</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
+                      <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
+                        <span>{b}</span>
+                        <span className="font-semibold text-rose-600">-0.6%</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* CROSS PLATFORM MODAL */}
+            {modal.type === 'cross' && (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Date comparison</p>
+                  <p className="text-xs text-slate-500">Custom vs Previous month</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
+                  <p className="text-xs text-slate-500">Distributor · Store · Web</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Customer selection</p>
+                  <p className="text-xs text-slate-500">All customers · Custom segments</p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-      </div>
+    </div>
   )
 }
 

@@ -539,28 +539,28 @@ export default function Visibility4() {
 
     // Heatmap color function for Keywords/SKUs views
     const getHeatmapColor = (kpi, value) => {
-        if (value === undefined || value === null) return {}
+        if (value === undefined || value === null) return 'transparent'
 
         // For position metrics, lower is better
         if (kpi === 'adPos' || kpi === 'orgPos') {
-            if (value <= 3) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
-            if (value <= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
-            return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
+            if (value <= 3) return 'rgba(34, 197, 94, 0.2)' // green
+            if (value <= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
+            return 'rgba(239, 68, 68, 0.2)' // red
         }
 
         // For SOV and catImpShare metrics, higher is better
-        if (value >= 50) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
-        if (value >= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
-        if (value >= 1) return { backgroundColor: 'rgba(249, 115, 22, 0.12)', color: '#9a3412' } // orange
-        return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
+        if (value >= 50) return 'rgba(34, 197, 94, 0.2)' // green
+        if (value >= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
+        if (value >= 1) return 'rgba(251, 146, 60, 0.2)' // orange
+        return 'rgba(239, 68, 68, 0.2)' // red
     }
 
     const renderValueCell = (metrics, kpi) => {
-        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' }
+        const bgColor = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : 'rgb(248, 250, 252)'
         return (
             <span
-                className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-medium"
-                style={style}
+                className="block rounded-md px-2 py-1 text-center font-semibold"
+                style={{ backgroundColor: bgColor }}
             >
                 {formatMetric(kpi, metrics[kpi])}
             </span>
@@ -581,24 +581,24 @@ export default function Visibility4() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                    <div className="flex rounded-full bg-[#f3f4f6] p-[3px]">
+                    <div className="flex rounded-full bg-slate-100 p-1">
                         <button
                             onClick={() => setActiveView('keywords')}
-                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             Keywords
                         </button>
                         <button
                             onClick={() => setActiveView('skus')}
-                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'skus' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'skus' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             SKUs
                         </button>
                         <button
                             onClick={() => setActiveView('platforms')}
-                            className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'platforms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                            className={`rounded-full px-5 py-1.5 text-sm font-medium transition-all ${activeView === 'platforms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                         >
                             Platforms
@@ -763,19 +763,17 @@ export default function Visibility4() {
                                             className="px-3 py-2"
                                             style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
                                         >
-                                            <div className="flex flex-row items-center justify-start text-left gap-2">
+                                            <div className="flex flex-col items-center justify-center text-center">
                                                 {row.hasChildren && (
                                                     <button
                                                         onClick={() => toggleExpand(row.id)}
-                                                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                                                        className="mr-2 flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
                                                     >
                                                         {expandedRows.has(row.id) ? '−' : '+'}
                                                     </button>
                                                 )}
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold text-slate-900">{row.depth === 0 && row.level !== 'sku' ? row.label : (row.level === 'sku' && activeView === 'skus' ? row.label : '')}</span>
-                                                    {row.subtitle && <span className="text-[10px] text-slate-500">{row.subtitle}</span>}
-                                                </div>
+                                                <span className="font-semibold text-slate-900">{row.depth === 0 && row.level !== 'sku' ? row.label : (row.level === 'sku' && activeView === 'skus' ? row.label : '')}</span>
+                                                {row.subtitle && <span className="text-[10px] text-slate-500">{row.subtitle}</span>}
                                             </div>
                                         </td>
 
@@ -854,12 +852,12 @@ export default function Visibility4() {
                                         {allKpis.flatMap((kpi) =>
                                             activeView === 'platforms' && expandedKpis.has(kpi)
                                                 ? visiblePlatforms.map((p) => (
-                                                    <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
+                                                    <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-right align-middle border-l border-slate-100">
                                                         {renderValueCell(row.platforms[p] ?? {}, kpi)}
                                                     </td>
                                                 ))
                                                 : (
-                                                    <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
+                                                    <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-right align-middle border-l border-slate-100">
                                                         {renderValueCell(row.metrics, kpi)}
                                                     </td>
                                                 )
@@ -993,6 +991,6 @@ export default function Visibility4() {
                     </>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     )
 }
