@@ -194,9 +194,11 @@ export default function OsaDetailTableLight() {
                     <div className="rounded-3xl border bg-white p-4 shadow">
                         {/* Title + Legend */}
                         <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
-                            <div className="flex flex-col">
-                                <div className="text-lg">OSA % Detail View</div>
-                                <div className="text-[11px] text-slate-500 font-normal">
+                            <div className="flex flex-col gap-0.5">
+                                <div className="text-sm font-semibold text-slate-900">
+                                    OSA % Detail View
+                                </div>
+                                <div className="text-xs text-slate-500 font-normal">
                                     Last {visibleDays} Days • Sortable • Paginated
                                 </div>
                             </div>
@@ -205,49 +207,28 @@ export default function OsaDetailTableLight() {
                                 {/* Filter Button */}
                                 <button
                                     onClick={() => setShowFilterPanel(true)}
-                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all"
+                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all"
                                 >
                                     <SlidersHorizontal className="h-3.5 w-3.5" />
                                     <span>Filters</span>
                                 </button>
 
-                                {/* Last Days Toggles */}
+                                {/* Status Legend - Moved from body */}
                                 <div className="flex items-center gap-2 ml-2">
-                                    {[7, 14, 31].map((n) => (
-                                        <button
-                                            key={n}
-                                            onClick={() => {
-                                                setVisibleDays(n);
-                                                setSortKey("avg7");
-                                                setSortDir("desc");
-                                            }}
-                                            className={`
-                                                flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all
-                                                ${visibleDays === n
-                                                    ? "bg-slate-900 text-white border-slate-900 shadow-sm"
-                                                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
-                                            `}
-                                        >
-                                            Last {n}
-                                        </button>
-                                    ))}
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
+                                        <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
+                                        <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Status Legend - Moved below header */}
-                        <div className="mb-4 flex items-center gap-3 text-xs text-slate-500">
-                            {/* <span className="font-semibold text-slate-700">Legend:</span> */}
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-100">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 border border-amber-100">
-                                <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 border border-rose-100">
-                                <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
-                            </span>
-                        </div>
+
 
                         {/* Controls */}
                         {/* Table */}
@@ -258,10 +239,10 @@ export default function OsaDetailTableLight() {
                                         <tr>
                                             {/* Sticky first column header */}
                                             <th
-                                                className="sticky left-0 z-20 bg-[#f8fafc] text-left px-3 py-2 text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200"
+                                                className="sticky left-0 z-20 bg-[#f8fafc] text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200"
                                                 style={{ minWidth: 280 }}
                                             >
-                                                PRODUCT / SKU
+                                                <div className="flex items-center h-full">PRODUCT / SKU</div>
                                             </th>
 
                                             {/* <th
@@ -272,14 +253,16 @@ export default function OsaDetailTableLight() {
                                             </th> */}
 
                                             <th
-                                                className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
+                                                className="px-3 py-2 text-center text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
                                                 onClick={() => headerSort("avg31")}
                                             >
-                                                AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                                                <div className="flex items-center justify-center gap-1 h-full">
+                                                    AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                                                </div>
                                             </th>
 
                                             <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200">
-                                                STATUS
+                                                <div className="flex items-center h-full">STATUS</div>
                                             </th>
 
                                             {dayCols.map((d) => (
@@ -288,8 +271,10 @@ export default function OsaDetailTableLight() {
                                                     className="px-2 py-2 text-center text-[10px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none whitespace-nowrap"
                                                     onClick={() => headerSort(`day_${d}`)}
                                                 >
-                                                    DAY {d}
-                                                    <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
+                                                    <div className="flex items-center justify-center gap-1 h-full">
+                                                        DAY {d}
+                                                        <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
+                                                    </div>
                                                 </th>
                                             ))}
                                         </tr>
@@ -315,11 +300,9 @@ export default function OsaDetailTableLight() {
                                                         </div>
                                                     </td>
 
-                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900">
-                                                        {r.avg7}%
-                                                    </td>
 
-                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900">
+
+                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
                                                         {avgND}%
                                                     </td>
 
@@ -369,74 +352,47 @@ export default function OsaDetailTableLight() {
                                 </table>
                             </div>
 
-                            {/* Pagination */}
-                            <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div className="text-sm text-slate-600">
-                                    Page <span className="font-medium text-slate-900">{safePage}</span> of{" "}
-                                    <span className="font-medium text-slate-900">{totalPages}</span>
-                                </div>
-
+                            {/* Pagination - Performance Marketing Style */}
+                            <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() => setPage(1)}
                                         disabled={safePage === 1}
-                                        className={
-                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                            (safePage === 1 ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                        }
-                                    >
-                                        First
-                                    </button>
-                                    <button
-                                        onClick={() => setPage((p) => clamp(p - 1, 1, totalPages))}
-                                        disabled={safePage === 1}
-                                        className={
-                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                            (safePage === 1 ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                        }
+                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
                                     >
                                         Prev
                                     </button>
 
-                                    <div className="hidden sm:flex items-center gap-1">
-                                        {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                            .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
-                                            .map((p) => (
-                                                <button
-                                                    key={p}
-                                                    onClick={() => setPage(p)}
-                                                    className={
-                                                        "h-9 w-9 rounded-xl text-sm ring-1 ring-slate-200 transition " +
-                                                        (p === safePage
-                                                            ? "bg-slate-900 text-white"
-                                                            : "bg-white text-slate-700 hover:bg-slate-50")
-                                                    }
-                                                >
-                                                    {p}
-                                                </button>
-                                            ))}
-                                    </div>
+                                    <span className="text-slate-600">
+                                        Page <b className="text-slate-900">{safePage}</b> / {totalPages}
+                                    </span>
 
                                     <button
-                                        onClick={() => setPage((p) => clamp(p + 1, 1, totalPages))}
-                                        disabled={safePage === totalPages}
-                                        className={
-                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                            (safePage === totalPages ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                        }
+                                        disabled={safePage >= totalPages}
+                                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                        className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
                                     >
                                         Next
                                     </button>
-                                    <button
-                                        onClick={() => setPage(totalPages)}
-                                        disabled={safePage === totalPages}
-                                        className={
-                                            "rounded-xl px-3 py-2 text-sm ring-1 ring-slate-200 bg-white transition " +
-                                            (safePage === totalPages ? "text-slate-300" : "text-slate-700 hover:bg-slate-50")
-                                        }
-                                    >
-                                        Last
-                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <div className="text-slate-600">
+                                        Rows/page
+                                        <select
+                                            value={rowsPerPage}
+                                            onChange={(e) => {
+                                                setPage(1);
+                                                setRowsPerPage(Number(e.target.value));
+                                            }}
+                                            className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
