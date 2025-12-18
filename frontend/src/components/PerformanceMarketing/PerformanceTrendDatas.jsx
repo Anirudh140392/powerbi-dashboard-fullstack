@@ -574,7 +574,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
 export default function PerformanceTrendDatas({
   dynamicKey,
   open = true,
-  onClose = () => {},
+  onClose = () => { },
   selectedColumn,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -803,7 +803,7 @@ export default function PerformanceTrendDatas({
           width: "min(1200px, 100%)",
           bgcolor: "white",
           borderRadius: 3,
-          boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
+          boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
           p: 3,
           display: "flex",
           flexDirection: "column",
@@ -826,7 +826,7 @@ export default function PerformanceTrendDatas({
                 borderRadius: "999px",
                 px: 2.5,
                 py: 0.75,
-                fontSize: 14,
+                fontSize: 11,
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
                   color: "#fff",
@@ -889,10 +889,10 @@ export default function PerformanceTrendDatas({
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
-                      ? FORMAT_OPTIONS
-                      : allTrendMeta.context.audience === "City"
-                      ? CITY_OPTIONS
-                      : []
+                        ? FORMAT_OPTIONS
+                        : allTrendMeta.context.audience === "City"
+                          ? CITY_OPTIONS
+                          : []
                     ).map((p) => (
                       <Box
                         key={p}
@@ -904,7 +904,7 @@ export default function PerformanceTrendDatas({
                           px: 1.5,
                           py: 0.7,
                           borderRadius: "999px",
-                          fontSize: "12px",
+                          fontSize: "11px",
                           fontWeight: 600,
                           cursor: "pointer",
                           border: "1px solid #E5E7EB",
@@ -950,7 +950,7 @@ export default function PerformanceTrendDatas({
               />
 
               <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="body2">Time Step:</Typography>
+                <Typography sx={{ fontSize: 11, color: "text.secondary" }}>Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
