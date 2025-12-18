@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowUp, ArrowDown, X } from "lucide-react";
+import { ArrowUp, ArrowDown, X, LineChart } from "lucide-react";
 
 // Mock Data focused on "Kwality Walls"
 const MOCK_DATA = [
@@ -175,18 +175,16 @@ export default function TopSearchTerms() {
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 bg-white">
-                <h3 className="text-sm font-semibold text-slate-800">Top Search Terms</h3>
+                <h3 className="text-base font-bold text-slate-800">Top Search Terms</h3>
 
                 <div className="flex items-center gap-4">
                     {/* Tabs */}
-                    <div className="flex bg-slate-100 rounded-lg p-0.5">
+                    <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
                         {["All", "Branded", "Competitor", "Generic"].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setFilter(tab)}
-                                className={`px-3 py-1 text-[11px] font-medium rounded-md transition ${filter === tab
-                                    ? "bg-slate-600 text-white shadow-sm"
-                                    : "text-slate-500 hover:text-slate-700"
+                                className={`px-4 py-1.5 text-sm rounded-full transition-all ${filter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                                     }`}
                             >
                                 {tab}
@@ -210,63 +208,49 @@ export default function TopSearchTerms() {
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-blue-100/50 border-b border-blue-200">
-                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-700 w-[20%]">Keywords</th>
-                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-700 w-[15%]">
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%]">Keywords</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[15%]">
                                 Top Brand <span className="text-[9px] font-normal text-slate-500">(by Overall Share of Visibility)</span>
                             </th>
-                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-700 w-[20%]">Search Volume</th>
-                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-700 w-[15%] text-center">Overall Share of Visibility</th>
-                            <th className="px-2 py-2.5 text-[11px] font-semibold text-slate-700 w-[5%] text-center">Δ</th>
-                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-700 w-[15%] text-center">Organic Share of Visibility</th>
-                            <th className="px-2 py-2.5 text-[11px] font-semibold text-slate-700 w-[5%] text-center">Δ</th>
-                            <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-700 w-[15%] text-center">Paid Share of Visibility</th>
-                            <th className="px-2 py-2.5 text-[11px] font-semibold text-slate-700 w-[5%] text-center">Δ</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[25%] text-center">Overall Share of Visibility</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[25%] text-center">Organic Share of Visibility</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[15%] text-center">Paid Share of Visibility</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {MOCK_DATA.map((row, idx) => (
                             <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="px-4 py-2 text-[11px] text-slate-700 font-medium">
+                                <td className="px-6 py-2 text-[11px] text-slate-700 font-medium">
                                     {row.keyword}
                                 </td>
-                                <td className="px-4 py-2 text-[10px]">
+                                <td className="px-6 py-2 text-[10px]">
                                     <button
                                         onClick={() => handleBrandClick(row.keyword)}
-                                        className="text-blue-600 hover:underline uppercase tracking-wide font-medium"
+                                        className="px-3 py-1.5 text-[10px] font-semibold tracking-wide uppercase rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 hover:border-slate-400 hover:shadow-sm transition-all cursor-pointer"
                                     >
                                         {row.topBrand}
                                     </button>
                                 </td>
-                                <td className="px-4 py-2 align-middle">
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden max-w-[80px]">
-                                            <div
-                                                className="h-full bg-blue-500 rounded-full"
-                                                style={{ width: `${(row.searchVolume / 15000) * 100}%` }}
-                                            ></div>
-                                        </div>
-                                        <span className="text-[10px] text-slate-600 w-8 text-right">
-                                            {(row.searchVolume / 1000).toFixed(1)}K
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-2 text-center text-[11px] text-slate-700">
+                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     {row.overallSov}%
                                 </td>
-                                <td className="px-2 py-2 text-center">
+                                <td className="px-6 py-2 text-center">
                                     <DeltaIndicator value={row.overallDelta} />
                                 </td>
-                                <td className="px-4 py-2 text-center text-[11px] text-slate-700">
+                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     {row.organicSov}%
                                 </td>
-                                <td className="px-2 py-2 text-center">
+                                <td className="px-6 py-2 text-center">
                                     <DeltaIndicator value={row.organicDelta} />
                                 </td>
-                                <td className="px-4 py-2 text-center text-[11px] text-slate-700">
+                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     {row.paidSov}%
                                 </td>
-                                <td className="px-2 py-2 text-center">
+                                <td className="px-6 py-2 text-center">
                                     <DeltaIndicator value={row.paidDelta} />
                                 </td>
                             </tr>
@@ -275,15 +259,20 @@ export default function TopSearchTerms() {
                 </table>
             </div>
 
-            {/* Footer / Pagination Placeholder */}
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2 bg-slate-50/50">
-                <div className="text-[10px] text-slate-400">Showing top 12 terms</div>
-                <div className="flex gap-1">
-                    {/* Simple dots for pagination visual */}
-                    <div className="h-1.5 w-1.5 rounded-full bg-slate-400"></div>
-                    <div className="h-1.5 w-1.5 rounded-full bg-slate-200"></div>
-                    <div className="h-1.5 w-1.5 rounded-full bg-slate-200"></div>
+            {/* Footer / Pagination */}
+            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                    <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                        Prev
+                    </button>
+                    <div className="text-xs text-slate-600 font-medium">
+                        Page 1 / 3
+                    </div>
+                    <button className="text-xs text-slate-600 hover:text-slate-800 transition-colors">
+                        Next
+                    </button>
                 </div>
+                <div className="text-xs text-slate-400">Showing top 12 terms</div>
             </div>
 
             {/* Drilldown Modal */}
