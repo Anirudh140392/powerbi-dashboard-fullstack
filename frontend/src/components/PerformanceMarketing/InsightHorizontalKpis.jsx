@@ -43,7 +43,7 @@ const insightKPIs = [
 
 export default function InsightHorizontalKpis({
   selectedInsight = "All",
-  setSelectedInsight = () => {},
+  setSelectedInsight = () => { },
 }) {
   return (
     <Card sx={{ p: 3, borderRadius: 3, border: "1px solid #e2e8f0" }}>
@@ -82,7 +82,7 @@ export default function InsightHorizontalKpis({
                   boxShadow: active && "0 10px 35px rgba(0,0,0,0.12)",
                   transition: "0.25s",
                   "&:hover": {
-                    transform: active ? "scale(1.03)":"translateY(-6px)",
+                    transform: active ? "scale(1.03)" : "translateY(-6px)",
                     boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
                   },
                 }}
@@ -95,7 +95,7 @@ export default function InsightHorizontalKpis({
                 </Box>
 
                 <Typography
-                  variant="h4"
+                  variant="h5"
                   fontWeight={700}
                   sx={{ color: item.color }}
                 >

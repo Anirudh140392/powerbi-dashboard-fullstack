@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { SlidersHorizontal, X } from 'lucide-react'
+import { SlidersHorizontal, X, Plus, Minus } from 'lucide-react'
+import { Box, Button, Typography, Select, MenuItem } from '@mui/material'
 import { KpiFilterPanel } from '../KpiFilterPanel'
 
 const KPI_LABELS = {
@@ -104,6 +105,7 @@ const sampleData = [
     ],
   },
   {
+    format: 'Core Tub',
     format: 'Core Tub',
     days: [
       {
@@ -378,7 +380,7 @@ export default function DrilldownLatestTable() {
         rows.push({
           id: dayId,
           depth: 1,
-          label: r.day == null ? 'All days' : String(r.day),
+          label: '',
           level: 'day',
           format,
           day: r.day,
@@ -424,12 +426,7 @@ export default function DrilldownLatestTable() {
 
   const activeMeta = kpiModes[activeKpi]
 
-  const renderExpander = (open) => (
-    <span className="relative flex h-4 w-4 items-center justify-center">
-      <span className="absolute h-[2px] w-3 rounded-full bg-slate-700" />
-      {!open && <span className="absolute h-3 w-[2px] rounded-full bg-slate-700" />}
-    </span>
-  )
+
 
   return (
     <div className="rounded-3xl flex-col bg-slate-50 relative">
@@ -504,9 +501,45 @@ export default function DrilldownLatestTable() {
         <div className="flex-1 overflow-auto p-0 pr-0">
           <div className="rounded-3xl border bg-white p-4 shadow">
 
-            {/* HEADLINE + FILTERS */}
+            {/* HEADLINE */}
             <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
               <div className="text-lg">Format Performance (Heatmap)</div>
+            </div>
+
+            {/* KPI TOGGLES AND FILTERS */}
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                {Object.keys(KPI_LABELS).map((k) => {
+                  const isActive = visibleKpis[k];
+
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => toggleKpiVisibility(k)}
+                      className={`
+                        flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold transition-all
+                        ${isActive
+                          ? "bg-slate-200 text-slate-900 border-slate-300"
+                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }
+                      `}
+                    >
+                      {isActive ? (
+                        <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-900">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="h-2 w-2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <div className="h-3.5 w-3.5 rounded-full border border-slate-300"></div>
+                      )}
+                      <span>{KPI_LABELS[k]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* FILTER BUTTON MOVED HERE */}
               <button
                 onClick={() => setFilterPanelOpen(true)}
                 className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all"
@@ -516,37 +549,7 @@ export default function DrilldownLatestTable() {
               </button>
             </div>
 
-            {/* KPI TOGGLE BUTTONS */}
-            <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
-              {Object.keys(KPI_LABELS).map((k) => {
-                const isActive = visibleKpis[k];
 
-                return (
-                  <button
-                    key={k}
-                    onClick={() => toggleKpiVisibility(k)}
-                    className={`
-                      flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold transition-all
-                      ${isActive
-                        ? "bg-blue-50 text-slate-900 border-blue-200"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                      }
-                    `}
-                  >
-                    {isActive ? (
-                      <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-900">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="h-2 w-2">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                    ) : (
-                      <div className="h-3.5 w-3.5 rounded-full border border-slate-300"></div>
-                    )}
-                    <span>{KPI_LABELS[k]}</span>
-                  </button>
-                );
-              })}
-            </div>
 
             {/* PATH LEGEND */}
             <div className="mb-4 flex items-center gap-2 text-[11px] text-slate-500">
@@ -554,299 +557,313 @@ export default function DrilldownLatestTable() {
               Format → Day
             </div>
 
-            {/* TABLE WRAPPER */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-[11px]">
-                <thead>
-                  {/* TOP HEADER ROW */}
-                  <tr className="bg-slate-50">
-                    <th
-                      rowSpan={expandedQuarters.size ? 3 : 2}
-                      className="px-3 py-2 text-left font-semibold"
-                      style={{
-                        position: 'sticky',
-                        left: 0,
-                        top: 0,
-                        background: '#f8fafc',
-                        width: FROZEN_WIDTHS.format,
-                      }}
-                    >
-                      Format
-                    </th>
+            {/* TABLE WRAPPER WITH FULL BORDER */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-[11px] border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-30">
+                    {/* TOP HEADER ROW */}
+                    <tr className="bg-white">
+                      <th
+                        rowSpan={expandedQuarters.size ? 3 : 2}
+                        className="px-3 py-2 text-left font-bold align-bottom border-b border-r border-slate-200 text-slate-800"
+                        style={{
+                          left: 0,
+                          top: 0,
+                          background: 'white',
+                          width: FROZEN_WIDTHS.format,
+                          zIndex: 40
+                        }}
+                      >
+                        Format
+                      </th>
 
-                    {/* TDP and Weekend columns removed */}
-
-                    <th
-                      rowSpan={expandedQuarters.size ? 3 : 2}
-                      className="px-2 py-2 text-left font-semibold"
-                      style={{
-                        position: 'sticky',
-                        left: LEFT_DAY,
-                        top: 0,
-                        background: '#f8fafc',
-                        width: FROZEN_WIDTHS.day,
-                      }}
-                    >
-                      Day
-                    </th>
-
-                    {quarters.map((q) => {
-                      const colCount = visibleKpiKeys.length
-                      const isExpanded = expandedQuarters.has(q)
-                      const span = isExpanded
-                        ? quarterMonths[q].length * colCount
-                        : colCount
-
-                      return (
+                      {expandedRows.size > 0 && (
                         <th
-                          key={q}
-                          colSpan={span}
-                          className="px-3 py-2 text-center font-semibold"
+                          rowSpan={expandedQuarters.size ? 3 : 2}
+                          className="px-2 py-2 text-left font-bold align-bottom border-b border-r border-slate-200 text-slate-800"
+                          style={{
+                            left: LEFT_DAY,
+                            top: 0,
+                            background: 'white',
+                            width: FROZEN_WIDTHS.day,
+                            zIndex: 40
+                          }}
                         >
-                          <button
-                            onClick={() =>
-                              setExpandedQuarters((prev) => {
-                                const next = new Set(prev)
-                                next.has(q) ? next.delete(q) : next.add(q)
-                                return next
-                              })
-                            }
-                            className="rounded-full border px-2 py-1"
-                          >
-                            {isExpanded ? 'v' : '>'} {q}
-                          </button>
+                          Day
                         </th>
-                      )
-                    })}
-                  </tr>
+                      )}
 
-                  {/* MONTH HEADER ROW */}
-                  <tr className="border-b bg-slate-50">
-                    {quarters.flatMap((q) => {
-                      const isExpanded = expandedQuarters.has(q)
+                      {quarters.map((q) => {
+                        const colCount = visibleKpiKeys.length
+                        const isExpanded = expandedQuarters.has(q)
+                        const span = isExpanded
+                          ? quarterMonths[q].length * colCount
+                          : colCount
 
-                      if (isExpanded) {
-                        return quarterMonths[q].map((m, mi) => (
+                        return (
                           <th
-                            key={`${q}-${m}`}
-                            colSpan={visibleKpiKeys.length}
-                            className={`px-2 py-1 text-center ${mi % 2 ? 'bg-white' : 'bg-slate-50'
-                              }`}
+                            key={q}
+                            colSpan={span}
+                            className="px-3 py-3 text-center border-b border-r border-slate-200 last:border-r-0"
                           >
-                            {m}
+                            <button
+                              onClick={() =>
+                                setExpandedQuarters((prev) => {
+                                  const next = new Set(prev)
+                                  next.has(q) ? next.delete(q) : next.add(q)
+                                  return next
+                                })
+                              }
+                              className={`inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-700 transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95`}
+                            >
+                              <span className={`flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-[8px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                ▶
+                              </span>
+                              {q}
+                            </button>
+                          </th>
+                        )
+                      })}
+                    </tr>
+
+                    {/* MONTH HEADER ROW */}
+                    <tr className="bg-white">
+                      {quarters.flatMap((q, qi) => {
+                        const isExpanded = expandedQuarters.has(q)
+
+                        if (isExpanded) {
+                          return quarterMonths[q].map((m, mi) => (
+                            <th
+                              key={`${q}-${m}`}
+                              colSpan={visibleKpiKeys.length}
+                              className={`px-2 py-1.5 text-center text-slate-600 font-semibold border-b border-r border-slate-200 ${mi % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'
+                                }`}
+                            >
+                              {m}
+                            </th>
+                          ))
+                        }
+
+                        return visibleKpiKeys.map((k, ki) => (
+                          <th key={`${q}-${k}`}
+                            className={`px-2 py-1.5 text-center text-slate-600 font-semibold border-b border-r border-slate-200 ${qi % 2 === 0 ? 'bg-slate-50/30' : 'bg-white'}`}
+                          >
+                            {KPI_LABELS[k]}
                           </th>
                         ))
-                      }
+                      })}
+                    </tr>
 
-                      return visibleKpiKeys.map((k) => (
-                        <th key={`${q}-${k}`} className="px-2 py-1 text-center">
-                          {KPI_LABELS[k]}
-                        </th>
-                      ))
-                    })}
-                  </tr>
+                    {/* KPI SUB-HEADER ROW */}
+                    {expandedQuarters.size > 0 && (
+                      <tr className="bg-white">
+                        {quarters.flatMap((q) => {
+                          const isExpanded = expandedQuarters.has(q)
+                          if (!isExpanded) return null
 
-                  {/* KPI HEADER ROW (only when expanded) */}
-                  {expandedQuarters.size > 0 && (
-                    <tr className="border-b bg-slate-50">
-                      {quarters.flatMap((q) =>
-                        expandedQuarters.has(q)
-                          ? quarterMonths[q].flatMap((m) =>
+                          return quarterMonths[q].flatMap((m) =>
                             visibleKpiKeys.map((k) => (
                               <th
                                 key={`${q}-${m}-${k}`}
-                                className="px-2 py-1 text-center"
+                                className="px-2 py-1 text-center text-[9px] text-slate-500 font-medium border-b border-r border-slate-200"
                               >
                                 {KPI_LABELS[k]}
                               </th>
                             ))
                           )
-                          : visibleKpiKeys.map((k) => (
-                            <th
-                              key={`${q}-hidden-${k}`}
-                              className="opacity-0"
-                            />
-                          ))
-                      )}
-                    </tr>
-                  )}
-                </thead>
+                        })}
+                      </tr>
+                    )}
+                  </thead>
 
-                <tbody>
-                  {pageRows.map((row) => (
-                    <tr key={row.id} className="border-b">
-                      {/* FORMAT CELL */}
-                      <td
-                        className="px-3 py-2"
-                        style={{
-                          position: 'sticky',
-                          left: 0,
-                          background: row.depth % 2 ? '#f8fafc' : '#fff',
-                          borderRight: '1px solid #e5e7eb',
-                          width: FROZEN_WIDTHS.format,
-                        }}
-                      >
-                        <div className="flex items-center gap-2" style={{ paddingLeft: row.depth * 18 }}>
-                          <button
-                            onClick={() =>
-                              setExpandedRows((prev) => {
-                                const next = new Set(prev)
-                                next.has(row.id) ? next.delete(row.id) : next.add(row.id)
-                                return next
-                              })
-                            }
-                            className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${row.hasChildren
-                              ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                              : 'border-transparent text-transparent'
-                              }`}
-                            disabled={!row.hasChildren}
-                          >
-                            {row.hasChildren && renderExpander(expandedRows.has(row.id))}
-                          </button>
-
-                          <span className="font-semibold">{row.label}</span>
-                        </div>
-                      </td>
-
-                      {/* DAY */}
-                      <td
-                        className="px-2 py-2 text-center"
-                        style={{
-                          position: 'sticky',
-                          left: LEFT_DAY,
-                          background: row.depth % 2 ? '#f8fafc' : '#fff',
-                          borderRight: '1px solid #e5e7eb',
-                        }}
-                      >
-                        {(() => {
-                          // Show a simple hardcoded/derived value in the Day column:
-                          // - Format rows: show "All days"
-                          // - TDP / Weekend rows: show their label
-                          // - Day rows: show the actual day number
-                          if (row.level === 'format') return 'All days'
-                          if (row.level === 'tdp' || row.level === 'weekend') return row.label || ''
-                          return row.day ?? ''
-                        })()}
-                      </td>
-
-                      {/* QUARTER → MONTH → KPI VALUES */}
-                      {quarters.flatMap((q) => {
-                        const isExpanded = expandedQuarters.has(q)
-
-                        if (isExpanded) {
-                          return quarterMonths[q].flatMap((m, mi) =>
-                            visibleKpiKeys.map((k) => {
-                              const v = row.months[m]?.[k] ?? NaN
-                              const meta = kpiModes[k]
-                              const heatClass =
-                                activeKpi === k
-                                  ? activeMeta.heat(v)
-                                  : 'bg-slate-50 text-slate-700'
-                              const display = Number.isFinite(v)
-                                ? meta.formatter(v)
-                                : '—'
-                              return (
-                                <td
-                                  key={`${row.id}-${m}-${k}`}
-                                  className={`px-1.5 py-1 text-center ${mi % 2 ? 'bg-white' : 'bg-slate-50'
-                                    }`}
-                                >
-                                  <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
-                                    {display}
-                                  </span>
-                                </td>
-                              )
-                            })
-                          )
-                        }
-
-                        return visibleKpiKeys.map((k) => {
-                          const v = row.quarters[q]?.[k] ?? NaN
-                          const meta = kpiModes[k]
-                          const heatClass =
-                            activeKpi === k
-                              ? activeMeta.heat(v)
-                              : 'bg-slate-50 text-slate-700'
-
-                          const display = Number.isFinite(v)
-                            ? meta.formatter(v)
-                            : '—'
-
-                          return (
-                            <td
-                              key={`${row.id}-${q}-${k}`}
-                              className="px-1.5 py-1 text-center bg-slate-50"
+                  <tbody>
+                    {pageRows.map((row) => (
+                      <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/30 transition-colors">
+                        {/* FORMAT CELL */}
+                        <td
+                          className="px-3 py-2 border-r border-slate-100"
+                          style={{
+                            position: 'sticky',
+                            left: 0,
+                            background: row.depth % 2 ? '#f8fafc' : '#fff',
+                            width: FROZEN_WIDTHS.format,
+                            zIndex: 10
+                          }}
+                        >
+                          <div className="flex items-center gap-2" style={{ paddingLeft: row.depth * 18 }}>
+                            <button
+                              onClick={() =>
+                                setExpandedRows((prev) => {
+                                  const next = new Set(prev)
+                                  next.has(row.id) ? next.delete(row.id) : next.add(row.id)
+                                  return next
+                                })
+                              }
+                              className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${row.hasChildren
+                                ? 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50'
+                                : 'border-transparent text-transparent'
+                                }`}
+                              disabled={!row.hasChildren}
                             >
-                              <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
-                                {display}
-                              </span>
-                            </td>
-                          )
-                        })
-                      })}
-                    </tr>
-                  ))}
+                              {row.hasChildren && (expandedRows.has(row.id) ? <Minus size={12} /> : <Plus size={12} />)}
+                            </button>
 
-                  {pageRows.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={50}
-                        className="px-3 py-4 text-center text-slate-400"
-                      >
-                        No rows match the current filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                            <span className={`${row.hasChildren ? 'font-bold text-slate-800' : 'font-normal text-slate-500'} whitespace-nowrap`}>
+                              {row.label}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* DAY CELL */}
+                        {expandedRows.size > 0 && (
+                          <td
+                            className="px-2 py-2 text-center border-r border-slate-100"
+                            style={{
+                              position: 'sticky',
+                              left: LEFT_DAY,
+                              background: row.depth % 2 ? '#f8fafc' : '#fff',
+                              zIndex: 10
+                            }}
+                          >
+                            {(() => {
+                              if (row.level === 'format') return ''
+                              return row.day ?? 'All days'
+                            })()}
+                          </td>
+                        )}
+
+                        {/* DATA CELLS */}
+                        {quarters.flatMap((q) => {
+                          const isExpanded = expandedQuarters.has(q)
+                          if (isExpanded) {
+                            return quarterMonths[q].flatMap((m, mi) =>
+                              visibleKpiKeys.map((k) => {
+                                const v = row.months[m]?.[k] ?? NaN
+                                const meta = kpiModes[k]
+                                const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
+                                const display = Number.isFinite(v) ? meta.formatter(v) : '—'
+                                return (
+                                  <td
+                                    key={`${row.id}-${m}-${k}`}
+                                    className={`px-1.5 py-1 text-center border-r border-slate-100 last:border-r-0 ${mi % 2 ? 'bg-white' : 'bg-slate-50/30'}`}
+                                  >
+                                    <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
+                                      {display}
+                                    </span>
+                                  </td>
+                                )
+                              })
+                            )
+                          }
+
+                          return visibleKpiKeys.map((k) => {
+                            const v = row.quarters[q]?.[k] ?? NaN
+                            const meta = kpiModes[k]
+                            const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
+                            const display = Number.isFinite(v) ? meta.formatter(v) : '—'
+                            return (
+                              <td
+                                key={`${row.id}-${q}-${k}`}
+                                className="px-1.5 py-1 text-center bg-slate-50 border-r border-slate-100 last:border-r-0"
+                              >
+                                <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
+                                  {display}
+                                </span>
+                              </td>
+                            )
+                          })
+                        })}
+                      </tr>
+                    ))}
+
+                    {pageRows.length === 0 && (
+                      <tr>
+                        <td colSpan={50} className="px-3 py-10 text-center text-slate-400">
+                          No data available for the selected filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* PAGINATION */}
-            <div className="mt-3 flex items-center justify-between text-[11px]">
-              <div className="flex items-center gap-2">
-                <button
+            <Box
+              sx={{
+                mt: 2,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                pt: 2,
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1}>
+                <Button
+                  size="small"
                   disabled={page === 0}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  className="rounded-full border px-3 py-1 disabled:opacity-40"
+                  sx={{
+                    minWidth: 'auto',
+                    borderRadius: 999,
+                    px: 2,
+                    py: 0.5,
+                    border: '1px solid #e2e8f0',
+                    color: '#64748b',
+                    textTransform: 'none',
+                    backgroundColor: 'white',
+                    '&:hover': { backgroundColor: '#f8fafc' },
+                  }}
                 >
                   Prev
-                </button>
-
-                <span>
-                  Page <b>{page + 1}</b> / {totalPages}
-                </span>
-
-                <button
+                </Button>
+                <Typography sx={{ fontSize: 11, color: "#334155", fontWeight: 500, mx: 1 }}>
+                  Page {page + 1} of {totalPages}
+                </Typography>
+                <Button
+                  size="small"
                   disabled={page + 1 >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
-                  className="rounded-full border px-3 py-1 disabled:opacity-40"
+                  sx={{
+                    minWidth: 'auto',
+                    borderRadius: 999,
+                    px: 2,
+                    py: 0.5,
+                    border: '1px solid #e2e8f0',
+                    color: '#64748b',
+                    textTransform: 'none',
+                    backgroundColor: 'white',
+                    '&:hover': { backgroundColor: '#f8fafc' },
+                  }}
                 >
                   Next
-                </button>
-              </div>
+                </Button>
+              </Box>
 
-              <div className="flex items-center gap-3">
-                <div>
-                  Rows/page
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="ml-1 rounded-full border px-2 py-1"
-                  >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                  </select>
-                </div>
-
-                <button
-                  onClick={() => setFiltersOpen((x) => !x)}
-                  className="rounded-full bg-slate-900 px-4 py-1.5 text-white"
+              <Box display="flex" alignItems="center" gap={1}>
+                <Typography sx={{ fontSize: 11, color: "#64748b" }}>Rows / page</Typography>
+                <Select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setPage(0)
+                  }}
+                  size="small"
+                  sx={{
+                    height: 28,
+                    fontSize: 11,
+                    borderRadius: 1.5,
+                    backgroundColor: 'white',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
+                  }}
                 >
-                  Filters
-                </button>
-              </div>
-            </div>
+                  {[10, 20, 50, 100].map((n) => (
+                    <MenuItem key={n} value={n} sx={{ fontSize: 11 }}>{n}</MenuItem>
+                  ))}
+                </Select>
+              </Box>
+            </Box>
           </div>
         </div>
 
@@ -860,73 +877,14 @@ export default function DrilldownLatestTable() {
               className="flex h-full w-80 flex-col border-l bg-white p-4 shadow-xl"
             >
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Filters</h3>
-
-                <button
-                  onClick={resetFilters}
-                  className="rounded-full border bg-slate-50 px-3 py-1 text-[11px]"
-                >
-                  Reset
-                </button>
+                <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
+                <button onClick={resetFilters} className="rounded-full border bg-slate-50 px-3 py-1 text-[11px] text-slate-600 hover:bg-slate-100">Reset</button>
               </div>
-
-              <div className="flex flex-col gap-3 text-xs">
-                <FilterSelect
-                  label="Weekend flag"
-                  value={filters.weekendFlag}
-                  options={weekendOptions}
-                  onChange={(v) =>
-                    setFilters((prev) => ({ ...prev, weekendFlag: v }))
-                  }
-                />
-
-                <FilterSelect
-                  label="TDP"
-                  value={filters.tdp}
-                  options={tdpOptions}
-                  onChange={(v) =>
-                    setFilters((prev) => ({ ...prev, tdp: v }))
-                  }
-                />
-
-                <FilterSelect
-                  label="Month"
-                  value={filters.month}
-                  options={monthOptions}
-                  onChange={(v) =>
-                    setFilters((prev) => ({ ...prev, month: v }))
-                  }
-                />
-
-                <FilterSelect
-                  label="Year"
-                  value={filters.year}
-                  options={yearOptions}
-                  onChange={(v) =>
-                    setFilters((prev) => ({ ...prev, year: v }))
-                  }
-                />
-
-                <FilterSelect
-                  label="Format"
-                  value={filters.format}
-                  options={['All', ...sampleData.map((f) => f.format)]}
-                  onChange={(v) =>
-                    setFilters((prev) => ({ ...prev, format: v }))
-                  }
-                />
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px]">Day</label>
-                  <input
-                    type="number"
-                    value={filters.day}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, day: e.target.value }))
-                    }
-                    className="rounded-lg border px-2 py-1.5 text-xs"
-                  />
-                </div>
+              <div className="flex flex-col gap-4">
+                <FilterSelect label="Weekend" value={filters.weekendFlag} options={weekendOptions} onChange={(v) => setFilters(p => ({ ...p, weekendFlag: v }))} />
+                <FilterSelect label="TDP" value={filters.tdp} options={tdpOptions} onChange={(v) => setFilters(p => ({ ...p, tdp: v }))} />
+                <FilterSelect label="Month" value={filters.month} options={monthOptions} onChange={(v) => setFilters(p => ({ ...p, month: v }))} />
+                <FilterSelect label="Year" value={filters.year} options={yearOptions} onChange={(v) => setFilters(p => ({ ...p, year: v }))} />
               </div>
             </motion.div>
           )}
