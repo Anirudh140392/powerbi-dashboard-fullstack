@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 
 export default (app) => {
@@ -140,5 +140,14 @@ export default (app) => {
     app.get('/api/watchtower/month-overview', getMonthOverview);
     app.get('/api/watchtower/category-overview', getCategoryOverview);
     app.get('/api/watchtower/brands-overview', getBrandsOverview);
+
+    // KPI Trends endpoint for Performance Metrics section
+    app.get('/api/watchtower/kpi-trends', getKpiTrends);
+    app.get('/api/watchtower/trends-filter-options', getTrendsFilterOptions);
+
+    // Competition data endpoints
+    app.get('/api/watchtower/competition', getCompetition);
+    app.get('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
+    app.get('/api/watchtower/competition-brand-trends', getCompetitionBrandTrends);
 
 };

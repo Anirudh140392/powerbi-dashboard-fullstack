@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, createContext } from "react";
+import React, { useMemo, useState, useEffect, useContext, createContext, useRef } from "react";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -16,6 +16,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Box } from "@mui/material";
+import axiosInstance from "../../../api/axiosInstance";
+import { formatNumber, formatKpiValue, formatYAxisTick } from "../../../utils/formatters";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -672,23 +674,25 @@ const SelectItem = ({ value, children }) => {
 const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
 
 /** Raw config – you can change this and UI will adapt */
-const RAW_DATA = {
-  cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
-  categories: ["Body Lotion", "Face Cream", "Soap"],
-  brands: [
-    { id: "my-brand", name: "My Brand", category: "Body Lotion" },
-    { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
-    { id: "nivea", name: "Nivea", category: "Body Lotion" },
-    {
-      id: "parachute-adv",
-      name: "Parachute Advanced",
-      category: "Body Lotion",
-    },
-    { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
-    { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
-    { id: "joy", name: "Joy", category: "Body Lotion" },
-    { id: "biotique", name: "Biotique", category: "Face Cream" },
-  ],
+const createRawData = (filterOptions = {}, brandOptions = []) => ({
+  cities: filterOptions.locations || ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
+  categories: filterOptions.categories || ["Body Lotion", "Face Cream", "Soap"],
+  brands: brandOptions.length > 0
+    ? brandOptions.map((name, idx) => ({
+      id: `brand-${idx}`,
+      name: name,
+      category: filterOptions.categories?.[0] || "Body Lotion"
+    }))
+    : [
+      { id: "my-brand", name: "My Brand", category: "Body Lotion" },
+      { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
+      { id: "nivea", name: "Nivea", category: "Body Lotion" },
+      { id: "parachute-adv", name: "Parachute Advanced", category: "Body Lotion" },
+      { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
+      { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
+      { id: "joy", name: "Joy", category: "Body Lotion" },
+      { id: "biotique", name: "Biotique", category: "Face Cream" },
+    ],
   skus: [
     {
       id: "vas-100",
@@ -721,35 +725,62 @@ const RAW_DATA = {
       category: "Body Lotion",
     },
   ],
-};
+});
 
 /** Derived option lists for filters */
-const CITIES = RAW_DATA.cities;
-const CATEGORY_OPTIONS = RAW_DATA.categories;
-const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
-const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
+const getDerivedOptions = (RAW_DATA) => {
+  const CITIES = RAW_DATA.cities;
+  const CATEGORY_OPTIONS = RAW_DATA.categories;
+  const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
+  const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
 
-/** ID <-> Name maps */
-const BRAND_ID_TO_NAME = {};
-const BRAND_NAME_TO_ID = {};
-RAW_DATA.brands.forEach((b) => {
-  BRAND_ID_TO_NAME[b.id] = b.name;
-  BRAND_NAME_TO_ID[b.name] = b.id;
-});
+  /** ID <-> Name maps */
+  const BRAND_ID_TO_NAME = {};
+  const BRAND_NAME_TO_ID = {};
+  RAW_DATA.brands.forEach((b) => {
+    BRAND_ID_TO_NAME[b.id] = b.name;
+    BRAND_NAME_TO_ID[b.name] = b.id;
+  });
 
-const SKU_ID_TO_NAME = {};
-const SKU_NAME_TO_ID = {};
-RAW_DATA.skus.forEach((s) => {
-  SKU_ID_TO_NAME[s.id] = s.name;
-  SKU_NAME_TO_ID[s.name] = s.id;
-});
+  const SKU_ID_TO_NAME = {};
+  const SKU_NAME_TO_ID = {};
+  RAW_DATA.skus.forEach((s) => {
+    SKU_ID_TO_NAME[s.id] = s.name;
+    SKU_NAME_TO_ID[s.name] = s.id;
+  });
 
-/** SKU group by brand */
-const SKUS_BY_BRAND_ID = {};
-RAW_DATA.skus.forEach((s) => {
-  if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
-  SKUS_BY_BRAND_ID[s.brandId].push(s);
-});
+  /** SKU group by brand */
+  const SKUS_BY_BRAND_ID = {};
+  RAW_DATA.skus.forEach((s) => {
+    if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
+    SKUS_BY_BRAND_ID[s.brandId].push(s);
+  });
+
+  return {
+    CITIES,
+    CATEGORY_OPTIONS,
+    BRAND_OPTIONS,
+    SKU_OPTIONS,
+    BRAND_ID_TO_NAME,
+    BRAND_NAME_TO_ID,
+    SKU_ID_TO_NAME,
+    SKU_NAME_TO_ID,
+    SKUS_BY_BRAND_ID,
+  };
+};
+
+const RAW_DATA = createRawData();
+const {
+  CITIES,
+  CATEGORY_OPTIONS,
+  BRAND_OPTIONS,
+  SKU_OPTIONS,
+  BRAND_ID_TO_NAME,
+  BRAND_NAME_TO_ID,
+  SKU_ID_TO_NAME,
+  SKU_NAME_TO_ID,
+  SKUS_BY_BRAND_ID,
+} = getDerivedOptions(RAW_DATA);
 
 /** Build mock metrics and trends – all UI reads from this single data model */
 const buildDataModel = () => {
@@ -875,7 +906,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -886,39 +917,25 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   // helpers to build dependent option lists
 
   const getBrandOptions = () => {
-    let brands = RAW_DATA.brands;
+    // If no dynamic brands provided, return empty to show none
+    if (brandOptions.length === 0) return [];
 
-    // if categories selected, only brands from those categories
-    if (value.categories.length) {
-      brands = brands.filter((b) => value.categories.includes(b.category));
-    }
-
-    return brands.map((b) => b.name);
+    // if categories selected, filter brands (if we had category-brand mapping)
+    // For now, return all available brands
+    return brandOptions;
   };
 
   const getSkuOptions = () => {
-    let skus = RAW_DATA.skus;
+    // If no dynamic SKUs provided, return empty
+    if (skuOptions.length === 0) return [];
 
-    // filter by categories (if selected)
-    if (value.categories.length) {
-      skus = skus.filter((s) => value.categories.includes(s.category));
-    }
-
-    // filter by brands (if selected)
-    if (value.brands.length) {
-      const allowedBrandIds = new Set(
-        value.brands.map((name) => BRAND_NAME_TO_ID[name]).filter(Boolean)
-      );
-      skus = skus.filter((s) => allowedBrandIds.has(s.brandId));
-    }
-
-    return skus.map((s) => s.name);
+    return skuOptions;
   };
 
   const tabOptions = ["category", "brand", "sku"]; // always show all three
 
   const getListForTab = () => {
-    if (activeTab === "category") return CATEGORY_OPTIONS;
+    if (activeTab === "category") return categoryOptions;
     if (activeTab === "brand") return getBrandOptions();
     return getSkuOptions();
   };
@@ -928,14 +945,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, value]); // value drives dependencies
+  }, [activeTab, search, value, categoryOptions, brandOptions, skuOptions]); // value drives dependencies
 
   const currentKey =
     activeTab === "category"
       ? "categories"
       : activeTab === "brand"
-      ? "brands"
-      : "skus";
+        ? "brands"
+        : "skus";
 
   // strict dependency: parent change clears children
   const handleToggle = (type, item) => {
@@ -980,7 +997,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl gap-0 p-0">
+      <DialogContent className="max-w-5xl gap-0 p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-lg font-semibold">Filters</DialogTitle>
         </DialogHeader>
@@ -1037,13 +1054,16 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                 {list.map((item) => (
                   <label
                     key={item}
-                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                    className="flex cursor-pointer items-start gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                   >
                     <Checkbox
                       checked={value[currentKey].includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
+                      className="mt-0.5"
                     />
-                    <span className="truncate">{item}</span>
+                    <span className="flex-1 break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
+                      {item}
+                    </span>
                   </label>
                 ))}
 
@@ -1080,8 +1100,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
         py: 0.6,
         borderRadius: "999px",
         cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
+        border: `1px solid ${active ? color : "#E5E7EB"} `,
+        backgroundColor: active ? `${color} 20` : "white",
         color: active ? color : "#0f172a",
         fontSize: "12px",
         fontWeight: 600,
@@ -1095,7 +1115,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
           width: 14,
           height: 14,
           borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
+          border: `2px solid ${active ? color : "#CBD5E1"} `,
           backgroundColor: active ? color : "transparent",
           display: "flex",
           alignItems: "center",
@@ -1116,7 +1136,18 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+// Colors for multi-brand chart lines
+const BRAND_COLORS = [
+  "#3B82F6", // blue
+  "#10B981", // green  
+  "#F59E0B", // amber
+  "#EF4444", // red
+  "#8B5CF6", // purple
+  "#EC4899", // pink
+  "#06B6D4", // cyan
+];
+
+const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands = null, onBackToTable, onSwitchToKpi }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("offtakes");
 
@@ -1125,8 +1156,56 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
 
   const isBrandMode = mode === "brand";
 
+  // ADDED: Competition mode with API-driven brand trends
+  const isCompetitionMode = selectedBrands && selectedBrands !== 'All';
+  const [brandTrends, setBrandTrends] = useState({});
+  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
+
+  // Parse selected brands for Competition mode
+  const competitionBrandList = useMemo(() => {
+    if (!isCompetitionMode) return [];
+    return selectedBrands.split(',').map(b => b.trim()).slice(0, 5);
+  }, [isCompetitionMode, selectedBrands]);
+
+  // Fetch trends for Competition brands
+  useEffect(() => {
+    if (!isCompetitionMode || competitionBrandList.length === 0) return;
+
+    const fetchBrandTrends = async () => {
+      setIsLoadingTrends(true);
+
+      try {
+        const response = await axiosInstance.get('/watchtower/competition-brand-trends', {
+          params: {
+            brands: competitionBrandList.join(','),
+            location: city,
+            period: '1M'
+          }
+        });
+
+        if (response.data && response.data.brands) {
+          console.log('[TrendView] Fetched brand trends:', response.data.brands);
+          setBrandTrends(response.data.brands);
+        }
+      } catch (error) {
+        console.error('[TrendView] Error fetching brand trends:', error);
+      } finally {
+        setIsLoadingTrends(false);
+      }
+    };
+
+    fetchBrandTrends();
+  }, [isCompetitionMode, competitionBrandList, city]);
+
+
   /* ---------------- SELECTED IDS ---------------- */
   const selectedIds = useMemo(() => {
+    // FIXED: Use competition brands if available
+    if (isCompetitionMode) {
+      console.log('[TrendView] Competition mode - selectedIds:', competitionBrandList);
+      return competitionBrandList;
+    }
+
     if (isBrandMode) {
       let rows = DATA_MODEL.brandSummaryByCity[city] || [];
 
@@ -1150,18 +1229,68 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
       rows = rows.filter((r) => filters.skus.includes(r.name));
 
     return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
-  }, [isBrandMode, filters, city]);
+  }, [isCompetitionMode, competitionBrandList, isBrandMode, filters, city]);
 
   const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
+    () => {
+      // FIXED: Use brand names directly for Competition mode
+      if (isCompetitionMode) return competitionBrandList;
+
+      return selectedIds.map((id) =>
         isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
+      );
+    },
+    [isCompetitionMode, competitionBrandList, selectedIds, isBrandMode]
   );
 
   /* ---------------- CHART DATA ---------------- */
   const chartData = useMemo(() => {
+    // FIXED: Use API data for Competition mode
+    if (isCompetitionMode && Object.keys(brandTrends).length > 0) {
+      // Parse date string "DD MMM'YY" to Date object
+      const parseDate = (dateStr) => {
+        const [day, monthYear] = dateStr.split(' ');
+        const [month, year] = monthYear.replace("'", "").split("'");
+        const monthMap = {
+          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+        };
+        const monthNum = monthMap[month.trim()];
+        const yearNum = 2000 + parseInt(year || monthYear.replace("'", ""));
+        return new Date(yearNum, monthNum, parseInt(day));
+      };
+
+      // Collect all unique dates
+      const allDates = new Set();
+      Object.values(brandTrends).forEach(series => {
+        series.forEach(point => allDates.add(point.date));
+      });
+
+      // Sort dates chronologically
+      const sortedDates = Array.from(allDates).sort((a, b) =>
+        parseDate(a) - parseDate(b)
+      );
+
+      // Build chart data
+      return sortedDates.map(date => {
+        const row = { date };
+
+        competitionBrandList.forEach(brandName => {
+          const series = brandTrends[brandName];
+          if (series) {
+            const dataPoint = series.find(p => p.date === date);
+            // FIXED: Capitalize metric name to match backend response (Offtakes, Spend, Roas, Availability)
+            const metricKey = activeMetric.charAt(0).toUpperCase() + activeMetric.slice(1);
+            const value = dataPoint?.[metricKey];
+            row[brandName] = value !== undefined && value !== null ? Number(value) : null;
+          }
+        });
+
+        return row;
+      });
+    }
+
+    // Fallback to mock data
     const days = DATA_MODEL.days;
 
     return days.map((date, idx) => {
@@ -1177,13 +1306,19 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
 
       return row;
     });
-  }, [selectedIds, city, isBrandMode, activeMetric]);
+  }, [isCompetitionMode, brandTrends, competitionBrandList, selectedIds, city, isBrandMode, activeMetric]);
 
   const formatValue = (v) => {
-    if (metricMeta.unit) return `${v}${metricMeta.unit}`;
-    if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
-    if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
-    return v;
+    // FIXED: Handle NaN, null, undefined
+    if (v === null || v === undefined || isNaN(v)) return '-';
+
+    const numValue = Number(v);
+    if (isNaN(numValue)) return '-';
+
+    if (metricMeta.unit) return `${numValue}${metricMeta.unit}`;
+    if (metricMeta.prefix) return `${metricMeta.prefix}${numValue}`;
+    if (metricMeta.suffix) return `${numValue}${metricMeta.suffix}`;
+    return numValue.toString();
   };
 
   return (
@@ -1235,19 +1370,26 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
                 fontSize={11}
                 tickFormatter={formatValue}
               />
-              <Tooltip formatter={formatValue} />
+              <Tooltip
+                formatter={(value, name) => {
+                  if (value === null || value === undefined || isNaN(value)) return ['-', name];
+                  const numValue = Number(value);
+                  if (isNaN(numValue)) return ['-', name];
+                  return [formatValue(numValue), name];
+                }}
+              />
               <Legend />
 
-              {selectedIds.map((id) => (
+              {selectedIds.map((id, idx) => (
                 <Line
                   key={id}
                   type="monotone"
                   dataKey={id}
                   name={
-                    isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+                    isCompetitionMode ? id : (isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id])
                   }
                   dot={false}
-                  stroke={metricMeta.color}
+                  stroke={isCompetitionMode ? BRAND_COLORS[idx % BRAND_COLORS.length] : metricMeta.color}
                   strokeWidth={2}
                 />
               ))}
@@ -1360,8 +1502,50 @@ const KPI_KEYS = [
   },
 ];
 
-const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
+const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTrend }) => {
   const isBrandMode = mode === "brand";
+
+  // ADDED: Competition mode with API-driven brand trends
+  const isCompetitionMode = selectedBrands && selectedBrands !== 'All';
+  const [brandTrends, setBrandTrends] = useState({});
+  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
+
+  // Parse selected brands for Competition mode
+  const competitionBrandList = useMemo(() => {
+    if (!isCompetitionMode) return [];
+    return selectedBrands.split(',').map(b => b.trim()).slice(0, 5);
+  }, [isCompetitionMode, selectedBrands]);
+
+  // Fetch trends for Competition brands
+  useEffect(() => {
+    if (!isCompetitionMode || competitionBrandList.length === 0) return;
+
+    const fetchBrandTrends = async () => {
+      setIsLoadingTrends(true);
+
+      try {
+        const response = await axiosInstance.get('/watchtower/competition-brand-trends', {
+          params: {
+            brands: competitionBrandList.join(','),
+            location: city,
+            period: '1M'
+          }
+        });
+
+        if (response.data && response.data.brands) {
+          console.log('[TrendView] Fetched brand trends:', response.data.brands);
+          setBrandTrends(response.data.brands);
+        }
+      } catch (error) {
+        console.error('[TrendView] Error fetching brand trends:', error);
+      } finally {
+        setIsLoadingTrends(false);
+      }
+    };
+
+    fetchBrandTrends();
+  }, [isCompetitionMode, competitionBrandList, city]);
+
 
   const selectedIds = useMemo(() => {
     if (isBrandMode) {
@@ -1399,14 +1583,65 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
   }, [isBrandMode, filters, city]);
 
   const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
+    () => {
+      // FIXED: Use brand names directly for Competition mode
+      if (isCompetitionMode) return competitionBrandList;
+
+      return selectedIds.map((id) =>
         isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
+      );
+    },
+    [isCompetitionMode, competitionBrandList, selectedIds, isBrandMode]
   );
 
   const chartDataFor = (metricKey) => {
+    // FIXED: Use API data for Competition mode
+    if (isCompetitionMode && Object.keys(brandTrends).length > 0) {
+      // Parse date string "DD MMM'YY" to Date object for sorting
+      const parseDate = (dateStr) => {
+        const [day, monthYear] = dateStr.split(' ');
+        const [month, year] = monthYear.replace("'", "").split("'");
+        const monthMap = {
+          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+        };
+        const monthNum = monthMap[month.trim()];
+        const yearNum = 2000 + parseInt(year || monthYear.replace("'", ""));
+        return new Date(yearNum, monthNum, parseInt(day));
+      };
+
+      // Collect all unique dates
+      const allDates = new Set();
+      Object.values(brandTrends).forEach(series => {
+        series.forEach(point => allDates.add(point.date));
+      });
+
+      // Sort dates chronologically
+      const sortedDates = Array.from(allDates).sort((a, b) =>
+        parseDate(a) - parseDate(b)
+      );
+
+      // Capitalize metric key to match backend response
+      const metricFieldName = metricKey.charAt(0).toUpperCase() + metricKey.slice(1);
+
+      // Build chart data
+      return sortedDates.map(date => {
+        const row = { date };
+
+        competitionBrandList.forEach(brandName => {
+          const series = brandTrends[brandName];
+          if (series) {
+            const dataPoint = series.find(p => p.date === date);
+            const value = dataPoint?.[metricFieldName];
+            row[brandName] = value !== undefined && value !== null ? Number(value) : null;
+          }
+        });
+
+        return row;
+      });
+    }
+
+    // Fallback to mock data
     const days = DATA_MODEL.days;
 
     if (isBrandMode) {
@@ -1477,20 +1712,44 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} />
-                  <Tooltip />
-                  {selectedIds.map((id) => (
-                    <Line
-                      key={id}
-                      type="monotone"
-                      dataKey={id}
-                      name={
-                        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-                      }
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  ))}
+                  <YAxis
+                    tickLine={false}
+                    fontSize={10}
+                    width={48}
+                    tickFormatter={(value) => formatYAxisTick(value, kpi.key)}
+                  />
+                  <Tooltip
+                    formatter={(value) => {
+                      if (value === null || value === undefined || isNaN(value)) return '-';
+                      return formatKpiValue(Number(value), kpi.key, 2);
+                    }}
+                  />
+                  {isCompetitionMode ? (
+                    competitionBrandList.map((brandName, idx) => (
+                      <Line
+                        key={brandName}
+                        type="monotone"
+                        dataKey={brandName}
+                        name={brandName}
+                        dot={false}
+                        stroke={BRAND_COLORS[idx % BRAND_COLORS.length]}
+                        strokeWidth={2}
+                      />
+                    ))
+                  ) : (
+                    selectedIds.map((id) => (
+                      <Line
+                        key={id}
+                        type="monotone"
+                        dataKey={id}
+                        name={
+                          isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+                        }
+                        dot={false}
+                        strokeWidth={2}
+                      />
+                    ))
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -1529,7 +1788,7 @@ const BrandTable = ({ rows }) => (
           <tbody className="divide-y divide-slate-100 bg-white">
             {rows.map((row, idx) => (
               <tr
-                key={row.id}
+                key={row.name || `brand-${idx}`}
                 className={cn(
                   "hover:bg-slate-50",
                   idx % 2 === 1 && "bg-slate-50/60"
@@ -1539,10 +1798,22 @@ const BrandTable = ({ rows }) => (
                   {row.name}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  {row.offtakes.toFixed(0)}
+                  {(() => {
+                    const val = row.offtakes;
+                    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
+                    if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                    return `₹${val.toFixed(0)}`;
+                  })()}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  ₹{row.spend.toFixed(1)}
+                  {(() => {
+                    const val = row.spend;
+                    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
+                    if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                    return `₹${val.toFixed(0)}`;
+                  })()}
                 </td>
                 <td className="px-3 py-2 text-right">{row.roas.toFixed(2)}x</td>
                 <td className="px-3 py-2 text-right">
@@ -1601,7 +1872,7 @@ const SkuTable = ({ rows }) => (
                 <td className="px-3 py-2 font-medium">{row.name}</td>
                 <td className="px-3 py-2">{row.brandName}</td>
                 <td className="px-3 py-2 text-right">
-                  {row.offtakes.toFixed(0)}
+                  ₹{row.offtakes >= 10000000 ? `${(row.offtakes / 10000000).toFixed(2)} Cr` : row.offtakes >= 100000 ? `${(row.offtakes / 100000).toFixed(2)} L` : row.offtakes >= 1000 ? `${(row.offtakes / 1000).toFixed(2)} K` : row.offtakes.toFixed(0)}
                 </td>
                 <td className="px-3 py-2 text-right">{row.roas.toFixed(2)}x</td>
                 <td className="px-3 py-2 text-right">
@@ -1631,22 +1902,99 @@ const SkuTable = ({ rows }) => (
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = () => {
+const PlatformOverviewKpiShowcase = ({
+  filterOptions,
+  brandOptions: propBrandOptions = [],
+  skuOptions: propSkuOptions = [],
+  competitionData = null,
+  isLoading = false,
+  selectedCity: parentCity,
+  selectedCategory: parentCategory,
+  selectedBrand: parentBrand,
+  selectedSku: parentSku,
+  onFilterChange
+}) => {
+  // Create RAW_DATA with props
+  const RAW_DATA = useMemo(() => createRawData(filterOptions, propBrandOptions), [filterOptions, propBrandOptions]);
+  const derived = useMemo(() => getDerivedOptions(RAW_DATA), [RAW_DATA]);
+  const { CITIES, BRAND_ID_TO_NAME, BRAND_NAME_TO_ID, SKU_ID_TO_NAME, SKU_NAME_TO_ID, SKUS_BY_BRAND_ID } = derived;
+
+  // Use prop SKU options if available, otherwise use derived
+  const CATEGORY_OPTIONS = derived.CATEGORY_OPTIONS;
+  const BRAND_OPTIONS = propBrandOptions.length > 0 ? propBrandOptions : derived.BRAND_OPTIONS;
+  const SKU_OPTIONS = propSkuOptions.length > 0 ? propSkuOptions : derived.SKU_OPTIONS;
+
+  // Rebuild DATA_MODEL when RAW_DATA changes (fall back/mock data)
+  const DATA_MODEL = useMemo(() => buildDataModel(), [RAW_DATA]);
+
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
-  const [city, setCity] = useState(CITIES[0]);
+
+  // Use parent's selected city if provided, otherwise use first city
+  const [city, setCity] = useState(parentCity || CITIES[0]);
+
+  // Sync internal city state with parent's selectedCity
+  useEffect(() => {
+    if (parentCity && parentCity !== city) {
+      setCity(parentCity);
+    }
+  }, [parentCity]);
+
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
-    categories: [],
-    brands: [],
-    skus: [],
+    categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
+    // FIXED: Parse comma-separated brands back into array
+    brands: parentBrand && parentBrand !== 'All' ? parentBrand.split(',').map(b => b.trim()) : [],
+    skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
   });
+
+  // Sync filters with parent selections
+  useEffect(() => {
+    setFilters({
+      categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
+      // FIXED: Parse comma-separated brands back into array
+      brands: parentBrand && parentBrand !== 'All' ? parentBrand.split(',').map(b => b.trim()) : [],
+      skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
+    });
+  }, [parentCategory, parentBrand, parentSku]);
+
+  //Notify parent when user changes filters (via Filter Dialog)
+  // FIXED: Only notify when dialog closes to avoid multiple calls while selecting
+  useEffect(() => {
+    // Skip if dialog is still open (user is still selecting)
+    if (filterDialogOpen) return;
+
+    if (!onFilterChange) return;
+    const categoryValue = filters.categories.length > 0 ? filters.categories[0] : 'All';
+    // FIXED: Send ALL selected brands as comma-separated string
+    const brandValue = filters.brands.length > 0 ? filters.brands.join(',') : 'All';
+    const skuValue = filters.skus.length > 0 ? filters.skus[0] : 'All';
+    // FIXED: Always notify when dialog closes (removed blocking comparison)
+    console.log('[PlatformOverviewKpiShowcase] Dialog closed, notifying parent:', { category: categoryValue, brand: brandValue, sku: skuValue });
+    onFilterChange({ category: categoryValue, brand: brandValue, sku: skuValue });
+  }, [filterDialogOpen, filters, onFilterChange]);
+
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
-  // Dynamic filtered rows for table for the active tab + city
+  // Use real competition data if available, otherwise fall back to mock data
   const brandRows = useMemo(() => {
+    // FIXED: Access brands array from response object
+    if (competitionData && competitionData.brands && Array.isArray(competitionData.brands)) {
+      console.log('[PlatformOverviewKpiShowcase] Using competition data:', competitionData.brands);
+      // Transform backend data to match expected format
+      // Backend returns: { brand, Offtakes: {value, delta}, Spend: {value, delta}, Roas: {value, delta}, Availability: {value, delta} }
+      return competitionData.brands.map(brand => ({
+        name: brand.brand || brand.brand_name || brand.name,
+        offtakes: brand.Offtakes?.value || brand.offtakes || 0,
+        spend: brand.Spend?.value || brand.spend || 0,
+        roas: brand.Roas?.value || brand.roas || 0,
+        availability: brand.Availability?.value || brand.availability || 0
+      }));
+    }
+
+    // Fallback to mock data
     const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
     let rows = allRows;
 
@@ -1667,9 +2015,22 @@ const PlatformOverviewKpiShowcase = () => {
     }
 
     return rows;
-  }, [city, filters]);
+  }, [city, filters, competitionData]); // FIXED: Added competitionData to dependency array
 
   const skuRows = useMemo(() => {
+    // FIXED: Use competition SKU data if available
+    if (competitionData && competitionData.skus && Array.isArray(competitionData.skus)) {
+      console.log('[PlatformOverviewKpiShowcase] Using competition SKU data:', competitionData.skus);
+      return competitionData.skus.map(sku => ({
+        name: sku.sku_name || sku.name,
+        brandName: sku.brand_name || sku.brandName,
+        offtakes: sku.offtakes || 0,
+        roas: sku.roas || 0,
+        availability: sku.availability || 0
+      }));
+    }
+
+    // Fallback to mock data
     const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
     let rows = allRows;
 
@@ -1684,7 +2045,7 @@ const PlatformOverviewKpiShowcase = () => {
     }
 
     return rows;
-  }, [city, filters]);
+  }, [city, filters, competitionData]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -1706,7 +2067,18 @@ const PlatformOverviewKpiShowcase = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={city} onValueChange={setCity}>
+          <Select value={city} onValueChange={(newCity) => {
+            setCity(newCity);
+            // FIXED: Notify parent when city changes
+            if (onFilterChange) {
+              onFilterChange({
+                city: newCity,
+                category: filters.categories.length > 0 ? filters.categories[0] : parentCategory,
+                brand: filters.brands.length > 0 ? filters.brands.join(',') : parentBrand,
+                sku: filters.skus.length > 0 ? filters.skus[0] : parentSku
+              });
+            }
+          }}>
             <SelectTrigger className="h-9 w-40 bg-white">
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
@@ -1782,6 +2154,8 @@ const PlatformOverviewKpiShowcase = () => {
               mode="brand"
               filters={filters}
               city={city}
+              competitionData={competitionData}
+              selectedBrands={parentBrand}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
             />
@@ -1791,6 +2165,7 @@ const PlatformOverviewKpiShowcase = () => {
               mode="brand"
               filters={filters}
               city={city}
+              selectedBrands={parentBrand}
               onBackToTrend={() => setViewMode("trend")}
             />
           )}
@@ -1813,6 +2188,7 @@ const PlatformOverviewKpiShowcase = () => {
               mode="sku"
               filters={filters}
               city={city}
+              selectedBrands={parentBrand}
               onBackToTrend={() => setViewMode("trend")}
             />
           )}
@@ -1825,6 +2201,11 @@ const PlatformOverviewKpiShowcase = () => {
         mode={tab}
         value={filters}
         onChange={setFilters}
+        categoryOptions={CATEGORY_OPTIONS}
+        brandOptions={BRAND_OPTIONS}
+        skuOptions={SKU_OPTIONS}
+        brandNameToId={BRAND_NAME_TO_ID}
+        skuNameToId={SKU_NAME_TO_ID}
       />
     </div>
   );

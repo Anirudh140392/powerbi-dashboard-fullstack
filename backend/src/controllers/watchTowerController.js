@@ -20,7 +20,17 @@ export const watchTowerOverview = async (req, res) => {
 
 export const getTrendData = async (req, res) => {
     try {
-        const filters = req.query;
+        // UPDATED: Extract all 4 filter keys with default values
+        const filters = {
+            platform: req.query.platform || "All",
+            location: req.query.location || "All",
+            brand: req.query.brand || "All",
+            category: req.query.category || "All",
+            period: req.query.period,
+            timeStep: req.query.timeStep,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
         console.log("trend data api call received", filters);
         const data = await watchTowerService.getTrendData(filters);
         res.json(data);
@@ -296,6 +306,117 @@ export const getBrandsOverview = async (req, res) => {
     } catch (error) {
         console.error('Error fetching brands overview:', error);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get KPI Trends Data for Performance Metrics
+ */
+export const getKpiTrends = async (req, res) => {
+    try {
+        // UPDATED: Extract all 4 filter keys with default values
+        const filters = {
+            platform: req.query.platform || "All",
+            location: req.query.location || "All",
+            brand: req.query.brand || "All",
+            category: req.query.category || "All",
+            period: req.query.period,
+            timeStep: req.query.timeStep,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('[getKpiTrends] API call received with filters:', filters);
+        const data = await watchTowerService.getKpiTrends(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching KPI trends:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get dynamic filter options for trends drawer
+ */
+export const getTrendsFilterOptions = async (req, res) => {
+    try {
+        const { filterType, platform, brand } = req.query;
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand });
+        res.json(data);
+    } catch (error) {
+        console.error('[getTrendsFilterOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get competition brand data
+ * GET /api/watchtower/competition
+ * Query params: platform, location, category, period
+ */
+export const getCompetition = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            category: req.query.category || 'All',
+            brand: req.query.brand || 'All',  // FIXED: Added missing brand parameter
+            sku: req.query.sku || 'All',      // FIXED: Added missing sku parameter
+            period: req.query.period || '1M'
+        };
+
+        console.log('[getCompetition] Request:', filters);
+
+        const data = await watchTowerService.getCompetitionData(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('[getCompetition] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get competition filter options (locations and categories)
+ * GET /api/watchtower/competition-filter-options
+ */
+export const getCompetitionFilterOptions = async (req, res) => {
+    try {
+        const { location, category, brand } = req.query;
+        console.log('[getCompetitionFilterOptions] API call with:', { location, category, brand });
+
+        const data = await watchTowerService.getCompetitionFilterOptions({
+            location,
+            category,
+            brand
+        });
+
+        res.json(data);
+    } catch (error) {
+        console.error('[getCompetitionFilterOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get multi-brand KPI trends for Competition page
+ * GET /api/watchtower/competition-brand-trends
+ */
+export const getCompetitionBrandTrends = async (req, res) => {
+    try {
+        const { brands, location, category, period } = req.query;
+        console.log('[getCompetitionBrandTrends] Request:', { brands, location, category, period });
+
+        const data = await watchTowerService.getCompetitionBrandTrends({
+            brands,
+            location,
+            category,
+            period
+        });
+
+        res.json(data);
+    } catch (error) {
+        console.error('[getCompetitionBrandTrends] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
 
