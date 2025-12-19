@@ -859,7 +859,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                     <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
                                      text-xs font-bold text-slate-900 border-b border-slate-100 
                                      shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                      {row.kpi}
+                      {row.kpi.toUpperCase()}
                     </td>
 
                     {columns.slice(1).map((col) => {
@@ -885,7 +885,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                            ${cellClasses}`}
                               >
                                 <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}%` : "–"}
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (row.kpi === "Doi" || row.kpi === "Assortment" ? `${value}` : `${value}%`) : "–"}
                                 </span>
 
                                 <span
@@ -893,7 +893,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                                 px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
                                   {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : trend}</span>
+                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}%` : `${trend}%`}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
@@ -909,7 +909,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{value}%</span>
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{row.kpi === "Doi" || row.kpi === "Assortment" ? value : `${value}%`}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
                                     {trend > 0 ? `+${trend}%` : `${trend}%`}
                                   </span>

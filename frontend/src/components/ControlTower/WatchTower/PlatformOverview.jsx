@@ -22,6 +22,26 @@ const SmallCard = ({ item }) => {
   const { title, value, meta } = item || {};
   const isPositive = meta?.change?.includes("▲");
 
+  // Format value based on title
+  const formatValue = (val, colTitle) => {
+    if (colTitle === "Doi" || colTitle === "DOI") {
+      // Remove % symbol if present
+      return val?.toString().replace("%", "") || "—";
+    }
+    return val ?? "—";
+  };
+
+  // Format change to add % symbol if not already present
+  const formatChange = (changeVal) => {
+    if (!changeVal) return changeVal;
+    const changeStr = changeVal.toString();
+    // If it doesn't already have %, add it
+    if (!changeStr.includes("%")) {
+      return changeStr + "%";
+    }
+    return changeStr;
+  };
+
   return (
     <Card
       sx={{
@@ -37,7 +57,7 @@ const SmallCard = ({ item }) => {
         </Typography>
 
         <Typography fontWeight={700} fontSize="0.95rem" mt={0.3} fontFamily="Roboto, sans-serif">
-          {value ?? "—"}
+          {formatValue(value, title)}
         </Typography>
 
         {meta && (
@@ -55,7 +75,7 @@ const SmallCard = ({ item }) => {
                   : theme.palette.error.main,
               }}
             >
-              {meta.change}
+              {formatChange(meta.change)}
             </Typography>
           </Box>
         )}
