@@ -238,16 +238,33 @@ const aggLabel = {
   avg: "Avg",
   count: "Count",
   min: "Min",
+  sum: "Sum",
+  avg: "Avg",
+  count: "Count",
+  distinctCount: "Dst Count",
+  min: "Min",
   max: "Max",
 };
 
-const initState = () => ({ sum: 0, count: 0, min: Infinity, max: -Infinity });
+const initState = () => ({
+  sum: 0,
+  count: 0,
+  min: Infinity,
+  max: -Infinity,
+  uniqueVals: new Set(),
+});
 
 const pushAgg = (state, value) => {
-  state.sum += value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    state.sum += value;
+    state.min = Math.min(state.min, value);
+    state.max = Math.max(state.max, value);
+  } else {
+    // For non-numeric, we can't sum/min/max in a standard way,
+    // but we still count and track unique vals.
+  }
   state.count += 1;
-  state.min = Math.min(state.min, value);
-  state.max = Math.max(state.max, value);
+  state.uniqueVals.add(value);
 };
 
 const finalizeAgg = (state, agg) => {
@@ -255,6 +272,7 @@ const finalizeAgg = (state, agg) => {
   if (agg === "sum") return state.sum;
   if (agg === "avg") return state.count ? state.sum / state.count : 0;
   if (agg === "count") return state.count;
+  if (agg === "distinctCount") return state.uniqueVals.size;
   if (agg === "min") return state.count ? state.min : 0;
   return state.count ? state.max : 0;
 };
@@ -278,10 +296,32 @@ const evaluateValue = (map, value) => {
 
 const formatCell = (val, value) => {
   if (!Number.isFinite(val)) return "-";
+  if (value.format === "percent")
+    return val.toLocaleString("en-IN", {
+      style: "percent",
+      minimumFractionDigits: 1,
+    });
+  if (value.format === "currency")
+    return val.toLocaleString("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    });
+  if (value.format === "decimal")
+    return val.toLocaleString("en-IN", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    });
+  if (value.format === "compact")
+    return Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(val);
   if (value.calc === "ratio" && value.denominatorKey)
     return `${(val * 100).toFixed(1)}%`;
+
   const digits = value.agg === "avg" ? 1 : 0;
-  return val.toLocaleString("en-US", {
+  return val.toLocaleString("en-IN", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });
@@ -316,20 +356,27 @@ const buildPivot = (data, config, measureKeys) => {
     const cellStates = cellMap.get(cellId) || {};
 
     measureKeys.forEach((mKey) => {
-      const raw = Number(row[mKey]);
-      if (!Number.isFinite(raw)) return;
+      const raw = row[mKey];
+      // We pass everything to pushAgg; it handles type checks
+      // if (raw === undefined || raw === null) return; // Optional: skip nulls?
+      // actually let's treat null as a value or skip. Let's skip undefined.
+      if (raw === undefined) return;
 
-      cloneAndPush(cellStates, mKey, raw);
+      const valToPush = (typeof raw === 'string' && !isNaN(Number(raw)) && raw.trim() !== '')
+        ? Number(raw)
+        : raw;
+
+      cloneAndPush(cellStates, mKey, valToPush);
 
       const rowState = rowTotals.get(rowKey) || {};
-      cloneAndPush(rowState, mKey, raw);
+      cloneAndPush(rowState, mKey, valToPush);
       rowTotals.set(rowKey, rowState);
 
       const colState = colTotals.get(colKey) || {};
-      cloneAndPush(colState, mKey, raw);
+      cloneAndPush(colState, mKey, valToPush);
       colTotals.set(colKey, colState);
 
-      cloneAndPush(grandTotals, mKey, raw);
+      cloneAndPush(grandTotals, mKey, valToPush);
     });
 
     cellMap.set(cellId, cellStates);
@@ -355,6 +402,7 @@ const valueLabel = (v) =>
 export const CustomPivotWorkbench = ({
   data = pivotSample,
   fields = defaultFields,
+  initialConfig = null,
 }) => {
   const dimensionFields = fields.filter((f) => f.type === "dimension");
   const measureFields = fields.filter((f) => f.type === "measure");
@@ -364,7 +412,7 @@ export const CustomPivotWorkbench = ({
     [fields]
   );
 
-  const [config, setConfig] = useState({
+  const defaultConfig = {
     rows: ["country"],
     columns: ["orderSource"],
     filters: {},
@@ -382,7 +430,16 @@ export const CustomPivotWorkbench = ({
         agg: "sum",
       },
     ],
-  });
+  };
+
+  const [config, setConfig] = useState(initialConfig || defaultConfig);
+
+  // Effect to update config when initialConfig prop changes (e.g. switching datasets)
+  useEffect(() => {
+    if (initialConfig) {
+      setConfig(initialConfig);
+    }
+  }, [initialConfig]);
 
   const [chartMode, setChartMode] = useState("both");
   const [chartValueId, setChartValueId] = useState("unitsSold-sum");
@@ -398,8 +455,13 @@ export const CustomPivotWorkbench = ({
   });
 
   const measureKeys = useMemo(
-    () => measureFields.map((m) => m.key),
-    [measureFields]
+    () => {
+      const keys = new Set(config.values.map(v => v.key));
+      // Ensure any keys needed for ratios (denominator) are also included if they aren't explicit?
+      // For now, simpler: we blindly aggregate any key present in `values`.
+      return Array.from(keys);
+    },
+    [config.values]
   );
 
   const filterOptions = useMemo(() => {
@@ -428,7 +490,7 @@ export const CustomPivotWorkbench = ({
   const assignField = (fieldKey, axis) => {
     const field = fieldLookup[fieldKey];
     if (!field) return;
-    if (axis === "values" && field.type !== "measure") return;
+    // Removed restriction: if (axis === "values" && field.type !== "measure") return;
 
     setConfig((prev) => {
       const rows = prev.rows.filter((r) => r !== fieldKey);
@@ -443,11 +505,14 @@ export const CustomPivotWorkbench = ({
       if (axis === "filters") filters[fieldKey] = filters[fieldKey] || [];
       if (axis === "values") {
         const id = `${fieldKey}-${Date.now()}`;
+        // Default to 'count' or 'distinctCount' for dimensions, 'sum' for measures
+        const defaultAgg = field.type === "dimension" ? "distinctCount" : "sum";
+
         values.push({
           id,
           key: fieldKey,
           label: field.label,
-          agg: "sum",
+          agg: defaultAgg,
         });
         if (!chartValueId) setChartValueId(id);
       }
@@ -461,7 +526,7 @@ export const CustomPivotWorkbench = ({
     const key = e.dataTransfer.getData("fieldKey");
     const type = e.dataTransfer.getData("fieldType");
     if (!key) return;
-    if (axis === "values" && type !== "measure") return;
+    // Removed restriction: if (axis === "values" && type !== "measure") return;
 
     assignField(key, axis);
   };
@@ -492,6 +557,13 @@ export const CustomPivotWorkbench = ({
     }));
   };
 
+  const updateFormat = (id, format) => {
+    setConfig((prev) => ({
+      ...prev,
+      values: prev.values.map((v) => (v.id === id ? { ...v, format } : v)),
+    }));
+  };
+
   const chartValue =
     config.values.find((v) => v.id === chartValueId) || config.values[0];
 
@@ -505,8 +577,8 @@ export const CustomPivotWorkbench = ({
       label: hasColumns
         ? sanitizeKey(tuple)
         : chartValue
-        ? valueLabel(chartValue)
-        : "Total",
+          ? valueLabel(chartValue)
+          : "Total",
     })
   );
 
@@ -532,9 +604,8 @@ export const CustomPivotWorkbench = ({
   const addCalculatedRatio = () => {
     if (!calcForm.numerator || !calcForm.denominator) return;
 
-    const id = `calc-${calcForm.numerator}-${
-      calcForm.denominator
-    }-${Date.now()}`;
+    const id = `calc-${calcForm.numerator}-${calcForm.denominator
+      }-${Date.now()}`;
 
     setConfig((prev) => ({
       ...prev,
@@ -578,17 +649,16 @@ export const CustomPivotWorkbench = ({
                 key={mode}
                 type="button"
                 onClick={() => setChartMode(mode)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  chartMode === mode
-                    ? "bg-white shadow-sm text-slate-900"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${chartMode === mode
+                  ? "bg-white shadow-sm text-slate-900"
+                  : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
                 {mode === "both"
                   ? "Both"
                   : mode === "chart"
-                  ? "Chart"
-                  : "Table"}
+                    ? "Chart"
+                    : "Table"}
               </button>
             ))}
           </div>
@@ -679,11 +749,10 @@ export const CustomPivotWorkbench = ({
                             )
                           }
                           whileHover={{ y: -1 }}
-                          className={`group flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium shadow-sm ${
-                            f.type === "measure"
-                              ? "border-amber-200 bg-amber-50 text-amber-800"
-                              : "border-sky-200 bg-sky-50 text-sky-800"
-                          } ${draggingKey === f.key ? "opacity-70" : ""}`}
+                          className={`group flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium shadow-sm ${f.type === "measure"
+                            ? "border-amber-200 bg-amber-50 text-amber-800"
+                            : "border-sky-200 bg-sky-50 text-sky-800"
+                            } ${draggingKey === f.key ? "opacity-70" : ""}`}
                         >
                           <span className="h-2 w-2 rounded-full bg-current opacity-60" />
                           {f.label}
@@ -886,11 +955,30 @@ export const CustomPivotWorkbench = ({
                       onChange={(e) => updateAgg(v.id, e.target.value)}
                       className="rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
                     >
-                      {["sum", "avg", "count", "min", "max"].map((agg) => (
+                      {[
+                        "sum",
+                        "avg",
+                        "count",
+                        "distinctCount",
+                        "min",
+                        "max",
+                      ].map((agg) => (
                         <option key={agg} value={agg}>
                           {aggLabel[agg]}
                         </option>
                       ))}
+                    </select>
+
+                    <select
+                      value={v.format || "number"}
+                      onChange={(e) => updateFormat(v.id, e.target.value)}
+                      className="rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                    >
+                      <option value="number">1,234</option>
+                      <option value="currency">₹</option>
+                      <option value="percent">%</option>
+                      <option value="decimal">1.00</option>
+                      <option value="compact">1K</option>
                     </select>
 
                     <button
@@ -993,8 +1081,8 @@ export const CustomPivotWorkbench = ({
                     {valueLabel(chartValue)} by{" "}
                     {config.rows.length
                       ? config.rows
-                          .map((r) => fieldLookup[r]?.label || r)
-                          .join(" / ")
+                        .map((r) => fieldLookup[r]?.label || r)
+                        .join(" / ")
                       : "All rows"}
                   </p>
                 </div>
@@ -1153,33 +1241,33 @@ export const CustomPivotWorkbench = ({
 
                         {hasColumns
                           ? colEntries.flatMap(([colKey]) =>
-                              config.values.map((v) => {
-                                const cell = pivot.cellMap.get(
-                                  `${rowKey}__${colKey}`
-                                );
-                                const val = evaluateValue(cell, v);
-                                return (
-                                  <td
-                                    key={`${rowKey}-${colKey}-${v.id}`}
-                                    className="px-2 py-1 text-right text-slate-800 border border-slate-200"
-                                  >
-                                    {formatCell(val, v)}
-                                  </td>
-                                );
-                              })
-                            )
-                          : config.values.map((v) => {
-                              const state = pivot.rowTotals.get(rowKey);
-                              const val = evaluateValue(state, v);
+                            config.values.map((v) => {
+                              const cell = pivot.cellMap.get(
+                                `${rowKey}__${colKey}`
+                              );
+                              const val = evaluateValue(cell, v);
                               return (
                                 <td
-                                  key={`${rowKey}-value-${v.id}`}
+                                  key={`${rowKey}-${colKey}-${v.id}`}
                                   className="px-2 py-1 text-right text-slate-800 border border-slate-200"
                                 >
                                   {formatCell(val, v)}
                                 </td>
                               );
-                            })}
+                            })
+                          )
+                          : config.values.map((v) => {
+                            const state = pivot.rowTotals.get(rowKey);
+                            const val = evaluateValue(state, v);
+                            return (
+                              <td
+                                key={`${rowKey}-value-${v.id}`}
+                                className="px-2 py-1 text-right text-slate-800 border border-slate-200"
+                              >
+                                {formatCell(val, v)}
+                              </td>
+                            );
+                          })}
 
                         {hasColumns &&
                           config.values.map((v) => {
