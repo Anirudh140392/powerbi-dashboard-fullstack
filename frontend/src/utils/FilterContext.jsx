@@ -2,33 +2,68 @@ import React, { createContext, useState, useEffect } from "react";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 
-
 export const FilterContext = createContext();
 
+// Static platform-brand-location mapping
+const platformData = {
+    "Blinkit": {
+        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        locations: {
+            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
+            "Amul": ["Delhi", "Pune", "Hyderabad"],
+            "Mother Dairy": ["Delhi", "Noida", "Gurgaon"]
+        }
+    },
+    "Zepto": {
+        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        locations: {
+            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
+            "Amul": ["Mumbai", "Delhi"],
+            "Mother Dairy": ["Delhi", "Bangalore", "Chennai"]
+        }
+    },
+    "Instamart": {
+        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        locations: {
+            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
+            "Amul": ["Hyderabad", "Pune"],
+            "Mother Dairy": ["Delhi", "Noida", "Gurgaon"]
+        }
+    },
+    "Flipkart": {
+        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        locations: {
+            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
+            "Amul": ["Delhi", "Bangalore"],
+            "Mother Dairy": ["Mumbai", "Delhi", "Chennai"]
+        }
+    },
+    "Amazon": {
+        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        locations: {
+            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
+            "Amul": ["Mumbai", "Delhi", "Bangalore"],
+            "Mother Dairy": ["Delhi", "Pune"]
+        }
+    }
+};
+
 export const FilterProvider = ({ children }) => {
+    // Platform state
+    const [platforms] = useState(["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"]);
+    const [platform, setPlatform] = useState("Blinkit");
+
+    // Brand state
     const [brands, setBrands] = useState([]);
     const [selectedBrand, setSelectedBrand] = useState(null);
-    const [keywords, setKeywords] = useState([]);
-    const [selectedKeyword, setSelectedKeyword] = useState(null);
+
+    // Location state
     const [locations, setLocations] = useState([]);
     const [selectedLocation, setSelectedLocation] = useState(null);
-    const [platforms, setPlatforms] = useState([]);
-    const [platform, setPlatform] = useState("Zepto");
 
-    useEffect(() => {
-        const fetchPlatforms = async () => {
-            try {
-                const response = await axiosInstance.get("/watchtower/platforms");
-                const fetchedPlatforms = response.data;
-                setPlatforms(fetchedPlatforms);
-
-                // Optional: Set default platform if needed, but keeping "Zepto" as default for now
-            } catch (error) {
-                console.error("Error fetching platforms:", error);
-            }
-        };
-        fetchPlatforms();
-    }, []);
+    // Keyword state (for visibility analysis)
+    const [keywords, setKeywords] = useState(["vanilla", "chocolate", "strawberry", "butterscotch", "mango"]);
+    const [selectedKeyword, setSelectedKeyword] = useState("vanilla");
 
     // Date Ranges
     const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
@@ -36,94 +71,36 @@ export const FilterProvider = ({ children }) => {
     const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
 
+    // Update brands when platform changes
     useEffect(() => {
-        const fetchPlatforms = async () => {
-            try {
-                const response = await axiosInstance.get("/watchtower/platforms");
-                const fetchedPlatforms = response.data;
-                // setPlatforms(fetchedPlatforms); // Assuming you want to store this, but for now we just need to know it's dynamic. 
-                // Actually, we need to expose platforms to the UI.
-                // Let's add a state for it.
-            } catch (error) {
-                console.error("Error fetching platforms:", error);
-            }
-        };
-        fetchPlatforms();
-    }, []);
+        if (platform && platformData[platform]) {
+            const platformBrands = platformData[platform].brands;
+            setBrands(platformBrands);
 
+            // Auto-select first brand
+            if (platformBrands.length > 0) {
+                setSelectedBrand(platformBrands[0]);
+            }
+        }
+    }, [platform]);
+
+    // Update locations when brand or platform changes
     useEffect(() => {
-        const fetchBrands = async () => {
-            if (!platform) return;
-            try {
-                const response = await axiosInstance.get("/watchtower/brands", {
-                    params: { platform: platform }
-                });
-                const fetchedBrands = response.data;
-                setBrands(fetchedBrands);
+        if (platform && selectedBrand && platformData[platform]) {
+            const brandLocations = platformData[platform].locations[selectedBrand];
+            if (brandLocations) {
+                setLocations(brandLocations);
 
-                // Set default brand if not already selected or if current selection is not in new list
-                // For simplicity, always default to first brand when platform changes to ensure validity
-                if (fetchedBrands.length > 0) {
-                    setSelectedBrand(fetchedBrands[0]);
-                } else {
-                    setSelectedBrand(null);
+                // Auto-select first location
+                if (brandLocations.length > 0) {
+                    setSelectedLocation(brandLocations[0]);
                 }
-            } catch (error) {
-                console.error("Error fetching brands:", error);
+            } else {
+                setLocations([]);
+                setSelectedLocation(null);
             }
-        };
-
-        fetchBrands();
-    }, [platform]); // Run when platform changes
-
-    // Fetch keywords when brand changes
-    useEffect(() => {
-        const fetchKeywords = async () => {
-            if (!selectedBrand) return;
-            try {
-                const response = await axiosInstance.get("/watchtower/keywords", {
-                    params: { brand: selectedBrand }
-                });
-                const fetchedKeywords = response.data;
-                setKeywords(fetchedKeywords);
-
-                // Set default keyword if available
-                if (fetchedKeywords.length > 0) {
-                    setSelectedKeyword(fetchedKeywords[0]);
-                } else {
-                    setSelectedKeyword(null);
-                }
-            } catch (error) {
-                console.error("Error fetching keywords:", error);
-            }
-        };
-
-        const fetchLocations = async () => {
-            if (!selectedBrand || !platform) return;
-            try {
-                const response = await axiosInstance.get("/watchtower/locations", {
-                    params: {
-                        platform: platform,
-                        brand: selectedBrand
-                    }
-                });
-                const fetchedLocations = response.data;
-                setLocations(fetchedLocations);
-
-                // Set default location if available
-                if (fetchedLocations.length > 0) {
-                    setSelectedLocation(fetchedLocations[0]);
-                } else {
-                    setSelectedLocation(null);
-                }
-            } catch (error) {
-                console.error("Error fetching locations:", error);
-            }
-        };
-
-        fetchKeywords();
-        fetchLocations();
-    }, [selectedBrand, platform]);
+        }
+    }, [platform, selectedBrand]);
 
     return (
         <FilterContext.Provider value={{
@@ -137,11 +114,16 @@ export const FilterProvider = ({ children }) => {
             selectedLocation,
             setSelectedLocation,
             platforms,
-            platform, setPlatform,
-            timeStart, setTimeStart,
-            timeEnd, setTimeEnd,
-            compareStart, setCompareStart,
-            compareEnd, setCompareEnd
+            platform,
+            setPlatform,
+            timeStart,
+            setTimeStart,
+            timeEnd,
+            setTimeEnd,
+            compareStart,
+            setCompareStart,
+            compareEnd,
+            setCompareEnd
         }}>
             {children}
         </FilterContext.Provider>

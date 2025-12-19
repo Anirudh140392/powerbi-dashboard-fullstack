@@ -198,6 +198,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 KEYWORD
               </Typography>
               <Autocomplete
+                disableClearable
                 options={keywords}
                 value={selectedKeyword}
                 onChange={(event, newValue) => setSelectedKeyword(newValue)}
