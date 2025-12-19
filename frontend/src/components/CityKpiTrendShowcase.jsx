@@ -30,6 +30,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
 import { Visibility } from "@mui/icons-material";
 import VisibilityTrendsCompetitionDrawer from "./AllVisiblityAnalysis/VisibilityTrendsCompetitionDrawer";
+import SalesTrendsDrawer from "./Sales/SalesTrendsDrawer";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -621,6 +622,7 @@ function TrendIcon({ trend }) {
 //   );
 // }
 function MatrixVariant({ dynamicKey, data, title }) {
+  console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
 
   const [openTrend, setOpenTrend] = useState(false);
@@ -808,34 +810,40 @@ function MatrixVariant({ dynamicKey, data, title }) {
       )}
 
       {/* ------------------ BODY ------------------ */}
-      < CardContent className="pt-0" >
-        <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60">
-          <div className="min-w-[1000px]">
+      <CardContent className="pt-0">
+        <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60 transition-all hover:bg-slate-50/80">
+          <div className="w-max min-w-full">
 
-            <table className="w-full border-separate border-spacing-0 text-xs">
+            <table className="w-full border-separate border-spacing-0 text-xs text-slate-600">
 
               {/* ---------------- HEADER ROW ---------------- */}
               <thead>
-                <tr>
+                <tr className="bg-slate-50/50">
                   <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 
-                                 text-left text-[11px] font-semibold uppercase 
-                                 tracking-[0.12em] text-slate-500">
+                                   text-left text-[11px] font-bold uppercase 
+                                   tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] min-w-[140px]">
                     KPI
                   </th>
 
                   {columns.slice(1).map((col) => (
                     <th
                       key={col}
-                      className="border-b border-slate-100 bg-slate-50 py-3 px-3 
-                                 text-left text-[11px] font-semibold uppercase 
-                                 tracking-[0.12em] text-slate-500"
+                      className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 
+                                   text-center text-[11px] font-bold uppercase 
+                                   tracking-widest text-slate-900 min-w-[110px]"
                     >
-                      <div className="flex flex-col gap-1">
-                        <div className="flex text-xs font-semibold text-slate-900">{col} <span onClick={() => {
-                          setSelectedColumn(col);
-                          setCompMetaForDrawer(buildCompMeta(col));
-                          setOpenTrend(true);
-                        }}><LineChartIcon className="h-4 w-10" /></span></div>
+                      <div className="flex items-center justify-center gap-2">
+                        <span>{col}</span>
+                        <span
+                          className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
+                          onClick={() => {
+                            setSelectedColumn(col);
+                            setCompMetaForDrawer(buildCompMeta(col));
+                            setOpenTrend(true);
+                          }}
+                        >
+                          <LineChartIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        </span>
                       </div>
                     </th>
                   ))}
@@ -843,14 +851,15 @@ function MatrixVariant({ dynamicKey, data, title }) {
               </thead>
 
               {/* ---------------- TABLE BODY ---------------- */}
-              <tbody>
+              <tbody className="bg-white">
                 {rows.filter(row => selectedKPIs.includes(row.kpi)).map((row) => (
-                  <tr key={row.kpi} className="group">
+                  <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
                     {/* Sticky KPI Column */}
-                    <td className="sticky left-0 z-10 bg-slate-50 py-2 pl-4 pr-4 
-                                   text-xs font-medium text-slate-700">
-                      {row.kpi}
+                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
+                                     text-xs font-bold text-slate-900 border-b border-slate-100 
+                                     shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
+                      {row.kpi.toUpperCase()}
                     </td>
 
                     {columns.slice(1).map((col) => {
@@ -862,42 +871,60 @@ function MatrixVariant({ dynamicKey, data, title }) {
                       const Icon = trendMeta.icon;
 
                       return (
-                        <td key={col} className="py-2 px-3">
+                        <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
                           <Popover>
                             <PopoverTrigger asChild>
 
                               {/* CITY-STYLE CELL BUTTON */}
                               <button
-                                className={`flex w-full items-center justify-between gap-2 
-                                           rounded-lg border px-2 py-1.5 
-                                           text-[11px] font-semibold 
-                                           shadow-[0_0_0_1px_rgba(15,23,42,0.05)] 
-                                           transition hover:shadow-sm 
+                                className={`flex w-max mx-auto items-center justify-center gap-2 
+                                           rounded-md border border-transparent px-2 py-1.5 
+                                           text-xs font-semibold 
+                                           transition-all duration-200
+                                           hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
                                            ${cellClasses}`}
                               >
-                                <span>{(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? `${value}` : ""}</span>
+                                <span className="font-mono tabular-nums tracking-tight">
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (row.kpi === "Doi" || row.kpi === "Assortment" ? `${value}` : `${value}%`) : "–"}
+                                </span>
 
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded-full border 
-                                              px-2 py-0.5 text-[10px] ${trendMeta.pill}`}
+                                  className={`inline-flex items-center gap-[1px] rounded-full border 
+                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
-                                  {Icon && <Icon className="h-3 w-3" />}
-                                  <span>{trend > 0 ? `+${trend}` : trend}</span>
+                                  {Icon && <Icon className="h-2 w-2" />}
+                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}%` : `${trend}%`}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
 
                             {/* POPUP CONTENT */}
-                            <PopoverContent className="w-64 border-slate-100 bg-white shadow-md">
-                              <div className="mb-2 flex items-center justify-between text-xs">
-                                <span className="font-semibold text-slate-900">
-                                  {row.kpi} – {col}
+                            <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
+                              <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                <span className="font-semibold text-xs text-slate-900">
+                                  {row.kpi} · {col}
                                 </span>
-                                {Icon && <Icon className="h-3 w-3" />}
+                                {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
                               </div>
 
-                              <div className="mb-1 text-[11px] text-slate-500">Last 4 periods</div>
-                              <TrendSparkline series={row.series?.[col] || []} />
+                              <div className="p-4 space-y-3">
+                                <div className="flex items-baseline justify-between">
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{row.kpi === "Doi" || row.kpi === "Assortment" ? value : `${value}%`}</span>
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
+                                    {trend > 0 ? `+${trend}%` : `${trend}%`}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                                    <span>Last 4 periods</span>
+                                    <span>Trend</span>
+                                  </div>
+                                  <div className="h-12 w-full pt-1">
+                                    <TrendSparkline series={row.series?.[col] || []} />
+                                  </div>
+                                </div>
+                              </div>
                             </PopoverContent>
                           </Popover>
                         </td>
@@ -910,7 +937,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
             </table>
           </div>
         </ScrollArea>
-      </CardContent >
+      </CardContent>
 
       {/* TRENDS DRAWER */}
       {dynamicKey === 'availability' ? (
@@ -921,6 +948,13 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
+      ) : dynamicKey === 'sales_category_table' ? (
+        <SalesTrendsDrawer
+          open={openTrend}
+          onClose={() => setOpenTrend(false)}
+          selectedColumn='Blinkit'
+          dynamicKey={dynamicKey}
+        />
       ) : (
         <VisibilityTrendsCompetitionDrawer
           open={openTrend}
@@ -929,7 +963,8 @@ function MatrixVariant({ dynamicKey, data, title }) {
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
         />
-      )}
+      )
+      }
 
     </Card >
   );

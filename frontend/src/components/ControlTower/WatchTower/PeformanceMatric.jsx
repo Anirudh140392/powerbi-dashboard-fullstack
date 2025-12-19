@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import { Typography } from "@mui/material";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -17,7 +18,7 @@ import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsC
 const KPI_CARDS = [
   {
     id: "sos_new",
-    label: "SHARE OF SEARCH",
+    label: "Share Of Search",
     value: "25%",
     unit: "",
     tag: "-1.3% MoM",
@@ -38,7 +39,7 @@ const KPI_CARDS = [
 
   {
     id: "inorganic",
-    label: "INORGANIC SALES",
+    label: "Inorganic Sales",
     value: "11%",
     unit: "",
     tag: "5.4% MoM",
@@ -59,7 +60,7 @@ const KPI_CARDS = [
 
   {
     id: "conversion",
-    label: "CONVERSION",
+    label: "Conversion",
     value: "0.6%",
     unit: "",
     tag: "28% MoM",
@@ -80,7 +81,7 @@ const KPI_CARDS = [
 
   {
     id: "roas_new",
-    label: "ROAS",
+    label: "Roas",
     value: "2.1",
     unit: "",
     tag: "10.5% MoM",
@@ -101,7 +102,7 @@ const KPI_CARDS = [
 
   {
     id: "bmi",
-    label: "BMI / SALES RATIO",
+    label: "Bmi / Sales Ratio",
     value: "5%",
     unit: "",
     tag: "-4.6% MoM",
@@ -190,7 +191,9 @@ export default function PerformanceMatric({
           gap: 16,
           overflowX: "auto",
           paddingBottom: 8,
-          paddingTop: 2,
+          paddingTop: 10,
+          paddingLeft: 12,
+          paddingRight: 12,
         }}
       >
         {KPI_CARDS_DATA.map((card) => (
@@ -233,10 +236,20 @@ function KpiCard({ card, onOpenTrend, setShowTrends }) {
         borderRadius: 18,
         padding: "16px 18px",
         boxSizing: "border-box",
-        boxShadow: "0 0 0 1px #E5E7EB",
+        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15), -3px 0 6px rgba(0, 0, 0, 0.12), 3px 0 6px rgba(0, 0, 0, 0.12)",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
+        transition: "transform 0.25s, box-shadow 0.25s",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-5px)";
+        e.currentTarget.style.boxShadow = "0 10px 20px rgba(0, 0, 0, 0.2), -5px 0 12px rgba(0, 0, 0, 0.15), 5px 0 12px rgba(0, 0, 0, 0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.15), -3px 0 6px rgba(0, 0, 0, 0.12), 3px 0 6px rgba(0, 0, 0, 0.12)";
       }}
     >
       {/* 🔵 ROW 1 — LABEL + GRAPH ICON */}
@@ -247,20 +260,13 @@ function KpiCard({ card, onOpenTrend, setShowTrends }) {
           alignItems: "center",
         }}
       >
-        <div
-          style={{
-            fontSize: 12,
-            letterSpacing: "0.05em",
-            fontWeight: 700,
-            color: "#6B7280",
-          }}
-        >
-          {card.label}
-        </div>
+
+        <Typography variant="body2" color="text.secondary">{card.label}</Typography>
 
         <div
           onClick={() => setShowTrends(true)}
           // onClick={onOpenTrend}
+          className="trend-icon"
           style={{
             background: "#EEF2F7",
             padding: 6,
@@ -301,7 +307,7 @@ function KpiCard({ card, onOpenTrend, setShowTrends }) {
       </div>
 
       {/* 🔵 ROW 3 — FOOTER TEXT */}
-      <div style={{ fontSize: 12, color: "#94A3B8" }}>{card.footer}</div>
+      <div style={{ fontSize: "0.75rem", fontWeight: 400, color: "#94A3B8", fontFamily: "Roboto, sans-serif" }}>{card.footer}</div>
     </div>
   );
 }
@@ -343,10 +349,10 @@ function TrendPopup({ card, onClose }) {
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>
+            <div style={{ fontSize: "1.2rem", fontWeight: 700, fontFamily: "Roboto, sans-serif" }}>
               {card.trendTitle}
             </div>
-            <div style={{ fontSize: 12, color: "#6B7280" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 400, color: "#6B7280", fontFamily: "Roboto, sans-serif" }}>
               {card.trendSubtitle}
             </div>
           </div>

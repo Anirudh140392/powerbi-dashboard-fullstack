@@ -54,9 +54,12 @@ import Loader from "../../components/CommonLayout/Loader";
 import { useMemo } from "react";
 import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
 
 function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
+  const [rcaModalOpen, setRcaModalOpen] = useState(false);
+  const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
   const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
@@ -545,8 +548,10 @@ function WatchTower() {
           <Box sx={{ p: 3, opacity: monthOverviewLoading && activeKpisTab === "Month Overview" ? 0.5 : 1, transition: 'opacity 0.2s' }}>
             <PlatformOverview
               onViewTrends={handleViewTrends}
-              monthOverviewPlatform={monthOverviewPlatform}
-              onPlatformChange={setMonthOverviewPlatform}
+              onViewRca={(label) => {
+                setRcaModalTitle(`${label} x ${filters.platform}`);
+                setRcaModalOpen(true);
+              }}
               data={
                 activeKpisTab === "Platform Overview"
                   ? (dashboardData?.platformOverview || defaultPlatforms)
@@ -636,6 +641,12 @@ defaultCategory */}
         onClose={() => setShowTrends(false)}
         selectedColumn='Blinkit'
         dynamicKey='platform_overview_tower'
+      />
+
+      <RCAModal
+        open={rcaModalOpen}
+        onClose={() => setRcaModalOpen(false)}
+        title={rcaModalTitle}
       />
     </>
   );
@@ -1029,12 +1040,13 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
+      style={{ fontFamily: 'Roboto, sans-serif' }}
     >
       <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold bg">Category performance</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-lg font-semibold bg" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '1.2rem' }}>Category performance</h2>
+            <p className="text-xs text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
@@ -1050,54 +1062,55 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
           </select>
         </div>
 
-        {FORMAT_ROWS.length === 0 ? (
-          <div className="text-center py-8 text-slate-500">
-            <p>No categories found for the selected platform.</p>
-            <p className="text-xs mt-2">Try selecting a different platform or check your filters.</p>
-          </div>
-        ) : (
-          <div className="space-y-2 max-h-150 overflow-y-auto pr-1">
-            {FORMAT_ROWS.map((f) => {
-              const intensity = clamp01(f.offtakesNumeric / maxOfftakes);
-              const isActive = f.name === activeName;
-              return (
-                <motion.button
-                  key={f.name}
-                  onMouseEnter={() => setActiveName(f.name)}
-                  onClick={() => setActiveName(f.name)}
-                  className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                    ? "border-sky-400 bg-sky-50 shadow-sm"
-                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                    }`}
-                  whileHover={{ scale: 1.01 }}
-                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 text-[10px] flex items-center justify-center text-white shadow-md"
-                      style={{ opacity: 0.3 + intensity * 0.7 }}
-                    >
-                      {f.name
-                        .split(" ")
-                        .map((w) => w[0])
-                        .join("")}
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">{f.name}</div>
-                      <div className="text-[10px] text-slate-500">
-                        Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
-                      </div>
+        <div className="space-y-2 max-h-150 overflow-y-auto pr-1 ">
+          {FORMAT_ROWS.map((f, index) => {
+            const isActive = f.name === activeName;
+
+            return (
+              <motion.button
+                key={f.name}
+                onMouseEnter={() => setActiveName(f.name)}
+                onClick={() => setActiveName(f.name)}
+                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                  ? "border-sky-400 bg-sky-50 shadow-sm"
+                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                  }`}
+                whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
+                transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              >
+
+                {/* LEFT SIDE */}
+                <div className="flex items-center gap-2">
+
+                  {/* NUMBER BADGE */}
+                  <div
+                    className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
+             text-[11px] font-semibold flex items-center justify-center
+             transition-colors duration-100
+             group-hover:bg-sky-500 group-hover:text-white"
+                  >
+                    #{index + 1}
+                  </div>
+
+
+                  {/* TEXT */}
+                  <div className="text-left">
+                    <div className="font-medium" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '0.95rem' }}>{f.name}</div>
+                    <div className="text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
+                      Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
-                  <div className="flex flex-col items-end text-[10px] text-slate-500">
-                    <span>MS {f.marketSharePct}%</span>
-                    <span>Conv {f.conversionPct}%</span>
-                  </div>
-                </motion.button>
-              );
-            })}
-          </div>
-        )}
+                </div>
+
+                {/* RIGHT SIDE */}
+                <div className="flex flex-col items-end text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, fontSize: '0.75rem' }}>
+                  <span>MS {f.marketSharePct}%</span>
+                  <span>Conv {f.conversionPct}%</span>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="md:col-span-3 relative">

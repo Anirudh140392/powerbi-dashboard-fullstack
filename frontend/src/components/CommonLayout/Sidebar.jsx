@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -12,11 +11,29 @@ import {
   ListItemButton,
   ListItemText,
   Collapse,
+  IconButton,
+  InputBase,
+  Tooltip,
 } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  Circle as CircleIcon,
+  Search as SearchIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  Dashboard as DashboardIcon,
+  Assessment as AssessmentIcon,
+  Visibility as VisibilityIcon,
+  PriceChange as PriceChangeIcon,
+  BarChart as BarChartIcon,
+  Inventory as InventoryIcon,
+  AccountBalance as AccountBalanceIcon,
+  Campaign as CampaignIcon,
+  Article as ArticleIcon,
+  ShoppingCart as ShoppingCartIcon,
+  AutoGraph as AutoGraphIcon,
+  AdsClick as AdsClickIcon,
+  Science as ScienceIcon,
 } from "@mui/icons-material";
 
 const Sidebar = ({
@@ -25,60 +42,50 @@ const Sidebar = ({
   onPlatformChange,
   open = false,
   onClose,
+  isCollapsed,
+  setIsCollapsed,
 }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const [expandedSection, setExpandedSection] = useState("Q-COMM");
-  const [activePlatform, setActivePlatform] = useState(
-    selectedPlatform || "Zepto"
-  );
-
-  useEffect(() => {
-    if (selectedPlatform) {
-      setActivePlatform(selectedPlatform);
-    }
-  }, [selectedPlatform]);
-
-  const toggleSection = (section) => {
-    setExpandedSection(expandedSection === section ? null : section);
-  };
-
-  const handlePlatformChange = (platform) => {
-    setActivePlatform(platform);
-    if (onPlatformChange) {
-      onPlatformChange(platform);
-    }
-    if (isMobile && onClose) {
-      onClose();
-    }
-  };
-
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedSection, setExpandedSection] = useState("Q-COMM");
+
+  const currentPath = location.pathname;
 
   const menuSections = {
-    "CONTROL TOWER": [
-      { label: "Watch Tower", active: true },
+    "MAIN MENU": [
+      { label: "Watch Tower", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
+      { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
     ],
-
-    "Availability Analysis": [{ label: "Availability Analysis" }],
-    "Visibility Analysis": [{ label: "Visibility Analysis" }],
-    "Pricing Analysis": [{ label: "Pricing Analysis" }],
-    "Market Share": [{ label: "Market Share" }],
-    "Portfolio Analysis": [{ label: "Portfolio Analysis" }],
-
-    "PERFORMANCE MARKETING": [{ label: "Blinkit" }],
-
-    "Content Analysis": [{ label: "Content Analysis" }],
-
-    ANALYTICS: [
-      { label: "Category RCA" },
-      { label: "Sales" }, // 🔥 ADD THIS
-    ],
-
-    "Inventory Analysis": [{ label: "Inventory Analysis" }],
-    SALES: [{ label: "Sales" }],
-    // PIY: [{ label: "PIY" }],
   };
+
+  const filteredSections = useMemo(() => {
+    if (!searchQuery) return menuSections;
+    const result = {};
+    Object.entries(menuSections).forEach(([section, items]) => {
+      const filteredItems = items.filter(item =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      if (filteredItems.length > 0) result[section] = filteredItems;
+    });
+    return result;
+  }, [searchQuery]);
+
+  const toggleSidebar = () => setIsCollapsed(!isCollapsed);
+
+  const sidebarWidth = isCollapsed ? 72 : 250;
 
   const navbarContent = (
     <Box
@@ -86,239 +93,201 @@ const Sidebar = ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        bgcolor: "#1f2937",
+        bgcolor: "rgba(17, 24, 39, 0.98)",
+        backdropFilter: "blur(12px)",
         color: "#fff",
+        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        width: sidebarWidth,
+        overflow: "hidden", // 🔥 REMOVED SCROLLBAR
       }}
     >
-      {/* Logo Section */}
-      <Box sx={{ p: 2.5, bgcolor: "rgba(0, 0, 0, 0.3)" }}>
-        {/* <Box
-          sx={{
-            bgcolor: "#dc2626",
-            color: "#fff",
-            px: 2,
-            py: 1,
-            borderRadius: 1,
-            fontWeight: 700,
-            fontSize: '1rem',
-            textAlign: 'center',
-            mb: 0.5,
-          }}
-        >
-          Colgate
-        </Box> */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 0.5,
-          }}
-        >
-          <Typography
-            variant="caption"
+      <style>
+        {`
+          @keyframes border-pulse {
+            0% { border-color: rgba(56, 189, 248, 0.3); box-shadow: 0 0 5px rgba(56, 189, 248, 0.1); }
+            50% { border-color: rgba(56, 189, 248, 0.8); box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
+            100% { border-color: rgba(56, 189, 248, 0.3); box-shadow: 0 0 5px rgba(56, 189, 248, 0.1); }
+          }
+          @keyframes text-shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+          }
+        `}
+      </style>
+
+      {/* Header / Logo */}
+      <Box sx={{
+        px: isCollapsed ? 1 : 2,
+        py: 2,
+        height: 60,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: isCollapsed ? 'center' : 'space-between',
+        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {!isCollapsed ? (
+          <Box
+            component="img"
+            src="/sidebar_logo.png"
+            alt="Logo"
             sx={{
-              color: "#9ca3af",
-              fontSize: "0.7rem",
-              fontWeight: 500,
+              height: 24, // Optimized height
+              maxWidth: '80%',
+              objectFit: 'contain',
+            }}
+          />
+        ) : (
+          <Box
+            sx={{
+              width: 26, // 🔥 TIGHTENED to 26px to hide ALL text "traily..."
+              height: 24,
+              position: 'relative',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              mr: 1 // Push away from toggle if needed
             }}
           >
-            powered by
-          </Typography>
-          <Typography
-            variant="caption"
+            <Box
+              component="img"
+              src="/sidebar_logo.png"
+              alt="Icon"
+              sx={{
+                height: 24,
+                width: 'auto',
+                position: 'absolute',
+                left: 0,
+                maxWidth: 'none',
+              }}
+            />
+          </Box>
+        )}
+        {!isMobile && (
+          <IconButton
+            onClick={toggleSidebar}
             sx={{
-              color: "#fff",
-              fontSize: "0.7rem",
-              fontWeight: 700,
+              color: 'rgba(255,255,255,0.4)',
+              p: 0.5,
+              '&:hover': { color: '#fff' },
+              ...(isCollapsed && {
+                position: 'absolute',
+                right: 2,
+                bgcolor: 'rgba(255,255,255,0.05)' // Subtle background for the button in mini mode
+              })
             }}
           >
-            Trailytics
-          </Typography>
-        </Box>
+            {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+          </IconButton>
+        )}
       </Box>
 
-      <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)" }} />
+      {/* Search Bar - Slimmer or Conditional */}
+      {!isCollapsed && (
+        <Box sx={{ px: 2, py: 1.5 }}>
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            bgcolor: 'rgba(255, 255, 255, 0.04)',
+            borderRadius: '10px',
+            px: 1.2, py: 0.4,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            '&:focus-within': { borderColor: '#3b82f6', bgcolor: 'rgba(255, 255, 255, 0.06)' }
+          }}>
+            <SearchIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '1rem' }} />
+            <InputBase
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ ml: 0.8, color: '#fff', fontSize: '0.8rem', flex: 1 }}
+            />
+          </Box>
+        </Box>
+      )}
 
-      {/* Menu Sections */}
-      <Box sx={{ flex: 1, overflowY: "auto" }}>
-        {Object.entries(menuSections).map(([sectionName, items]) => (
+      {/* Menu scroll area - Set to overflow hidden to remove scrollbar */}
+      <Box sx={{
+        flex: 1,
+        overflowY: "hidden",
+        px: isCollapsed ? 1 : 1.5,
+      }}>
+        {Object.entries(filteredSections).map(([sectionName, items]) => (
           <Box key={sectionName}>
-            <ListItemButton
-              onClick={() => toggleSection(sectionName)}
-              sx={{
-                py: 1.5,
-                px: 2,
-                bgcolor:
-                  expandedSection === sectionName
-                    ? "rgba(255, 255, 255, 0.05)"
-                    : "transparent",
-                "&:hover": {
-                  bgcolor: "rgba(255, 255, 255, 0.08)",
-                },
-              }}
-            >
-              <ListItemText
-                primary={sectionName}
-                primaryTypographyProps={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  color: "#9ca3af",
-                  letterSpacing: "0.5px",
-                }}
-              />
-              {expandedSection === sectionName ? (
-                <ExpandLessIcon sx={{ fontSize: "1rem", color: "#9ca3af" }} />
-              ) : (
-                <ExpandMoreIcon sx={{ fontSize: "1rem", color: "#9ca3af" }} />
-              )}
-            </ListItemButton>
+            {items.map((item) => {
+              const isActive = currentPath === item.path;
+              const isPiy = item.isPiy;
 
-            <Collapse in={expandedSection === sectionName} timeout="auto">
-              <List sx={{ py: 0 }}>
-                {items.map((item, index) => (
+              return (
+                <Tooltip key={item.label} title={isCollapsed ? item.label : ""} placement="right">
                   <ListItemButton
-                    key={index}
                     onClick={() => {
-                      // CONTROL TOWER
-                      if (
-                        sectionName === "CONTROL TOWER" &&
-                        item.label === "Watch Tower"
-                      ) {
-                        navigate("/watch-tower"); // or your Watch Tower route
-                      }
-                      if (
-                        sectionName === "CONTROL TOWER" &&
-                        item.label === "Account Overview"
-                      ) {
-                        navigate("/account-overview");
-                      }
-
-
-
-                      // ANALYTICS
-                      if (
-                        sectionName === "ANALYTICS" &&
-                        item.label === "Category RCA"
-                      ) {
-                        navigate("/category-rca");
-                      }
-
-                      // ANALYTICS
-                      if (
-                        sectionName === "Market Share" &&
-                        item.label === "Market Share"
-                      ) {
-                        navigate("/market-share");
-                      }
-
-                      if (
-                        sectionName === "Portfolio Analysis" &&
-                        item.label === "Portfolio Analysis"
-                      ) {
-                        navigate("/volume-cohort");
-                      }
-                      // performance marketing
-                      if (
-                        sectionName === "PERFORMANCE MARKETING" &&
-                        item.label === "Blinkit"
-                      ) {
-                        navigate("/performance-marketing");
-                      }
-                      // Content Analysis
-                      if (
-                        sectionName === "Content Analysis" &&
-                        item.label === "Content Analysis"
-                      ) {
-                        navigate("/content-score");
-                      }
-                      // Pricing Analysis
-                      if (
-                        sectionName === "Pricing Analysis" &&
-                        item.label === "Pricing Analysis"
-                      ) {
-                        navigate("/pricing-analysis");
-                      }
-                      // Content Analysis
-                      if (
-                        sectionName === "Availability Analysis" &&
-                        item.label === "Availability Analysis"
-                      ) {
-                        navigate("/availability-analysis");
-                      }
-                      // Pricing Analysis
-                      if (
-                        sectionName === "Visibility Analysis" &&
-                        item.label === "Visibility Analysis"
-                      ) {
-                        navigate("/visibility-anlysis");
-                      }
-                      // Pricing Analysis
-                      if (sectionName === "PIY" && item.label === "PIY") {
-                        navigate("/piy");
-                      }
-                      // Pricing Analysis
-                      if (sectionName === "Inventory Analysis" && item.label === "Inventory Analysis") {
-                        navigate("/inventory");
-                      }
-                      // SALES
-                      if (sectionName === "SALES" && item.label === "Sales") {
-                        navigate("/sales");
-                      }
+                      navigate(item.path);
+                      if (isMobile && onClose) onClose();
                     }}
                     sx={{
-                      py: 1.25,
-                      px: 3,
-                      bgcolor:
-                        (sectionName === "ANALYTICS" &&
-                          item.label === "Category RCA") ||
-                          (sectionName === "CONTROL TOWER" &&
-                            item.label === "Watch Tower")
-                          ? "rgba(255, 255, 255, 0.1)"
-                          : "transparent",
-
-                      borderLeft:
-                        (sectionName === "ANALYTICS" &&
-                          item.label === "Category RCA") ||
-                          (sectionName === "CONTROL TOWER" &&
-                            item.label === "Watch Tower")
-                          ? "3px solid #3b82f6"
-                          : "3px solid transparent",
-
-                      "&:hover": {
-                        bgcolor: "rgba(255, 255, 255, 0.08)",
+                      mb: 0.3,
+                      borderRadius: '10px',
+                      justifyContent: isCollapsed ? 'center' : 'flex-start',
+                      px: isCollapsed ? 0 : 1.5,
+                      py: 0.8, // 🔥 COMPACT PADDING
+                      minHeight: 40,
+                      bgcolor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                      color: isActive ? '#60a5fa' : 'rgba(255,255,255,0.55)',
+                      border: isPiy ? '1px solid rgba(56, 189, 248, 0.2)' : 'none',
+                      animation: isPiy ? "border-pulse 2s infinite" : "none",
+                      position: 'relative',
+                      '&:hover': {
+                        bgcolor: isActive ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                        color: '#fff',
+                        '& .MuiSvgIcon-root': { color: '#fff' }
                       },
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    {/* Icons */}
-                    {item.icon ? (
-                      <Box
-                        component="span"
-                        sx={{ fontSize: "0.9rem", mr: 1.5 }}
-                      >
-                        {item.icon}
-                      </Box>
-                    ) : (
-                      <CircleIcon
-                        sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }}
-                      />
+                    {isActive && !isCollapsed && (
+                      <Box sx={{
+                        position: 'absolute', left: 0, top: '25%', bottom: '25%',
+                        width: 3, bgcolor: '#3b82f6', borderRadius: '0 4px 4px 0'
+                      }} />
                     )}
 
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{
-                        fontSize: "0.85rem",
-                        fontWeight: 500,
-                        color: "#e5e7eb",
-                      }}
-                    />
+                    <Box sx={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      minWidth: isCollapsed ? 0 : 32,
+                      color: isActive ? '#60a5fa' : 'inherit',
+                      mr: isCollapsed ? 0 : 1.5,
+                      transition: 'margin 0.3s'
+                    }}>
+                      {item.icon}
+                    </Box>
+
+                    {!isCollapsed && (
+                      <ListItemText
+                        primary={item.label}
+                        primaryTypographyProps={{
+                          fontSize: "0.85rem",
+                          fontWeight: isActive ? 700 : 500,
+                          sx: isPiy ? {
+                            background: "linear-gradient(90deg, #e0f2fe, #38bdf8, #e0f2fe)",
+                            backgroundSize: "200% auto",
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                            animation: "text-shimmer 3s linear infinite"
+                          } : {}
+                        }}
+                      />
+                    )}
                   </ListItemButton>
-                ))}
-              </List>
-            </Collapse>
+                </Tooltip>
+              );
+            })}
           </Box>
         ))}
       </Box>
+
+      {/* Footer Branding Removed */}
     </Box>
   );
 
@@ -330,8 +299,9 @@ const Sidebar = ({
         onClose={onClose}
         sx={{
           "& .MuiDrawer-paper": {
-            width: 250,
-            bgcolor: "#1f2937",
+            width: 280,
+            bgcolor: "transparent",
+            border: 'none'
           },
         }}
       >
@@ -343,28 +313,13 @@ const Sidebar = ({
   return (
     <Box
       sx={{
-        width: 250,
+        width: sidebarWidth,
         height: "100vh",
-        bgcolor: "#1f2937",
         position: "fixed",
         left: 0,
         top: 0,
-        boxShadow: "2px 0 8px rgba(0, 0, 0, 0.1)",
-        overflowY: "auto",
         zIndex: 1200,
-        "&::-webkit-scrollbar": {
-          width: "6px",
-        },
-        "&::-webkit-scrollbar-track": {
-          bgcolor: "rgba(255, 255, 255, 0.05)",
-        },
-        "&::-webkit-scrollbar-thumb": {
-          bgcolor: "rgba(255, 255, 255, 0.2)",
-          borderRadius: "3px",
-          "&:hover": {
-            bgcolor: "rgba(255, 255, 255, 0.3)",
-          },
-        },
+        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
       {navbarContent}

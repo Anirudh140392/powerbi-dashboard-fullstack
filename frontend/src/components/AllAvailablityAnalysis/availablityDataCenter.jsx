@@ -1,4 +1,32 @@
-const PRODUCT_MATRIX = {
+// Helper function to apply variance for weighted data
+function applyWeightedVariance(value, variancePercent = 12) {
+  if (typeof value !== 'number') return value;
+  const variance = (Math.random() - 0.5) * 2 * variancePercent;
+  const newValue = Math.round(value * (1 + variance / 100));
+  return Math.max(0, Math.min(100, newValue)); // Clamp between 0-100
+}
+
+// Helper to create weighted variant of product matrix data
+function createWeightedProductMatrix(absolute) {
+  return {
+    formatColumns: absolute.formatColumns,
+    data: absolute.data.map(format => ({
+      format: format.format,
+      products: format.products.map(product => ({
+        sku: product.sku,
+        name: product.name,
+        values: Object.fromEntries(
+          Object.entries(product.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+        ),
+        losses: Object.fromEntries(
+          Object.entries(product.losses).map(([key, val]) => [key, parseFloat((val * (0.9 + Math.random() * 0.2)).toFixed(2))])
+        )
+      }))
+    }))
+  };
+}
+
+const PRODUCT_MATRIX_ABSOLUTE = {
   formatColumns: ["Blinkit", "Instamart", "Virtual Store", "Zepto"],
   data: [
     {
@@ -117,7 +145,28 @@ const PRODUCT_MATRIX = {
   ],
 };
 
-const OLA_Detailed = [
+const PRODUCT_MATRIX = {
+  absolute: PRODUCT_MATRIX_ABSOLUTE,
+  weighted: createWeightedProductMatrix(PRODUCT_MATRIX_ABSOLUTE)
+};
+
+// Helper to create weighted variant of OLA_Detailed
+function createWeightedOLADetailed(absolute) {
+  return absolute.map(platform => ({
+    platform: platform.platform,
+    ola: applyWeightedVariance(platform.ola),
+    zones: platform.zones.map(zone => ({
+      zone: zone.zone,
+      ola: applyWeightedVariance(zone.ola),
+      cities: zone.cities.map(city => ({
+        city: city.city,
+        ola: applyWeightedVariance(city.ola)
+      }))
+    }))
+  }));
+}
+
+const OLA_Detailed_ABSOLUTE = [
   {
     platform: "Blinkit",
     ola: 90, // auto-calculated below
@@ -185,6 +234,11 @@ const OLA_Detailed = [
   }
 ];
 
+const OLA_Detailed = {
+  absolute: OLA_Detailed_ABSOLUTE,
+  weighted: createWeightedOLADetailed(OLA_Detailed_ABSOLUTE)
+};
+
 function generateTrend(base, points = 8, variance = 8) {
   return Array.from({ length: points }, (_, i) =>
     Math.max(
@@ -207,7 +261,37 @@ function generateTrendMulti(base) {
   };
 }
 
-const FORMAT_MATRIX = {
+// Helper to create weighted variant of FORMAT_MATRIX
+function createWeightedFormatMatrix(absolute) {
+  return {
+    PlatformColumns: absolute.PlatformColumns,
+    formatColumns: absolute.formatColumns,
+    CityColumns: absolute.CityColumns,
+    PlatformData: absolute.PlatformData.map(item => ({
+      kpi: item.kpi,
+      values: Object.fromEntries(
+        Object.entries(item.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+      ),
+      trend: item.trend
+    })),
+    FormatData: absolute.FormatData.map(item => ({
+      kpi: item.kpi,
+      values: Object.fromEntries(
+        Object.entries(item.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+      ),
+      trend: item.trend
+    })),
+    CityData: absolute.CityData.map(item => ({
+      kpi: item.kpi,
+      values: Object.fromEntries(
+        Object.entries(item.values).map(([key, val]) => [key, applyWeightedVariance(val)])
+      ),
+      trend: item.trend
+    }))
+  };
+}
+
+const FORMAT_MATRIX_ABSOLUTE = {
   PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
 
   formatColumns: [
@@ -227,30 +311,37 @@ const FORMAT_MATRIX = {
     {
       kpi: "Osa",
       values: {
-        Blinkit: 82, Zepto: 78, Instamart: 65, "Virtual Store": 74, Swiggy: 70
+        Blinkit: 82, Zepto: 78, Instamart: 65, Amazon: 75, Swiggy: 70
       },
       trend: generateTrendMulti(78)
     },
     {
       kpi: "Doi",
       values: {
-        Blinkit: 45, Zepto: 52, Instamart: 48, "Virtual Store": 50, Swiggy: 47
+        Blinkit: 45, Zepto: 52, Instamart: 48, Amazon: 49, Swiggy: 47
       },
       trend: generateTrendMulti(48)
     },
     {
       kpi: "Fillrate",
       values: {
-        Blinkit: 91, Zepto: 84, Instamart: 79, "Virtual Store": 87, Swiggy: 81
+        Blinkit: 91, Zepto: 84, Instamart: 79, Amazon: 86, Swiggy: 81
       },
       trend: generateTrendMulti(85)
     },
     {
       kpi: "Assortment",
       values: {
-        Blinkit: 72, Zepto: 69, Instamart: 61, "Virtual Store": 66, Swiggy: 64
+        Blinkit: 142, Zepto: 138, Instamart: 122, Amazon: 135, Swiggy: 128
       },
       trend: generateTrendMulti(66)
+    },
+    {
+      kpi: "PSL",
+      values: {
+        Blinkit: 18, Zepto: 12, Instamart: 25, Amazon: 11, Swiggy: 20
+      },
+      trend: generateTrendMulti(15)
     }
   ],
 
@@ -289,6 +380,14 @@ const FORMAT_MATRIX = {
         "KW Sticks": 94, "Premium Tub": 88, Sandwich: 55
       },
       trend: generateTrendMulti(85)
+    },
+    {
+      kpi: "PSL",
+      values: {
+        Cassata: 28, "Core Tub": 4, Cornetto: 10, Magnum: 9,
+        "KW Sticks": 6, "Premium Tub": 12, Sandwich: 45
+      },
+      trend: generateTrendMulti(20)
     }
   ],
 
@@ -327,8 +426,21 @@ const FORMAT_MATRIX = {
         Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78
       },
       trend: generateTrendMulti(76)
+    },
+    {
+      kpi: "PSL",
+      values: {
+        Ajmer: 27, Amritsar: 15, Bathinda: 21, Bhopal: 12,
+        Chandigarh: 19, Gwalior: 37, Indore: 8, Jaipur: 22
+      },
+      trend: generateTrendMulti(25)
     }
   ]
+};
+
+const FORMAT_MATRIX = {
+  absolute: FORMAT_MATRIX_ABSOLUTE,
+  weighted: createWeightedFormatMatrix(FORMAT_MATRIX_ABSOLUTE)
 };
 
 
@@ -351,22 +463,22 @@ const FORMAT_MATRIX_Visibility = {
   PlatformData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Blinkit: 92, Zepto: 88, Instamart: 85, "Virtual Store": 87, Swiggy: 90 },
+      values: { Blinkit: 92, Zepto: 88, Instamart: 85, Amazon: 87, Swiggy: 90 },
       trend: generateTrendMulti(88)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Blinkit: 12, Zepto: 15, Instamart: 10, "Virtual Store": 18, Swiggy: 14 },
+      values: { Blinkit: 12, Zepto: 15, Instamart: 10, Amazon: 16, Swiggy: 14 },
       trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Blinkit: 96, Zepto: 94, Instamart: 92, "Virtual Store": 90, Swiggy: 89 },
+      values: { Blinkit: 96, Zepto: 94, Instamart: 92, Amazon: 91, Swiggy: 89 },
       trend: generateTrendMulti(92)
     },
     {
       kpi: "Display SOS",
-      values: { Blinkit: 89, Zepto: 91, Instamart: 85, "Virtual Store": 88, Swiggy: 86 },
+      values: { Blinkit: 89, Zepto: 91, Instamart: 85, Amazon: 88, Swiggy: 86 },
       trend: generateTrendMulti(88)
     }
   ],
@@ -425,7 +537,22 @@ const FORMAT_MATRIX_Visibility = {
 };
 
 
-const FORMAT_ROWS = [
+// Helper to create weighted variant of FORMAT_ROWS
+function createWeightedFormatRows(absolute) {
+  return absolute.map(row => ({
+    ...row,
+    offtakes: Math.max(0, Math.round(row.offtakes * (0.9 + Math.random() * 0.2))),
+    spend: Math.max(0, Math.round(row.spend * (0.9 + Math.random() * 0.2))),
+    roas: Math.max(0, parseFloat((row.roas * (0.9 + Math.random() * 0.2)).toFixed(1))),
+    inorgSalesPct: applyWeightedVariance(row.inorgSalesPct),
+    conversionPct: Math.max(0, parseFloat((row.conversionPct * (0.9 + Math.random() * 0.2)).toFixed(1))),
+    marketSharePct: applyWeightedVariance(row.marketSharePct),
+    cpm: Math.max(0, Math.round(row.cpm * (0.9 + Math.random() * 0.2))),
+    cpc: Math.max(0, Math.round(row.cpc * (0.9 + Math.random() * 0.2)))
+  }));
+}
+
+const FORMAT_ROWS_ABSOLUTE = [
   {
     name: "Cassata",
     offtakes: 4,
@@ -518,6 +645,11 @@ const FORMAT_ROWS = [
     cpc: 16,
   },
 ];
+
+const FORMAT_ROWS = {
+  absolute: FORMAT_ROWS_ABSOLUTE,
+  weighted: createWeightedFormatRows(FORMAT_ROWS_ABSOLUTE)
+};
 
 const ONE_VIEW_DRILL_DATA = [
   {

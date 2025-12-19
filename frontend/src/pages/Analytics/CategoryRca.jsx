@@ -11,7 +11,7 @@ import RCAHeader from "../../components/Analytics/CategoryRca/RCAHeader";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import SkuLevelBreakdown from "../../components/Analytics/CategoryRca/SkuLevelBreakdown";
 import CategoryTrendsDrawer from "../../components/Analytics/CategoryTrendsDrawer";
-import RCADashboard from "../../components/Analytics/CategoryRca/RCADashboard";
+import RCAModal from "../../components/Analytics/CategoryRca/RCAModal";
 import Dashboard from "../../components/Analytics/CategoryRca/SkuLevelBreakdown";
 
 export default function CategoryRca() {
@@ -44,6 +44,8 @@ export default function CategoryRca() {
   });
 
 
+  const [rcaModalOpen, setRcaModalOpen] = useState(false);
+  const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [trendData, setTrendData] = useState({
     timeSeries: [],
     metrics: {},
@@ -295,6 +297,12 @@ export default function CategoryRca() {
     },
   ];
 
+  const handleViewRca = (cat) => {
+    console.log("Viewing RCA for:", cat);
+    setRcaModalTitle(`${cat} x ${filters.platform}`);
+    setRcaModalOpen(true);
+  };
+
   return (
     <>
       <CommonContainer
@@ -305,10 +313,11 @@ export default function CategoryRca() {
         {/* <Insights products={products} onKnowMore={setSelectedProduct} /> */}
         <Insights />
         <RCACardMetric />
-        <CategoryPlatformOverview onViewTrends={handleViewTrends} />
+        <CategoryPlatformOverview
+          onViewTrends={handleViewTrends}
+          onViewRca={handleViewRca}
+        />
         <SkuLevelBreakdown />
-        <RCADashboard />
-
       </CommonContainer>
 
       <InsightsDrawer
@@ -321,6 +330,11 @@ export default function CategoryRca() {
         onClose={() => setShowTrends(false)}
         trendData={trendData}
         trendParams={trendParams}
+      />
+      <RCAModal
+        open={rcaModalOpen}
+        onClose={() => setRcaModalOpen(false)}
+        title={rcaModalTitle}
       />
     </>
   );

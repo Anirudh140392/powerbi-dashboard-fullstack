@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Card,
@@ -18,38 +18,11 @@ import {
 } from "@mui/material";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
-import axiosInstance from "../../../api/axiosInstance";
 
-export default function CategoryTable({
-  categories = [],
-  activeTab = "",
-  selectedMetric: externalSelectedMetric,
-  onMetricChange,
-  loading = false
-}) {
-  const platforms = categories.length > 0 ? Object.keys(categories[0] || {}).filter((k) => k !== "name") : [];
+export default function CategoryTable({ categories, activeTab = "" }) {
+  const platforms = Object.keys(categories[0]).filter((k) => k !== "name");
   const [searchTerm, setSearchTerm] = useState("");
-  const [metricsFromDB, setMetricsFromDB] = useState([]);
-  const [selectedMetricKey, setSelectedMetricKey] = useState(externalSelectedMetric || "");
 
-  // Fetch metrics from database
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const response = await axiosInstance.get("/watchtower/metrics");
-        if (response.data && response.data.length > 0) {
-          setMetricsFromDB(response.data);
-          // Set first metric as default
-          setSelectedMetricKey(response.data[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching metrics from database:", error);
-      }
-    };
-    fetchMetrics();
-  }, []);
-
-  // Fallback to data-derived metrics if DB metrics not loaded
   const allMetricKeys = useMemo(() => {
     const set = new Set();
     categories.forEach((cat) => {
@@ -60,34 +33,14 @@ export default function CategoryTable({
       });
     });
     return Array.from(set);
-  }, [categories, platforms]);
+  }, []);
 
-  // Use DB metrics if available, otherwise use data-derived metrics
-  const availableMetrics = metricsFromDB.length > 0 ? metricsFromDB : allMetricKeys;
-
-  // Sync external metric prop changes
-  useEffect(() => {
-    if (externalSelectedMetric && externalSelectedMetric !== selectedMetricKey) {
-      setSelectedMetricKey(externalSelectedMetric);
-    }
-  }, [externalSelectedMetric, availableMetrics]); // Also depend on availableMetrics
-
-  // Set default metric if not set
-  useEffect(() => {
-    if (!selectedMetricKey && availableMetrics.length > 0) {
-      const firstMetric = availableMetrics[0];
-      setSelectedMetricKey(firstMetric);
-      // Notify parent of initial metric
-      onMetricChange && onMetricChange(firstMetric);
-    }
-  }, [availableMetrics, selectedMetricKey]);
-
-  const metricOptions = availableMetrics.map((key) => ({
+  const metricOptions = allMetricKeys.map((key) => ({
     label: key.replace(/_/g, " ").toUpperCase(),
     key,
   }));
 
-  const selectedMetric = metricOptions.find(m => m.key === selectedMetricKey) || metricOptions[0] || { label: "Loading...", key: "" };
+  const [selectedMetric, setSelectedMetric] = useState(metricOptions[0]);
   const theme = useTheme();
 
   /* --------------------- FILTER --------------------- */
@@ -98,7 +51,7 @@ export default function CategoryTable({
   }, [searchTerm, categories]);
 
   /* -------------------- PAGINATION -------------------- */
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(0);
 
   const paginatedRows = useMemo(() => {
@@ -106,7 +59,7 @@ export default function CategoryTable({
       page * rowsPerPage,
       page * rowsPerPage + rowsPerPage
     );
-  }, [filteredCategories, page]);
+  }, [filteredCategories, page, rowsPerPage]);
 
   const totalPages = Math.ceil(filteredCategories.length / rowsPerPage);
 
@@ -187,38 +140,38 @@ export default function CategoryTable({
               <TableChartIcon sx={{ color: theme.palette.primary.main }} />
             </Box>
 
-            <Typography fontSize="1.25rem" fontWeight={700}>
+            <Typography fontSize="1.2rem" fontWeight={700} fontFamily="Roboto, sans-serif">
               {activeTab}
             </Typography>
           </Box>
 
           {/* RIGHT CONTROLS */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600 }}>
+            {/* <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600, fontFamily: "Roboto, sans-serif" }}>
               Metrics:
-            </Typography>
+            </Typography> */}
 
-            {metricOptions.length > 0 ? (
-              <Select
-                size="small"
-                value={selectedMetricKey || ""}
-                sx={{ minWidth: 120 }}
-                onChange={(e) => {
-                  setSelectedMetricKey(e.target.value);
-                  onMetricChange && onMetricChange(e.target.value);
-                }}
-              >
-                {metricOptions.map((opt) => (
-                  <MenuItem key={opt.key} value={opt.key}>
-                    {opt.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            ) : (
-              <Typography variant="body2" sx={{ color: "#9ca3af" }}>
-                Loading...
-              </Typography>
-            )}
+            <Select
+              size="small"
+              value={selectedMetric.key}
+              onChange={(e) =>
+                setSelectedMetric(
+                  metricOptions.find((m) => m.key === e.target.value)
+                )
+              }
+              sx={{
+                minWidth: 130,
+                height: 36,
+                fontSize: "0.85rem",
+                background: "#f3f4f6",
+              }}
+            >
+              {metricOptions.map((opt) => (
+                <MenuItem key={opt.key} value={opt.key}>
+                  {opt.label.toLowerCase().charAt(0).toUpperCase() + opt.label.toLowerCase().slice(1)}
+                </MenuItem>
+              ))}
+            </Select>
 
             {/* SEARCH */}
             <TextField
@@ -244,181 +197,177 @@ export default function CategoryTable({
           </Box>
         </Box>
 
-        {/* LOADING INDICATOR */}
-        {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <Typography variant="body2" color="text.secondary">
-              Loading SKU data...
-            </Typography>
-          </Box>
-        )}
-
-        {/* EMPTY STATE */}
-        {!loading && categories.length === 0 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No SKU data available
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Try adjusting your filters or select a different metric
-            </Typography>
-          </Box>
-        )}
-
         {/* TABLE */}
-        {!loading && categories.length > 0 && (
-          <TableContainer
-            component={Paper}
-            sx={{ background: theme.palette.background.paper }}
-          >
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
+        <TableContainer
+          component={Paper}
+          sx={{ background: theme.palette.background.paper }}
+        >
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell
+                  sx={{
+                    background:
+                      theme.palette.mode === "dark"
+                        ? theme.palette.background.default
+                        : "#f9fafb",
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 10,
+                    textAlign: "center",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                    fontFamily: "Roboto, sans-serif",
+                  }}
+                >
+                  {activeTab === "Split by Category" ? "Category" : "SKU"}
+                </TableCell>
+
+
+
+                {platforms.map((p) => (
                   <TableCell
+                    align="center"
+                    key={p}
                     sx={{
                       background:
                         theme.palette.mode === "dark"
                           ? theme.palette.background.default
                           : "#f9fafb",
                       fontWeight: 700,
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 10,
+                      fontSize: "0.95rem",
+                      fontFamily: "Roboto, sans-serif",
                     }}
                   >
-                    {activeTab === "Split by Category" ? "Category" : "SKU"}
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </Typography>
                   </TableCell>
-
-                  {platforms.map((p) => (
-                    <TableCell
-                      align="center"
-                      key={p}
-                      sx={{
-                        background:
-                          theme.palette.mode === "dark"
-                            ? theme.palette.background.default
-                            : "#f9fafb",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {p.toUpperCase()}
-                    </TableCell>
-                  ))}
-                </TableRow>
-
-                <TableRow>
-                  <TableCell
-                    sx={{
-                      background: "#f9fafb",
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 9,
-                    }}
-                  ></TableCell>
-
-                  <TableCell
-                    align="center"
-                    colSpan={platforms.length}
-                    sx={{
-                      background:
-                        theme.palette.mode === "dark"
-                          ? theme.palette.background.default
-                          : "#f9fafb",
-                      color: theme.palette.text.primary,
-                      fontWeight: 900,
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    {selectedMetric.label}
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {paginatedRows.map((cat, i) => (
-                  <TableRow key={i} hover>
-                    <TableCell
-                      sx={{
-                        position: "sticky",
-                        left: 0,
-                        background: theme.palette.background.paper,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {cat.name}
-                    </TableCell>
-
-                    {platforms.map((p) => {
-                      const platformData = cat[p] || {};
-
-                      // Handle both API format (with "value" and "change" fields) 
-                      // and mock data format (direct metric fields)
-                      let main, change;
-
-                      if (platformData.value !== undefined) {
-                        // API format
-                        main = platformData.value;
-                        change = platformData.change;
-                      } else {
-                        // Mock data format
-                        main = platformData[selectedMetric.key];
-                        change = platformData[selectedMetric.key + "_change"];
-                      }
-
-                      return (
-                        <TableCell key={p + i} align="center">
-                          <Box
-                            display="flex"
-                            flexDirection="column"
-                            alignItems="center"
-                          >
-                            <Typography fontWeight={600}>{main || '-'}</Typography>
-                            <Typography fontSize="0.75rem">
-                              {renderChange(change)}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+              </TableRow>
+
+              <TableRow>
+                <TableCell
+                  sx={{
+                    background: "#f9fafb",
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 9,
+                  }}
+                ></TableCell>
+
+                <TableCell
+                  align="center"
+                  colSpan={platforms.length}
+                  sx={{
+                    background:
+                      theme.palette.mode === "dark"
+                        ? theme.palette.background.default
+                        : "#f9fafb",
+                    color: theme.palette.text.primary,
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    fontFamily: "Roboto, sans-serif",
+                  }}
+                >
+                  {selectedMetric.label.toLowerCase().charAt(0).toUpperCase() + selectedMetric.label.toLowerCase().slice(1)}
+                </TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {paginatedRows.map((cat, i) => (
+                <TableRow key={i} hover>
+                  <TableCell
+                    sx={{
+                      position: "sticky",
+                      left: 0,
+                      background: theme.palette.background.paper,
+                      fontSize: "0.95rem",
+                      fontWeight: 700,
+                      lineHeight: 1.4,
+                      fontFamily: "Roboto, sans-serif",
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
+                  </TableCell>
+                  {platforms.map((p) => {
+                    const main = cat[p][selectedMetric.key];
+                    const change = cat[p][selectedMetric.key + "_change"];
+                    return (
+                      <TableCell key={p + i} align="center">
+                        <Box
+                          display="flex"
+                          flexDirection="column"
+                          alignItems="center"
+                        >
+                          <Typography
+                            fontSize="0.95rem"
+                            fontWeight={700}
+                            fontFamily="Roboto, sans-serif"
+                          >
+                            <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                              {main}
+                            </Typography>
+                          </Typography>
+                          <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
+                            {renderChange(change)}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
         {/* PAGINATION */}
-        {!loading && categories.length > 0 && (
-          <Box
-            display="flex"
-            justifyContent="flex-end"
-            alignItems="center"
-            mt={2}
-            gap={2}
-          >
-            <Button
-              variant="outlined"
-              size="small"
+        <div className="mt-3 flex items-center justify-between text-[11px]" style={{ fontFamily: 'Roboto, sans-serif' }}>
+          <div className="flex items-center gap-2">
+            <button
               disabled={page === 0}
-              onClick={() => setPage((prev) => prev - 1)}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
             >
               Prev
-            </Button>
+            </button>
 
-            <Typography fontWeight={600}>
-              Page {page + 1} of {totalPages}
-            </Typography>
+            <span>
+              Page <b>{page + 1}</b> / {totalPages}
+            </span>
 
-            <Button
-              variant="outlined"
-              size="small"
+            <button
               disabled={page + 1 >= totalPages}
-              onClick={() => setPage((prev) => prev + 1)}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
             >
               Next
-            </Button>
-          </Box>
-        )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div>
+              Rows/page
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0); // Reset to first page when changing rows per page
+                }}
+                className="ml-1 rounded-full border px-2 py-1"
+              >
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </Card>
     </Box>
   );
