@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 
 import { motion } from "framer-motion";
-import { Plus, Minus, TrendingUp, LineChartIcon, SlidersHorizontal, X } from "lucide-react";
+import { Plus, Minus, TrendingUp, LineChart, SlidersHorizontal, X } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
 
 import performanceData from "../../utils/PerformanceMarketingData";
@@ -553,7 +553,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     const qVals = getQuarterValues(node.values, selectedQuarter);
     const avg = rowConvAvg(qVals);
 
-    const rowBg = node.isKeyword ? "#fff" : level === 0 ? "#f8fafc" : "#fff";
+    const rowBg = "#fff";
 
     return (
       <React.Fragment key={key}>
@@ -629,8 +629,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     fontSize: 11,
                     display: "inline-flex",
                     justifyContent: "center",
-                    backgroundColor: i >= 3 ? heat.backgroundColor : "#f3f4f6",
-                    color: i >= 3 ? heat.color : "#111",
+                    backgroundColor: i >= 3 ? heat.backgroundColor : "transparent",
+                    color: i >= 3 ? heat.color : "#475569",
                   }}
                 >
                   {v || "–"}
@@ -647,7 +647,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   py: 0.3,
                   borderRadius: 999,
                   fontSize: 11,
-                  backgroundColor: "rgba(148,163,184,0.15)",
+                  backgroundColor: "transparent",
+                  border: "1px solid #f1f5f9",
+                  color: "#64748b"
                 }}
               >
                 avg {avg}
@@ -903,40 +905,27 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                           background: "white",
                           zIndex: 10,
                           minWidth: 150,
-                          alignItems: "flex-end",
-                          display: "flex",
+                          verticalAlign: "bottom",
                           pb: 1.5,
                           borderLeft: i > 0 ? "1px solid #f1f5f9" : "none",
-                          color: "#1e293b",
-                          fontWeight: 700,
+                          color: "#334155",
+                          fontWeight: 600,
                         }
-                        : { background: "white", verticalAlign: "bottom", borderLeft: "1px solid #f1f5f9", pb: 1.5 }
+                        : { background: "white", verticalAlign: "bottom", borderLeft: "1px solid #f1f5f9", pb: 1.5, color: "#334155" }
                     }
                   >
                     <Box
                       sx={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 0.5,
+                        justifyContent: "center",
+                        gap: 0.6,
                       }}
                     >
                       {/* Header title */}
-                      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
                         {LEVEL_TITLES[i]}
                       </Typography>
-                      {/* MOCK DATA GENERATOR
-// Hierarchy: Format -> Region -> City -> Keyword
-// Renamed to match requested structure: Keyword Type -> Brand -> Keyword -> SKU -> City
-const HIERARCHY_LEVELS = ["Keyword Type", "Brand", "Keyword", "SKU", "City"]; */}
-                      {i > 0 && (
-                        <IconButton
-                          size="small"
-                          onClick={() => openHeaderTrend(i)}
-                          sx={{ p: 0.25 }}
-                        >
-                          <LineChartIcon sx={{ fontSize: 14 }} />
-                        </IconButton>
-                      )}
                     </Box>
                   </TableCell>
                 ))}
@@ -944,7 +933,7 @@ const HIERARCHY_LEVELS = ["Keyword Type", "Brand", "Keyword", "SKU", "City"]; */
 
                 {collectedData?.headers.slice(1).map((col, ci) => (
                   <TableCell key={col} align="center" sx={{
-                    background: ci % 2 === 0 ? "#f8fafc" : "white",
+                    background: "white",
                     verticalAlign: "bottom",
                     pb: 1.5,
                     borderLeft: "1px solid #f1f5f9"
@@ -958,23 +947,9 @@ const HIERARCHY_LEVELS = ["Keyword Type", "Brand", "Keyword", "SKU", "City"]; */
                       }}
                     >
                       {/* Column Title */}
-                      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
                         {col} ({selectedQuarter})
                       </Typography>
-
-                      {/* Trend Icon */}
-                      <IconButton
-                        onClick={() => setShowTrends(true)}
-                        sx={{
-                          p: 0.25,
-                        }}
-                      >
-                        <LineChartIcon
-                          sx={{
-                            fontSize: 5,
-                          }}
-                        />
-                      </IconButton>
                     </Box>
                   </TableCell>
                 ))}
