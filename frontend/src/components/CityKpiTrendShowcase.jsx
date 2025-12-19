@@ -859,7 +859,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                     <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
                                      text-xs font-bold text-slate-900 border-b border-slate-100 
                                      shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                      {row.kpi}
+                      {row.kpi.toUpperCase()}
                     </td>
 
                     {columns.slice(1).map((col) => {
