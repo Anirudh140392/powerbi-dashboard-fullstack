@@ -88,7 +88,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
             onClose={onClose}
             sx={{
                 '& .MuiDialog-paper': {
-                    bgcolor: '#f1f5f9',
+                    bgcolor: '#ffffff',
                     cursor: 'none', // Critical for custom magic cursor compatibility
                 },
             }}
@@ -170,7 +170,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 </Box>
             </DialogTitle>
 
-            <DialogContent sx={{ p: 0, display: 'flex', overflow: 'hidden', height: '100%', bgcolor: '#f1f5f9' }}>
+            <DialogContent sx={{ p: 0, display: 'flex', overflow: 'hidden', height: '100%', bgcolor: '#ffffff' }}>
                 {/* Filter Drawer / Sidebar (Left side) */}
                 {showFilters && (
                     <Box
