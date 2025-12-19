@@ -80,7 +80,7 @@ export default function MainPerformanceMarketings() {
 
   return (
     <Box>
- 
+
       <Box sx={{ mt: 4 }}>
         <MetricCardContainer
           title="Performance Marketing Overview"
@@ -104,6 +104,6 @@ export default function MainPerformanceMarketings() {
         <DrilldownLatestTable />
       </Box>
     </Box>
-    
+
   );
 };

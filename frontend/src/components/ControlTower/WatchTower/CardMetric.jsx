@@ -115,6 +115,7 @@ const CardMetric = ({ data }) => {
             gap: 2,
             overflowX: scrollNeeded ? "auto" : "hidden",
             pb: 1,
+            px: 1.5,
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >

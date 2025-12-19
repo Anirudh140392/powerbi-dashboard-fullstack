@@ -17,9 +17,12 @@ import {
   Paper,
   IconButton,
   Chip,
+  Button,
+  InputAdornment,
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Minus, ChevronUp, ChevronDown, LineChart, Search, SlidersHorizontal, X } from "lucide-react";
+import { KpiFilterPanel } from "../KpiFilterPanel";
 
 // --------- CONSTANTS ----------
 const MONTHS = [
@@ -37,12 +40,16 @@ const MONTHS = [
   "December",
 ];
 
+// --------- CATEGORIES ----------
+const CATEGORIES = ["All", "Cones & Sticks", "Cakes & Desserts", "Premium", "Family Packs"];
+
 // --------- SAMPLE N-LEVEL DATA ----------
 const momKeywordData = {
   title: "Keyword Analysis",
   keywords: [
     {
       keyword: "Sandwich, Cakes & Others",
+      category: "Cakes & Desserts",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 20 + idx * 2,
@@ -54,6 +61,7 @@ const momKeywordData = {
       children: [
         {
           keyword: "Cakes",
+          category: "Cakes & Desserts",
           months: MONTHS.map((m, idx) => ({
             month: m,
             impressions: 10 + idx * 3,
@@ -65,6 +73,7 @@ const momKeywordData = {
           children: [
             {
               keyword: "Birthday Cakes",
+              category: "Cakes & Desserts",
               months: MONTHS.map((m, idx) => ({
                 month: m,
                 impressions: 6 + idx * 2,
@@ -81,6 +90,7 @@ const momKeywordData = {
 
     {
       keyword: "ice cream cake",
+      category: "Cakes & Desserts",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 14 + idx,
@@ -92,6 +102,7 @@ const momKeywordData = {
       children: [
         {
           keyword: "Premium Ice Cream Cakes",
+          category: "Premium",
           months: MONTHS.map((m, idx) => ({
             month: m,
             impressions: 9 + idx * 2,
@@ -106,6 +117,7 @@ const momKeywordData = {
 
     {
       keyword: "ice cream",
+      category: "Cones & Sticks",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 10 + idx * 3,
@@ -118,6 +130,7 @@ const momKeywordData = {
 
     {
       keyword: "Gourmet",
+      category: "Premium",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 8 + idx * 2,
@@ -191,16 +204,17 @@ const buildAggTree = (node, monthFilter) => {
   return { ...node, agg, children };
 };
 
-const filterTree = (node, search, minImp) => {
+const filterTree = (node, search, minImp, categoryFilter) => {
   const matchesSearch =
     !search || node.keyword.toLowerCase().includes(search.toLowerCase());
   const matchesImp = !minImp || node.agg.impressions >= minImp;
+  const matchesCategory = !categoryFilter || categoryFilter === "All" || node.category === categoryFilter;
 
   const filteredChildren = (node.children || [])
-    .map((c) => filterTree(c, search, minImp))
+    .map((c) => filterTree(c, search, minImp, categoryFilter))
     .filter(Boolean);
 
-  if (matchesSearch && matchesImp)
+  if (matchesSearch && matchesImp && matchesCategory)
     return { ...node, children: filteredChildren };
   if (filteredChildren.length) return { ...node, children: filteredChildren };
   return null;
@@ -211,6 +225,7 @@ export default function KeywordAnalysisTable() {
   const [expanded, setExpanded] = useState({});
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [minImpressions, setMinImpressions] = useState("");
 
   const [sortConfig, setSortConfig] = useState({
@@ -220,7 +235,58 @@ export default function KeywordAnalysisTable() {
 
   // pagination
   const [page, setPage] = useState(1);
-  const rowsPerPage = 5;
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    brands: [],
+    categories: [],
+    cities: [],
+    keywords: [],
+    skus: [],
+    platforms: [],
+    kpiRules: null,
+    weekendFlag: [],
+    months: [],
+  });
+
+  const filterOptions = useMemo(() => {
+    const opts = {
+      keywords: new Map(),
+      categories: new Map(),
+      months: new Map(),
+    };
+
+    const traverse = (nodes) => {
+      nodes.forEach((node) => {
+        opts.keywords.set(node.keyword, { id: node.keyword, label: node.keyword, value: 0 });
+        if (node.category) {
+          opts.categories.set(node.category, { id: node.category, label: node.category, value: 0 });
+        }
+        if (node.months) {
+          node.months.forEach(m => {
+            opts.months.set(m.month, { id: m.month, label: m.month, value: 0 });
+          });
+        }
+        if (node.children) traverse(node.children);
+      });
+    };
+
+    traverse(momKeywordData.keywords);
+
+    return {
+      keywords: Array.from(opts.keywords.values()),
+      categories: Array.from(opts.categories.values()),
+      months: Array.from(opts.months.values()),
+      kpiFields: [
+        { id: "impressions", label: "Impressions", type: "number" },
+        { id: "conversion", label: "Conversion", type: "number" },
+        { id: "spend", label: "Spend", type: "number" },
+        { id: "cpm", label: "CPM", type: "number" },
+        { id: "roas", label: "ROAS", type: "number" },
+      ],
+    };
+  }, []);
 
   const processedKeywords = useMemo(() => {
     const searchTrim = search.trim();
@@ -228,7 +294,7 @@ export default function KeywordAnalysisTable() {
 
     let tree = momKeywordData.keywords.map((k) => buildAggTree(k, monthFilter));
 
-    tree = tree.map((n) => filterTree(n, searchTrim, minNum)).filter(Boolean);
+    tree = tree.map((n) => filterTree(n, searchTrim, minNum, categoryFilter, activeFilters, monthFilter)).filter(Boolean);
 
     const { key, direction } = sortConfig;
     const dir = direction === "asc" ? 1 : -1;
@@ -236,11 +302,11 @@ export default function KeywordAnalysisTable() {
     tree.sort((a, b) => (a.agg[key] - b.agg[key]) * dir);
 
     return tree;
-  }, [search, monthFilter, minImpressions, sortConfig]);
+  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter, activeFilters]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, monthFilter, minImpressions, sortConfig]);
+  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * rowsPerPage;
@@ -298,31 +364,55 @@ export default function KeywordAnalysisTable() {
             borderBottom: isOpen ? "none" : "1px solid #e5e7eb",
           }}
         >
-          <TableCell>
+          <TableCell sx={{ width: 48, p: 0 }} align="center">
             <IconButton
               size="small"
-              onClick={() => setExpanded((p) => ({ ...p, [key]: !isOpen }))}
-              sx={{ border: "1px solid #e5e7eb", width: 26, height: 26 }}
+              onClick={() => setExpanded((p) => ({ ...p, [key]: !p[key] }))}
+              sx={{
+                border: "1px solid #e5e7eb",
+                width: 24,
+                height: 24,
+                borderRadius: 1.5,
+                backgroundColor: 'white'
+              }}
             >
               {isOpen ? <Minus size={14} /> : <Plus size={14} />}
             </IconButton>
           </TableCell>
 
-          <TableCell>
-            <Box sx={{ ml: level * 2 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+          <TableCell align="center">
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              ml: level * 2
+            }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
                 {node.keyword}
               </Typography>
             </Box>
           </TableCell>
 
-          <TableCell sx={{ fontSize: 12 }}>
+          <TableCell align="center" sx={{ fontSize: 11 }}>
+            <Chip
+              label={node.category}
+              size="small"
+              sx={{
+                fontSize: 11,
+                height: 22,
+                backgroundColor: '#f1f5f9',
+                color: '#475569'
+              }}
+            />
+          </TableCell>
+
+          <TableCell align="center" sx={{ fontSize: 11 }}>
             {monthFilter === "All" ? "All Months" : monthFilter}
           </TableCell>
 
-          <TableCell align="right">{node.agg.impressions}</TableCell>
+          <TableCell align="center">{node.agg.impressions}</TableCell>
 
-          <TableCell align="right">
+          <TableCell align="center">
             <Box
               sx={{
                 px: 1,
@@ -338,12 +428,13 @@ export default function KeywordAnalysisTable() {
               {node.agg.conversion.toFixed(1)}%
             </Box>
           </TableCell>
-
-          <TableCell align="right">{node.agg.spend}</TableCell>
-          <TableCell align="right">{node.agg.cpm.toFixed(0)}</TableCell>
-          <TableCell align="right">{node.agg.roas.toFixed(1)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.spend}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.cpm.toFixed(0)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.roas.toFixed(1)}</TableCell>
         </TableRow>
 
+        {/* Monthly Rows - Hidden as per request to start drill-down from sub-keywords */}
+        {/*
         {isOpen &&
           monthsToShow.map((m) => {
             const ch = getHeatColor(parsePercent(m.conversion));
@@ -362,13 +453,24 @@ export default function KeywordAnalysisTable() {
                 <TableCell>
                   <Box sx={{ ml: (level + 1) * 2 }}>
                     <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                      {node.keyword}
                     </Typography>
                   </Box>
                 </TableCell>
-                <TableCell>{m.month}</TableCell>
-                <TableCell align="right">{m.impressions}</TableCell>
-                <TableCell align="right">
+                <TableCell align="center">
+                  <Chip
+                    label={node.category}
+                    size="small"
+                    sx={{
+                      fontSize: 10,
+                      height: 20,
+                      backgroundColor: '#f8fafc',
+                      color: '#64748b'
+                    }}
+                  />
+                </TableCell>
+                <TableCell align="center">{m.month}</TableCell>
+                <TableCell align="center">{m.impressions}</TableCell>
+                <TableCell align="center">
                   <Box
                     sx={{
                       px: 1,
@@ -384,12 +486,13 @@ export default function KeywordAnalysisTable() {
                     {m.conversion}
                   </Box>
                 </TableCell>
-                <TableCell align="right">{m.spend}</TableCell>
-                <TableCell align="right">{m.cpm}</TableCell>
-                <TableCell align="right">{m.roas}</TableCell>
+                <TableCell align="center">{m.spend}</TableCell>
+                <TableCell align="center">{m.cpm}</TableCell>
+                <TableCell align="center">{m.roas}</TableCell>
               </TableRow>
             );
           })}
+        */}
 
         {isOpen &&
           node.children?.map((c, i) =>
@@ -401,61 +504,153 @@ export default function KeywordAnalysisTable() {
 
   return (
     <Card sx={{ p: 3, borderRadius: 3 }}>
-      {/* HEADER */}
-      <Typography variant="h6" sx={{ fontWeight: 700 }}>
-        {momKeywordData.title}
-      </Typography>
+      {/* ------------------ KPI FILTER MODAL ------------------ */}
+      {filterPanelOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+              </div>
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-      {/* CONTROLS */}
-      <Box display="flex" gap={2} mt={2}>
-        <TextField
-          size="small"
-          label="Search Keyword"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={{ minWidth: 200 }}
-        />
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Month</InputLabel>
-          <Select
-            label="Month"
-            value={monthFilter}
-            onChange={(e) => setMonthFilter(e.target.value)}
+            {/* Modal Body */}
+            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
+              <KpiFilterPanel
+                sectionConfig={[
+                  { id: "categories", label: "Category" },
+                  { id: "keywords", label: "Keyword" },
+                  { id: "platforms", label: "Month" },
+                  { id: "kpiRules", label: "KPI Rules" },
+                ]}
+                keywords={filterOptions.keywords}
+                categories={filterOptions.categories}
+                platforms={filterOptions.months}
+                brands={[]}
+                skus={[]}
+                cities={[]}
+                kpiFields={filterOptions.kpiFields}
+                onKeywordChange={(ids) => setActiveFilters(p => ({ ...p, keywords: ids }))}
+                onCategoryChange={(ids) => setActiveFilters(p => ({ ...p, categories: ids }))}
+                onPlatformChange={(ids) => setActiveFilters(p => ({ ...p, months: ids }))}
+                onRulesChange={(tree) => setActiveFilters(p => ({ ...p, kpiRules: tree }))}
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setFilterPanelOpen(false)}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER & CONTROLS */}
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+        <Box>
+          <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+            {momKeywordData.title}
+          </Typography>
+          <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+            Category → Keyword → Sub-keyword
+          </Typography>
+        </Box>
+
+        <Box display="flex" gap={2} alignItems="center">
+          <Button
+            onClick={() => setFilterPanelOpen(true)}
+            startIcon={<SlidersHorizontal size={14} />}
+            sx={{
+              height: 40,
+              fontSize: 12,
+              textTransform: "none",
+              borderRadius: 999,
+              px: 2,
+              backgroundColor: "#f1f5f9",
+              color: "#334155",
+              border: "1px solid #e2e8f0",
+              "&:hover": { backgroundColor: "#e2e8f0" }
+            }}
           >
-            <MenuItem value="All">All Months</MenuItem>
-            {MONTHS.map((m) => (
-              <MenuItem key={m} value={m}>
-                {m}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+            Filters
+          </Button>
+
+          <TextField
+            size="small"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Search size={18} color="#64748b" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              minWidth: 240,
+              "& .MuiOutlinedInput-root": {
+                borderRadius: 999,
+                backgroundColor: "#f1f5f9",
+                paddingRight: 1.5,
+                "& fieldset": { borderColor: "#e2e8f0" },
+                "&:hover fieldset": { borderColor: "#cbd5e1" },
+                "&.Mui-focused fieldset": { borderColor: "#94a3b8" },
+              },
+              "& .MuiOutlinedInput-input": {
+                fontSize: 14,
+                color: "#334155",
+                py: 1,
+              },
+            }}
+          />
+        </Box>
       </Box>
 
       {/* TABLE */}
       <TableContainer
         component={Paper}
-        sx={{ mt: 2, maxHeight: 520, overflow: "auto" }}
+        sx={{ mt: 2, maxHeight: 520, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: 'none' }}
       >
         <Table size="small" stickyHeader>
           <TableHead>
-            <TableRow>
-              <TableCell />
-              <TableCell>Keyword</TableCell>
-              <TableCell>Month</TableCell>
-              <TableCell align="right">
+            <TableRow sx={{ borderTop: "1px solid #e5e7eb" }}>
+              <TableCell align="center" sx={{ backgroundColor: 'white' }} />
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Keyword</TableCell>
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Category</TableCell>
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Month</TableCell>
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("Impressions", "impressions")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("Conversion", "conversion")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("Spend", "spend")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("CPM", "cpm")}
               </TableCell>
-              <TableCell align="right">
+              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("ROAS", "roas")}
               </TableCell>
             </TableRow>
@@ -471,51 +666,87 @@ export default function KeywordAnalysisTable() {
         </Table>
       </TableContainer>
 
-      {/* ➜ RIGHT-ALIGNED SIMPLE TEXT PAGINATION */}
       <Box
-        mt={2}
-        display="flex"
-        justifyContent="flex-end"
-        alignItems="center"
-        gap={3}
-        sx={{ fontSize: 14, fontWeight: 500 }}
+        sx={{
+          mt: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
       >
-        {/* PREV */}
-        <Box
-          sx={{
-            color: page === 1 ? "#9ca3af" : "#2563eb",
-            cursor: page === 1 ? "default" : "pointer",
-            userSelect: "none",
-          }}
-          onClick={() => page > 1 && setPage(page - 1)}
-        >
-          PREV
+        {/* Left: Prev | Page X / Y | Next */}
+        <Box display="flex" alignItems="center" gap={1}>
+          <Button
+            size="small"
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            sx={{
+              minWidth: 'auto',
+              borderRadius: 999,
+              px: 2,
+              py: 0.5,
+              border: '1px solid #e2e8f0',
+              color: '#64748b',
+              textTransform: 'none',
+              backgroundColor: 'white',
+              '&:hover': { backgroundColor: '#f8fafc' },
+              '&:disabled': { opacity: 0.5 }
+            }}
+          >
+            Prev
+          </Button>
+
+          <Typography sx={{ fontSize: 12, color: "#334155", fontWeight: 500, mx: 1 }}>
+            Page {page} / {Math.ceil(processedKeywords.length / rowsPerPage)}
+          </Typography>
+
+          <Button
+            size="small"
+            disabled={page >= Math.ceil(processedKeywords.length / rowsPerPage)}
+            onClick={() => setPage((p) => p + 1)}
+            sx={{
+              minWidth: 'auto',
+              borderRadius: 999,
+              px: 2,
+              py: 0.5,
+              border: '1px solid #e2e8f0',
+              color: '#64748b',
+              textTransform: 'none',
+              backgroundColor: 'white',
+              '&:hover': { backgroundColor: '#f8fafc' },
+              '&:disabled': { opacity: 0.5 }
+            }}
+          >
+            Next
+          </Button>
         </Box>
 
-        {/* PAGE COUNTER */}
-        <Box sx={{ color: "#374151" }}>
-          Page {page} of {Math.ceil(processedKeywords.length / rowsPerPage)}
-        </Box>
-
-        {/* NEXT */}
-        <Box
-          sx={{
-            color:
-              page === Math.ceil(processedKeywords.length / rowsPerPage)
-                ? "#9ca3af"
-                : "#2563eb",
-            cursor:
-              page === Math.ceil(processedKeywords.length / rowsPerPage)
-                ? "default"
-                : "pointer",
-            userSelect: "none",
-          }}
-          onClick={() =>
-            page < Math.ceil(processedKeywords.length / rowsPerPage) &&
-            setPage(page + 1)
-          }
-        >
-          NEXT
+        {/* Right: Rows/page selector */}
+        <Box display="flex" alignItems="center" gap={1}>
+          <Typography sx={{ fontSize: 12, color: "#64748b" }}>
+            Rows/page
+          </Typography>
+          <Select
+            value={rowsPerPage}
+            onChange={(e) => {
+              setRowsPerPage(Number(e.target.value));
+              setPage(1);
+            }}
+            size="small"
+            sx={{
+              height: 32,
+              fontSize: 12,
+              borderRadius: 2,
+              backgroundColor: 'white',
+              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
+            }}
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
+                {n}
+              </MenuItem>
+            ))}
+          </Select>
         </Box>
       </Box>
     </Card>

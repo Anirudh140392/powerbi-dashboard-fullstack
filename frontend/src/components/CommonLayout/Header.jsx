@@ -22,8 +22,12 @@ import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeSelector from "./DateRangeSelector";
 
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
+  const [isExpanded, setIsExpanded] = React.useState(true);
 
   const {
     brands,
@@ -59,6 +63,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         position: "sticky",
         top: 0,
         zIndex: 1200,
+        transition: "all 0.3s ease",
       }}
     >
       {/* ---------------- FIRST ROW ---------------- */}
@@ -72,7 +77,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         }}
       >
         {/* LEFT SIDE */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <IconButton
             onClick={onMenuClick}
             sx={{ display: { xs: "block", sm: "none" } }}
@@ -81,8 +86,17 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
           </IconButton>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <IconButton size="small">
-              <ArrowBackIcon />
+            <IconButton
+              size="small"
+              onClick={() => setIsExpanded(!isExpanded)}
+              sx={{
+                bgcolor: "#f1f5f9",
+                "&:hover": { bgcolor: "#e2e8f0" },
+                transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.3s ease"
+              }}
+            >
+              <ChevronDown size={18} />
             </IconButton>
 
             <Typography variant="h6" fontWeight="700">
@@ -91,224 +105,249 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
           </Box>
         </Box>
 
-        {/* DATE PICKERS */}
-        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-          {/* PLATFORM SELECTION */}
-          <Box>
-            <Typography
+        {/* FILTERS CONTAINER */}
+        <AnimatePresence>
+          {isExpanded && (
+            <Box
+              component={motion.div}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
               sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                mb: 0.5,
-                opacity: 0.7,
+                display: "flex",
+                gap: 2,
+                flexWrap: "wrap",
+                overflow: "hidden"
               }}
             >
-              PLATFORM
-            </Typography>
-            <Autocomplete
-              disableClearable
-              options={platforms}
-              value={platform}
-              onChange={(event, newValue) => setPlatform(newValue)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  sx={{ width: 130 }}
+              {/* PLATFORM SELECTION */}
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.5,
+                    opacity: 0.7,
+                  }}
+                >
+                  PLATFORM
+                </Typography>
+                <Autocomplete
+                  disableClearable
+                  options={platforms}
+                  value={platform}
+                  onChange={(event, newValue) => setPlatform(newValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      sx={{ width: 130 }}
+                    />
+                  )}
                 />
-              )}
-            />
-          </Box>
+              </Box>
 
-          {/* BRAND SELECTION */}
-          <Box>
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                mb: 0.5,
-                opacity: 0.7,
-              }}
-            >
-              BRAND
-            </Typography>
-            <Autocomplete
-              options={brands}
-              value={selectedBrand}
-              onChange={(event, newValue) => setSelectedBrand(newValue)}
-              disableClearable
-              ListboxProps={{
-                style: {
-                  maxHeight: "160px", // Approx 4 items (assuming ~40px per item)
-                },
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  sx={{ width: 130 }}
+              {/* BRAND SELECTION */}
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.5,
+                    opacity: 0.7,
+                  }}
+                >
+                  BRAND
+                </Typography>
+                <Autocomplete
+                  options={brands}
+                  value={selectedBrand}
+                  onChange={(event, newValue) => setSelectedBrand(newValue)}
+                  disableClearable
+                  ListboxProps={{
+                    style: {
+                      maxHeight: "160px", // Approx 4 items (assuming ~40px per item)
+                    },
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      sx={{ width: 130 }}
+                    />
+                  )}
                 />
-              )}
-            />
-          </Box>
+              </Box>
 
-          {/* LOCATION SELECTION */}
-          <Box>
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                mb: 0.5,
-                opacity: 0.7,
-              }}
-            >
-              LOCATION
-            </Typography>
-            <Autocomplete
-              disableClearable
-              options={locations}
-              value={selectedLocation}
-              onChange={(event, newValue) => setSelectedLocation(newValue)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  size="small"
-                  sx={{ width: 130 }}
+              {/* LOCATION SELECTION */}
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.5,
+                    opacity: 0.7,
+                  }}
+                >
+                  LOCATION
+                </Typography>
+                <Autocomplete
+                  disableClearable
+                  options={locations}
+                  value={selectedLocation}
+                  onChange={(event, newValue) => setSelectedLocation(newValue)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      sx={{ width: 130 }}
+                    />
+                  )}
+                  ListboxProps={{
+                    style: {
+                      maxHeight: "160px",
+                    },
+                  }}
                 />
-              )}
-              ListboxProps={{
-                style: {
-                  maxHeight: "160px",
-                },
-              }}
-            />
-          </Box>
+              </Box>
 
-          {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
-          {location.pathname === '/visibility-anlysis' && (
-            <Box>
-              <Typography
-                sx={{
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  mb: 0.5,
-                  opacity: 0.7,
-                }}
-              >
-                KEYWORD
-              </Typography>
-              <Autocomplete
-                options={keywords}
-                value={selectedKeyword}
-                onChange={(event, newValue) => setSelectedKeyword(newValue)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    size="small"
-                    sx={{ width: 130 }}
+              {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
+              {location.pathname === '/visibility-anlysis' && (
+                <Box>
+                  <Typography
+                    sx={{
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      mb: 0.5,
+                      opacity: 0.7,
+                    }}
+                  >
+                    KEYWORD
+                  </Typography>
+                  <Autocomplete
+                    disableClearable
+                    options={keywords}
+                    value={selectedKeyword}
+                    onChange={(event, newValue) => setSelectedKeyword(newValue)}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        sx={{ width: 130 }}
+                      />
+                    )}
+                    ListboxProps={{
+                      style: {
+                        maxHeight: "160px",
+                      },
+                    }}
                   />
-                )}
-                ListboxProps={{
-                  style: {
-                    maxHeight: "160px",
-                  },
-                }}
-              />
+                </Box>
+              )}
+
+              {/* TIME PERIOD */}
+              <Box sx={{ width: 190 }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.5,
+                    opacity: 0.7,
+                  }}
+                >
+                  TIME PERIOD
+                </Typography>
+                <DateRangeSelector
+                  startDate={timeStart}
+                  endDate={timeEnd}
+                  onChange={(start, end) => {
+                    setTimeStart(start);
+                    setTimeEnd(end);
+                  }}
+                />
+              </Box>
+
+              {/* COMPARE WITH */}
+              <Box sx={{ width: 190 }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.5,
+                    opacity: 0.7,
+                  }}
+                >
+                  COMPARE WITH
+                </Typography>
+                <DateRangeSelector
+                  startDate={compareStart}
+                  endDate={compareEnd}
+                  onChange={(start, end) => {
+                    setCompareStart(start);
+                    setCompareEnd(end);
+                  }}
+                />
+              </Box>
             </Box>
           )}
-
-          {/* TIME PERIOD */}
-          <Box sx={{ width: 190 }}>
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                mb: 0.5,
-                opacity: 0.7,
-              }}
-            >
-              TIME PERIOD
-            </Typography>
-            <DateRangeSelector
-              startDate={timeStart}
-              endDate={timeEnd}
-              onChange={(start, end) => {
-                setTimeStart(start);
-                setTimeEnd(end);
-              }}
-            />
-          </Box>
-
-          {/* COMPARE WITH */}
-          <Box sx={{ width: 190 }}>
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                mb: 0.5,
-                opacity: 0.7,
-              }}
-            >
-              COMPARE WITH
-            </Typography>
-            <DateRangeSelector
-              startDate={compareStart}
-              endDate={compareEnd}
-              onChange={(start, end) => {
-                setCompareStart(start);
-                setCompareEnd(end);
-              }}
-            />
-          </Box>
-        </Box>
+        </AnimatePresence>
       </Box>
 
       {/* ---------------- SECOND ROW ---------------- */}
-      <Box
-        sx={{
-          display: "flex",
-          gap: 2,
-          justifyContent: "flex-end",
-          flexWrap: "wrap",
-          mt: 2,
-          alignItems: "center",
-        }}
-      >
-        {/* DATE INFO */}
-        <Button
-          variant="outlined"
-          sx={{
-            borderColor: "#d1d5db",
-            textTransform: "none",
-            fontSize: "0.75rem",
-          }}
-        >
-          Data till {timeEnd.format("DD MMM YY")}
-        </Button>
-
-        {/* PRICE MODE SWITCH */}
-        <Box sx={{ display: "flex", gap: 1 }}>
-          {["MRP", "SP"].map((label) => (
+      <AnimatePresence>
+        {isExpanded && (
+          <Box
+            component={motion.div}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            sx={{
+              display: "flex",
+              gap: 2,
+              justifyContent: "flex-end",
+              flexWrap: "wrap",
+              mt: 2,
+              alignItems: "center",
+              overflow: "hidden"
+            }}
+          >
+            {/* DATE INFO */}
             <Button
-              key={label}
-              variant={priceMode === label ? "contained" : "outlined"}
-              onClick={() => setPriceMode(label)}
+              variant="outlined"
               sx={{
+                borderColor: "#d1d5db",
                 textTransform: "none",
                 fontSize: "0.75rem",
-                background:
-                  priceMode === label ? "#059669" : "transparent",
-                borderColor: "#d1d5db",
               }}
             >
-              {label}
+              Data till {timeEnd.format("DD MMM YY")}
             </Button>
-          ))}
-        </Box>
 
-        {/* 🌗 THEME TOGGLE */}
-        {/* 🌗 THEME TOGGLE REMOVED - Static Light Mode Enforced */}
-      </Box>
+            {/* PRICE MODE SWITCH */}
+            <Box sx={{ display: "flex", gap: 1 }}>
+              {["MRP", "SP"].map((label) => (
+                <Button
+                  key={label}
+                  variant={priceMode === label ? "contained" : "outlined"}
+                  onClick={() => setPriceMode(label)}
+                  sx={{
+                    textTransform: "none",
+                    fontSize: "0.75rem",
+                    background:
+                      priceMode === label ? "#059669" : "transparent",
+                    borderColor: "#d1d5db",
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Box>
+          </Box>
+        )}
+      </AnimatePresence>
+
+      {/* 🌗 THEME TOGGLE */}
+      {/* 🌗 THEME TOGGLE REMOVED - Static Light Mode Enforced */}
     </Box>
   );
 };

@@ -31,7 +31,21 @@ export default function SKUTable({ data }) {
   return (
     <Box>
       {/* Controls */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 600 }}>
+            Metrics:
+          </Typography>
+          <Select
+            size="small"
+            value="offtake"
+            sx={{ minWidth: 120 }}
+          >
+            <MenuItem value="offtake">Offtake</MenuItem>
+            <MenuItem value="growth">Growth</MenuItem>
+          </Select>
+        </Box>
+
         <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField
             size="small"

@@ -168,17 +168,7 @@ export default function OsaDetailTableLight() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm ring-1 ring-slate-200">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy (≥ 85%)
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm ring-1 ring-slate-200">
-              <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch (70–84%)
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm ring-1 ring-slate-200">
-              <span className="h-2 w-2 rounded-full bg-rose-500" /> Action (&lt; 70%)
-            </span>
-          </div>
+
         </div>
 
         {/* Controls */}
@@ -217,26 +207,18 @@ export default function OsaDetailTableLight() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-xl bg-slate-100 p-1">
-              {[7, 14, 31].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => {
-                    setVisibleDays(n);
-                    setSortKey("avg7");
-                    setSortDir("desc");
-                  }}
-                  className={
-                    "px-3 py-1.5 text-sm rounded-lg transition " +
-                    (visibleDays === n
-                      ? "bg-white shadow-sm ring-1 ring-slate-200 text-slate-900"
-                      : "text-slate-600 hover:text-slate-900")
-                  }
-                >
-                  Last {n}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 mr-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm ring-1 ring-slate-200">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm ring-1 ring-slate-200">
+                <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm ring-1 ring-slate-200">
+                <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
+              </span>
             </div>
+
 
             <div className="text-sm text-slate-500">
               Showing <span className="font-medium text-slate-800">{pageRows.length}</span> of{" "}
@@ -270,7 +252,7 @@ export default function OsaDetailTableLight() {
                     className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
                     onClick={() => headerSort("avg31")}
                   >
-                    {visibleDays}D AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                    AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
                   </th>
 
                   <th className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200">
@@ -437,7 +419,7 @@ export default function OsaDetailTableLight() {
         </div>
 
         <div className="mt-3 text-xs text-slate-500">
-          Tip: Click any header (7D Avg / 31D Avg / Day columns) to sort. Use “Last 7/14/31” to reduce column density.
+          Tip: Click any header (7D Avg / AVG / Day columns) to sort. Use “Last 7/14/31” to reduce column density.
         </div>
       </div>
     </div>

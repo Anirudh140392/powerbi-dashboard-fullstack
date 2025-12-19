@@ -9,7 +9,38 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { motion } from "framer-motion";
+import { Download, RefreshCw, Save, CheckCircle, XCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+const Toast = ({ message, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 50, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.9 }}
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl border border-emerald-100 bg-white/90 px-4 py-3 shadow-xl backdrop-blur-md"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+        <CheckCircle className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-800">Success</p>
+        <p className="text-xs text-slate-500">{message}</p>
+      </div>
+      <button
+        onClick={onClose}
+        className="ml-2 text-slate-400 hover:text-slate-600"
+      >
+        <XCircle className="h-4 w-4" />
+      </button>
+    </motion.div>
+  );
+};
 
 const defaultFields = [
   {
@@ -238,16 +269,33 @@ const aggLabel = {
   avg: "Avg",
   count: "Count",
   min: "Min",
+  sum: "Sum",
+  avg: "Avg",
+  count: "Count",
+  distinctCount: "Dst Count",
+  min: "Min",
   max: "Max",
 };
 
-const initState = () => ({ sum: 0, count: 0, min: Infinity, max: -Infinity });
+const initState = () => ({
+  sum: 0,
+  count: 0,
+  min: Infinity,
+  max: -Infinity,
+  uniqueVals: new Set(),
+});
 
 const pushAgg = (state, value) => {
-  state.sum += value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    state.sum += value;
+    state.min = Math.min(state.min, value);
+    state.max = Math.max(state.max, value);
+  } else {
+    // For non-numeric, we can't sum/min/max in a standard way,
+    // but we still count and track unique vals.
+  }
   state.count += 1;
-  state.min = Math.min(state.min, value);
-  state.max = Math.max(state.max, value);
+  state.uniqueVals.add(value);
 };
 
 const finalizeAgg = (state, agg) => {
@@ -255,6 +303,7 @@ const finalizeAgg = (state, agg) => {
   if (agg === "sum") return state.sum;
   if (agg === "avg") return state.count ? state.sum / state.count : 0;
   if (agg === "count") return state.count;
+  if (agg === "distinctCount") return state.uniqueVals.size;
   if (agg === "min") return state.count ? state.min : 0;
   return state.count ? state.max : 0;
 };
@@ -278,10 +327,32 @@ const evaluateValue = (map, value) => {
 
 const formatCell = (val, value) => {
   if (!Number.isFinite(val)) return "-";
+  if (value.format === "percent")
+    return val.toLocaleString("en-IN", {
+      style: "percent",
+      minimumFractionDigits: 1,
+    });
+  if (value.format === "currency")
+    return val.toLocaleString("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    });
+  if (value.format === "decimal")
+    return val.toLocaleString("en-IN", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    });
+  if (value.format === "compact")
+    return Intl.NumberFormat("en-US", {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(val);
   if (value.calc === "ratio" && value.denominatorKey)
     return `${(val * 100).toFixed(1)}%`;
+
   const digits = value.agg === "avg" ? 1 : 0;
-  return val.toLocaleString("en-US", {
+  return val.toLocaleString("en-IN", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   });
@@ -316,20 +387,27 @@ const buildPivot = (data, config, measureKeys) => {
     const cellStates = cellMap.get(cellId) || {};
 
     measureKeys.forEach((mKey) => {
-      const raw = Number(row[mKey]);
-      if (!Number.isFinite(raw)) return;
+      const raw = row[mKey];
+      // We pass everything to pushAgg; it handles type checks
+      // if (raw === undefined || raw === null) return; // Optional: skip nulls?
+      // actually let's treat null as a value or skip. Let's skip undefined.
+      if (raw === undefined) return;
 
-      cloneAndPush(cellStates, mKey, raw);
+      const valToPush = (typeof raw === 'string' && !isNaN(Number(raw)) && raw.trim() !== '')
+        ? Number(raw)
+        : raw;
+
+      cloneAndPush(cellStates, mKey, valToPush);
 
       const rowState = rowTotals.get(rowKey) || {};
-      cloneAndPush(rowState, mKey, raw);
+      cloneAndPush(rowState, mKey, valToPush);
       rowTotals.set(rowKey, rowState);
 
       const colState = colTotals.get(colKey) || {};
-      cloneAndPush(colState, mKey, raw);
+      cloneAndPush(colState, mKey, valToPush);
       colTotals.set(colKey, colState);
 
-      cloneAndPush(grandTotals, mKey, raw);
+      cloneAndPush(grandTotals, mKey, valToPush);
     });
 
     cellMap.set(cellId, cellStates);
@@ -355,6 +433,7 @@ const valueLabel = (v) =>
 export const CustomPivotWorkbench = ({
   data = pivotSample,
   fields = defaultFields,
+  initialConfig = null,
 }) => {
   const dimensionFields = fields.filter((f) => f.type === "dimension");
   const measureFields = fields.filter((f) => f.type === "measure");
@@ -364,7 +443,7 @@ export const CustomPivotWorkbench = ({
     [fields]
   );
 
-  const [config, setConfig] = useState({
+  const defaultConfig = {
     rows: ["country"],
     columns: ["orderSource"],
     filters: {},
@@ -382,7 +461,16 @@ export const CustomPivotWorkbench = ({
         agg: "sum",
       },
     ],
-  });
+  };
+
+  const [config, setConfig] = useState(initialConfig || defaultConfig);
+
+  // Effect to update config when initialConfig prop changes (e.g. switching datasets)
+  useEffect(() => {
+    if (initialConfig) {
+      setConfig(initialConfig);
+    }
+  }, [initialConfig]);
 
   const [chartMode, setChartMode] = useState("both");
   const [chartValueId, setChartValueId] = useState("unitsSold-sum");
@@ -390,6 +478,7 @@ export const CustomPivotWorkbench = ({
   const [editingFilter, setEditingFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState("");
   const [draggingKey, setDraggingKey] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
 
   const [calcForm, setCalcForm] = useState({
     numerator: "unitsSold",
@@ -398,8 +487,13 @@ export const CustomPivotWorkbench = ({
   });
 
   const measureKeys = useMemo(
-    () => measureFields.map((m) => m.key),
-    [measureFields]
+    () => {
+      const keys = new Set(config.values.map(v => v.key));
+      // Ensure any keys needed for ratios (denominator) are also included if they aren't explicit?
+      // For now, simpler: we blindly aggregate any key present in `values`.
+      return Array.from(keys);
+    },
+    [config.values]
   );
 
   const filterOptions = useMemo(() => {
@@ -428,7 +522,7 @@ export const CustomPivotWorkbench = ({
   const assignField = (fieldKey, axis) => {
     const field = fieldLookup[fieldKey];
     if (!field) return;
-    if (axis === "values" && field.type !== "measure") return;
+    // Removed restriction: if (axis === "values" && field.type !== "measure") return;
 
     setConfig((prev) => {
       const rows = prev.rows.filter((r) => r !== fieldKey);
@@ -443,11 +537,14 @@ export const CustomPivotWorkbench = ({
       if (axis === "filters") filters[fieldKey] = filters[fieldKey] || [];
       if (axis === "values") {
         const id = `${fieldKey}-${Date.now()}`;
+        // Default to 'count' or 'distinctCount' for dimensions, 'sum' for measures
+        const defaultAgg = field.type === "dimension" ? "distinctCount" : "sum";
+
         values.push({
           id,
           key: fieldKey,
           label: field.label,
-          agg: "sum",
+          agg: defaultAgg,
         });
         if (!chartValueId) setChartValueId(id);
       }
@@ -461,7 +558,7 @@ export const CustomPivotWorkbench = ({
     const key = e.dataTransfer.getData("fieldKey");
     const type = e.dataTransfer.getData("fieldType");
     if (!key) return;
-    if (axis === "values" && type !== "measure") return;
+    // Removed restriction: if (axis === "values" && type !== "measure") return;
 
     assignField(key, axis);
   };
@@ -492,6 +589,13 @@ export const CustomPivotWorkbench = ({
     }));
   };
 
+  const updateFormat = (id, format) => {
+    setConfig((prev) => ({
+      ...prev,
+      values: prev.values.map((v) => (v.id === id ? { ...v, format } : v)),
+    }));
+  };
+
   const chartValue =
     config.values.find((v) => v.id === chartValueId) || config.values[0];
 
@@ -505,8 +609,8 @@ export const CustomPivotWorkbench = ({
       label: hasColumns
         ? sanitizeKey(tuple)
         : chartValue
-        ? valueLabel(chartValue)
-        : "Total",
+          ? valueLabel(chartValue)
+          : "Total",
     })
   );
 
@@ -532,9 +636,8 @@ export const CustomPivotWorkbench = ({
   const addCalculatedRatio = () => {
     if (!calcForm.numerator || !calcForm.denominator) return;
 
-    const id = `calc-${calcForm.numerator}-${
-      calcForm.denominator
-    }-${Date.now()}`;
+    const id = `calc-${calcForm.numerator}-${calcForm.denominator
+      }-${Date.now()}`;
 
     setConfig((prev) => ({
       ...prev,
@@ -554,6 +657,105 @@ export const CustomPivotWorkbench = ({
     setChartValueId(id);
   };
 
+
+
+  const handleSave = () => {
+    // Placeholder for save logic
+    setToastMsg("Layout configuration saved successfully.");
+  };
+
+  const handleExport = () => {
+    const q = (s) => `"${String(s || "").replace(/"/g, '""')}"`;
+    const rowHeaders = config.rows.length
+      ? config.rows.map((r) => fieldLookup[r]?.label || r)
+      : ["Rows"];
+
+    let csvContent = "";
+
+    // 1. Header Row
+    const headerRow = [...rowHeaders];
+    if (hasColumns) {
+      colEntries.forEach(([, colTuple]) => {
+        const colLabel = sanitizeKey(colTuple);
+        config.values.forEach((v) => {
+          headerRow.push(`${colLabel} - ${valueLabel(v)}`);
+        });
+      });
+      // Row Total headers
+      config.values.forEach((v) => {
+        headerRow.push(`Total - ${valueLabel(v)}`);
+      });
+    } else {
+      config.values.forEach((v) => {
+        headerRow.push(valueLabel(v));
+      });
+    }
+    csvContent += headerRow.map(q).join(",") + "\n";
+
+    // 2. Data Rows
+    rowEntries.forEach(([rowKey, rowTuple]) => {
+      const rowData = [...(config.rows.length ? rowTuple : ["All"])];
+
+      if (hasColumns) {
+        colEntries.forEach(([colKey]) => {
+          config.values.forEach((v) => {
+            const cell = pivot.cellMap.get(`${rowKey}__${colKey}`);
+            const val = evaluateValue(cell, v);
+            rowData.push(val);
+          });
+        });
+        // Row Totals
+        config.values.forEach((v) => {
+          const state = pivot.rowTotals.get(rowKey);
+          const val = evaluateValue(state, v);
+          rowData.push(val);
+        });
+      } else {
+        config.values.forEach((v) => {
+          const state = pivot.rowTotals.get(rowKey);
+          const val = evaluateValue(state, v);
+          rowData.push(val);
+        });
+      }
+      csvContent += rowData.map(q).join(",") + "\n";
+    });
+
+    // 3. Footer (Grand Totals)
+    const footerRow = new Array(rowHeaders.length).fill("");
+    footerRow[0] = "Grand Total";
+
+    if (hasColumns) {
+      colEntries.forEach(([colKey]) => {
+        config.values.forEach((v) => {
+          const state = pivot.colTotals.get(colKey);
+          const val = evaluateValue(state, v);
+          footerRow.push(val);
+        });
+      });
+      // Grand Total of Totals
+      config.values.forEach((v) => {
+        const val = evaluateValue(pivot.grandTotals, v);
+        footerRow.push(val);
+      });
+    } else {
+      config.values.forEach((v) => {
+        const val = evaluateValue(pivot.grandTotals, v);
+        footerRow.push(val);
+      });
+    }
+    csvContent += footerRow.map(q).join(",") + "\n";
+
+    // Download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pivot_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white/90 shadow-lg shadow-sky-900/5 p-4 lg:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -561,16 +763,9 @@ export const CustomPivotWorkbench = ({
           <p className="text-[11px] uppercase tracking-[0.24em] text-sky-500">
             Pivot studio
           </p>
-          <h2 className="text-xl font-semibold text-slate-900">
-            Excel-style pivot with bespoke UI
-          </h2>
-          <p className="text-sm text-slate-500">
-            Drag fields, change aggregations, build calculated ratios, and flip
-            between chart & table without third-party pivot widgets.
-          </p>
         </div>
 
-        {/* Chart mode buttons + reset */}
+        {/* Chart mode buttons + Tools */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-full bg-slate-100 px-1 py-1">
             {["chart", "table", "both"].map((mode) => (
@@ -578,48 +773,71 @@ export const CustomPivotWorkbench = ({
                 key={mode}
                 type="button"
                 onClick={() => setChartMode(mode)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  chartMode === mode
-                    ? "bg-white shadow-sm text-slate-900"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
+                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition ${chartMode === mode
+                  ? "bg-white shadow-sm text-slate-900"
+                  : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
                 {mode === "both"
                   ? "Both"
                   : mode === "chart"
-                  ? "Chart"
-                  : "Table"}
+                    ? "Chart"
+                    : "Table"}
               </button>
             ))}
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm"
-            onClick={() =>
-              setConfig({
-                rows: ["country"],
-                columns: ["orderSource"],
-                filters: {},
-                values: [
-                  {
-                    id: "unitsSold-sum",
-                    key: "unitsSold",
-                    label: "Units Sold",
-                    agg: "sum",
-                  },
-                  {
-                    id: "soldAmount-sum",
-                    key: "soldAmount",
-                    label: "Sold Amount",
-                    agg: "sum",
-                  },
-                ],
-              })
-            }
-          >
-            Reset layout
-          </motion.button>
+          <div className="ml-2 flex items-center gap-1">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Reset configuration"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-rose-600"
+              onClick={() =>
+                setConfig({
+                  rows: ["country"],
+                  columns: ["orderSource"],
+                  filters: {},
+                  values: [
+                    {
+                      id: "unitsSold-sum",
+                      key: "unitsSold",
+                      label: "Units Sold",
+                      agg: "sum",
+                    },
+                    {
+                      id: "soldAmount-sum",
+                      key: "soldAmount",
+                      label: "Sold Amount",
+                      agg: "sum",
+                    },
+                  ],
+                })
+              }
+            >
+              <RefreshCw className="h-4 w-4" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Export CSV"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-sky-600"
+              onClick={handleExport}
+            >
+              <Download className="h-4 w-4" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Save layout"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-sky-500 text-white shadow-sm hover:bg-sky-600"
+              onClick={handleSave}
+            >
+              <Save className="h-4 w-4" />
+            </motion.button>
+          </div>
         </div>
       </div>
 
@@ -679,11 +897,10 @@ export const CustomPivotWorkbench = ({
                             )
                           }
                           whileHover={{ y: -1 }}
-                          className={`group flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium shadow-sm ${
-                            f.type === "measure"
-                              ? "border-amber-200 bg-amber-50 text-amber-800"
-                              : "border-sky-200 bg-sky-50 text-sky-800"
-                          } ${draggingKey === f.key ? "opacity-70" : ""}`}
+                          className={`group flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium shadow-sm ${f.type === "measure"
+                            ? "border-amber-200 bg-amber-50 text-amber-800"
+                            : "border-sky-200 bg-sky-50 text-sky-800"
+                            } ${draggingKey === f.key ? "opacity-70" : ""}`}
                         >
                           <span className="h-2 w-2 rounded-full bg-current opacity-60" />
                           {f.label}
@@ -801,9 +1018,9 @@ export const CustomPivotWorkbench = ({
                         </div>
                       </div>
                     )}
-                  </div>
+                  </div >
                 ))}
-              </div>
+              </div >
             )}
           />
 
@@ -886,11 +1103,30 @@ export const CustomPivotWorkbench = ({
                       onChange={(e) => updateAgg(v.id, e.target.value)}
                       className="rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
                     >
-                      {["sum", "avg", "count", "min", "max"].map((agg) => (
+                      {[
+                        "sum",
+                        "avg",
+                        "count",
+                        "distinctCount",
+                        "min",
+                        "max",
+                      ].map((agg) => (
                         <option key={agg} value={agg}>
                           {aggLabel[agg]}
                         </option>
                       ))}
+                    </select>
+
+                    <select
+                      value={v.format || "number"}
+                      onChange={(e) => updateFormat(v.id, e.target.value)}
+                      className="rounded-md border border-amber-200 bg-white px-2 py-1 text-[11px] text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                    >
+                      <option value="number">1,234</option>
+                      <option value="currency">₹</option>
+                      <option value="percent">%</option>
+                      <option value="decimal">1.00</option>
+                      <option value="compact">1K</option>
                     </select>
 
                     <button
@@ -972,187 +1208,190 @@ export const CustomPivotWorkbench = ({
               Creates numerator / denominator with the selected aggregation.
             </p>
           </div>
-        </div>
+        </div >
 
         {/* ========================== RIGHT SIDE (CHART + TABLE) ========================== */}
-        <div className="col-span-12 lg:col-span-8 space-y-3">
+        < div className="col-span-12 lg:col-span-8 space-y-3" >
           {/* BAR CHART */}
-          {chartMode !== "table" && chartValue && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-500">
-                    Chart
-                  </p>
+          {
+            chartMode !== "table" && chartValue && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500">
+                      Chart
+                    </p>
 
-                  <p className="text-sm font-semibold text-slate-800">
-                    {valueLabel(chartValue)} by{" "}
-                    {config.rows.length
-                      ? config.rows
+                    <p className="text-sm font-semibold text-slate-800">
+                      {valueLabel(chartValue)} by{" "}
+                      {config.rows.length
+                        ? config.rows
                           .map((r) => fieldLookup[r]?.label || r)
                           .join(" / ")
-                      : "All rows"}
-                  </p>
-                </div>
+                        : "All rows"}
+                    </p>
+                  </div>
 
-                <select
-                  value={chartValueId}
-                  onChange={(e) => setChartValueId(e.target.value)}
-                  className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
-                >
-                  {config.values.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {valueLabel(v)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mt-3 h-72">
-                <ResponsiveContainer>
-                  <BarChart
-                    data={chartData}
-                    margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
+                  <select
+                    value={chartValueId}
+                    onChange={(e) => setChartValueId(e.target.value)}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
                   >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Legend />
-
-                    {chartSeries.map((s, idx) => (
-                      <Bar
-                        key={s.key}
-                        dataKey={s.label}
-                        fill={colors[idx % colors.length]}
-                        radius={[6, 6, 0, 0]}
-                      />
+                    {config.values.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {valueLabel(v)}
+                      </option>
                     ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
-          )}
+                  </select>
+                </div >
+
+                <div className="mt-3 h-72">
+                  <ResponsiveContainer>
+                    <BarChart
+                      data={chartData}
+                      margin={{ left: 0, right: 10, top: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Legend />
+
+                      {chartSeries.map((s, idx) => (
+                        <Bar
+                          key={s.key}
+                          dataKey={s.label}
+                          fill={colors[idx % colors.length]}
+                          radius={[6, 6, 0, 0]}
+                        />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </motion.div >
+            )
+          }
 
           {/* ================================= PIVOT TABLE ================================= */}
-          {chartMode !== "chart" && config.values.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-500">
-                    Pivot table
-                  </p>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {config.rows.length || config.columns.length
-                      ? "Interactive cross-tab"
-                      : "Grand totals"}
-                  </p>
+          {
+            chartMode !== "chart" && config.values.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.12em] text-slate-500">
+                      Pivot table
+                    </p>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {config.rows.length || config.columns.length
+                        ? "Interactive cross-tab"
+                        : "Grand totals"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span>{data.length} rows</span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                  <span>{data.length} rows</span>
-                </div>
-              </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full border border-slate-200 text-xs">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        {(config.rows.length ? config.rows : ["All"]).map((r) => (
+                          <th
+                            key={r}
+                            className="px-2 py-2 text-left font-semibold text-slate-700 border border-slate-200"
+                            rowSpan={hasColumns ? 2 : 1}
+                          >
+                            {r === "All" ? "Rows" : fieldLookup[r]?.label || r}
+                          </th>
+                        ))}
 
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full border border-slate-200 text-xs">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      {(config.rows.length ? config.rows : ["All"]).map((r) => (
-                        <th
-                          key={r}
-                          className="px-2 py-2 text-left font-semibold text-slate-700 border border-slate-200"
-                          rowSpan={hasColumns ? 2 : 1}
-                        >
-                          {r === "All" ? "Rows" : fieldLookup[r]?.label || r}
-                        </th>
-                      ))}
+                        {hasColumns ? (
+                          <>
+                            {colEntries.map(([colKey, tuple]) => (
+                              <th
+                                key={colKey}
+                                colSpan={config.values.length}
+                                className="px-2 py-2 text-center font-semibold text-slate-700 border border-slate-200"
+                              >
+                                {sanitizeKey(tuple)}
+                              </th>
+                            ))}
 
-                      {hasColumns ? (
-                        <>
-                          {colEntries.map(([colKey, tuple]) => (
                             <th
-                              key={colKey}
                               colSpan={config.values.length}
                               className="px-2 py-2 text-center font-semibold text-slate-700 border border-slate-200"
                             >
-                              {sanitizeKey(tuple)}
+                              Totals
                             </th>
-                          ))}
-
-                          <th
-                            colSpan={config.values.length}
-                            className="px-2 py-2 text-center font-semibold text-slate-700 border border-slate-200"
-                          >
-                            Totals
-                          </th>
-                        </>
-                      ) : (
-                        config.values.map((v) => (
-                          <th
-                            key={v.id}
-                            className="px-2 py-2 text-center font-semibold text-slate-700 border border-slate-200"
-                          >
-                            {valueLabel(v)}
-                          </th>
-                        ))
-                      )}
-                    </tr>
-
-                    {hasColumns && (
-                      <tr>
-                        {colEntries.flatMap(([colKey]) =>
+                          </>
+                        ) : (
                           config.values.map((v) => (
                             <th
-                              key={`${colKey}-${v.id}`}
-                              className="px-2 py-1 text-center font-semibold text-slate-600 border border-slate-200"
+                              key={v.id}
+                              className="px-2 py-2 text-center font-semibold text-slate-700 border border-slate-200"
                             >
                               {valueLabel(v)}
                             </th>
                           ))
                         )}
-
-                        {config.values.map((v) => (
-                          <th
-                            key={`total-${v.id}`}
-                            className="px-2 py-1 text-center font-semibold text-slate-600 border border-slate-200"
-                          >
-                            {valueLabel(v)}
-                          </th>
-                        ))}
                       </tr>
-                    )}
-                  </thead>
 
-                  <tbody>
-                    {rowEntries.map(([rowKey, tuple], idx) => (
-                      <tr
-                        key={rowKey}
-                        className={
-                          idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"
-                        }
-                      >
-                        {(config.rows.length ? tuple : ["All"]).map(
-                          (val, i) => (
-                            <td
-                              key={`${rowKey}-${i}`}
-                              className="px-2 py-1 text-left text-slate-700 border border-slate-200"
+                      {hasColumns && (
+                        <tr>
+                          {colEntries.flatMap(([colKey]) =>
+                            config.values.map((v) => (
+                              <th
+                                key={`${colKey}-${v.id}`}
+                                className="px-2 py-1 text-center font-semibold text-slate-600 border border-slate-200"
+                              >
+                                {valueLabel(v)}
+                              </th>
+                            ))
+                          )}
+
+                          {config.values.map((v) => (
+                            <th
+                              key={`total-${v.id}`}
+                              className="px-2 py-1 text-center font-semibold text-slate-600 border border-slate-200"
                             >
-                              {val}
-                            </td>
-                          )
-                        )}
+                              {valueLabel(v)}
+                            </th>
+                          ))}
+                        </tr>
+                      )}
+                    </thead>
 
-                        {hasColumns
-                          ? colEntries.flatMap(([colKey]) =>
+                    <tbody>
+                      {rowEntries.map(([rowKey, tuple], idx) => (
+                        <tr
+                          key={rowKey}
+                          className={
+                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"
+                          }
+                        >
+                          {(config.rows.length ? tuple : ["All"]).map(
+                            (val, i) => (
+                              <td
+                                key={`${rowKey}-${i}`}
+                                className="px-2 py-1 text-left text-slate-700 border border-slate-200"
+                              >
+                                {val}
+                              </td>
+                            )
+                          )}
+
+                          {hasColumns
+                            ? colEntries.flatMap(([colKey]) =>
                               config.values.map((v) => {
                                 const cell = pivot.cellMap.get(
                                   `${rowKey}__${colKey}`
@@ -1168,7 +1407,7 @@ export const CustomPivotWorkbench = ({
                                 );
                               })
                             )
-                          : config.values.map((v) => {
+                            : config.values.map((v) => {
                               const state = pivot.rowTotals.get(rowKey);
                               const val = evaluateValue(state, v);
                               return (
@@ -1181,97 +1420,109 @@ export const CustomPivotWorkbench = ({
                               );
                             })}
 
-                        {hasColumns &&
-                          config.values.map((v) => {
-                            const state = pivot.rowTotals.get(rowKey);
-                            const val = evaluateValue(state, v);
+                          {hasColumns &&
+                            config.values.map((v) => {
+                              const state = pivot.rowTotals.get(rowKey);
+                              const val = evaluateValue(state, v);
+                              return (
+                                <td
+                                  key={`${rowKey}-total-${v.id}`}
+                                  className="px-2 py-1 text-right font-semibold text-slate-900 border border-slate-200 bg-slate-50"
+                                >
+                                  {formatCell(val, v)}
+                                </td>
+                              );
+                            })}
+                        </tr>
+                      ))}
+                    </tbody>
+
+                    <tfoot>
+                      {hasColumns ? (
+                        <tr className="bg-slate-100">
+                          <td
+                            colSpan={config.rows.length || 1}
+                            className="px-2 py-2 text-left font-semibold text-slate-800 border border-slate-200"
+                          >
+                            Column totals
+                          </td>
+
+                          {colEntries.flatMap(([colKey]) =>
+                            config.values.map((v) => {
+                              const state = pivot.colTotals.get(colKey);
+                              const val = evaluateValue(state, v);
+                              return (
+                                <td
+                                  key={`coltotal-${colKey}-${v.id}`}
+                                  className="px-2 py-1 text-right font-semibold text-slate-900 border border-slate-200"
+                                >
+                                  {formatCell(val, v)}
+                                </td>
+                              );
+                            })
+                          )}
+
+                          {config.values.map((v) => {
+                            const val = evaluateValue(pivot.grandTotals, v);
                             return (
                               <td
-                                key={`${rowKey}-total-${v.id}`}
-                                className="px-2 py-1 text-right font-semibold text-slate-900 border border-slate-200 bg-slate-50"
+                                key={`grand-${v.id}`}
+                                className="px-2 py-1 text-right font-bold text-slate-900 border border-slate-200 bg-slate-50"
                               >
                                 {formatCell(val, v)}
                               </td>
                             );
                           })}
-                      </tr>
-                    ))}
-                  </tbody>
+                        </tr>
+                      ) : (
+                        <tr className="bg-slate-100">
+                          <td
+                            colSpan={config.rows.length || 1}
+                            className="px-2 py-2 text-left font-semibold text-slate-800 border border-slate-200"
+                          >
+                            Grand total
+                          </td>
 
-                  <tfoot>
-                    {hasColumns ? (
-                      <tr className="bg-slate-100">
-                        <td
-                          colSpan={config.rows.length || 1}
-                          className="px-2 py-2 text-left font-semibold text-slate-800 border border-slate-200"
-                        >
-                          Column totals
-                        </td>
-
-                        {colEntries.flatMap(([colKey]) =>
-                          config.values.map((v) => {
-                            const state = pivot.colTotals.get(colKey);
-                            const val = evaluateValue(state, v);
+                          {config.values.map((v) => {
+                            const val = evaluateValue(pivot.grandTotals, v);
                             return (
                               <td
-                                key={`coltotal-${colKey}-${v.id}`}
-                                className="px-2 py-1 text-right font-semibold text-slate-900 border border-slate-200"
+                                key={`grand-${v.id}`}
+                                className="px-2 py-1 text-right font-bold text-slate-900 border border-slate-200"
                               >
                                 {formatCell(val, v)}
                               </td>
                             );
-                          })
-                        )}
+                          })}
+                        </tr>
+                      )}
+                    </tfoot>
+                  </table>
+                </div>
+              </motion.div>
+            )
+          }
 
-                        {config.values.map((v) => {
-                          const val = evaluateValue(pivot.grandTotals, v);
-                          return (
-                            <td
-                              key={`grand-${v.id}`}
-                              className="px-2 py-1 text-right font-bold text-slate-900 border border-slate-200 bg-slate-50"
-                            >
-                              {formatCell(val, v)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ) : (
-                      <tr className="bg-slate-100">
-                        <td
-                          colSpan={config.rows.length || 1}
-                          className="px-2 py-2 text-left font-semibold text-slate-800 border border-slate-200"
-                        >
-                          Grand total
-                        </td>
-
-                        {config.values.map((v) => {
-                          const val = evaluateValue(pivot.grandTotals, v);
-                          return (
-                            <td
-                              key={`grand-${v.id}`}
-                              className="px-2 py-1 text-right font-bold text-slate-900 border border-slate-200"
-                            >
-                              {formatCell(val, v)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    )}
-                  </tfoot>
-                </table>
+          {
+            config.values.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                Add at least one measure to the Values shelf to generate a pivot
+                table and chart.
               </div>
-            </motion.div>
-          )}
+            )
+          }
+        </div >
+      </div >
 
-          {config.values.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-              Add at least one measure to the Values shelf to generate a pivot
-              table and chart.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      <AnimatePresence>
+        {toastMsg && (
+          <Toast
+            message={toastMsg}
+            onClose={() => setToastMsg(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div >
   );
 };
 
