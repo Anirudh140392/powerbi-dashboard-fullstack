@@ -58,6 +58,7 @@ import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
   const [rcaModalOpen, setRcaModalOpen] = useState(false);
+  const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState({
@@ -256,7 +257,10 @@ export default function WatchTower() {
           <Box sx={{ p: 3 }}>
             <PlatformOverview
               onViewTrends={handleViewTrends}
-              onViewRca={() => setRcaModalOpen(true)}
+              onViewRca={(label) => {
+                setRcaModalTitle(`${label} x ${filters.platform}`);
+                setRcaModalOpen(true);
+              }}
               data={
                 activeKpisTab === "Platform Overview"
                   ? (dashboardData?.platformOverview || defaultPlatforms)
