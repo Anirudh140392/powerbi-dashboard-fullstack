@@ -53,9 +53,11 @@ import Loader from "../../components/CommonLayout/Loader";
 import { useMemo } from "react";
 import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
+  const [rcaModalOpen, setRcaModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [filters, setFilters] = useState({
@@ -254,6 +256,7 @@ export default function WatchTower() {
           <Box sx={{ p: 3 }}>
             <PlatformOverview
               onViewTrends={handleViewTrends}
+              onViewRca={() => setRcaModalOpen(true)}
               data={
                 activeKpisTab === "Platform Overview"
                   ? (dashboardData?.platformOverview || defaultPlatforms)
@@ -339,6 +342,11 @@ defaultCategory */}
         onClose={() => setShowTrends(false)}
         selectedColumn='Blinkit'
         dynamicKey='platform_overview_tower'
+      />
+
+      <RCAModal
+        open={rcaModalOpen}
+        onClose={() => setRcaModalOpen(false)}
       />
     </>
   );
