@@ -147,7 +147,15 @@ const PlatformOverview = ({
   };
 
   return (
-    <Box>
+    <Box sx={{
+      maxHeight: 'calc(100vh - 200px)', // ADDED: Limit height to enable scrolling
+      overflowY: 'auto', // ADDED: Enable vertical scrolling
+      '&::-webkit-scrollbar': { width: 8 }, // ADDED: Custom scrollbar styling
+      '&::-webkit-scrollbar-thumb': {
+        background: '#cbd5e1',
+        borderRadius: 10,
+      },
+    }}>
       {activeKpisTab !== "Skus Overview" ? (
         <Card
           sx={{

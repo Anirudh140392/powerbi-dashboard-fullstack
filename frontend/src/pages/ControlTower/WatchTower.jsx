@@ -84,6 +84,9 @@ function WatchTower() {
     months: "3M",
     timeStep: "Weekly",
     platform: "Zepto",
+    category: "All", // ADDED
+    brand: "All", // ADDED
+    city: "All", // ADDED
     startDate: null,
     endDate: null
   });
@@ -138,6 +141,9 @@ function WatchTower() {
         setTrendParams(prev => ({
           ...prev,
           platform: monthOverviewPlatform, // Use the selected platform for Month Overview
+          category: "All", // ADDED: Reset category
+          brand: "All", // ADDED: Reset brand
+          city: "All", // ADDED: Reset city
           months: "Custom",
           timeStep: "Daily",
           startDate: mDate.startOf('month'),
@@ -150,6 +156,20 @@ function WatchTower() {
         ...prev,
         platform: categoryOverviewPlatform, // Use the selected platform for Category Overview
         category: label, // The label is the Category Name
+        brand: "All", // ADDED: Reset brand
+        city: "All", // ADDED: Reset city
+        months: "3M",
+        startDate: null,
+        endDate: null
+      }));
+    } else if (activeKpisTab === "Brands Overview") {
+      // ADDED: Brands Overview behavior
+      setTrendParams(prev => ({
+        ...prev,
+        platform: brandsOverviewPlatform,
+        category: brandsOverviewCategory,
+        brand: label, // The label is the Brand Name
+        city: "All",
         months: "3M",
         startDate: null,
         endDate: null
@@ -159,7 +179,9 @@ function WatchTower() {
       setTrendParams(prev => ({
         ...prev,
         platform: label,
-        category: null, // Reset category
+        category: "All", // UPDATED: Reset to All instead of null
+        brand: "All", // ADDED: Reset brand
+        city: "All", // ADDED: Reset city
         months: "3M", // Reset to default or keep previous? Let's reset to 3M for platform view
         startDate: null,
         endDate: null
@@ -499,6 +521,7 @@ function WatchTower() {
             cardWidth={285}
             cardHeight={140}
             data={dashboardData.performanceMetricsKpis}
+            filters={filters} // NEW: Pass filters to PerformanceMatric
           />
         </Box>
 

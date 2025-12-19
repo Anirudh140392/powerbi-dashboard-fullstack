@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, createContext } from "react";
+import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -16,6 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Box } from "@mui/material";
+import { formatNumber, formatKpiValue, formatYAxisTick } from "../../utils/formatters";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -313,23 +314,25 @@ const SelectItem = ({ value, children }) => {
 const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
 
 /** Raw config – you can change this and UI will adapt */
-const RAW_DATA = {
-  cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
-  categories: ["Body Lotion", "Face Cream", "Soap"],
-  brands: [
-    { id: "my-brand", name: "My Brand", category: "Body Lotion" },
-    { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
-    { id: "nivea", name: "Nivea", category: "Body Lotion" },
-    {
-      id: "parachute-adv",
-      name: "Parachute Advanced",
-      category: "Body Lotion",
-    },
-    { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
-    { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
-    { id: "joy", name: "Joy", category: "Body Lotion" },
-    { id: "biotique", name: "Biotique", category: "Face Cream" },
-  ],
+const createRawData = (filterOptions = {}, brandOptions = []) => ({
+  cities: filterOptions.locations || ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
+  categories: filterOptions.categories || ["Body Lotion", "Face Cream", "Soap"],
+  brands: brandOptions.length > 0
+    ? brandOptions.map((name, idx) => ({
+      id: `brand-${idx}`,
+      name: name,
+      category: filterOptions.categories?.[0] || "Body Lotion"
+    }))
+    : [
+      { id: "my-brand", name: "My Brand", category: "Body Lotion" },
+      { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
+      { id: "nivea", name: "Nivea", category: "Body Lotion" },
+      { id: "parachute-adv", name: "Parachute Advanced", category: "Body Lotion" },
+      { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
+      { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
+      { id: "joy", name: "Joy", category: "Body Lotion" },
+      { id: "biotique", name: "Biotique", category: "Face Cream" },
+    ],
   skus: [
     {
       id: "vas-100",
@@ -362,35 +365,62 @@ const RAW_DATA = {
       category: "Body Lotion",
     },
   ],
-};
+});
 
 /** Derived option lists for filters */
-const CITIES = RAW_DATA.cities;
-const CATEGORY_OPTIONS = RAW_DATA.categories;
-const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
-const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
+const getDerivedOptions = (RAW_DATA) => {
+  const CITIES = RAW_DATA.cities;
+  const CATEGORY_OPTIONS = RAW_DATA.categories;
+  const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
+  const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
 
-/** ID <-> Name maps */
-const BRAND_ID_TO_NAME = {};
-const BRAND_NAME_TO_ID = {};
-RAW_DATA.brands.forEach((b) => {
-  BRAND_ID_TO_NAME[b.id] = b.name;
-  BRAND_NAME_TO_ID[b.name] = b.id;
-});
+  /** ID <-> Name maps */
+  const BRAND_ID_TO_NAME = {};
+  const BRAND_NAME_TO_ID = {};
+  RAW_DATA.brands.forEach((b) => {
+    BRAND_ID_TO_NAME[b.id] = b.name;
+    BRAND_NAME_TO_ID[b.name] = b.id;
+  });
 
-const SKU_ID_TO_NAME = {};
-const SKU_NAME_TO_ID = {};
-RAW_DATA.skus.forEach((s) => {
-  SKU_ID_TO_NAME[s.id] = s.name;
-  SKU_NAME_TO_ID[s.name] = s.id;
-});
+  const SKU_ID_TO_NAME = {};
+  const SKU_NAME_TO_ID = {};
+  RAW_DATA.skus.forEach((s) => {
+    SKU_ID_TO_NAME[s.id] = s.name;
+    SKU_NAME_TO_ID[s.name] = s.id;
+  });
 
-/** SKU group by brand */
-const SKUS_BY_BRAND_ID = {};
-RAW_DATA.skus.forEach((s) => {
-  if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
-  SKUS_BY_BRAND_ID[s.brandId].push(s);
-});
+  /** SKU group by brand */
+  const SKUS_BY_BRAND_ID = {};
+  RAW_DATA.skus.forEach((s) => {
+    if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
+    SKUS_BY_BRAND_ID[s.brandId].push(s);
+  });
+
+  return {
+    CITIES,
+    CATEGORY_OPTIONS,
+    BRAND_OPTIONS,
+    SKU_OPTIONS,
+    BRAND_ID_TO_NAME,
+    BRAND_NAME_TO_ID,
+    SKU_ID_TO_NAME,
+    SKU_NAME_TO_ID,
+    SKUS_BY_BRAND_ID,
+  };
+};
+
+const RAW_DATA = createRawData();
+const {
+  CITIES,
+  CATEGORY_OPTIONS,
+  BRAND_OPTIONS,
+  SKU_OPTIONS,
+  BRAND_ID_TO_NAME,
+  BRAND_NAME_TO_ID,
+  SKU_ID_TO_NAME,
+  SKU_NAME_TO_ID,
+  SKUS_BY_BRAND_ID,
+} = getDerivedOptions(RAW_DATA);
 
 /** Build mock metrics and trends – all UI reads from this single data model */
 const buildDataModel = () => {
@@ -508,7 +538,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -519,39 +549,25 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   // helpers to build dependent option lists
 
   const getBrandOptions = () => {
-    let brands = RAW_DATA.brands;
+    // If no dynamic brands provided, return empty to show none
+    if (brandOptions.length === 0) return [];
 
-    // if categories selected, only brands from those categories
-    if (value.categories.length) {
-      brands = brands.filter((b) => value.categories.includes(b.category));
-    }
-
-    return brands.map((b) => b.name);
+    // if categories selected, filter brands (if we had category-brand mapping)
+    // For now, return all available brands
+    return brandOptions;
   };
 
   const getSkuOptions = () => {
-    let skus = RAW_DATA.skus;
+    // If no dynamic SKUs provided, return empty
+    if (skuOptions.length === 0) return [];
 
-    // filter by categories (if selected)
-    if (value.categories.length) {
-      skus = skus.filter((s) => value.categories.includes(s.category));
-    }
-
-    // filter by brands (if selected)
-    if (value.brands.length) {
-      const allowedBrandIds = new Set(
-        value.brands.map((name) => BRAND_NAME_TO_ID[name]).filter(Boolean)
-      );
-      skus = skus.filter((s) => allowedBrandIds.has(s.brandId));
-    }
-
-    return skus.map((s) => s.name);
+    return skuOptions;
   };
 
   const tabOptions = ["category", "brand", "sku"]; // always show all three
 
   const getListForTab = () => {
-    if (activeTab === "category") return CATEGORY_OPTIONS;
+    if (activeTab === "category") return categoryOptions;
     if (activeTab === "brand") return getBrandOptions();
     return getSkuOptions();
   };
@@ -561,7 +577,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, value]); // value drives dependencies
+  }, [activeTab, search, value, categoryOptions, brandOptions, skuOptions]); // value drives dependencies
 
   const currentKey =
     activeTab === "category"
@@ -613,7 +629,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-4xl gap-0 p-0">
+      <DialogContent className="max-w-5xl gap-0 p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-lg font-semibold">Filters</DialogTitle>
         </DialogHeader>
@@ -670,13 +686,16 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                 {list.map((item) => (
                   <label
                     key={item}
-                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                    className="flex cursor-pointer items-start gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                   >
                     <Checkbox
                       checked={value[currentKey].includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
+                      className="mt-0.5"
                     />
-                    <span className="truncate">{item}</span>
+                    <span className="flex-1 break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
+                      {item}
+                    </span>
                   </label>
                 ))}
 
@@ -1037,8 +1056,18 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} />
-                  <Tooltip />
+                  <YAxis
+                    tickLine={false}
+                    fontSize={10}
+                    width={48}
+                    tickFormatter={(value) => formatYAxisTick(value, kpi.key)}
+                  />
+                  <Tooltip
+                    formatter={(value) => {
+                      if (value === null || value === undefined || isNaN(value)) return '-';
+                      return formatKpiValue(Number(value), kpi.key, 2);
+                    }}
+                  />
                   {selectedIds.map((id) => (
                     <Line
                       key={id}
@@ -1197,22 +1226,92 @@ const SkuTable = ({ rows }) => (
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = () => {
+export const KpiTrendShowcase = ({
+  filterOptions,
+  brandOptions: propBrandOptions = [],
+  skuOptions: propSkuOptions = [],
+  competitionData = null,
+  isLoading = false,
+  selectedCity: parentCity,
+  selectedCategory: parentCategory,
+  selectedBrand: parentBrand,
+  selectedSku: parentSku,
+  onFilterChange
+}) => {
+  // Create RAW_DATA with props
+  const RAW_DATA = useMemo(() => createRawData(filterOptions, propBrandOptions), [filterOptions, propBrandOptions]);
+  const derived = useMemo(() => getDerivedOptions(RAW_DATA), [RAW_DATA]);
+  const { CITIES, BRAND_ID_TO_NAME, BRAND_NAME_TO_ID, SKU_ID_TO_NAME, SKU_NAME_TO_ID, SKUS_BY_BRAND_ID } = derived;
+
+  // Use prop SKU options if available, otherwise use derived
+  const CATEGORY_OPTIONS = derived.CATEGORY_OPTIONS;
+  const BRAND_OPTIONS = propBrandOptions.length > 0 ? propBrandOptions : derived.BRAND_OPTIONS;
+  const SKU_OPTIONS = propSkuOptions.length > 0 ? propSkuOptions : derived.SKU_OPTIONS;
+
+  // Rebuild DATA_MODEL when RAW_DATA changes (for fallback/mock data)
+  const DATA_MODEL = useMemo(() => buildDataModel(), [RAW_DATA]);
+
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
-  const [city, setCity] = useState(CITIES[0]);
+
+  // Use parent's selected city if provided, otherwise use first city
+  const [city, setCity] = useState(parentCity || CITIES[0]);
+
+  // Sync internal city state with parent's selectedCity
+  useEffect(() => {
+    if (parentCity && parentCity !== city) {
+      setCity(parentCity);
+    }
+  }, [parentCity]);
+
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
-    categories: [],
-    brands: [],
-    skus: [],
+    categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
+    brands: parentBrand && parentBrand !== 'All' ? [parentBrand] : [],
+    skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
   });
+
+  // Sync filters with parent selections
+  useEffect(() => {
+    setFilters({
+      categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
+      brands: parentBrand && parentBrand !== 'All' ? [parentBrand] : [],
+      skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
+    });
+  }, [parentCategory, parentBrand, parentSku]);
+
+  // Notify parent when user changes filters (via Filter Dialog)
+  useEffect(() => {
+    if (!onFilterChange) return;
+    const categoryValue = filters.categories.length > 0 ? filters.categories[0] : 'All';
+    const brandValue = filters.brands.length > 0 ? filters.brands[0] : 'All';
+    const skuValue = filters.skus.length > 0 ? filters.skus[0] : 'All';
+    if (categoryValue !== parentCategory || brandValue !== parentBrand || skuValue !== parentSku) {
+      console.log('[KpiTrendShowcase] User changed filters, notifying parent');
+      onFilterChange({ category: categoryValue, brand: brandValue, sku: skuValue });
+    }
+  }, [filters]);
+
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
-  // Dynamic filtered rows for table for the active tab + city
+  // Use real competition data if available, otherwise fall back to mock data
   const brandRows = useMemo(() => {
+    if (competitionData && Array.isArray(competitionData)) {
+      console.log('[KpiTrendShowcase] Using competition data:', competitionData);
+      // Transform backend data to match expected format
+      // Backend returns: { brand, Offtakes: {value, delta}, Spend: {value, delta}, Roas: {value, delta}, Availability: {value, delta} }
+      return competitionData.map(brand => ({
+        name: brand.brand || brand.brand_name || brand.name,
+        offtakes: brand.Offtakes?.value || brand.offtakes || 0,
+        spend: brand.Spend?.value || brand.spend || 0,
+        roas: brand.Roas?.value || brand.roas || 0,
+        availability: brand.Availability?.value || brand.availability || 0
+      }));
+    }
+
+    // Fallback to mock data
     const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
     let rows = allRows;
 
@@ -1250,7 +1349,7 @@ export const KpiTrendShowcase = () => {
     }
 
     return rows;
-  }, [city, filters]);
+  }, [DATA_MODEL, city, filters, competitionData]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -1385,12 +1484,18 @@ export const KpiTrendShowcase = () => {
         </TabsContent>
       </Tabs>
 
+      {/* FILTER DIALOG */}
       <FilterDialog
         open={filterDialogOpen}
         onClose={() => setFilterDialogOpen(false)}
         mode={tab}
         value={filters}
         onChange={setFilters}
+        categoryOptions={CATEGORY_OPTIONS}
+        brandOptions={BRAND_OPTIONS}
+        skuOptions={SKU_OPTIONS}
+        brandNameToId={BRAND_NAME_TO_ID}
+        skuNameToId={SKU_NAME_TO_ID}
       />
     </div>
   );
