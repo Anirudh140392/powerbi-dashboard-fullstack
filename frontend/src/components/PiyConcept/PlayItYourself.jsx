@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 export default function PlayItYourself() {
     const [selectedKey, setSelectedKey] = useState("salesPerformance");
 
-    const currentDataset = datasets[selectedKey];
+    const currentDataset = datasets[selectedKey] || datasets[Object.keys(datasets)[0]];
 
     return (
         <div className="w-full space-y-6">
