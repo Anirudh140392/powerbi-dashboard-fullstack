@@ -274,16 +274,6 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
             id: node.id,
             depth,
             keywordType: keywordTypePath,
-            brand: depth === 0 && view !== 'skus' ? (node.level === 'brand' ? node.label : undefined) : parentPaths.brand, // Capture brand if depth 0 (rare) or if current node is brand? Wait.
-            // Logic:
-            // walk(node, depth, parentPaths)
-            // If node.level == 'brand', this node IS the brand.
-            // If we are at 'keyword' level, parentPaths.brand should hold the brand.
-
-            // Let's refine capturing in the 'walk' call below. 
-            // Here we just map what we have.
-            // Actually, we construct the row object here.
-
             brand: node.level === 'brand' ? node.label : parentPaths.brand,
             keyword: keywordPath,
             sku: skuPath,
@@ -663,7 +653,7 @@ export default function VisibilityDrilldownTable() {
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-[12px] text-slate-800">
                                 <thead>
-                                    <tr className="bg-slate-50 text-center text-[11px] font-semibold text-slate-600">
+                                    <tr className="bg-slate-50 text-center text-[12px] font-bold text-black-600">
                                         <th
                                             className="px-3 py-2"
                                             style={{ position: 'sticky', left: 0, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keywordType, minWidth: FROZEN_WIDTHS.keywordType }}

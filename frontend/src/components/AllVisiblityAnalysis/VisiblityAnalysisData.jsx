@@ -439,6 +439,7 @@ const VisiblityAnalysisData = () => {
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
+  const [topSearchFilter, setTopSearchFilter] = useState("All");
 
   // const sampleData = [
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
@@ -834,8 +835,22 @@ const VisiblityAnalysisData = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <VisibilityDrilldownTable />
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <TopSearchTerms />
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+            {["All", "Branded", "Competitor", "Generic"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setTopSearchFilter(tab)}
+                className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+        <TopSearchTerms filter={topSearchFilter} />
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
