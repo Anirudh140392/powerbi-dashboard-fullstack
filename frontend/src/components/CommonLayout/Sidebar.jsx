@@ -77,7 +77,7 @@ const Sidebar = ({
 
     "Inventory Analysis": [{ label: "Inventory Analysis" }],
     SALES: [{ label: "Sales" }],
-    // PIY: [{ label: "PIY" }],
+    PIY: [{ label: "Play it Yourself" }],
   };
 
   const navbarContent = (
@@ -90,6 +90,19 @@ const Sidebar = ({
         color: "#fff",
       }}
     >
+      <style>
+        {`
+          @keyframes border-pulse {
+            0% { border-color: rgba(56, 189, 248, 0.5); box-shadow: 0 0 5px rgba(56, 189, 248, 0.2); }
+            50% { border-color: rgba(56, 189, 248, 1); box-shadow: 0 0 15px rgba(56, 189, 248, 0.6); }
+            100% { border-color: rgba(56, 189, 248, 0.5); box-shadow: 0 0 5px rgba(56, 189, 248, 0.2); }
+          }
+          @keyframes text-shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+          }
+        `}
+      </style>
       {/* Logo Section */}
       <Box sx={{ p: 2.5, bgcolor: "rgba(0, 0, 0, 0.3)" }}>
         {/* <Box
@@ -176,144 +189,161 @@ const Sidebar = ({
 
             <Collapse in={expandedSection === sectionName} timeout="auto">
               <List sx={{ py: 0 }}>
-                {items.map((item, index) => (
-                  <ListItemButton
-                    key={index}
-                    onClick={() => {
-                      // CONTROL TOWER
-                      if (
-                        sectionName === "CONTROL TOWER" &&
-                        item.label === "Watch Tower"
-                      ) {
-                        navigate("/watch-tower"); // or your Watch Tower route
-                      }
-                      if (
-                        sectionName === "CONTROL TOWER" &&
-                        item.label === "Account Overview"
-                      ) {
-                        navigate("/account-overview");
-                      }
+                {items.map((item, index) => {
+                  const isPiy = sectionName === "PIY";
+                  return (
+                    <ListItemButton
+                      key={index}
+                      onClick={() => {
+                        // CONTROL TOWER
+                        if (
+                          sectionName === "CONTROL TOWER" &&
+                          item.label === "Watch Tower"
+                        ) {
+                          navigate("/watch-tower"); // or your Watch Tower route
+                        }
+                        if (
+                          sectionName === "CONTROL TOWER" &&
+                          item.label === "Account Overview"
+                        ) {
+                          navigate("/account-overview");
+                        }
 
 
 
-                      // ANALYTICS
-                      if (
-                        sectionName === "ANALYTICS" &&
-                        item.label === "Category RCA"
-                      ) {
-                        navigate("/category-rca");
-                      }
+                        // ANALYTICS
+                        if (
+                          sectionName === "ANALYTICS" &&
+                          item.label === "Category RCA"
+                        ) {
+                          navigate("/category-rca");
+                        }
 
-                      // ANALYTICS
-                      if (
-                        sectionName === "Market Share" &&
-                        item.label === "Market Share"
-                      ) {
-                        navigate("/market-share");
-                      }
+                        // ANALYTICS
+                        if (
+                          sectionName === "Market Share" &&
+                          item.label === "Market Share"
+                        ) {
+                          navigate("/market-share");
+                        }
 
-                      if (
-                        sectionName === "Portfolio Analysis" &&
-                        item.label === "Portfolio Analysis"
-                      ) {
-                        navigate("/volume-cohort");
-                      }
-                      // performance marketing
-                      if (
-                        sectionName === "Performance Marketing" &&
-                        item.label === "Performance Marketing"
-                      ) {
-                        navigate("/performance-marketing");
-                      }
-                      // Content Analysis
-                      if (
-                        sectionName === "Content Analysis" &&
-                        item.label === "Content Analysis"
-                      ) {
-                        navigate("/content-score");
-                      }
-                      // Pricing Analysis
-                      if (
-                        sectionName === "Pricing Analysis" &&
-                        item.label === "Pricing Analysis"
-                      ) {
-                        navigate("/pricing-analysis");
-                      }
-                      // Content Analysis
-                      if (
-                        sectionName === "Availability Analysis" &&
-                        item.label === "Availability Analysis"
-                      ) {
-                        navigate("/availability-analysis");
-                      }
-                      // Pricing Analysis
-                      if (
-                        sectionName === "Visibility Analysis" &&
-                        item.label === "Visibility Analysis"
-                      ) {
-                        navigate("/visibility-anlysis");
-                      }
-                      // Pricing Analysis
-                      if (sectionName === "PIY" && item.label === "PIY") {
-                        navigate("/piy");
-                      }
-                      // Pricing Analysis
-                      if (sectionName === "Inventory Analysis" && item.label === "Inventory Analysis") {
-                        navigate("/inventory");
-                      }
-                      // SALES
-                      if (sectionName === "SALES" && item.label === "Sales") {
-                        navigate("/sales");
-                      }
-                    }}
-                    sx={{
-                      py: 1.25,
-                      px: 3,
-                      bgcolor:
-                        (sectionName === "ANALYTICS" &&
-                          item.label === "Category RCA") ||
-                          (sectionName === "CONTROL TOWER" &&
-                            item.label === "Watch Tower")
-                          ? "rgba(255, 255, 255, 0.1)"
-                          : "transparent",
-
-                      borderLeft:
-                        (sectionName === "ANALYTICS" &&
-                          item.label === "Category RCA") ||
-                          (sectionName === "CONTROL TOWER" &&
-                            item.label === "Watch Tower")
-                          ? "3px solid #3b82f6"
-                          : "3px solid transparent",
-
-                      "&:hover": {
-                        bgcolor: "rgba(255, 255, 255, 0.08)",
-                      },
-                    }}
-                  >
-                    {/* Icons */}
-                    {item.icon ? (
-                      <Box
-                        component="span"
-                        sx={{ fontSize: "0.9rem", mr: 1.5 }}
-                      >
-                        {item.icon}
-                      </Box>
-                    ) : (
-                      <CircleIcon
-                        sx={{ fontSize: "0.4rem", mr: 1.5, color: "#6b7280" }}
-                      />
-                    )}
-
-                    <ListItemText
-                      primary={item.label}
-                      primaryTypographyProps={{
-                        fontSize: "0.85rem",
-                        fontWeight: 500,
-                        color: "#e5e7eb",
+                        if (
+                          sectionName === "Portfolio Analysis" &&
+                          item.label === "Portfolio Analysis"
+                        ) {
+                          navigate("/volume-cohort");
+                        }
+                        // performance marketing
+                        if (
+                          sectionName === "Performance Marketing" &&
+                          item.label === "Performance Marketing"
+                        ) {
+                          navigate("/performance-marketing");
+                        }
+                        // Content Analysis
+                        if (
+                          sectionName === "Content Analysis" &&
+                          item.label === "Content Analysis"
+                        ) {
+                          navigate("/content-score");
+                        }
+                        // Pricing Analysis
+                        if (
+                          sectionName === "Pricing Analysis" &&
+                          item.label === "Pricing Analysis"
+                        ) {
+                          navigate("/pricing-analysis");
+                        }
+                        // Content Analysis
+                        if (
+                          sectionName === "Availability Analysis" &&
+                          item.label === "Availability Analysis"
+                        ) {
+                          navigate("/availability-analysis");
+                        }
+                        // Pricing Analysis
+                        if (
+                          sectionName === "Visibility Analysis" &&
+                          item.label === "Visibility Analysis"
+                        ) {
+                          navigate("/visibility-anlysis");
+                        }
+                        // Pricing Analysis
+                        if (sectionName === "PIY" && item.label === "Play it Yourself") {
+                          navigate("/piy");
+                        }
+                        // Pricing Analysis
+                        if (sectionName === "Inventory Analysis" && item.label === "Inventory Analysis") {
+                          navigate("/inventory");
+                        }
+                        // SALES
+                        if (sectionName === "SALES" && item.label === "Sales") {
+                          navigate("/sales");
+                        }
                       }}
-                    />
-                  </ListItemButton>
-                ))}
+                      sx={{
+                        py: 1.25,
+                        px: 3,
+                        bgcolor:
+                          (sectionName === "ANALYTICS" &&
+                            item.label === "Category RCA") ||
+                            (sectionName === "CONTROL TOWER" &&
+                              item.label === "Watch Tower")
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : isPiy ? "rgba(56, 189, 248, 0.1)" : "transparent",
+
+                        borderLeft:
+                          (sectionName === "ANALYTICS" &&
+                            item.label === "Category RCA") ||
+                            (sectionName === "CONTROL TOWER" &&
+                              item.label === "Watch Tower")
+                            ? "3px solid #3b82f6"
+                            : isPiy ? "3px solid #38bdf8" : "3px solid transparent",
+
+                        animation: isPiy ? "border-pulse 2s infinite" : "none",
+
+                        "&:hover": {
+                          bgcolor: isPiy ? "rgba(56, 189, 248, 0.2)" : "rgba(255, 255, 255, 0.08)",
+                        },
+                      }}
+                    >
+                      {/* Icons */}
+                      {item.icon ? (
+                        <Box
+                          component="span"
+                          sx={{ fontSize: "0.9rem", mr: 1.5 }}
+                        >
+                          {item.icon}
+                        </Box>
+                      ) : (
+                        <CircleIcon
+                          sx={{
+                            fontSize: "0.4rem",
+                            mr: 1.5,
+                            color: isPiy ? "#38bdf8" : "#6b7280",
+                            filter: isPiy ? "drop-shadow(0 0 4px #38bdf8)" : "none"
+                          }}
+                        />
+                      )}
+
+                      <ListItemText
+                        primary={item.label}
+                        primaryTypographyProps={{
+                          fontSize: "0.85rem",
+                          fontWeight: isPiy ? 700 : 500,
+                          color: isPiy ? "#e0f2fe" : "#e5e7eb",
+                          sx: isPiy ? {
+                            background: "linear-gradient(90deg, #e0f2fe, #38bdf8, #e0f2fe)",
+                            backgroundSize: "200% auto",
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                            animation: "text-shimmer 3s linear infinite"
+                          } : {}
+                        }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
               </List>
             </Collapse>
           </Box>
