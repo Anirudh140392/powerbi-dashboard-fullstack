@@ -432,7 +432,7 @@ export default function DrilldownLatestTable() {
     <div className="rounded-3xl flex-col bg-slate-50 relative">
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {filterPanelOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-40 transition-all backdrop-blur-sm">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
           <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -502,9 +502,16 @@ export default function DrilldownLatestTable() {
           <div className="rounded-3xl border bg-white p-4 shadow">
 
             {/* HEADLINE */}
-            <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
-              <div className="text-lg">Format Performance (Heatmap)</div>
-            </div>
+            <Box mb={2} display="flex" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+                  Format Performance (Heatmap)
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+                  Format → Day
+                </Typography>
+              </Box>
+            </Box>
 
             {/* KPI TOGGLES AND FILTERS */}
             <div className="mb-3 flex items-center justify-between gap-4">
