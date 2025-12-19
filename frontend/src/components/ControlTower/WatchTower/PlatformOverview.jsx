@@ -13,7 +13,7 @@ import {
   IconButton,
 } from "@mui/material";
 import CategoryTable from "./CategoryTable";
-import { TrendingUp, Monitor, Calendar, Grid3x3, Tag, Package } from "lucide-react";
+import { TrendingUp, Monitor, Calendar, Grid3x3, Tag, Package, Search } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 
 /* ---------------- SMALL KPI CARD ---------------- */
@@ -374,8 +374,8 @@ const PlatformOverview = ({
                       </Box>
 
                       {/* Right: Inline Buttons */}
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <Tooltip title="View platform trend performance" arrow>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Tooltip title="trend performance" arrow>
                           <IconButton
                             size="small"
                             onClick={() => onViewTrends(platform.label)}
@@ -390,6 +390,25 @@ const PlatformOverview = ({
                             }}
                           >
                             <TrendingUp size={17} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Rca" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => onViewTrends(platform.label)}
+                            className="trend-icon"
+                            sx={{
+                              borderRadius: 2,
+                              border: "1px solid #e5e7eb",
+                              background: "#EEF2F7",
+                              width: 32,
+                              height: 32,
+                              "&:hover": {
+                                background: "#DBEAFE",
+                              },
+                            }}
+                          >
+                            <Search size={17} color="#0284c7" />
                           </IconButton>
                         </Tooltip>
 
