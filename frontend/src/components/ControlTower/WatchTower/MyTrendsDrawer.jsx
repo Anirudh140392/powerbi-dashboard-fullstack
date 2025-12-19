@@ -29,12 +29,30 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
 import TrendController from "../../../utils/TrendController";
+import axiosInstance from "../../../api/axiosInstance"; // FIXED: Changed from utils to api
+import { useEffect } from "react"; // ADDED: For filter options fetching
 
 const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onParamsChange }) => {
   const theme = useTheme();
   const hasRemoteData = Array.isArray(trendData.timeSeries) && trendData.timeSeries.length > 0;
 
-  const { months: selectedPeriod, timeStep, platform, category } = trendParams;
+  const { months: selectedPeriod, timeStep, platform: initialPlatform, category: initialCategory, brand: initialBrand, city: initialCity } = trendParams;
+
+  // ADDED: 4 separate filter states
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "All");
+  const [selectedCity, setSelectedCity] = useState(initialCity || "All");
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory || "All");
+  const [selectedBrand, setSelectedBrand] = useState(initialBrand || "All");
+
+  // ADDED: Audience dropdown state
+  const [audience, setAudience] = useState("Platform"); // Platform, Format, Brand, City
+  const [showFilterPills, setShowFilterPills] = useState(false);
+
+  // ADDED: Dynamic filter options
+  const [categoryOptions, setCategoryOptions] = useState(["All"]);
+  const [brandOptions, setBrandOptions] = useState(["All"]);
+  const [cityOptions, setCityOptions] = useState(["All"]);
+  const PLATFORM_OPTIONS = ["All", "Blinkit", "Zepto", "Swiggy Instamart", "BigBasket"];
 
   const [selectedMetrics, setSelectedMetrics] = useState({
     offtake: true,
@@ -45,6 +63,46 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
   });
 
   const controller = new TrendController();
+
+  // ADDED: Fetch categories when audience is Format
+  useEffect(() => {
+    if (audience === "Format" && open) {
+      axiosInstance
+        .get("/watchtower/trends-filter-options", {
+          params: { filterType: "categories", platform: selectedPlatform },
+        })
+        .then((res) => setCategoryOptions(res.data.options || ["All"]))
+        .catch(() => setCategoryOptions(["All"]));
+    }
+  }, [audience, selectedPlatform, open]);
+
+  // ADDED: Fetch brands when audience is Brand
+  useEffect(() => {
+    if (audience === "Brand" && open) {
+      axiosInstance
+        .get("/watchtower/trends-filter-options", {
+          params: { filterType: "brands", platform: selectedPlatform },
+        })
+        .then((res) => setBrandOptions(res.data.options || ["All"]))
+        .catch(() => setBrandOptions(["All"]));
+    }
+  }, [audience, selectedPlatform, open]);
+
+  // ADDED: Fetch cities when audience is City
+  useEffect(() => {
+    if (audience === "City" && open) {
+      axiosInstance
+        .get("/watchtower/trends-filter-options", {
+          params: {
+            filterType: "cities",
+            platform: selectedPlatform,
+            brand: selectedBrand,
+          },
+        })
+        .then((res) => setCityOptions(res.data.options || ["All"]))
+        .catch(() => setCityOptions(["All"]));
+    }
+  }, [audience, selectedPlatform, selectedBrand, open]);
 
   const monthsCount =
     selectedPeriod === "1M" ? 1 :
@@ -190,7 +248,13 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
               for
             </Typography>
             <Chip
-              label={category || platform}
+              label={
+                audience === "Platform" ? selectedPlatform :
+                  audience === "Format" ? selectedCategory :
+                    audience === "Brand" ? selectedBrand :
+                      audience === "City" ? selectedCity :
+                        "All"
+              }
               size="small"
               sx={{
                 bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#dbeafe',
@@ -212,6 +276,101 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
           >
             <CloseIcon fontSize="small" />
           </IconButton>
+        </Box>
+
+        {/* ADDED: Audience Filters Section */}
+        <Box sx={{ px: 3, pt: 2, pb: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: theme.palette.text.secondary }}>
+              Filter By:
+            </Typography>
+
+            <Select
+              size="small"
+              value={audience}
+              onChange={(e) => {
+                setAudience(e.target.value);
+                setShowFilterPills(true);
+              }}
+              sx={{ fontSize: '0.875rem', minWidth: 120 }}
+            >
+              <MenuItem value="Platform">Platform</MenuItem>
+              <MenuItem value="Format">Format</MenuItem>
+              <MenuItem value="Brand">Brand</MenuItem>
+              <MenuItem value="City">City</MenuItem>
+            </Select>
+
+            {showFilterPills && (
+              <Box
+                display="flex"
+                gap={0.5}
+                sx={{
+                  flexWrap: "wrap",
+                  maxHeight: "120px",
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  pr: 1,
+                  "&::-webkit-scrollbar": { width: 6 },
+                  "&::-webkit-scrollbar-thumb": {
+                    background: "#cbd5e1",
+                    borderRadius: 10,
+                  },
+                }}
+              >
+                {(audience === "Platform"
+                  ? PLATFORM_OPTIONS
+                  : audience === "Format"
+                    ? categoryOptions
+                    : audience === "Brand"
+                      ? brandOptions
+                      : audience === "City"
+                        ? cityOptions
+                        : []
+                ).map((p) => (
+                  <Box
+                    key={p}
+                    onClick={() => {
+                      if (audience === "Platform") {
+                        setSelectedPlatform(p);
+                      } else if (audience === "Format") {
+                        setSelectedCategory(p);
+                      } else if (audience === "Brand") {
+                        setSelectedBrand(p);
+                      } else if (audience === "City") {
+                        setSelectedCity(p);
+                      }
+                    }}
+                    sx={{
+                      px: 1.5,
+                      py: 0.7,
+                      borderRadius: "999px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      border: "1px solid #E5E7EB",
+                      backgroundColor:
+                        (audience === "Platform" && selectedPlatform === p) ||
+                          (audience === "Format" && selectedCategory === p) ||
+                          (audience === "Brand" && selectedBrand === p) ||
+                          (audience === "City" && selectedCity === p)
+                          ? "#0ea5e9"
+                          : "white",
+                      color:
+                        (audience === "Platform" && selectedPlatform === p) ||
+                          (audience === "Format" && selectedCategory === p) ||
+                          (audience === "Brand" && selectedBrand === p) ||
+                          (audience === "City" && selectedCity === p)
+                          ? "white"
+                          : "#0f172a",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {p}
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </Box>
         </Box>
 
         {/* Controls */}

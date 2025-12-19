@@ -15,11 +15,20 @@ const sequelize = new Sequelize(
       max: 50,        // Increased from 10 to handle parallel SOS queries
       min: 5,         // Maintain minimum connections
       acquire: 120000, // Increased from 60s to 120s
-      idle: 20000,    // inincreased idle timeout
+      idle: 20000,    // increased idle timeout
       evict: 10000    // Check for idle connections every 10s
     },
     dialectOptions: {
-      connectTimeout: 120000 // Increased from 60s to 120s
+      connectTimeout: 120000, // Increased from 60s to 120s
+    },
+    retry: {
+      max: 3, // Retry failed queries up to 3 times
+      match: [
+        /ETIMEDOUT/,
+        /ECONNRESET/,
+        /ECONNREFUSED/,
+        /PROTOCOL_CONNECTION_LOST/,
+      ]
     }
   }
 );

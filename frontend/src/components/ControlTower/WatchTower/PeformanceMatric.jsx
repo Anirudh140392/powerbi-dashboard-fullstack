@@ -160,9 +160,11 @@ export default function PerformanceMatric({
   cardWidth = 240,
   cardHeight = 120,
   data,
+  filters, // NEW: Receive filters from parent
 }) {
   // Debug: Check if data is being received
   console.log("PerformanceMetric received data:", data);
+  console.log("PerformanceMetric received filters:", filters);
 
   // Use backend data if available, otherwise fall back to static KPI_CARDS
   const KPI_CARDS_DATA = data && data.length > 0 ? data : KPI_CARDS;
@@ -171,8 +173,15 @@ export default function PerformanceMatric({
 
   const [activeTrendId, setActiveTrendId] = useState(null);
   const [showTrends, setShowTrends] = useState(false);
+  const [selectedKpiId, setSelectedKpiId] = useState(null); // NEW: Track which KPI was clicked
 
   const activeCard = KPI_CARDS_DATA.find((c) => c.id === activeTrendId) || null;
+
+  const handleKpiTrendClick = (kpiId) => {
+    console.log("KPI Trend clicked:", kpiId);
+    setSelectedKpiId(kpiId);
+    setShowTrends(true);
+  };
 
   return (
     <div
@@ -200,7 +209,7 @@ export default function PerformanceMatric({
             cardWidth={cardWidth}
             cardHeight={cardHeight}
             onOpenTrend={() => setActiveTrendId(card.id)}
-            setShowTrends={setShowTrends}
+            onTrendClick={() => handleKpiTrendClick(card.id)} // NEW: Pass KPI ID
           />
         ))}
       </div>
@@ -210,9 +219,15 @@ export default function PerformanceMatric({
       )}
       <TrendsCompetitionDrawer
         open={showTrends}
-        onClose={() => setShowTrends(false)}
+        onClose={() => {
+          console.log("[PerformanceMetric] Closing trends drawer");
+          setShowTrends(false);
+          setSelectedKpiId(null); // Reset KPI ID when closing
+        }}
         selectedColumn="Blinkit"
         dynamicKey="performance_dashboard_tower"
+        kpiId={selectedKpiId} // NEW: Pass KPI ID
+        filters={filters} // NEW: Pass filters
       />
     </div>
   );
@@ -221,7 +236,7 @@ export default function PerformanceMatric({
 /* ------------------------------------------------------
    KPI CARD
 -------------------------------------------------------*/
-function KpiCard({ card, onOpenTrend, setShowTrends }) {
+function KpiCard({ card, onOpenTrend, onTrendClick }) {
   const { bg, text } = getTagColors(card.tagTone);
 
   return (
@@ -259,8 +274,7 @@ function KpiCard({ card, onOpenTrend, setShowTrends }) {
         </div>
 
         <div
-          onClick={() => setShowTrends(true)}
-          // onClick={onOpenTrend}
+          onClick={onTrendClick} // UPDATED: Use onTrendClick callback
           style={{
             background: "#EEF2F7",
             padding: 6,

@@ -19,6 +19,9 @@ const RcaSkuDim = sequelize.define('rca_sku_dim', {
     brand_category: {
         type: DataTypes.STRING,
     },
+    sku: {
+        type: DataTypes.STRING,
+    },
     // Add other columns if known, but these are the essentials for the dropdowns
 }, {
     tableName: 'rca_sku_dim',

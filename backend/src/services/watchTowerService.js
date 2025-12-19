@@ -2194,16 +2194,18 @@ const computeSummaryMetrics = async (filters) => {
 };
 
 const getPlatforms = async () => {
-    try {
-        const platforms = await RcaSkuDim.findAll({
-            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('platform')), 'platform']],
-            raw: true
-        });
-        return platforms.map(p => p.platform).filter(Boolean).sort();
-    } catch (error) {
-        console.error("Error fetching platforms:", error);
-        throw error;
-    }
+    return getCachedOrCompute('platforms', async () => {
+        try {
+            const platforms = await RcaSkuDim.findAll({
+                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('platform')), 'platform']],
+                raw: true
+            });
+            return platforms.map(p => p.platform).filter(Boolean).sort();
+        } catch (error) {
+            console.error("Error fetching platforms:", error);
+            return []; // Return empty array instead of throwing
+        }
+    }, 3600); // Cache for 1 hour
 };
 
 // Exported function with caching layer
@@ -2218,23 +2220,26 @@ const getSummaryMetrics = async (filters) => {
 };
 
 const getBrands = async (platform) => {
-    try {
-        const where = {};
-        if (platform && platform !== 'All') {
-            where.platform = platform;
-        }
+    const cacheKey = `brands:${platform || 'all'}`;
+    return getCachedOrCompute(cacheKey, async () => {
+        try {
+            const where = {};
+            if (platform && platform !== 'All') {
+                where.platform = platform;
+            }
 
-        const result = await RcaSkuDim.findAll({
-            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-            where: where,
-            order: [['brand_name', 'ASC']],
-            raw: true
-        });
-        return result.map(b => b.brand_name).filter(Boolean);
-    } catch (error) {
-        console.error("Error fetching brands:", error);
-        throw error;
-    }
+            const result = await RcaSkuDim.findAll({
+                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
+                where: where,
+                order: [['brand_name', 'ASC']],
+                raw: true
+            });
+            return result.map(b => b.brand_name).filter(Boolean);
+        } catch (error) {
+            console.error("Error fetching brands:", error);
+            return []; // Return empty array instead of throwing
+        }
+    }, 3600); // Cache for 1 hour
 };
 
 const getKeywords = async (brand) => {
@@ -2297,19 +2302,21 @@ const generateTimeBuckets = (startDate, endDate, timeStep) => {
         let groupKey;
 
         if (timeStep === 'Monthly') {
-            // Label: DD MMM YY to show exact date (e.g., 08 Nov 25)
-            label = current.format('DD MMM YY');
+            // Label format must match frontend parser: "DD MMM'YY" (e.g., "08 Nov'25")
+            label = current.format("DD MMM'YY");
             groupKey = current.format('YYYY-MM-01'); // Matches DB DATE_FORMAT (Calendar Month)
             current = current.add(1, 'month');
         } else if (timeStep === 'Weekly') {
-            label = current.format('DD MMM');
+            // Label format must match frontend parser: "DD MMM'YY" (e.g., "17 Dec'25")
+            label = current.format("DD MMM'YY");
             // Matches DB YEARWEEK mode 1
             const year = current.year();
             const week = current.isoWeek();
             groupKey = year * 100 + week;
             current = current.add(1, 'week');
         } else { // Daily
-            label = current.format('DD MMM');
+            // Label format must match frontend parser: "DD MMM'YY" (e.g., "17 Dec'25")
+            label = current.format("DD MMM'YY");
             groupKey = current.format('YYYY-MM-DD'); // Matches DB DATE
             current = current.add(1, 'day');
         }
@@ -2333,15 +2340,15 @@ const generateTimeBuckets = (startDate, endDate, timeStep) => {
 
         if (timeStep === 'Monthly') {
             endGroupKey = endDate.format('YYYY-MM-01');
-            endLabel = endDate.format('DD MMM YY');
+            endLabel = endDate.format("DD MMM'YY");
         } else if (timeStep === 'Weekly') {
             const year = endDate.year();
             const week = endDate.isoWeek();
             endGroupKey = year * 100 + week;
-            endLabel = endDate.format('DD MMM');
+            endLabel = endDate.format("DD MMM'YY");
         } else {
             endGroupKey = endDate.format('YYYY-MM-DD');
-            endLabel = endDate.format('DD MMM');
+            endLabel = endDate.format("DD MMM'YY");
         }
 
         // If the last bucket is NOT the same group as the end date, add the end date bucket
@@ -2775,21 +2782,973 @@ const getBrandsOverview = async (filters) => {
     }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
 };
 
+/**
+ * Get KPI Trends Data for Performance Metrics
+ * Returns time-series data for performance KPIs (Share of Search, Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio)
+ */
+const getKpiTrends = async (filters) => {
+    const cacheKey = generateCacheKey('kpi_trends', filters);
+    return await getCachedOrCompute(cacheKey, async () => {
+        console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
+
+        const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
+
+        // 1. Determine Date Range
+        let endDate = dayjs();
+        let startDate = dayjs();
+
+        if (period === 'Custom' && customStart && customEnd) {
+            startDate = dayjs(customStart);
+            endDate = dayjs(customEnd);
+        } else {
+            switch (period) {
+                case '1M': startDate = startDate.subtract(1, 'month'); break;
+                case '3M': startDate = startDate.subtract(3, 'month'); break;
+                case '6M': startDate = startDate.subtract(6, 'month'); break;
+                case '1Y': startDate = startDate.subtract(1, 'year'); break;
+                default: startDate = startDate.subtract(3, 'month'); // Default 3M
+            }
+        }
+
+        console.log(`[getKpiTrends] Date range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
+
+        // 2. Determine Grouping
+        let groupCol;
+        let groupColKw; // For RbKw (Share of Search)
+
+        if (timeStep === 'Monthly') {
+            groupCol = sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m-01');
+            groupColKw = sequelize.fn('DATE_FORMAT', sequelize.col('kw_crawl_date'), '%Y-%m-01');
+        } else if (timeStep === 'Weekly') {
+            groupCol = sequelize.fn('YEARWEEK', sequelize.col('DATE'), 1);
+            groupColKw = sequelize.fn('YEARWEEK', sequelize.col('kw_crawl_date'), 1);
+        } else { // Daily
+            // Use DATE() function to normalize dates (strip time component) for consistent matching
+            groupCol = sequelize.fn('DATE', sequelize.col('DATE'));
+            groupColKw = sequelize.fn('DATE', sequelize.col('kw_crawl_date'));
+        }
+
+        // 3. Base where clause for RbPdpOlap
+        const whereClause = {
+            DATE: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            ...(category && category !== 'All' && { Category: category }), // ADDED: Category filter
+            ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) })
+        };
+
+        // 4. Query for Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio
+        const kpiResults = await RbPdpOlap.findAll({
+            attributes: [
+                [groupCol, 'date_group'],
+                [sequelize.fn('MAX', sequelize.col('DATE')), 'ref_date'],
+                // For Inorganic Sales, ROAS, BMI/Sales Ratio
+                [sequelize.fn('SUM', sequelize.col('Sales')), 'total_sales'],
+                [sequelize.fn('SUM', sequelize.col('ad_sales')), 'total_ad_sales'],
+                [sequelize.fn('SUM', sequelize.col('ad_spend')), 'total_ad_spend'],
+                // For Conversion
+                [sequelize.fn('SUM', sequelize.col('ad_orders')), 'total_ad_orders'],
+                [sequelize.fn('SUM', sequelize.col('ad_clicks')), 'total_ad_clicks'],
+                // For CPM calculation
+                [sequelize.fn('SUM', sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
+                // For Availability calculation
+                [sequelize.fn('SUM', sequelize.col('neno_osa')), 'total_neno_osa'],
+                [sequelize.fn('SUM', sequelize.col('deno_osa')), 'total_deno_osa']
+            ],
+            where: whereClause,
+            group: [groupCol],
+            order: [[sequelize.col('ref_date'), 'ASC']],
+            raw: true
+        });
+
+        // 5. Query for Share of Search
+        // Numerator: Brand matches + Not Sponsored
+        const sosNumWhere = {
+            kw_crawl_date: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            spons_flag: { [Op.ne]: 1 },
+            ...(category && category !== 'All' && { keyword_category: category }), // ADDED: Category filter
+            ...(brand && brand !== 'All' && { brand_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase()) }),
+            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+        };
+
+        const sosNumerator = await RbKw.findAll({
+            attributes: [
+                [groupColKw, 'date_group'],
+                [sequelize.fn('COUNT', sequelize.col('keyword')), 'count']
+            ],
+            where: sosNumWhere,
+            group: [groupColKw],
+            raw: true
+        });
+
+        // Denominator: All Brands (No Brand Filter) + Not Sponsored
+        const sosDenomWhere = {
+            kw_crawl_date: {
+                [Op.between]: [
+                    sequelize.literal(`'${startDate.format('YYYY-MM-DD')}'`),
+                    sequelize.literal(`'${endDate.format('YYYY-MM-DD')}'`)
+                ]
+            },
+            spons_flag: { [Op.ne]: 1 },
+            ...(category && category !== 'All' && { keyword_category: category }), // ADDED: Category filter
+            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
+            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+        };
+
+        const sosDenominator = await RbKw.findAll({
+            attributes: [
+                [groupColKw, 'date_group'],
+                [sequelize.fn('COUNT', sequelize.col('keyword')), 'count']
+            ],
+            where: sosDenomWhere,
+            group: [groupColKw],
+            raw: true
+        });
+
+        // 6. Generate time buckets and format data
+        const buckets = generateTimeBuckets(startDate, endDate, timeStep);
+
+        const timeSeries = buckets.map((bucket, bucketIndex) => {
+            const row = kpiResults.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+
+            // Extract values
+            const totalSales = parseFloat(row.total_sales || 0);
+            const adSales = parseFloat(row.total_ad_sales || 0);
+            const adSpend = parseFloat(row.total_ad_spend || 0);
+            const adOrders = parseFloat(row.total_ad_orders || 0);
+            const adClicks = parseFloat(row.total_ad_clicks || 0);
+
+            // Calculate KPIs
+            // 1. Share of Search
+            const sosNum = sosNumerator.find(s => String(s.date_group) === String(bucket.groupKey));
+            const sosDen = sosDenominator.find(s => String(s.date_group) === String(bucket.groupKey));
+            const numCount = parseInt(sosNum?.count || 0, 10);
+            const denCount = parseInt(sosDen?.count || 0, 10);
+            const shareOfSearch = denCount > 0 ? (numCount / denCount) * 100 : 0;
+
+            // Debug logging for first bucket
+            if (bucket === buckets[0]) {
+                console.log('[getKpiTrends] First Bucket Debug:', {
+                    timeStep,
+                    period,
+                    bucketGroupKey: bucket.groupKey,
+                    bucketLabel: bucket.label,
+                    sosNumeratorTotal: sosNumerator.length,
+                    sosDenominatorTotal: sosDenominator.length,
+                    sosNumMatched: !!sosNum,
+                    sosDenMatched: !!sosDen,
+                    numCount,
+                    denCount,
+                    shareOfSearch: shareOfSearch.toFixed(2) + '%',
+                    sampleNumKeys: sosNumerator.slice(0, 2).map(s => s.date_group),
+                    sampleDenKeys: sosDenominator.slice(0, 2).map(s => s.date_group),
+                    kpiRowMatched: !!row.date_group,
+                    hasOsaData: !!(row.total_neno_osa && row.total_deno_osa)
+                });
+            }
+
+            // 2. Inorganic Sales (Ad Sales / Total Sales * 100)
+            const inorganicSales = totalSales > 0 ? (adSales / totalSales) * 100 : 0;
+
+            // 3. Conversion (Orders / Clicks * 100)
+            const conversion = adClicks > 0 ? (adOrders / adClicks) * 100 : 0;
+
+            // 4. ROAS (Ad Sales / Ad Spend)
+            const roas = adSpend > 0 ? adSales / adSpend : 0;
+
+            // 5. BMI/Sales Ratio (Ad Spend / Total Sales * 100)
+            const bmiSalesRatio = totalSales > 0 ? (adSpend / totalSales) * 100 : 0;
+
+            // 6. Offtakes (Total Sales) - Return raw value for frontend formatting
+            const offtakes = totalSales;
+
+            // 7. Spend (Ad Spend) - Return raw value for frontend formatting
+            const spend = adSpend;
+
+            // 8. CPM (Cost Per Thousand Impressions)
+            const adImpressions = parseFloat(row.total_ad_impressions || 0);
+            const cpm = adImpressions > 0 ? (adSpend / adImpressions) * 1000 : 0;
+
+            // 9. CPC (Cost Per Click)
+            const cpc = adClicks > 0 ? adSpend / adClicks : 0;
+
+            // 10. Availability (OSA%)
+            const nenoOsa = parseFloat(row.total_neno_osa || 0);
+            const denoOsa = parseFloat(row.total_deno_osa || 0);
+            const availability = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
+
+            // 11-13. MarketShare, PromoMyBrand, PromoCompete - setting to 0 for now
+            const dataPoint = {
+                date: bucket.label,
+                Offtakes: parseFloat(offtakes.toFixed(0)), // Raw value, whole number
+                Spend: parseFloat(spend.toFixed(0)), // Raw value, whole number
+                ShareOfSearch: parseFloat(shareOfSearch.toFixed(2)),
+                InorganicSales: parseFloat(inorganicSales.toFixed(2)),
+                Conversion: parseFloat(conversion.toFixed(2)),
+                Roas: parseFloat(roas.toFixed(2)),
+                Availability: parseFloat(availability.toFixed(2)),
+                MarketShare: 0, // Placeholder - needs market share calculation
+                PromoMyBrand: 0, // Placeholder - needs promo calculation
+                PromoCompete: 0, // Placeholder - needs promo calculation
+                CPM: parseFloat(cpm.toFixed(2)),
+                CPC: parseFloat(cpc.toFixed(2)),
+                BmiSalesRatio: parseFloat(bmiSalesRatio.toFixed(2))
+            };
+
+            // Debug logging for first 3 buckets
+            if (bucketIndex < 3) {
+                console.log(`[getKpiTrends] Bucket ${bucketIndex + 1}:`, {
+                    date: bucket.label,
+                    groupKey: bucket.groupKey,
+                    rawAdSpend: adSpend,
+                    rawTotalSales: totalSales,
+                    calculatedSpend: spend,
+                    hasKpiRow: !!row.date_group,
+                    adSpendFromRow: row.total_ad_spend
+                });
+            }
+
+            return dataPoint;
+        });
+
+        console.log('[getKpiTrends] Sample data point (first):', timeSeries[0]);
+        console.log('[getKpiTrends] Total data points:', timeSeries.length);
+
+        console.log(`[getKpiTrends] Generated ${timeSeries.length} time series data points`);
+
+        return {
+            timeSeries,
+            metrics: {
+                ShareOfSearch: { enabled: true },
+                InorganicSales: { enabled: true },
+                Conversion: { enabled: true },
+                Roas: { enabled: true },
+                BmiSalesRatio: { enabled: true }
+            }
+        };
+    }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+};
+
+/**
+ * Get dynamic filter options for trends drawer
+ * @param {string} filterType - 'categories'|'brands'|'cities'
+ * @param {string} platform - Selected platform filter
+ * @param {string} brand - Selected brand filter (for cities)
+ */
+const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
+    try {
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}`);
+
+        if (filterType === 'categories') {
+            // Fetch unique categories from rca_sku_dim
+            const whereClause = {};
+            if (platform && platform !== 'All') {
+                // If rca_sku_dim has platform column, filter by it
+                // Otherwise, we'll get all unique categories
+                whereClause.brand_category = { [Op.ne]: null };
+            }
+
+            const categories = await RcaSkuDim.findAll({
+                attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_category')), 'category']],
+                where: whereClause,
+                raw: true
+            });
+
+            const categoryList = categories
+                .map(c => c.category)
+                .filter(c => c && c.trim())
+                .sort();
+
+            return { options: ['All', ...categoryList] };
+        }
+
+        if (filterType === 'brands') {
+            // Fetch unique brands from rb_pdp_olap filtered by platform
+            const whereClause = {};
+            if (platform && platform !== 'All') {
+                whereClause.Platform = sequelize.where(
+                    sequelize.fn('LOWER', sequelize.col('Platform')),
+                    platform.toLowerCase()
+                );
+            }
+
+            const brands = await RbPdpOlap.findAll({
+                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Brand')), 'brand']],
+                where: whereClause,
+                raw: true
+            });
+
+            const brandList = brands
+                .map(b => b.brand)
+                .filter(b => b && b.trim())
+                .sort();
+
+            return { options: ['All', ...brandList] };
+        }
+
+        if (filterType === 'cities') {
+            // Fetch unique cities from rb_pdp_olap filtered by platform and brand
+            const whereClause = {};
+            if (platform && platform !== 'All') {
+                whereClause.Platform = sequelize.where(
+                    sequelize.fn('LOWER', sequelize.col('Platform')),
+                    platform.toLowerCase()
+                );
+            }
+            if (brand && brand !== 'All') {
+                whereClause.Brand = { [Op.like]: `%${brand}%` };
+            }
+
+            const cities = await RbPdpOlap.findAll({
+                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Location')), 'city']],
+                where: whereClause,
+                raw: true
+            });
+
+            const cityList = cities
+                .map(c => c.city)
+                .filter(c => c && c.trim())
+                .sort();
+
+            return { options: ['All', ...cityList] };
+        }
+
+        return { options: ['All'] };
+    } catch (error) {
+        console.error(`[getTrendsFilterOptions] Error fetching ${filterType}:`, error);
+        // Return default with "All" on error
+        return { options: ['All'] };
+    }
+};
+
+/**
+ * Get competition brand data with metrics
+ * @param {Object} filters - { platform, location, category, period }
+ * @returns {Object} { brands: [...] }
+ */
+const getCompetitionData = async (filters = {}) => {
+    try {
+        const { platform = 'All', location = 'All', category = 'All', brand = 'All', sku = 'All', period = '1M' } = filters;
+
+        console.log('[getCompetitionData] Filters:', { platform, location, category, brand, sku, period });
+
+        // Calculate date range based on period
+        const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+        const days = periodDays[period] || 30;
+
+        const endDate = dayjs();
+        const startDate = endDate.clone().subtract(days, 'days');
+        const momStartDate = startDate.clone().subtract(days, 'days');
+        const momEndDate = startDate.clone().subtract(1, 'day');
+
+        // Build where clause for current period
+        const whereClause = {
+            DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
+        };
+
+        if (platform && platform !== 'All') {
+            whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase());
+        }
+        if (location && location !== 'All') {
+            whereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+        }
+        if (category && category !== 'All') {
+            whereClause.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+        }
+
+        // FIXED: Handle multiple brand selection (comma-separated)
+        // When brands are selected, show ONLY those brands
+        if (brand && brand !== 'All') {
+            const brandList = brand.split(',').map(b => b.trim().toLowerCase());
+
+            if (brandList.length === 1) {
+                // Single brand: use exact match
+                whereClause.Brand = sequelize.where(sequelize.fn('LOWER', sequelize.col('Brand')), brandList[0]);
+            } else {
+                // Multiple brands: use IN clause
+                whereClause.Brand = {
+                    [Op.and]: [
+                        sequelize.where(
+                            sequelize.fn('LOWER', sequelize.col('Brand')),
+                            { [Op.in]: brandList }
+                        )
+                    ]
+                };
+            }
+        }
+
+        if (sku && sku !== 'All') {
+            whereClause.Product = sequelize.where(sequelize.fn('LOWER', sequelize.col('Product')), sku.toLowerCase());
+        }
+
+        console.log('[getCompetitionData] WHERE clause:', JSON.stringify({
+            dateRange: `${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`,
+            platform: platform !== 'All' ? platform.toLowerCase() : 'All',
+            location: location !== 'All' ? location.toLowerCase() : 'All',
+            category: category !== 'All' ? category.toLowerCase() : 'All',
+            brand: brand !== 'All' ? brand.toLowerCase() : 'All',
+            sku: sku !== 'All' ? sku.toLowerCase() : 'All'
+        }, null, 2));
+
+        console.log('[getCompetitionData] 🔍 FILTER SUMMARY:');
+        console.log(`  📅 Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
+        console.log(`  🌐 Platform: ${platform !== 'All' ? platform : 'All (no filter)'}`);
+        console.log(`  📍 Location: ${location !== 'All' ? location : 'All (no filter)'}`);
+        console.log(`  🏷️  Category: ${category !== 'All' ? category : 'All (no filter)'}`);
+        console.log(`  🏢 Brand: ${brand !== 'All' ? brand + ' (filtering to these brands)' : 'All (no filter)'}`);
+        console.log(`  📦 SKU: ${sku !== 'All' ? sku : 'All (no filter)'}`);
+
+        // 1. Get all brands with aggregated metrics for current period
+        const currentBrands = await RbPdpOlap.findAll({
+            attributes: [
+                'Brand',
+                [sequelize.fn('SUM', sequelize.col('Sales')), 'total_offtakes'],
+                [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'total_spend'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
+            ],
+            where: whereClause,
+            group: ['Brand'],
+            having: sequelize.where(sequelize.fn('SUM', sequelize.col('Sales')), { [Op.gt]: 0 }),
+            raw: true
+        });
+
+        console.log(`[getCompetitionData] ✅ Found ${currentBrands.length} brands matching ALL filters`);
+        if (currentBrands.length > 0) {
+            console.log(`[getCompetitionData] Sample brands:`, currentBrands.slice(0, 3).map(b => b.Brand));
+        } else {
+            console.log('[getCompetitionData] ⚠️ NO BRANDS FOUND with current filters! This might indicate:');
+            console.log('  - Location name mismatch (e.g., "Banglore" vs "Bangalore")');
+            console.log('  - Category name mismatch');
+            console.log('  - No data exists for this filter combination');
+        }
+
+        // 2. Get previous period metrics for MoM calculation
+        const momWhereClause = {
+            DATE: { [Op.between]: [momStartDate.toDate(), momEndDate.toDate()] }
+        };
+        if (platform && platform !== 'All') momWhereClause.Platform = whereClause.Platform;
+        if (location && location !== 'All') momWhereClause.Location = whereClause.Location;
+        if (category && category !== 'All') momWhereClause.Category = whereClause.Category;
+        // FIXED: Also exclude selected brand from previous period data
+        if (brand && brand !== 'All') momWhereClause.Brand = whereClause.Brand;
+
+        const previousBrands = await RbPdpOlap.findAll({
+            attributes: [
+                'Brand',
+                [sequelize.fn('SUM', sequelize.col('Sales')), 'total_offtakes'],
+                [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'total_spend'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
+            ],
+            where: momWhereClause,
+            group: ['Brand'],
+            raw: true
+        });
+
+        // Create map for previous period data
+        const prevMap = new Map(
+            previousBrands.map(b => [b.Brand, b])
+        );
+
+        // 3. Get OSA data for availability calculation
+        const osaData = await RbPdpOlap.findAll({
+            attributes: [
+                'Brand',
+                [sequelize.fn('SUM', sequelize.col('Neno_OSA')), 'neno_osa'],
+                [sequelize.fn('SUM', sequelize.col('Deno_OSA')), 'deno_osa'],
+            ],
+            where: whereClause,
+            group: ['Brand'],
+            raw: true
+        });
+
+        const osaMap = new Map(
+            osaData.map(o => [o.Brand, {
+                neno: parseFloat(o.neno_osa || 0),
+                deno: parseFloat(o.deno_osa || 0)
+            }])
+        );
+
+        // 4. Calculate metrics for each brand
+        const brandMetrics = currentBrands.map(brand => {
+            const offtakes = parseFloat(brand.total_offtakes || 0);
+            const spend = parseFloat(brand.total_spend || 0);
+            const adSales = parseFloat(brand.total_ad_sales || 0);
+            const roas = spend > 0 ? adSales / spend : 0;
+
+            // Calculate availability
+            const osa = osaMap.get(brand.Brand) || { neno: 0, deno: 0 };
+            const availability = osa.deno > 0 ? (osa.neno / osa.deno) * 100 : 0;
+
+            // Previous period
+            const prevBrand = prevMap.get(brand.Brand) || {};
+            const prevOfftakes = parseFloat(prevBrand.total_offtakes || 0);
+            const prevSpend = parseFloat(prevBrand.total_spend || 0);
+            const prevAdSales = parseFloat(prevBrand.total_ad_sales || 0);
+            const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
+
+            // Calculate deltas
+            const offtakesDelta = prevOfftakes > 0 ? ((offtakes - prevOfftakes) / prevOfftakes) * 100 : 0;
+            const spendDelta = prevSpend > 0 ? ((spend - prevSpend) / prevSpend) * 100 : 0;
+            const roasDelta = prevRoas > 0 ? ((roas - prevRoas) / prevRoas) * 100 : 0;
+
+            return {
+                brand_name: brand.Brand,
+                offtakes: parseFloat(offtakes.toFixed(0)),
+                spend: parseFloat(spend.toFixed(0)),
+                roas: parseFloat(roas.toFixed(2)),
+                availability: parseFloat(availability.toFixed(1))
+            };
+        });
+
+        // 5. Sort by Offtakes descending and limit to top 10
+        brandMetrics.sort((a, b) => b.offtakes - a.offtakes);
+        const topBrands = brandMetrics.slice(0, 10);
+
+        console.log(`[getCompetitionData] Returning ${topBrands.length} brands`);
+
+        // If no brands found, help user debug by showing available values
+        if (topBrands.length === 0 && (location !== 'All' || category !== 'All')) {
+            console.log('[getCompetitionData] 🔍 Debugging: Fetching available locations and categories...');
+
+            try {
+                // Get distinct locations
+                const availableLocations = await RbPdpOlap.findAll({
+                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('Location')), 'location']],
+                    where: { Location: { [Op.ne]: null } },
+                    limit: 10,
+                    raw: true
+                });
+
+                // Get distinct categories
+                const availableCategories = await RbPdpOlap.findAll({
+                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('Category')), 'category']],
+                    where: { Category: { [Op.ne]: null } },
+                    limit: 10,
+                    raw: true
+                });
+
+                // FIXED: Get distinct brands to help debug name mismatches
+                const availableBrands = await RbPdpOlap.findAll({
+                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('Brand')), 'brand']],
+                    where: { Brand: { [Op.ne]: null } },
+                    limit: 30,
+                    raw: true
+                });
+
+                console.log('[getCompetitionData] 📍 Available locations (sample):',
+                    availableLocations.map(l => l.location).join(', '));
+                console.log('[getCompetitionData] 🏷️ Available categories (sample):',
+                    availableCategories.map(c => c.category).join(', '));
+                console.log('[getCompetitionData] 🏢 Available brands (sample):',
+                    availableBrands.map(b => b.brand).join(', '));
+            } catch (debugError) {
+                console.error('[getCompetitionData] Error fetching debug info:', debugError.message);
+            }
+        }
+
+        // 6. Get SKU competition data (similar to brands)
+        console.log('[getCompetitionData] Fetching SKU data with same filters...');
+
+        const currentSkus = await RbPdpOlap.findAll({
+            attributes: [
+                'Product',
+                'Brand',
+                [sequelize.fn('SUM', sequelize.col('Sales')), 'total_offtakes'],
+                [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'total_spend'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
+            ],
+            where: whereClause,
+            group: ['Product', 'Brand'],
+            having: sequelize.where(sequelize.fn('SUM', sequelize.col('Sales')), { [Op.gt]: 0 }),
+            raw: true
+        });
+
+        // Get SKU OSA data
+        const skuOsaData = await RbPdpOlap.findAll({
+            attributes: [
+                'Product',
+                [sequelize.fn('SUM', sequelize.col('Neno_OSA')), 'neno_osa'],
+                [sequelize.fn('SUM', sequelize.col('Deno_OSA')), 'deno_osa'],
+            ],
+            where: whereClause,
+            group: ['Product'],
+            raw: true
+        });
+
+        const skuOsaMap = new Map(skuOsaData.map(s => [s.Product, s]));
+
+        // Calculate SKU metrics
+        const skuMetrics = currentSkus.map(sku => {
+            const offtakes = parseFloat(sku.total_offtakes || 0);
+            const spend = parseFloat(sku.total_spend || 0);
+            const adSales = parseFloat(sku.total_ad_sales || 0);
+            const roas = spend > 0 ? adSales / spend : 0;
+
+            const osaData = skuOsaMap.get(sku.Product);
+            const nenoOsa = parseFloat(osaData?.neno_osa || 0);
+            const denoOsa = parseFloat(osaData?.deno_osa || 0);
+            const availability = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
+
+            return {
+                sku_name: sku.Product,
+                brand_name: sku.Brand,
+                offtakes: parseFloat(offtakes.toFixed(0)),
+                roas: parseFloat(roas.toFixed(2)),
+                availability: parseFloat(availability.toFixed(1))
+            };
+        });
+
+        // Sort by offtakes and limit to top 10
+        skuMetrics.sort((a, b) => b.offtakes - a.offtakes);
+        const topSkus = skuMetrics.slice(0, 10);
+
+        console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);
+
+        return {
+            brands: topBrands,
+            skus: topSkus,  // ADDED: Return SKU data
+            metadata: {
+                period,
+                platform,
+                location,
+                category,
+                totalBrands: brandMetrics.length
+            }
+        };
+
+    } catch (error) {
+        console.error('[getCompetitionData] Error:', error);
+        return {
+            brands: [],
+            metadata: { error: error.message }
+        };
+    }
+};
+
+/**
+ * Get competition filter options (locations, categories, brands, and SKUs)
+ * @returns {Object} { locations: [...], categories: [...], brands: [...], skus: [...] }
+ */
+const getCompetitionFilterOptions = async (filters = {}) => {
+    try {
+        const { location = null, category = null, brand = null } = filters;
+        console.log('[getCompetitionFilterOptions] Cascading filters:', { location, category, brand });
+
+        // Fetch distinct locations
+        const locationResults = await RcaSkuDim.findAll({
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('location')), 'location']],
+            where: {
+                location: { [Op.ne]: null }
+            },
+            order: [['location', 'ASC']],
+            raw: true
+        });
+
+        // Fetch distinct categories filtered by location
+        const categoryWhere = { brand_category: { [Op.ne]: null } };
+        if (location && location !== 'All' && location !== 'All India') {
+            categoryWhere.location = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('location')),
+                location.toLowerCase()
+            );
+        }
+
+        const categoryResults = await RcaSkuDim.findAll({
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_category')), 'category']],
+            where: categoryWhere,
+            order: [['brand_category', 'ASC']],
+            raw: true
+        });
+
+        // Fetch distinct brands filtered by location + category
+        const brandWhere = { brand_name: { [Op.ne]: null } };
+        if (location && location !== 'All' && location !== 'All India') {
+            brandWhere.location = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('location')),
+                location.toLowerCase()
+            );
+        }
+        if (category && category !== 'All') {
+            brandWhere.brand_category = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('brand_category')),
+                category.toLowerCase()
+            );
+        }
+
+        const brandResults = await RcaSkuDim.findAll({
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_name')), 'brand']],
+            where: brandWhere,
+            order: [['brand_name', 'ASC']],
+            raw: true
+        });
+
+        // Fetch distinct SKUs from rb_pdp_olap filtered by location + category + brand
+        const skuWhere = { Product: { [Op.ne]: null } };
+        if (location && location !== 'All' && location !== 'All India') {
+            skuWhere.Location = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('Location')),
+                location.toLowerCase()
+            );
+        }
+        if (category && category !== 'All') {
+            skuWhere.Category = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('Category')),
+                category.toLowerCase()
+            );
+        }
+        if (brand && brand !== 'All') {
+            skuWhere.Brand = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('Brand')),
+                brand.toLowerCase()
+            );
+        }
+
+        const skuResults = await RbPdpOlap.findAll({
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('Product')), 'sku']],
+            where: skuWhere,
+            order: [['Product', 'ASC']],
+            raw: true
+        });
+
+        const locations = locationResults.map(l => l.location).filter(Boolean);
+        const categories = categoryResults.map(c => c.category).filter(Boolean);
+        const brands = brandResults.map(b => b.brand).filter(Boolean);
+        const skus = skuResults.map(s => s.sku).filter(Boolean);
+
+        console.log(`[getCompetitionFilterOptions] Found ${locations.length} locations, ${categories.length} categories, ${brands.length} brands, and ${skus.length} SKUs`);
+
+        return {
+            locations: ['All India', ...locations],
+            categories: ['All', ...categories],
+            brands: ['All', ...brands],
+            skus: ['All', ...skus]
+        };
+
+    } catch (error) {
+        console.error('[getCompetitionFilterOptions] Error:', error);
+        return {
+            locations: ['All India'],
+            categories: ['All'],
+            brands: ['All'],
+            skus: ['All']
+        };
+    }
+};
+
+
 // ==================== EXPORTS ====================
+
+
+/**
+ * Get KPI trends for multiple brands (Competition page)
+ */
+const getCompetitionBrandTrends = async (filters = {}) => {
+    try {
+        const { brands = 'All', location = 'All', category = 'All', period = '1M' } = filters;
+
+        console.log('[getCompetitionBrandTrends] Filters:', { brands, location, category, period });
+
+        const brandList = brands && brands !== 'All' ? brands.split(',').map(b => b.trim()) : [];
+        if (brandList.length === 0) {
+            return { brands: {}, metadata: { period, location, category } };
+        }
+
+        const endDate = dayjs();
+        const startDate = period === '1W' ? endDate.subtract(7, 'days') : endDate.subtract(30, 'days');
+
+        const where = {
+            DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
+        };
+
+        if (location && location !== 'All') {
+            where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+        }
+
+        const brandTrends = {};
+
+        for (const brandName of brandList) {
+            const brandWhere = {
+                ...where,
+                Brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('Brand')), brandName.toLowerCase())
+            };
+
+            // Main metrics query
+            const rawData = await RbPdpOlap.findAll({
+                attributes: [
+                    'DATE',
+                    [sequelize.fn('SUM', sequelize.col('Sales')), 'Offtakes'],
+                    [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'Spend'],
+                    [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'Ad_sales'],
+                    [sequelize.fn('SUM', sequelize.col('Neno_OSA')), 'neno_osa'],
+                    [sequelize.fn('SUM', sequelize.col('Deno_OSA')), 'deno_osa'],
+                    [sequelize.fn('SUM', sequelize.col('Ad_Impressions')), 'Impressions'],
+                    [sequelize.fn('SUM', sequelize.col('Ad_Clicks')), 'Clicks'],
+                ],
+                where: brandWhere,
+                group: ['DATE'],
+                order: [['DATE', 'ASC']],
+                raw: true
+            });
+
+            // Promo My Brand query (Comp_flag = 0 means own brand promotions)
+            const promoMyBrandData = await RbPdpOlap.findAll({
+                attributes: [
+                    'DATE',
+                    [sequelize.fn('SUM', sequelize.col('Sales')), 'PromoSales'],
+                ],
+                where: {
+                    ...brandWhere,
+                    Comp_flag: 0
+                },
+                group: ['DATE'],
+                raw: true
+            });
+
+            // Promo Compete query (Comp_flag = 1 means competitor promotions)
+            const promoCompeteData = await RbPdpOlap.findAll({
+                attributes: [
+                    'DATE',
+                    [sequelize.fn('SUM', sequelize.col('Sales')), 'PromoSales'],
+                ],
+                where: {
+                    ...brandWhere,
+                    Comp_flag: 1
+                },
+                group: ['DATE'],
+                raw: true
+            });
+
+            // Share of Search - Numerator: Count of keywords where this brand appears (non-sponsored)
+            const sosNumeratorData = await RbKw.findAll({
+                attributes: [
+                    'kw_crawl_date',
+                    [sequelize.fn('COUNT', sequelize.col('keyword')), 'keyword_count'],
+                ],
+                where: {
+                    kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                    brand_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brandName.toLowerCase()),
+                    spons_flag: { [Op.ne]: 1 },  // Non-sponsored only
+                    ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) })
+                },
+                group: ['kw_crawl_date'],
+                raw: true
+            });
+
+            // Share of Search - Denominator: Total keyword count (all brands, non-sponsored)
+            const sosDenominatorData = await RbKw.findAll({
+                attributes: [
+                    'kw_crawl_date',
+                    [sequelize.fn('COUNT', sequelize.col('keyword')), 'keyword_count'],
+                ],
+                where: {
+                    kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                    spons_flag: { [Op.ne]: 1 },  // Non-sponsored only
+                    ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) })
+                },
+                group: ['kw_crawl_date'],
+                raw: true
+            });
+
+            // Create maps for promo and SOS data
+            const promoMyBrandMap = new Map(
+                promoMyBrandData.map(row => [dayjs(row.DATE).format('YYYY-MM-DD'), parseFloat(row.PromoSales || 0)])
+            );
+            const promoCompeteMap = new Map(
+                promoCompeteData.map(row => [dayjs(row.DATE).format('YYYY-MM-DD'), parseFloat(row.PromoSales || 0)])
+            );
+            const sosNumeratorMap = new Map(
+                sosNumeratorData.map(row => [dayjs(row.kw_crawl_date).format('YYYY-MM-DD'), parseFloat(row.keyword_count || 0)])
+            );
+            const sosDenominatorMap = new Map(
+                sosDenominatorData.map(row => [dayjs(row.kw_crawl_date).format('YYYY-MM-DD'), parseFloat(row.keyword_count || 0)])
+            );
+
+            brandTrends[brandName] = rawData.map(row => {
+                const offtakes = parseFloat(row.Offtakes || 0);
+                const spend = parseFloat(row.Spend || 0);
+                const adSales = parseFloat(row.Ad_sales || 0);
+                const impressions = parseFloat(row.Impressions || 0);
+                const clicks = parseFloat(row.Clicks || 0);
+                const nenoOsa = parseFloat(row.neno_osa || 0);
+                const denoOsa = parseFloat(row.deno_osa || 0);
+
+                // Get promo data for this date
+                const dateKey = dayjs(row.DATE).format('YYYY-MM-DD');
+                const promoMyBrand = promoMyBrandMap.get(dateKey) || 0;
+                const promoCompete = promoCompeteMap.get(dateKey) || 0;
+
+                // Get Share of Search data for this date
+                const sosNumerator = sosNumeratorMap.get(dateKey) || 0;
+                const sosDenominator = sosDenominatorMap.get(dateKey) || 0;
+                const shareOfSearch = sosDenominator > 0 ? ((sosNumerator / sosDenominator) * 100) : 0;
+
+                // Calculate metrics
+                const roas = spend > 0 ? (adSales / spend) : 0;
+                const availability = denoOsa > 0 ? ((nenoOsa / denoOsa) * 100) : 0;
+                const inorganicSales = offtakes > 0 ? ((adSales / offtakes) * 100) : 0;
+                const conversion = impressions > 0 ? ((clicks / impressions) * 100) : 0;
+                const cpm = impressions > 0 ? ((spend / impressions) * 1000) : 0;
+                const cpc = clicks > 0 ? (spend / clicks) : 0;
+
+                return {
+                    date: dayjs(row.DATE).format("DD MMM'YY"),
+                    Offtakes: offtakes.toFixed(0),
+                    Spend: spend.toFixed(0),
+                    Roas: roas.toFixed(2),
+                    Availability: availability.toFixed(1),
+                    InorgSales: inorganicSales.toFixed(2),
+                    DspSales: '0.00',  // DSP data not available in rb_pdp_olap
+                    Conversion: conversion.toFixed(2),
+                    Sos: shareOfSearch.toFixed(1),
+                    MarketShare: '0.00',  // Market share requires market-wide aggregation
+                    PromoMyBrand: promoMyBrand.toFixed(0),
+                    PromoCompete: promoCompete.toFixed(0),
+                    Cpm: cpm.toFixed(2),
+                    Cpc: cpc.toFixed(2)
+                };
+            });
+        }
+
+        console.log(`[getCompetitionBrandTrends] Returning trends for ${Object.keys(brandTrends).length} brands`);
+
+        return {
+            brands: brandTrends,
+            metadata: { period, location, category, brandCount: brandList.length }
+        };
+    } catch (error) {
+        console.error('[getCompetitionBrandTrends] Error:', error);
+        return { brands: {}, metadata: { error: error.message } };
+    }
+};
 
 export default {
     getSummaryMetrics,
-    getSummaryMetricsOptimized,
+    getTrendData,
+    getPlatforms,
     getBrands,
     getKeywords,
     getLocations,
-    getPlatforms,
-    getTrendData,
     getBrandCategories,
-    // New dedicated endpoints
+    getSummaryMetricsOptimized,
     getOverview,
     getPlatformOverview,
     getMonthOverview,
     getCategoryOverview,
-    getBrandsOverview
+    getBrandsOverview,
+    getKpiTrends,
+    getTrendsFilterOptions,
+    getCompetitionData,
+    getCompetitionFilterOptions,
+    getCompetitionBrandTrends
 };

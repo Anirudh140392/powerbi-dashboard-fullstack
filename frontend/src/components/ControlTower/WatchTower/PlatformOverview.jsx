@@ -101,7 +101,16 @@
 //   }, [sortType, data]);
 
 //   return (
-//     <Box sx={{ mb: 4 }}>
+//     <Box sx={{ 
+//       mb: 4,
+//       maxHeight: 'calc(100vh - 200px)', // ADDED: Limit height to enable scrolling
+//       overflowY: 'auto', // ADDED: Enable vertical scrolling
+//       '&::-webkit-scrollbar': { width: 8 }, // ADDED: Custom scrollbar styling
+//       '&::-webkit-scrollbar-thumb': {
+//         background: '#cbd5e1',
+//         borderRadius: 10,
+//       },
+//     }}>
 //       <Card
 //         sx={{
 //           p: 3,
@@ -666,7 +675,15 @@ const PlatformOverview = ({
   }, [sortType, data, searchTerm]);
 
   return (
-    <Box>
+    <Box sx={{
+      maxHeight: 'calc(100vh - 200px)', // ADDED: Limit height to enable scrolling
+      overflowY: 'auto', // ADDED: Enable vertical scrolling
+      '&::-webkit-scrollbar': { width: 8 }, // ADDED: Custom scrollbar styling
+      '&::-webkit-scrollbar-thumb': {
+        background: '#cbd5e1',
+        borderRadius: 10,
+      },
+    }}>
       {activeKpisTab !== "Skus Overview" ? (
         <Card
           sx={{
@@ -925,10 +942,12 @@ const PlatformOverview = ({
               display: "flex",
               gap: 2,
               overflowX: "auto",
-              overflowY: "auto",
-              maxHeight: "755px",
+              overflowY: "hidden",
+              maxHeight: "1460px", // UPDATED: Increased from 755px to accommodate all 12 columns
               pb: 2,
               scrollBehavior: "smooth",
+              flexWrap: "nowrap",
+              maxWidth: "100%",
 
               "&::-webkit-scrollbar": { width: 8, height: 8 },
               "&::-webkit-scrollbar-thumb": {
@@ -1034,7 +1053,7 @@ const PlatformOverview = ({
 
                       {/* Right: Inline Buttons */}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-</Box>
+                      </Box>
 
                       {/* Second Row: Platform Type */}
                       <Typography
