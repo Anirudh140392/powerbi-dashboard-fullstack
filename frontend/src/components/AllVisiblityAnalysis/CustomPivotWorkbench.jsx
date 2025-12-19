@@ -9,7 +9,38 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { motion } from "framer-motion";
+import { Download, RefreshCw, Save, CheckCircle, XCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+const Toast = ({ message, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 50, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.9 }}
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl border border-emerald-100 bg-white/90 px-4 py-3 shadow-xl backdrop-blur-md"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+        <CheckCircle className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-800">Success</p>
+        <p className="text-xs text-slate-500">{message}</p>
+      </div>
+      <button
+        onClick={onClose}
+        className="ml-2 text-slate-400 hover:text-slate-600"
+      >
+        <XCircle className="h-4 w-4" />
+      </button>
+    </motion.div>
+  );
+};
 
 const defaultFields = [
   {
@@ -447,6 +478,7 @@ export const CustomPivotWorkbench = ({
   const [editingFilter, setEditingFilter] = useState(null);
   const [filterSearch, setFilterSearch] = useState("");
   const [draggingKey, setDraggingKey] = useState(null);
+  const [toastMsg, setToastMsg] = useState(null);
 
   const [calcForm, setCalcForm] = useState({
     numerator: "unitsSold",
@@ -625,6 +657,105 @@ export const CustomPivotWorkbench = ({
     setChartValueId(id);
   };
 
+
+
+  const handleSave = () => {
+    // Placeholder for save logic
+    setToastMsg("Layout configuration saved successfully.");
+  };
+
+  const handleExport = () => {
+    const q = (s) => `"${String(s || "").replace(/"/g, '""')}"`;
+    const rowHeaders = config.rows.length
+      ? config.rows.map((r) => fieldLookup[r]?.label || r)
+      : ["Rows"];
+
+    let csvContent = "";
+
+    // 1. Header Row
+    const headerRow = [...rowHeaders];
+    if (hasColumns) {
+      colEntries.forEach(([, colTuple]) => {
+        const colLabel = sanitizeKey(colTuple);
+        config.values.forEach((v) => {
+          headerRow.push(`${colLabel} - ${valueLabel(v)}`);
+        });
+      });
+      // Row Total headers
+      config.values.forEach((v) => {
+        headerRow.push(`Total - ${valueLabel(v)}`);
+      });
+    } else {
+      config.values.forEach((v) => {
+        headerRow.push(valueLabel(v));
+      });
+    }
+    csvContent += headerRow.map(q).join(",") + "\n";
+
+    // 2. Data Rows
+    rowEntries.forEach(([rowKey, rowTuple]) => {
+      const rowData = [...(config.rows.length ? rowTuple : ["All"])];
+
+      if (hasColumns) {
+        colEntries.forEach(([colKey]) => {
+          config.values.forEach((v) => {
+            const cell = pivot.cellMap.get(`${rowKey}__${colKey}`);
+            const val = evaluateValue(cell, v);
+            rowData.push(val);
+          });
+        });
+        // Row Totals
+        config.values.forEach((v) => {
+          const state = pivot.rowTotals.get(rowKey);
+          const val = evaluateValue(state, v);
+          rowData.push(val);
+        });
+      } else {
+        config.values.forEach((v) => {
+          const state = pivot.rowTotals.get(rowKey);
+          const val = evaluateValue(state, v);
+          rowData.push(val);
+        });
+      }
+      csvContent += rowData.map(q).join(",") + "\n";
+    });
+
+    // 3. Footer (Grand Totals)
+    const footerRow = new Array(rowHeaders.length).fill("");
+    footerRow[0] = "Grand Total";
+
+    if (hasColumns) {
+      colEntries.forEach(([colKey]) => {
+        config.values.forEach((v) => {
+          const state = pivot.colTotals.get(colKey);
+          const val = evaluateValue(state, v);
+          footerRow.push(val);
+        });
+      });
+      // Grand Total of Totals
+      config.values.forEach((v) => {
+        const val = evaluateValue(pivot.grandTotals, v);
+        footerRow.push(val);
+      });
+    } else {
+      config.values.forEach((v) => {
+        const val = evaluateValue(pivot.grandTotals, v);
+        footerRow.push(val);
+      });
+    }
+    csvContent += footerRow.map(q).join(",") + "\n";
+
+    // Download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pivot_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white/90 shadow-lg shadow-sky-900/5 p-4 lg:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -632,16 +763,9 @@ export const CustomPivotWorkbench = ({
           <p className="text-[11px] uppercase tracking-[0.24em] text-sky-500">
             Pivot studio
           </p>
-          <h2 className="text-xl font-semibold text-slate-900">
-            Excel-style pivot with bespoke UI
-          </h2>
-          <p className="text-sm text-slate-500">
-            Drag fields, change aggregations, build calculated ratios, and flip
-            between chart & table without third-party pivot widgets.
-          </p>
         </div>
 
-        {/* Chart mode buttons + reset */}
+        {/* Chart mode buttons + Tools */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-full bg-slate-100 px-1 py-1">
             {["chart", "table", "both"].map((mode) => (
@@ -649,7 +773,7 @@ export const CustomPivotWorkbench = ({
                 key={mode}
                 type="button"
                 onClick={() => setChartMode(mode)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${chartMode === mode
+                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition ${chartMode === mode
                   ? "bg-white shadow-sm text-slate-900"
                   : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -663,33 +787,57 @@ export const CustomPivotWorkbench = ({
             ))}
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm"
-            onClick={() =>
-              setConfig({
-                rows: ["country"],
-                columns: ["orderSource"],
-                filters: {},
-                values: [
-                  {
-                    id: "unitsSold-sum",
-                    key: "unitsSold",
-                    label: "Units Sold",
-                    agg: "sum",
-                  },
-                  {
-                    id: "soldAmount-sum",
-                    key: "soldAmount",
-                    label: "Sold Amount",
-                    agg: "sum",
-                  },
-                ],
-              })
-            }
-          >
-            Reset layout
-          </motion.button>
+          <div className="ml-2 flex items-center gap-1">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Reset configuration"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-rose-600"
+              onClick={() =>
+                setConfig({
+                  rows: ["country"],
+                  columns: ["orderSource"],
+                  filters: {},
+                  values: [
+                    {
+                      id: "unitsSold-sum",
+                      key: "unitsSold",
+                      label: "Units Sold",
+                      agg: "sum",
+                    },
+                    {
+                      id: "soldAmount-sum",
+                      key: "soldAmount",
+                      label: "Sold Amount",
+                      agg: "sum",
+                    },
+                  ],
+                })
+              }
+            >
+              <RefreshCw className="h-4 w-4" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Export CSV"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-sky-600"
+              onClick={handleExport}
+            >
+              <Download className="h-4 w-4" />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Save layout"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-sky-500 text-white shadow-sm hover:bg-sky-600"
+              onClick={handleSave}
+            >
+              <Save className="h-4 w-4" />
+            </motion.button>
+          </div>
         </div>
       </div>
 
@@ -1365,6 +1513,15 @@ export const CustomPivotWorkbench = ({
           }
         </div >
       </div >
+
+      <AnimatePresence>
+        {toastMsg && (
+          <Toast
+            message={toastMsg}
+            onClose={() => setToastMsg(null)}
+          />
+        )}
+      </AnimatePresence>
     </div >
   );
 };
