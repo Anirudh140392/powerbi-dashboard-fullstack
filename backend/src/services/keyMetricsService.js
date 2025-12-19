@@ -1,4 +1,5 @@
 import KeyMetrics from '../models/KeyMetrics.js';
+import { getCachedOrCompute } from '../utils/cacheHelper.js';
 
 /**
  * Get a specific metric value by key
@@ -73,16 +74,18 @@ export async function deleteMetric(key) {
  * @returns {Promise<Array<string>>} Array of metric keys
  */
 export async function getAllMetricKeys() {
-    try {
-        const metrics = await KeyMetrics.findAll({
-            attributes: ['key'],
-            order: [['key', 'ASC']]
-        });
-        return metrics.map(m => m.key);
-    } catch (error) {
-        console.error('Error fetching metric keys:', error);
-        return [];
-    }
+    return getCachedOrCompute('metric_keys', async () => {
+        try {
+            const metrics = await KeyMetrics.findAll({
+                attributes: ['key'],
+                order: [['key', 'ASC']]
+            });
+            return metrics.map(m => m.key);
+        } catch (error) {
+            console.error('Error fetching metric keys:', error);
+            return []; // Return empty array instead of throwing
+        }
+    }, 3600); // Cache for 1 hour
 }
 
 export default {
