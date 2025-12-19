@@ -15,6 +15,7 @@ import {
 import CategoryTable from "./CategoryTable";
 import { TrendingUp, Monitor, Calendar, Grid3x3, Tag, Package, Search } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
+import { LightbulbCogRCAIcon } from "../../Analytics/CategoryRca/RcaIcons";
 
 /* ---------------- SMALL KPI CARD ---------------- */
 const SmallCard = ({ item }) => {
@@ -413,7 +414,7 @@ const PlatformOverview = ({
                             <TrendingUp size={17} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Rca" arrow>
+                        <Tooltip title="RCA" arrow>
                           <IconButton
                             size="small"
                             onClick={() => onViewRca(platform.label)}
@@ -424,12 +425,15 @@ const PlatformOverview = ({
                               background: "#EEF2F7",
                               width: 32,
                               height: 32,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                               "&:hover": {
                                 background: "#DBEAFE",
                               },
                             }}
                           >
-                            <Search size={17} color="#0284c7" />
+                            <LightbulbCogRCAIcon size={18} color="#000000" glow="#fde68a" />
                           </IconButton>
                         </Tooltip>
 

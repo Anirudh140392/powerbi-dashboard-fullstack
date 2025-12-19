@@ -8,7 +8,8 @@ import {
   BsCalendar,
 } from "react-icons/bs";
 
-import { Typography, Box, useTheme } from "@mui/material";
+import { Typography, Box, useTheme, IconButton, Tooltip } from "@mui/material";
+import { LightbulbCogRCAIcon } from "./RcaIcons";
 
 const categoryData = [
   {
@@ -208,7 +209,7 @@ const AspCard = ({ data }) => {
   );
 };
 
-const ActionButtons = ({ catLabel, onViewTrends }) => {
+const ActionButtons = ({ catLabel, onViewTrends, onViewRca }) => {
 
   const theme = useTheme();
   return (
@@ -227,22 +228,29 @@ const ActionButtons = ({ catLabel, onViewTrends }) => {
         }}>
           📊 Impact SKUs
         </button>
-        <button
-          onClick={() => onViewRca(catLabel)}
-          style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: theme.palette.text.secondary,
-            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
-            border: `1px solid ${theme.palette.divider}`,
-            borderRadius: '16px',
-            padding: '6px 14px',
-            cursor: 'pointer',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-          }}
-        >
-          🔗 RCA
-        </button>
+        <Tooltip title="RCA" arrow>
+          <IconButton
+            onClick={() => onViewRca(catLabel)}
+            size="small"
+            sx={{
+              p: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: '20px',
+              width: 46,
+              height: 28,
+              '&:hover': {
+                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f3f4f6',
+              }
+            }}
+          >
+            <LightbulbCogRCAIcon size={20} color="#000000" glow="#fde68a" />
+            <Typography sx={{ fontSize: '10px', fontWeight: 900, ml: 0.5, color: '#000000' }}>RCA</Typography>
+          </IconButton>
+        </Tooltip>
       </div>
       <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
         <button
@@ -311,7 +319,7 @@ const ActionButtons = ({ catLabel, onViewTrends }) => {
   );
 };
 
-export default function CategoryPlatformOverview({ onViewTrends = () => { } }) {
+export default function CategoryPlatformOverview({ onViewTrends = () => { }, onViewRca = () => { } }) {
   const [selected, setSelected] = useState("all");
   const theme = useTheme();
 
@@ -495,7 +503,7 @@ export default function CategoryPlatformOverview({ onViewTrends = () => { } }) {
                 <ImpressionsCard data={cat.metrics.indexedImpressions} />
                 <ConversionCard data={cat.metrics.indexedConversion} />
                 <AspCard data={cat.metrics.asp} />
-                <ActionButtons catLabel={cat.label} onViewTrends={onViewTrends} />
+                <ActionButtons catLabel={cat.label} onViewTrends={onViewTrends} onViewRca={onViewRca} />
 
 
               </div>
