@@ -229,7 +229,7 @@ export default function InventoryDrill() {
                                     SKU
                                 </th>
                                 {cityColumns.map((city, i) => (
-                                    <th key={city} className="px-3 py-2 text-center font-semibold">
+                                    <th key={city} className="px-3 py-2 text-center font-semibold uppercase">
                                         {city}
                                     </th>
                                 ))}
@@ -238,7 +238,7 @@ export default function InventoryDrill() {
                         <tbody>
                             {pageRows.map((row) => (
                                 <tr key={row.sku} className="border-b">
-                                    <td className="sticky left-0 bg-white px-3 py-2 font-semibold">
+                                    <td className="sticky left-0 bg-white px-3 py-2 font-medium">
                                         {row.sku}
                                     </td>
                                     {cityColumns.map((city) => (
