@@ -311,35 +311,35 @@ const FORMAT_MATRIX_ABSOLUTE = {
     {
       kpi: "Osa",
       values: {
-        Blinkit: 82, Zepto: 78, Instamart: 65, "Virtual Store": 74, Swiggy: 70
+        Blinkit: 82, Zepto: 78, Instamart: 65, Amazon: 75, Swiggy: 70
       },
       trend: generateTrendMulti(78)
     },
     {
       kpi: "Doi",
       values: {
-        Blinkit: 45, Zepto: 52, Instamart: 48, "Virtual Store": 50, Swiggy: 47
+        Blinkit: 45, Zepto: 52, Instamart: 48, Amazon: 49, Swiggy: 47
       },
       trend: generateTrendMulti(48)
     },
     {
       kpi: "Fillrate",
       values: {
-        Blinkit: 91, Zepto: 84, Instamart: 79, "Virtual Store": 87, Swiggy: 81
+        Blinkit: 91, Zepto: 84, Instamart: 79, Amazon: 86, Swiggy: 81
       },
       trend: generateTrendMulti(85)
     },
     {
       kpi: "Assortment",
       values: {
-        Blinkit: 72, Zepto: 69, Instamart: 61, "Virtual Store": 66, Swiggy: 64
+        Blinkit: 142, Zepto: 138, Instamart: 122, Amazon: 135, Swiggy: 128
       },
       trend: generateTrendMulti(66)
     },
     {
       kpi: "PSL",
       values: {
-        Blinkit: 18, Zepto: 12, Instamart: 25, "Virtual Store": 10, Swiggy: 20
+        Blinkit: 18, Zepto: 12, Instamart: 25, Amazon: 11, Swiggy: 20
       },
       trend: generateTrendMulti(15)
     }
@@ -463,22 +463,22 @@ const FORMAT_MATRIX_Visibility = {
   PlatformData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Blinkit: 92, Zepto: 88, Instamart: 85, "Virtual Store": 87, Swiggy: 90 },
+      values: { Blinkit: 92, Zepto: 88, Instamart: 85, Amazon: 87, Swiggy: 90 },
       trend: generateTrendMulti(88)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Blinkit: 12, Zepto: 15, Instamart: 10, "Virtual Store": 18, Swiggy: 14 },
+      values: { Blinkit: 12, Zepto: 15, Instamart: 10, Amazon: 16, Swiggy: 14 },
       trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Blinkit: 96, Zepto: 94, Instamart: 92, "Virtual Store": 90, Swiggy: 89 },
+      values: { Blinkit: 96, Zepto: 94, Instamart: 92, Amazon: 91, Swiggy: 89 },
       trend: generateTrendMulti(92)
     },
     {
       kpi: "Display SOS",
-      values: { Blinkit: 89, Zepto: 91, Instamart: 85, "Virtual Store": 88, Swiggy: 86 },
+      values: { Blinkit: 89, Zepto: 91, Instamart: 85, Amazon: 88, Swiggy: 86 },
       trend: generateTrendMulti(88)
     }
   ],
