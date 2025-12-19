@@ -112,18 +112,10 @@ const CoolGreyBackground = () => (
         position: 'absolute',
         inset: 0,
         zIndex: 0,
-        background: 'radial-gradient(circle at 50% 50%, #f8fafc 0%, #f1f5f9 100%)',
-    }}>
-        {/* Subtle slate grid */}
-        <Box sx={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `linear-gradient(rgba(100, 116, 139, 0.08) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(100, 116, 139, 0.08) 1.5px, transparent 1.5px)`,
-            backgroundSize: '40px 40px',
-            pointerEvents: 'none',
-        }} />
-    </Box>
+        background: '#ffffff', // Pure white
+    }} />
 );
+
 
 // --- AI Insight Badge ---
 const AiInsightBadge = ({ text }) => (
@@ -804,7 +796,7 @@ const RcaTreeInner = ({ title, context }) => {
                     type: 'smoothstep'
                 }}
             >
-                <Background color="rgba(100, 116, 139, 0.08)" variant="grid" gap={50} size={1} />
+
                 <Controls
                     showInteractive={false}
                     style={{
