@@ -567,8 +567,8 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     activeTab === "category"
       ? "categories"
       : activeTab === "brand"
-      ? "brands"
-      : "skus";
+        ? "brands"
+        : "skus";
 
   // strict dependency: parent change clears children
   const handleToggle = (type, item) => {
@@ -1106,7 +1106,7 @@ const BrandTable = ({ rows }) => (
                   {row.Fillrate.toFixed(1)}%
                 </td>
                 <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Assortment.toFixed(1)}%
+                  {row.Assortment.toFixed(1)}
                 </td>
               </tr>
             ))}
@@ -1172,7 +1172,7 @@ const SkuTable = ({ rows }) => (
                   {row.Fillrate.toFixed(1)}%
                 </td>
                 <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Assortment.toFixed(1)}%
+                  {row.Assortment.toFixed(0)}
                 </td>
               </tr>
             ))}
