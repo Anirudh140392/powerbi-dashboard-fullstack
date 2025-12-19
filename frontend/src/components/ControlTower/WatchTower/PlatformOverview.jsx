@@ -68,6 +68,7 @@ const SmallCard = ({ item }) => {
 const PlatformOverview = ({
   data = [],
   onViewTrends = () => { },
+  onViewRca = () => { },
   activeKpisTab = "Platform Overview",
 }) => {
   const theme = useTheme();
@@ -395,7 +396,7 @@ const PlatformOverview = ({
                         <Tooltip title="Rca" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => onViewTrends(platform.label)}
+                            onClick={() => onViewRca(platform.label)}
                             className="trend-icon"
                             sx={{
                               borderRadius: 2,
