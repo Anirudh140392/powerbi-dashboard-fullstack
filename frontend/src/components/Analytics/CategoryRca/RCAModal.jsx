@@ -9,9 +9,8 @@ import {
     Tooltip,
     Drawer,
 } from "@mui/material";
-import { X, Filter, RefreshCcw, Maximize2, Minimize2 } from "lucide-react";
+import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity } from "lucide-react";
 import RCATree from "./RCATree";
-import { ChevronDown, Info } from 'lucide-react';
 
 /**
  * RCAModal
@@ -21,8 +20,8 @@ import { ChevronDown, Info } from 'lucide-react';
  */
 
 const SelectBox = ({ label, value, onChange, width = '100%' }) => (
-    <Box sx={{ mb: 4 }}>
-        <Typography sx={{ fontSize: '11px', fontWeight: 700, color: '#374151', mb: 1, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+    <Box sx={{ mb: 4.5 }}>
+        <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', mb: 1.5, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             {label}
         </Typography>
         <Box sx={{ position: 'relative', width }}>
@@ -31,20 +30,31 @@ const SelectBox = ({ label, value, onChange, width = '100%' }) => (
                 onChange={(e) => onChange(e.target.value)}
                 style={{
                     width: '100%',
-                    padding: '8px 32px 8px 12px',
+                    padding: '12px 36px 12px 16px',
                     fontSize: '14px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    backgroundColor: 'white',
-                    color: '#111827',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    borderRadius: '14px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                    color: '#0f172a',
                     appearance: 'none',
                     cursor: 'pointer',
-                    fontWeight: 500
+                    fontWeight: 800,
+                    outline: 'none',
+                    transition: 'all 0.2s ease',
+                    backdropFilter: 'blur(10px)',
+                }}
+                onFocus={(e) => {
+                    e.target.style.borderColor = '#6366f1';
+                    e.target.style.boxShadow = '0 0 0 4px rgba(99, 102, 241, 0.1)';
+                }}
+                onBlur={(e) => {
+                    e.target.style.borderColor = 'rgba(0, 0, 0, 0.08)';
+                    e.target.style.boxShadow = 'none';
                 }}
             >
                 <option>{value}</option>
             </select>
-            <ChevronDown size={16} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280' }} />
+            <ChevronDown size={18} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#64748b' }} />
         </Box>
     </Box>
 );
@@ -63,111 +73,140 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
             onClose={onClose}
             sx={{
                 '& .MuiDialog-paper': {
-                    bgcolor: '#f9fafb',
+                    bgcolor: '#09090b',
+                    cursor: 'none', // Critical for custom magic cursor compatibility
                 },
             }}
         >
             {/* Custom Header */}
             <DialogTitle
                 sx={{
-                    p: 2,
+                    p: 3,
+                    px: 4,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    borderBottom: '1px solid #e5e7eb',
-                    bgcolor: '#fff',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                    bgcolor: 'rgba(9, 9, 11, 0.9)',
+                    backdropFilter: 'blur(24px) saturate(160%)',
                     zIndex: 1201,
+                    color: '#fff'
                 }}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                     <Box
                         sx={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            width: 44,
+                            height: 44,
+                            borderRadius: '16px',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: 'white',
-                            fontSize: '16px',
-                            fontWeight: 700,
+                            boxShadow: '0 8px 16px rgba(99, 102, 241, 0.3)',
                         }}
                     >
-                        ∞
+                        <Activity size={24} strokeWidth={3} />
                     </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.2rem', color: '#1e293b' }}>
-                        Root Cause Analysis
-                    </Typography>
+                    <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 900, fontSize: '1.4rem', color: '#fff', letterSpacing: '-1px' }}>
+                            Diagnostic Studio
+                        </Typography>
+                        <Typography sx={{ fontSize: '10px', fontWeight: 900, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                            Pro Intelligence Pipeline v2.0
+                        </Typography>
+                    </Box>
                 </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Tooltip title="Toggle Filters">
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Tooltip title="Calibrate Search Context">
                         <IconButton
                             onClick={() => setShowFilters(!showFilters)}
                             sx={{
-                                bgcolor: showFilters ? '#eff6ff' : 'transparent',
-                                color: showFilters ? '#2563eb' : '#64748b',
-                                '&:hover': { bgcolor: '#eff6ff' },
+                                bgcolor: showFilters ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255, 255, 255, 0.8)',
+                                color: showFilters ? '#6366f1' : '#64748b',
+                                '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.15)' },
                                 border: '1px solid',
-                                borderColor: showFilters ? '#bfdbfe' : '#e2e8f0',
+                                borderColor: showFilters ? 'rgba(99, 102, 241, 0.2)' : 'rgba(0, 0, 0, 0.05)',
+                                width: 44,
+                                height: 44,
+                                borderRadius: '14px',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
                             }}
                         >
-                            <Filter size={20} />
+                            <Filter size={20} strokeWidth={showFilters ? 2.5 : 2} />
                         </IconButton>
                     </Tooltip>
 
-                    <IconButton onClick={onClose} sx={{ color: '#64748b' }}>
+                    <IconButton
+                        onClick={onClose}
+                        sx={{
+                            color: '#64748b',
+                            width: 44,
+                            height: 44,
+                            borderRadius: '14px',
+                            bgcolor: 'rgba(239, 68, 68, 0.05)',
+                            '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }
+                        }}
+                    >
                         <X size={24} />
                     </IconButton>
                 </Box>
             </DialogTitle>
 
-            <DialogContent sx={{ p: 0, display: 'flex', overflow: 'hidden', height: '100%' }}>
-                {/* Filter Drawer / Sidebar (Left side, inside content) */}
+            <DialogContent sx={{ p: 0, display: 'flex', overflow: 'hidden', height: '100%', bgcolor: '#09090b' }}>
+                {/* Filter Drawer / Sidebar (Left side) */}
                 {showFilters && (
                     <Box
                         sx={{
-                            width: 300,
+                            width: 340,
                             flexShrink: 0,
-                            bgcolor: '#fff',
-                            borderRight: '1px solid #e5e7eb',
-                            p: 3,
+                            bgcolor: 'rgba(15, 15, 15, 0.8)',
+                            backdropFilter: 'blur(30px) saturate(150%)',
+                            borderRight: '1px solid rgba(255, 255, 255, 0.05)',
+                            p: 5,
                             display: 'flex',
                             flexDirection: 'column',
-                            boxShadow: '4px 0 14px rgba(0,0,0,0.02)',
+                            boxShadow: '25px 0 50px rgba(0,0,0,0.5)',
                             overflowY: 'auto',
+                            zIndex: 10,
                         }}
                     >
-                        <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', mb: 4, letterSpacing: '1px' }}>
-                            CALIBRATION
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 6 }}>
+                            <Box sx={{ width: 4, height: 16, bgcolor: '#6366f1', borderRadius: '2px' }} />
+                            <Typography sx={{ fontSize: '12px', fontWeight: 900, color: '#fff', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                                Calibration
+                            </Typography>
+                        </Box>
 
-                        <SelectBox label="Platform" value={platform} onChange={setPlatform} />
-                        <SelectBox label="Location" value={location} onChange={setLocation} />
-                        <SelectBox label="Category" value={category} onChange={setCategory} />
-                        <SelectBox label="Brand" value={brand} onChange={setBrand} />
+                        <SelectBox label="Marketplace Engine" value={platform} onChange={setPlatform} />
+                        <SelectBox label="Regional Territory" value={location} onChange={setLocation} />
+                        <SelectBox label="Category Vertical" value={category} onChange={setCategory} />
+                        <SelectBox label="Brand Identity" value={brand} onChange={setBrand} />
 
                         <Box sx={{
                             mt: 'auto',
-                            p: 2,
-                            bgcolor: '#fef3c7',
-                            borderRadius: '12px',
-                            border: '1px solid #fde68a'
+                            p: 3,
+                            bgcolor: 'rgba(99, 102, 241, 0.1)',
+                            backdropFilter: 'blur(10px)',
+                            borderRadius: '24px',
+                            border: '1px solid rgba(99, 102, 241, 0.2)',
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
                         }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                <Info size={14} color="#92400e" />
-                                <Typography sx={{ fontSize: '11px', fontWeight: 700, color: '#92400e' }}>NOTE</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                                <Info size={18} color="#818cf8" strokeWidth={2.5} />
+                                <Typography sx={{ fontSize: '11px', fontWeight: 900, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '1px' }}>Intelligence Core</Typography>
                             </Box>
-                            <Typography sx={{ fontSize: '11px', color: '#92400e', lineHeight: 1.4 }}>
-                                SOS metrics are calculated at the keyword level for the selected period.
+                            <Typography sx={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, fontWeight: 700 }}>
+                                Algorithms are cross-referencing real-time telemetry from across the selected vertical market.
                             </Typography>
                         </Box>
                     </Box>
                 )}
 
                 {/* RCA Tree Content */}
-                <Box sx={{ flex: 1, position: 'relative', bgcolor: '#f8fafc' }}>
+                <Box sx={{ flex: 1, position: 'relative', bgcolor: 'transparent' }}>
                     <RCATree title={title} />
                 </Box>
             </DialogContent>
