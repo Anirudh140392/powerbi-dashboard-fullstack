@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Mock Data focused on "Kwality Walls"
 const MOCK_DATA = [
@@ -176,8 +177,7 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms() {
-    const [filter, setFilter] = useState("All");
+export default function TopSearchTerms({ filter = "All" }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
 
     const handleBrandClick = (keyword) => {
@@ -190,6 +190,29 @@ export default function TopSearchTerms() {
 
     const drilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
 
+    // Animation Variants
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.05,
+                delayChildren: 0.1
+            }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 12 } }
+    };
+
+    const modalVariants = {
+        hidden: { opacity: 0, scale: 0.95 },
+        visible: { opacity: 1, scale: 1, transition: { type: "spring", duration: 0.3 } },
+        exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
+    };
+
     return (
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
@@ -198,28 +221,9 @@ export default function TopSearchTerms() {
 
                 <div className="flex items-center gap-4">
                     {/* Tabs */}
-                    <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-                        {["All", "Branded", "Competitor", "Generic"].map((tab) => (
-                            <button
-                                key={tab}
-                                onClick={() => setFilter(tab)}
-                                className={`px-4 py-1.5 text-sm rounded-full transition-all ${filter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                                    }`}
-                            >
-                                {tab}
-                            </button>
-                        ))}
-                    </div>
 
-                    {/* TopN Dropdown Placeholder */}
-                    <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                        <span>TopN for SOV:</span>
-                        <select className="border-none bg-transparent font-medium text-slate-700 focus:ring-0 cursor-pointer">
-                            <option>Top 20</option>
-                            <option>Top 50</option>
-                            <option>Top 100</option>
-                        </select>
-                    </div>
+
+
                 </div>
             </div>
 
@@ -227,54 +231,61 @@ export default function TopSearchTerms() {
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%]">Keywords</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[15%]">
-                                Top Brand <span className="text-[9px] font-normal text-slate-500">(by Overall Share of Visibility)</span>
+                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[20%]">Keywords</th>
+                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[15%]">
+                                Leading Brand <span className="normal-case font-normal text-xs text-slate-700">(by Overall Share of Visibility)</span>
                             </th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[25%] text-center">Overall Share of Visibility</th>
-                            <th className="px-1 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[25%] text-center">Organic Share of Visibility</th>
-                            <th className="px-1 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[15%] text-center">Paid Share of Visibility</th>
-                            <th className="px-1 py-2.5 text-xs font-bold text-slate-700 w-[5%] text-center"><LineChart className="h-3 w-3 inline" /></th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Overall Share of Visibility</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Organic Share of Visibility</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Paid Share of Visibility</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <motion.tbody
+                        className="divide-y divide-slate-50"
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="visible"
+                    >
                         {MOCK_DATA.map((row, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="px-6 py-2 text-[11px] text-slate-700 font-medium">
+                            <motion.tr
+                                key={idx}
+                                variants={itemVariants}
+                                className="hover:bg-slate-50/80 transition-colors"
+                            >
+                                <td className="px-6 py-2 text-xs text-slate-700 font-semibold capitalize">
                                     {row.keyword}
                                 </td>
                                 <td className="px-6 py-2 text-[10px]">
-                                    <button
+                                    <motion.button
                                         onClick={() => handleBrandClick(row.keyword)}
-                                        className="px-3 py-1.5 text-[10px] font-semibold tracking-wide uppercase rounded-full bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 hover:border-slate-400 hover:shadow-sm transition-all cursor-pointer"
+                                        whileTap={{ scale: 0.95 }}
+                                        className="pill underline-slide"
                                     >
                                         {row.topBrand}
-                                    </button>
+                                    </motion.button>
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
-                                    {row.overallSov}%
-                                </td>
-                                <td className="px-1 py-2 text-center">
-                                    <DeltaIndicator value={row.overallDelta} />
-                                </td>
-                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
-                                    {row.organicSov}%
-                                </td>
-                                <td className="px-1 py-2 text-center">
-                                    <DeltaIndicator value={row.organicDelta} />
+                                    <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
+                                        <span className="text-xs font-bold text-emerald-900">{row.overallSov}%</span>
+                                        <DeltaIndicator value={row.overallDelta} />
+                                    </div>
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
-                                    {row.paidSov}%
+                                    <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
+                                        <span className="text-xs font-bold text-emerald-900">{row.organicSov}%</span>
+                                        <DeltaIndicator value={row.organicDelta} />
+                                    </div>
                                 </td>
-                                <td className="px-1 py-2 text-center">
-                                    <DeltaIndicator value={row.paidDelta} />
+                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
+                                    <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
+                                        <span className="text-xs font-bold text-emerald-900">{row.paidSov}%</span>
+                                        <DeltaIndicator value={row.paidDelta} />
+                                    </div>
                                 </td>
-                            </tr>
+                            </motion.tr>
                         ))}
-                    </tbody>
+                    </motion.tbody>
                 </table>
             </div>
 
@@ -291,49 +302,68 @@ export default function TopSearchTerms() {
                         Next
                     </button>
                 </div>
-                <div className="text-xs text-slate-400">Showing top 12 terms</div>
+                <div className="flex items-center gap-1 text-[11px] text-slate-500">
+                    <select className="border-none bg-transparent font-medium text-slate-700 focus:ring-0 cursor-pointer">
+                        <option>Top 20</option>
+                        <option>Top 50</option>
+                        <option>Top 100</option>
+                    </select>
+                </div>
             </div>
 
             {/* Drilldown Modal */}
-            {selectedKeyword && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/10 backdrop-blur-[1px]">
-                    <div className="w-[90%] max-w-2xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden ring-1 ring-slate-900/5">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
-                            <h4 className="text-sm font-semibold text-slate-800">
-                                Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
-                            </h4>
-                            <button
-                                onClick={closeDrilldown}
-                                className="p-1 rounded-full hover:bg-slate-200 text-slate-500 transition"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <div className="p-4">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
-                                        <th className="pb-2 font-semibold">Brand</th>
-                                        <th className="pb-2 font-semibold text-right">Overall SOV</th>
-                                        <th className="pb-2 font-semibold text-right">Organic SOV</th>
-                                        <th className="pb-2 font-semibold text-right">Paid SOV</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {drilldownData.map((d, i) => (
-                                        <tr key={i} className="hover:bg-slate-50/50">
-                                            <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
-                                            <td className="py-2 text-right text-xs text-slate-600">{d.overall}%</td>
-                                            <td className="py-2 text-right text-xs text-slate-600">{d.organic}%</td>
-                                            <td className="py-2 text-right text-xs text-slate-600">{d.paid}%</td>
+            <AnimatePresence>
+                {selectedKeyword && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/10 backdrop-blur-[1px]"
+                    >
+                        <motion.div
+                            variants={modalVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            className="w-[90%] max-w-2xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden ring-1 ring-slate-900/5"
+                        >
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+                                <h4 className="text-sm font-semibold text-slate-800">
+                                    Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
+                                </h4>
+                                <button
+                                    onClick={closeDrilldown}
+                                    className="p-1 rounded-full hover:bg-slate-200 text-slate-500 transition"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <div className="p-4">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
+                                            <th className="pb-2 font-semibold">Brand</th>
+                                            <th className="pb-2 font-semibold text-center">Overall SOV</th>
+                                            <th className="pb-2 font-semibold text-center">Organic SOV</th>
+                                            <th className="pb-2 font-semibold text-center">Paid SOV</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            )}
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {drilldownData.map((d, i) => (
+                                            <tr key={i} className="hover:bg-slate-50/50">
+                                                <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
+                                                <td className="py-2 text-center text-xs text-slate-600">{d.overall}%</td>
+                                                <td className="py-2 text-center text-xs text-slate-600">{d.organic}%</td>
+                                                <td className="py-2 text-center text-xs text-slate-600">{d.paid}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
