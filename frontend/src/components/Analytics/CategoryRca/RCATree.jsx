@@ -73,31 +73,31 @@ const MagicCursor = () => {
 
     return (
         <Box sx={{ position: 'fixed', top: 0, left: 0, pointerEvents: 'none', zIndex: 9999 }}>
-            {/* High-Contrast Silver Glow Trail */}
+            {/* Soft Charcoal Glow Trail */}
             <motion.div
                 style={{
                     position: 'absolute',
-                    top: -40,
-                    left: -40,
-                    width: 80,
-                    height: 80,
+                    top: -60,
+                    left: -60,
+                    width: 120,
+                    height: 120,
                     borderRadius: '50%',
-                    background: 'radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 70%)',
+                    background: 'radial-gradient(circle, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 70%)',
                     x: trailX,
                     y: trailY,
                 }}
             />
-            {/* Sharp Neon Ring */}
+            {/* Sharp Indigo Ring */}
             <motion.div
                 style={{
                     position: 'absolute',
-                    top: -10,
-                    left: -10,
+                    top: -12,
+                    left: -12,
                     width: 24,
                     height: 24,
                     borderRadius: '50%',
-                    border: '2.5px solid rgba(255, 255, 255, 0.8)',
-                    boxShadow: '0 0 10px rgba(255,255,255,0.4)',
+                    border: '2.5px solid rgba(79, 70, 229, 0.8)',
+                    boxShadow: '0 0 10px rgba(79, 70, 229, 0.2)',
                     x: cursorX,
                     y: cursorY,
                 }}
@@ -106,22 +106,21 @@ const MagicCursor = () => {
     );
 };
 
-// --- Neutral Slate Studio Background ---
-const SlateStudioBackground = () => (
+// --- Cool Grey Studio Background ---
+const CoolGreyBackground = () => (
     <Box sx={{
         position: 'absolute',
         inset: 0,
         zIndex: 0,
-        background: 'linear-gradient(135deg, #18181b 0%, #09090b 100%)',
+        background: 'radial-gradient(circle at 50% 50%, #f8fafc 0%, #f1f5f9 100%)',
     }}>
-        {/* Subtle high-contrast grid */}
+        {/* Subtle slate grid */}
         <Box sx={{
             position: 'absolute',
             inset: 0,
-            backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`,
-            backgroundSize: '32px 32px',
+            backgroundImage: `linear-gradient(rgba(100, 116, 139, 0.08) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(100, 116, 139, 0.08) 1.5px, transparent 1.5px)`,
+            backgroundSize: '40px 40px',
             pointerEvents: 'none',
-            opacity: 0.5
         }} />
     </Box>
 );
@@ -158,6 +157,78 @@ const AiInsightBadge = ({ text }) => (
         {text}
     </motion.div>
 );
+
+// --- Context Ribbon ---
+const ContextRibbon = ({ context }) => {
+    const { platform, category, brand, sku, month } = context || {};
+
+    const chipStyle = {
+        px: 2,
+        py: 0.8,
+        borderRadius: '12px',
+        bgcolor: 'rgba(15, 23, 42, 0.05)',
+        border: '1px solid rgba(15, 23, 42, 0.1)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.2
+    };
+
+    const labelStyle = {
+        fontSize: '9px',
+        fontWeight: 900,
+        color: 'rgba(15, 23, 42, 0.4)',
+        textTransform: 'uppercase',
+        letterSpacing: '1px'
+    };
+
+    const valueStyle = {
+        fontSize: '12px',
+        fontWeight: 900,
+        color: '#0f172a',
+        letterSpacing: '-0.3px'
+    };
+
+    return (
+        <Box sx={{
+            position: 'absolute',
+            top: 30,
+            left: 30,
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            p: 1.2,
+            bgcolor: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '20px',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.08)'
+        }}>
+            <Box sx={{ ...chipStyle, bgcolor: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.15)' }}>
+                <Typography sx={labelStyle}>Platform</Typography>
+                <Typography sx={valueStyle}>{platform}</Typography>
+            </Box>
+            <Box sx={chipStyle}>
+                <Typography sx={labelStyle}>Category</Typography>
+                <Typography sx={valueStyle}>{category}</Typography>
+            </Box>
+            <Box sx={chipStyle}>
+                <Typography sx={labelStyle}>Brand</Typography>
+                <Typography sx={valueStyle}>{brand}</Typography>
+            </Box>
+            {sku && sku !== 'All SKUs' && (
+                <Box sx={chipStyle}>
+                    <Typography sx={labelStyle}>SKU Selection</Typography>
+                    <Typography sx={{ ...valueStyle, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sku}</Typography>
+                </Box>
+            )}
+            <Box sx={chipStyle}>
+                <Typography sx={labelStyle}>Fiscal Period</Typography>
+                <Typography sx={valueStyle}>{month}</Typography>
+            </Box>
+        </Box>
+    );
+};
 
 // --- Sparkline Component ---
 const Sparkline = ({ data = [30, 45, 35, 60, 55, 80, 70], color = "#3b82f6" }) => {
@@ -271,11 +342,11 @@ const KpiNode = ({ data }) => {
                 y: -35, // Extreme liftoff for 3D depth
                 scale: 1.06,
                 boxShadow: `
-                    0 50px 100px -20px rgba(0, 0, 0, 0.7), 
-                    0 30px 60px -30px rgba(0, 0, 0, 0.8), 
-                    0 -10px 40px -15px rgba(0, 0, 0, 0.2),
-                    inset 0 0 0 2px rgba(255, 255, 255, 1)
+                    0 30px 60px -12px rgba(0, 0, 0, 0.15),
+                    0 18px 36px -18px rgba(0, 0, 0, 0.2),
+                    0 10px 20px -10px rgba(0, 0, 0, 0.1)
                 `,
+                border: `2px solid ${accentColor}`
             }}
             transition={{ type: "spring", damping: 8, stiffness: 70 }}
             style={{
@@ -288,9 +359,9 @@ const KpiNode = ({ data }) => {
                 cursor: 'pointer',
                 position: 'relative',
                 boxShadow: `
-                    0 30px 60px -12px rgba(0, 0, 0, 0.6),
-                    0 18px 36px -18px rgba(0, 0, 0, 0.5)
-                ` // Deep base shadow for 3D effect
+                    0 10px 30px -5px rgba(0, 0, 0, 0.08),
+                    0 4px 12px -5px rgba(0, 0, 0, 0.1)
+                ` // Deep base shadow for 3D effect on light grey
             }}
             onClick={(e) => {
                 if (e.target.closest('.toggle-btn')) return;
@@ -571,8 +642,8 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
                 target: child.id,
                 type: ConnectionLineType.SmoothStep,
                 animated: true,
-                style: { stroke: 'rgba(255, 255, 255, 0.4)', strokeWidth: 3.5, borderRadius: 32, strokeDasharray: '8,8' },
-                markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(255, 255, 255, 0.6)', width: 18, height: 18 }
+                style: { stroke: 'rgba(100, 116, 139, 0.15)', strokeWidth: 3.5, borderRadius: 32, strokeDasharray: '8,8' },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(100, 116, 139, 0.3)', width: 18, height: 18 }
             });
 
             layoutTreeNodes(child, currentChildX, y + VERTICAL_STEP, collapsedNodes, results);
@@ -663,7 +734,7 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
 };
 
 // --- Internal RCATree Component ---
-const RcaTreeInner = ({ title }) => {
+const RcaTreeInner = ({ title, context }) => {
     const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
     const [detailOpen, setDetailOpen] = useState(false);
     const [selectedNode, setSelectedNode] = useState(null);
@@ -713,8 +784,9 @@ const RcaTreeInner = ({ title }) => {
             position: "relative",
             cursor: 'none' // Hide default cursor because we have MagicCursor
         }}>
-            <SlateStudioBackground />
+            <CoolGreyBackground />
             <MagicCursor />
+            <ContextRibbon context={context} />
 
 
             <ReactFlow
@@ -771,12 +843,10 @@ const RcaTreeInner = ({ title }) => {
     );
 };
 
-export default function RCATree({ title }) {
+export default function RCATree({ title, context }) {
     return (
         <ReactFlowProvider>
-            <div className="h-full w-full" style={{ fontFamily: '"Outfit", "Inter", sans-serif' }}>
-                <RcaTreeInner title={title} />
-            </div>
+            <RcaTreeInner title={title} context={context} />
         </ReactFlowProvider>
     );
 }
