@@ -45,6 +45,7 @@ export default function CategoryRca() {
 
 
   const [rcaModalOpen, setRcaModalOpen] = useState(false);
+  const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [trendData, setTrendData] = useState({
     timeSeries: [],
     metrics: {},
@@ -298,6 +299,7 @@ export default function CategoryRca() {
 
   const handleViewRca = (cat) => {
     console.log("Viewing RCA for:", cat);
+    setRcaModalTitle(`${cat} x ${filters.platform}`);
     setRcaModalOpen(true);
   };
 
@@ -332,6 +334,7 @@ export default function CategoryRca() {
       <RCAModal
         open={rcaModalOpen}
         onClose={() => setRcaModalOpen(false)}
+        title={rcaModalTitle}
       />
     </>
   );

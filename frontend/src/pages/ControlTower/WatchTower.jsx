@@ -351,6 +351,7 @@ defaultCategory */}
       <RCAModal
         open={rcaModalOpen}
         onClose={() => setRcaModalOpen(false)}
+        title={rcaModalTitle}
       />
     </>
   );
