@@ -77,10 +77,13 @@ export async function getAllMetricKeys() {
     return getCachedOrCompute('metric_keys', async () => {
         try {
             const metrics = await KeyMetrics.findAll({
-                attributes: ['key'],
+                attributes: ['key', 'value'],
                 order: [['key', 'ASC']]
             });
-            return metrics.map(m => m.key);
+            return metrics.map(m => ({
+                key: m.key,
+                value: m.value
+            }));
         } catch (error) {
             console.error('Error fetching metric keys:', error);
             return []; // Return empty array instead of throwing

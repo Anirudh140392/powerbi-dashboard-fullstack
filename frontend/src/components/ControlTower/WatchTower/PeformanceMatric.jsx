@@ -279,8 +279,7 @@ function KpiCard({ card, onOpenTrend, onTrendClick }) {
         <Typography variant="body2" color="text.secondary">{card.label}</Typography>
 
         <div
-          onClick={() => setShowTrends(true)}
-          // onClick={onOpenTrend}
+          onClick={onTrendClick}
           className="trend-icon"
           style={{
             background: "#EEF2F7",

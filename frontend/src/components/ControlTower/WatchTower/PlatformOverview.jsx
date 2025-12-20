@@ -91,6 +91,19 @@ const PlatformOverview = ({
   onViewTrends = () => { },
   onViewRca = () => { },
   activeKpisTab = "Platform Overview",
+  // Month Overview props
+  monthOverviewPlatform,
+  onMonthPlatformChange,
+  // Category Overview props
+  categoryOverviewPlatform,
+  onCategoryPlatformChange,
+  // Brands Overview props
+  brandsOverviewPlatform,
+  onBrandsPlatformChange,
+  brandsOverviewCategory,
+  onBrandsCategoryChange,
+  // Filters prop for SKU data
+  filters = {},
 }) => {
   const theme = useTheme();
 
@@ -197,13 +210,11 @@ const PlatformOverview = ({
 
             {/* FILTERS + SEARCH + SORT */}
             <Box display="flex" alignItems="center" gap={1.2}>
-              {activeKpisTab !== "Platform Overview" && (
+              {activeKpisTab === "Month Overview" && (
                 <Select
                   size="small"
-                  value={platformFilter.platform}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({ ...p, platform: e.target.value }))
-                  }
+                  value={monthOverviewPlatform}
+                  onChange={(e) => onMonthPlatformChange(e.target.value)}
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -211,26 +222,59 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  <MenuItem value="blinkit">Blinkit</MenuItem>
+                  <MenuItem value="Blinkit">Blinkit</MenuItem>
+                  <MenuItem value="Zepto">Zepto</MenuItem>
+                </Select>
+              )}
+
+              {activeKpisTab === "Category Overview" && (
+                <Select
+                  size="small"
+                  value={categoryOverviewPlatform}
+                  onChange={(e) => onCategoryPlatformChange(e.target.value)}
+                  sx={{
+                    minWidth: 130,
+                    height: 36,
+                    fontSize: "0.85rem",
+                    background: "#f3f4f6",
+                  }}
+                >
+                  <MenuItem value="Blinkit">Blinkit</MenuItem>
+                  <MenuItem value="Zepto">Zepto</MenuItem>
                 </Select>
               )}
 
               {activeKpisTab === "Brands Overview" && (
-                <Select
-                  size="small"
-                  value={platformFilter.category}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({ ...p, category: e.target.value }))
-                  }
-                  sx={{
-                    minWidth: 130,
-                    height: 36,
-                    fontSize: "0.85rem",
-                    background: "#f3f4f6",
-                  }}
-                >
-                  <MenuItem value="Core Tub">Core Tub</MenuItem>
-                </Select>
+                <>
+                  <Select
+                    size="small"
+                    value={brandsOverviewPlatform}
+                    onChange={(e) => onBrandsPlatformChange(e.target.value)}
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                    }}
+                  >
+                    <MenuItem value="Blinkit">Blinkit</MenuItem>
+                    <MenuItem value="Zepto">Zepto</MenuItem>
+                  </Select>
+                  <Select
+                    size="small"
+                    value={brandsOverviewCategory}
+                    onChange={(e) => onBrandsCategoryChange(e.target.value)}
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                    }}
+                  >
+                    <MenuItem value="All">All Categories</MenuItem>
+                    <MenuItem value="Core Tub">Core Tub</MenuItem>
+                  </Select>
+                </>
               )}
 
               {activeKpisTab === "Skus Overview" && (
@@ -491,7 +535,7 @@ const PlatformOverview = ({
           </Box>
         </Card>
       ) : (
-        <CategoryTable categories={allProducts} activeTab={activeKpisTab} />
+        <CategoryTable categories={allProducts} activeTab={activeKpisTab} filters={filters} />
       )}
     </Box>
   );

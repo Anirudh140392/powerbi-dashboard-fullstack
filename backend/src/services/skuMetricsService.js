@@ -270,15 +270,16 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
         }
 
         // Use raw SQL query to fetch SKU data directly from rb_pdp_olap
-        // Use Product column as SKU name
+        // Use Product column as SKU name, and Category for grouping
         const query = `
             SELECT 
                 olap.Product AS sku_name,
+                olap.Category AS category,
                 olap.Platform AS platform,
                 ${aggregationExpr} AS total_value
             FROM rb_pdp_olap AS olap
             ${whereClause}
-            GROUP BY olap.Product, olap.Platform
+            GROUP BY olap.Product, olap.Category, olap.Platform
             ORDER BY total_value DESC
             LIMIT 100
         `;
@@ -298,12 +299,14 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
 
         results.forEach(row => {
             const skuName = row.sku_name;
+            const category = row.category || 'Uncategorized';
             const platform = row.platform;
             const value = parseFloat(row.total_value) || 0;
 
             if (!skuMap[skuName]) {
                 skuMap[skuName] = {
                     name: skuName,
+                    category: category,
                     all: { value: 0 },
                     blinkit: { value: 0 },
                     zepto: { value: 0 },
@@ -325,18 +328,20 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
 
         console.log(`Grouped into ${Object.keys(skuMap).length} SKUs`);
 
-        // Format the values
+        // Format the values - structure must match frontend expectations
+        // Frontend expects: cat[platform][metricKey] and cat[platform][metricKey + '_change']
         const formattedResults = Object.values(skuMap).map(sku => {
             const formatted = {
-                name: sku.name
+                name: sku.name,
+                category: sku.category  // Add category field for frontend display
             };
 
             // Format each platform value
+            // Instead of {platform: {value, change}}, return {platform: {[metricKey]: value, [metricKey_change]: change}}
             ['all', 'blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'].forEach(platform => {
                 formatted[platform] = {
-                    value: formatMetricValue(sku[platform].value, metricKey),
-                    // Placeholder for change - you can calculate this if you have historical data
-                    change: '-'
+                    [metricKey]: formatMetricValue(sku[platform].value, metricKey),
+                    [metricKey + '_change']: '-'  // Placeholder for change - calculate if historical data available
                 };
             });
 
