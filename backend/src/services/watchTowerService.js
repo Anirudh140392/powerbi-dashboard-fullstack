@@ -1092,12 +1092,64 @@ const computeSummaryMetrics = async (filters) => {
         }
 
         // 4. Platform Overview Calculation
-        const platformDefinitions = [
-            { key: 'zepto', label: 'Zepto', type: 'Q-commerce', logo: "https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png" },
-            { key: 'blinkit', label: 'Blinkit', type: 'Q-commerce', logo: "https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg" },
-            { key: 'swiggy', label: 'Swiggy', type: 'Marketplace', logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp" },
-            { key: 'amazon', label: 'Amazon', type: 'Marketplace', logo: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" }
-        ];
+        // Helper function to map platform names to logos
+        const getPlatformLogo = (platformName) => {
+            const logoMap = {
+                'zepto': 'https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png',
+                'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg',
+                'swiggy': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+                'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+                'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
+                'bigbasket': 'https://upload.wikimedia.org/wikipedia/commons/1/1e/Bigbasket_logo.png',
+                'jiomart': 'https://upload.wikimedia.org/wikipedia/commons/0/0e/JioMart_logo.png'
+            };
+            return logoMap[platformName.toLowerCase()] || 'https://cdn-icons-png.flaticon.com/512/3502/3502685.png';
+        };
+
+        // Helper function to determine platform type
+        const getPlatformType = (platformName) => {
+            const qCommercePlatforms = ['zepto', 'blinkit', 'swiggy instamart', 'dunzo'];
+            const marketplacePlatforms = ['amazon', 'flipkart', 'swiggy', 'bigbasket', 'jiomart'];
+
+            const lowerName = platformName.toLowerCase();
+            if (qCommercePlatforms.some(p => lowerName.includes(p))) return 'Q-commerce';
+            if (marketplacePlatforms.some(p => lowerName.includes(p))) return 'Marketplace';
+            return 'E-commerce';
+        };
+
+        // Fetch all distinct platforms from database (from actual transaction table rb_pdp_olap)
+        let platformDefinitions = [];
+        try {
+            const platformsFromDb = await RbPdpOlap.findAll({
+                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Platform')), 'platform']],
+                where: {
+                    Platform: { [Op.ne]: null }  // Exclude null platforms
+                },
+                raw: true
+            });
+
+            // Build platform definitions from database results
+            platformDefinitions = platformsFromDb
+                .map(p => p.platform)
+                .filter(p => p && p.trim())  // Filter out empty/null values
+                .map(platformName => ({
+                    key: platformName.toLowerCase().replace(/\s+/g, '_'),
+                    label: platformName.charAt(0).toUpperCase() + platformName.slice(1),  // Capitalize first letter
+                    type: getPlatformType(platformName),
+                    logo: getPlatformLogo(platformName)
+                }));
+
+            console.log(`[Platform Overview] Fetched ${platformDefinitions.length} platforms from rb_pdp_olap:`, platformDefinitions.map(p => p.label));
+        } catch (err) {
+            console.error("Error fetching platforms from database:", err);
+            // Fallback to hardcoded platforms if database query fails
+            platformDefinitions = [
+                { key: 'zepto', label: 'Zepto', type: 'Q-commerce', logo: getPlatformLogo('zepto') },
+                { key: 'blinkit', label: 'Blinkit', type: 'Q-commerce', logo: getPlatformLogo('blinkit') },
+                { key: 'swiggy', label: 'Swiggy', type: 'Marketplace', logo: getPlatformLogo('swiggy') },
+                { key: 'amazon', label: 'Amazon', type: 'Marketplace', logo: getPlatformLogo('amazon') }
+            ];
+        }
 
         const platformOverview = [];
 

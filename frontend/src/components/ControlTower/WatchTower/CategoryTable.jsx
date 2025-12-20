@@ -19,12 +19,66 @@ import {
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
+import { FilterContext } from "../../../utils/FilterContext";
 
 export default function CategoryTable({ categories, activeTab = "", filters = {} }) {
-  // Safely extract platform names from the first category, with fallback to default platforms
-  const platforms = categories && categories.length > 0
-    ? Object.keys(categories[0]).filter((k) => k !== "name" && k !== "category")
-    : ['all', 'blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'];
+  const { platforms: availablePlatforms } = React.useContext(FilterContext);
+  const [dynamicPlatforms, setDynamicPlatforms] = useState([]);
+
+  // Fetch platforms dynamically from backend
+  useEffect(() => {
+    const fetchPlatforms = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/platforms');
+        if (response.data && response.data.length > 0) {
+          // Always include 'all' in the platform list (backend calculates this)
+          const platformsWithAll = ['all', ...response.data.map(p => p.toLowerCase())];
+          // Remove duplicates
+          const uniquePlatforms = [...new Set(platformsWithAll)];
+          setDynamicPlatforms(uniquePlatforms);
+        }
+      } catch (error) {
+        console.error('Error fetching platforms for SKU table:', error);
+        // Fallback to extracting from categories if API fails
+        if (categories && categories.length > 0) {
+          const extractedPlatforms = Object.keys(categories[0]).filter(
+            (k) => k !== "name" && k !== "category"
+          );
+          setDynamicPlatforms(extractedPlatforms);
+        }
+      }
+    };
+    fetchPlatforms();
+  }, [categories]);
+
+  // Sort platforms intelligently: All first, then selected platform, then alphabetical
+  const platforms = useMemo(() => {
+    const platformList = dynamicPlatforms.length > 0
+      ? dynamicPlatforms
+      : (categories && categories.length > 0
+        ? Object.keys(categories[0]).filter((k) => k !== "name" && k !== "category")
+        : (availablePlatforms || []).map(p => p.toLowerCase()));
+
+    const selectedPlatform = filters.platform?.toLowerCase();
+
+    return [...platformList].sort((a, b) => {
+      const aLower = typeof a === 'string' ? a.toLowerCase() : a;
+      const bLower = typeof b === 'string' ? b.toLowerCase() : b;
+
+      // "All" always first
+      if (aLower === 'all') return -1;
+      if (bLower === 'all') return 1;
+
+      // Selected platform second (after "All")
+      if (selectedPlatform && selectedPlatform !== 'all') {
+        if (aLower === selectedPlatform) return -1;
+        if (bLower === selectedPlatform) return 1;
+      }
+
+      // Rest alphabetically
+      return aLower.localeCompare(bLower);
+    });
+  }, [dynamicPlatforms, categories, availablePlatforms, filters.platform]);
   const [searchTerm, setSearchTerm] = useState("");
   const [metricOptions, setMetricOptions] = useState([]);
   const [selectedMetric, setSelectedMetric] = useState(null);

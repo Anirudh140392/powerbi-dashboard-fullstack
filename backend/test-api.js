@@ -1,28 +1,40 @@
+// Test the Watch Tower API to see what platforms are returned
+import 'dotenv/config';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/watchtower';
-
-async function testEndpoints() {
+async function testAPI() {
     try {
-        console.log('Testing /summary...');
-        const summary = await axios.get(`${API_URL}/summary`);
-        console.log('✅ Summary:', summary.data);
+        console.log('\n=== TESTING WATCH TOWER API ===\n');
 
-        console.log('\nTesting /platform-overview...');
-        const platforms = await axios.get(`${API_URL}/platform-overview`);
-        console.log('✅ Platforms:', platforms.data.length, 'platforms found');
+        const response = await axios.get('http://localhost:5000/api/watchtower/platform-overview', {
+            params: {
+                months: 1,
+                brand: 'All',
+                location: 'All',
+                category: 'All',
+                platform: 'All'
+            }
+        });
 
-        console.log('\nTesting /trends...');
-        const trends = await axios.get(`${API_URL}/trends`);
-        console.log('✅ Trends:', trends.data);
+        const platforms = response.data;
+
+        console.log(`Total platforms returned: ${platforms.length}\n`);
+
+        platforms.forEach((p, i) => {
+            console.log(`${i + 1}. ${p.label} (${p.type})`);
+            console.log(`   Key: ${p.key}`);
+            console.log(`   Columns: ${p.columns.length} metrics`);
+            console.log('');
+        });
+
+        console.log('===========================\n');
 
     } catch (error) {
-        console.error('❌ API Test Failed:', error.message);
+        console.error('Error:', error.message);
         if (error.response) {
-            console.error('Status:', error.response.status);
-            console.error('Data:', error.response.data);
+            console.error('Response data:', error.response.data);
         }
     }
 }
 
-testEndpoints();
+testAPI();
