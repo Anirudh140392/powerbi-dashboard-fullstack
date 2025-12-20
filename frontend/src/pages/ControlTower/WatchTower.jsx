@@ -586,6 +586,8 @@ function WatchTower() {
                         ? (brandsOverviewData || [])
                         : defaultSkus
               }
+              monthOverviewPlatform={monthOverviewPlatform}
+              onMonthPlatformChange={setMonthOverviewPlatform}
               categoryOverviewPlatform={categoryOverviewPlatform}
               onCategoryPlatformChange={setCategoryOverviewPlatform}
               brandsOverviewPlatform={brandsOverviewPlatform}

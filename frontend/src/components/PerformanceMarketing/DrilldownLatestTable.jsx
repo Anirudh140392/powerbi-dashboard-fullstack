@@ -106,7 +106,6 @@ const sampleData = [
   },
   {
     format: 'Core Tub',
-    format: 'Core Tub',
     days: [
       {
         day: null,

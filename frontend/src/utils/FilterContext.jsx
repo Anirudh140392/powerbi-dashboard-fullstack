@@ -58,7 +58,7 @@ const keywordsData = {
 export const FilterProvider = ({ children }) => {
     // Platform state
     const [platforms, setPlatforms] = useState(Object.keys(platformData));
-    const [platform, setPlatform] = useState("Blinkit");
+    const [platform, setPlatform] = useState("Zepto");
 
     // Brand state
     const [brands, setBrands] = useState([]);

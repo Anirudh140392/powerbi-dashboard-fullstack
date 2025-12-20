@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Card,
@@ -18,37 +18,133 @@ import {
 } from "@mui/material";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
+import axiosInstance from "../../../api/axiosInstance";
 
-export default function CategoryTable({ categories, activeTab = "" }) {
-  const platforms = Object.keys(categories[0]).filter((k) => k !== "name");
+export default function CategoryTable({ categories, activeTab = "", filters = {} }) {
+  // Safely extract platform names from the first category, with fallback to default platforms
+  const platforms = categories && categories.length > 0
+    ? Object.keys(categories[0]).filter((k) => k !== "name" && k !== "category")
+    : ['all', 'blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'];
   const [searchTerm, setSearchTerm] = useState("");
-
-  const allMetricKeys = useMemo(() => {
-    const set = new Set();
-    categories.forEach((cat) => {
-      platforms.forEach((p) => {
-        Object.keys(cat[p] || {})
-          .filter((k) => !k.endsWith("_change"))
-          .forEach((k) => set.add(k));
-      });
-    });
-    return Array.from(set);
-  }, []);
-
-  const metricOptions = allMetricKeys.map((key) => ({
-    label: key.replace(/_/g, " ").toUpperCase(),
-    key,
-  }));
-
-  const [selectedMetric, setSelectedMetric] = useState(metricOptions[0]);
+  const [metricOptions, setMetricOptions] = useState([]);
+  const [selectedMetric, setSelectedMetric] = useState(null);
+  const [skuData, setSkuData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const theme = useTheme();
 
+  // Fetch metrics from key_metrics table on component mount
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/metrics');
+        if (response.data && response.data.length > 0) {
+          const formattedMetrics = response.data.map(metric => {
+            // Create a readable label from the key
+            let label = metric.key;
+
+            // If the key has underscores or is all lowercase, format it nicely
+            if (label.includes('_') || label === label.toLowerCase()) {
+              // Replace underscores with spaces and title case each word
+              label = label
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+            }
+
+            return {
+              key: metric.key,
+              label: label
+            };
+          });
+          setMetricOptions(formattedMetrics);
+          setSelectedMetric(formattedMetrics[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+        // Fallback to extracting from data if API fails
+        const set = new Set();
+        categories.forEach((cat) => {
+          platforms.forEach((p) => {
+            Object.keys(cat[p] || {})
+              .filter((k) => !k.endsWith("_change") && k !== "value")
+              .forEach((k) => set.add(k));
+          });
+        });
+        const fallbackMetrics = Array.from(set).map((key) => {
+          // Create readable label
+          let label = key;
+          if (label.includes('_') || label === label.toLowerCase()) {
+            label = label
+              .split('_')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
+          }
+
+          return { key, label };
+        });
+        setMetricOptions(fallbackMetrics);
+        if (fallbackMetrics.length > 0) {
+          setSelectedMetric(fallbackMetrics[0]);
+        }
+      }
+    };
+
+    fetchMetrics();
+  }, []);
+
+  // Fetch SKU data when metric changes
+  useEffect(() => {
+    if (!selectedMetric) return;
+
+    const fetchSkuData = async () => {
+      setLoading(true);
+      try {
+        console.log('🔍 Fetching SKU data with filters:', {
+          metric: selectedMetric?.key || 'none',
+          platform: filters.platform || 'All',
+          brand: filters.brand || 'All',
+          location: filters.location || 'All',
+          dateRange: filters.startDate && filters.endDate
+            ? `${filters.startDate} to ${filters.endDate}`
+            : 'No date filter'
+        });
+
+        // Convert metric key to lowercase to match backend response format
+        const metricKeyLower = selectedMetric.key.toLowerCase();
+
+        const response = await axiosInstance.get('/watchtower/sku-metrics', {
+          params: {
+            metric: metricKeyLower,
+            platform: filters.platform,
+            brand: filters.brand,
+            location: filters.location,
+            dateFrom: filters.startDate,
+            dateTo: filters.endDate,
+          }
+        });
+        setSkuData(response.data || []);
+      } catch (error) {
+        console.error('Error fetching SKU data:', error);
+        setSkuData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSkuData();
+  }, [selectedMetric, filters]);
+
+
   /* --------------------- FILTER --------------------- */
+  // Use SKU data if available, otherwise fall back to categories prop
+  const dataToDisplay = skuData.length > 0 ? skuData : categories;
+
   const filteredCategories = useMemo(() => {
-    return categories.filter((c) =>
+    return dataToDisplay.filter((c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [searchTerm, categories]);
+  }, [searchTerm, dataToDisplay]);
+
 
   /* -------------------- PAGINATION -------------------- */
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -64,22 +160,34 @@ export default function CategoryTable({ categories, activeTab = "" }) {
   const totalPages = Math.ceil(filteredCategories.length / rowsPerPage);
 
   /* --------------------- CSV DOWNLOAD --------------------- */
-  const handleDownload = () => {
-    let csv = [];
-    csv.push(["Category/SKU", ...platforms.map((p) => p.toUpperCase())].join(","));
-    csv.push(["", selectedMetric.label]);
+  const capitalize = (s) => {
+    if (typeof s !== 'string') return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
+  const handleDownloadCSV = () => {
+    if (!selectedMetric) return;
+
+    // Convert metric key to lowercase to match backend response format
+    const metricKeyLower = selectedMetric.key.toLowerCase();
+
+    const csvRows = [];
+    const headers = ["SKU", ...platforms.map((p) => capitalize(p))];
+    csvRows.push(headers.join(","));
 
     filteredCategories.forEach((cat) => {
       const row = [cat.name];
       platforms.forEach((p) => {
-        const main = cat[p][selectedMetric.key] || "-";
-        const change = cat[p][selectedMetric.key + "_change"] || "-";
+        // Safely access nested properties with fallbacks
+        const platformData = cat[p] || {};
+        const main = platformData[metricKeyLower] || "-";
+        const change = platformData[metricKeyLower + "_change"] || "-";
         row.push(`${main} (${change})`);
       });
-      csv.push(row.join(","));
+      csvRows.push(row.join(","));
     });
 
-    const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
@@ -147,31 +255,35 @@ export default function CategoryTable({ categories, activeTab = "" }) {
 
           {/* RIGHT CONTROLS */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            {/* <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600, fontFamily: "Roboto, sans-serif" }}>
+            {/* Metrics Name Label */}
+            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "text.secondary" }}>
               Metrics:
-            </Typography> */}
+            </Typography>
 
+            {/* Metrics Dropdown */}
             <Select
               size="small"
-              value={selectedMetric.key}
+              value={selectedMetric?.key || ''}
               onChange={(e) =>
                 setSelectedMetric(
                   metricOptions.find((m) => m.key === e.target.value)
                 )
               }
               sx={{
-                minWidth: 130,
+                minWidth: 150,
                 height: 36,
                 fontSize: "0.85rem",
                 background: "#f3f4f6",
               }}
+              disabled={!selectedMetric || metricOptions.length === 0 || loading}
             >
               {metricOptions.map((opt) => (
                 <MenuItem key={opt.key} value={opt.key}>
-                  {opt.label.toLowerCase().charAt(0).toUpperCase() + opt.label.toLowerCase().slice(1)}
+                  {opt.label}
                 </MenuItem>
               ))}
             </Select>
+
 
             {/* SEARCH */}
             <TextField
@@ -189,7 +301,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
             <Button
               variant="outlined"
               size="small"
-              onClick={handleDownload}
+              onClick={handleDownloadCSV}
               sx={{ minWidth: "auto", p: 1 }}
             >
               <Download size={18} />
@@ -271,7 +383,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                     fontFamily: "Roboto, sans-serif",
                   }}
                 >
-                  {selectedMetric.label.toLowerCase().charAt(0).toUpperCase() + selectedMetric.label.toLowerCase().slice(1)}
+                  {selectedMetric ? (selectedMetric.label.toLowerCase().charAt(0).toUpperCase() + selectedMetric.label.toLowerCase().slice(1)) : 'Loading...'}
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -291,11 +403,39 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                       textAlign: "center",
                     }}
                   >
-                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
+                    <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                      {cat.category && (
+                        <Typography
+                          fontSize="0.7rem"
+                          fontWeight={500}
+                          fontFamily="Roboto, sans-serif"
+                          sx={{
+                            color: theme.palette.text.secondary,
+                            backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
+                            px: 1.5,
+                            py: 0.3,
+                            borderRadius: "12px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px"
+                          }}
+                        >
+                          {cat.category}
+                        </Typography>
+                      )}
+                      <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
+                    </Box>
                   </TableCell>
                   {platforms.map((p) => {
-                    const main = cat[p][selectedMetric.key];
-                    const change = cat[p][selectedMetric.key + "_change"];
+                    if (!selectedMetric) return null;
+
+                    // Convert metric key to lowercase to match backend response format
+                    const metricKeyLower = selectedMetric.key.toLowerCase();
+
+                    // Safely access nested properties with fallbacks
+                    const platformData = cat[p] || {};
+                    const main = platformData[metricKeyLower] || "-";
+                    const change = platformData[metricKeyLower + "_change"] || "-";
+
                     return (
                       <TableCell key={p + i} align="center">
                         <Box
@@ -308,9 +448,7 @@ export default function CategoryTable({ categories, activeTab = "" }) {
                             fontWeight={700}
                             fontFamily="Roboto, sans-serif"
                           >
-                            <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
-                              {main}
-                            </Typography>
+                            {main}
                           </Typography>
                           <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
                             {renderChange(change)}
