@@ -446,14 +446,16 @@ function ValueWithDelta({ value, delta, formatter, mode }) {
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-full px-2.5 py-1 shadow-sm border border-white/80",
-        deltaNeutral && "bg-slate-50",
-        deltaPositive && "bg-emerald-50/80",
-        !deltaPositive && !deltaNeutral && "bg-rose-50/80"
+        "inline-flex items-center gap-2 rounded-full px-2.5 py-1 border border-slate-200/70 bg-white",
+        deltaNeutral && "bg-slate-50/40",
+        deltaPositive && "bg-emerald-50/50",
+        !deltaPositive && !deltaNeutral && "bg-rose-50/50"
       )}
     >
       <span className="font-semibold text-slate-900 tabular-nums">{formatted}</span>
-      <span className="rounded-full bg-white px-2 py-0.5 shadow-sm">{renderDelta(mode, d)}</span>
+      <span className="rounded-full border border-slate-200/60 bg-white/70 px-2 py-0.5">
+        {renderDelta(mode, d)}
+      </span>
     </div>
   );
 }
@@ -1042,59 +1044,64 @@ export default function RCATable() {
             ) : (
               <>
                 <div className="w-full overflow-auto">
-                  <table className="w-full border-separate border-spacing-0 text-sm">
+                  <table className="w-full border-separate border-spacing-0 table-fixed text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr>
-                        <th className="sticky left-0 z-20 border-b border-slate-200 bg-white px-3 py-2 text-left text-[12px] font-semibold text-slate-800">SKU</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Pack</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Estimated Offtake (INR)</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Share</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">OSA</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">CVR</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">ASP (INR)</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Driver</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Actions</th>
+                        <th className="sticky left-0 z-20 w-[260px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600">SKU</th>
+                        <th className="w-[90px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Pack</th>
+                        <th className="w-[180px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Estimated Offtake (INR)</th>
+                        <th className="w-[120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Share</th>
+                        <th className="w-[120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">OSA</th>
+                        <th className="w-[120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">CVR</th>
+                        <th className="w-[140px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">ASP (INR)</th>
+                        <th className="w-[140px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Driver</th>
+                        <th className="w-[130px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Actions</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {skus.map((r) => {
+                      {skus.map((r, idx) => {
                         const selected = selectedSku?.sku === r.sku;
                         return (
                           <React.Fragment key={r.sku}>
                             <tr
-                              className={cn("hover:bg-slate-50 transition-colors", selected && "bg-blue-50")}
+                              className={cn(
+                                "transition-colors",
+                                idx % 2 === 0 ? "bg-white" : "bg-slate-50/20",
+                                "hover:bg-slate-50",
+                                selected && "bg-blue-50/50"
+                              )}
                               style={{ cursor: "pointer" }}
                               onClick={() => {
                                 setSelectedSku(r);
                                 setRcaOpen(true);
                               }}
                             >
-                              <td className={cn("sticky left-0 z-10 border-b border-slate-100 px-3 py-2", selected ? "bg-blue-50" : "bg-white")}>
+                              <td className={cn("sticky left-0 z-10 border-b border-slate-100 px-5 py-3", selected ? "bg-blue-50" : idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")}>
                                 <div className="font-semibold text-slate-900">{r.sku}</div>
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center">
                                 <Tag tone="neutral">{r.pack}</Tag>
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center tabular-nums">
                                 <ValueWithDelta value={r.offtake} delta={r.offtakeComp} formatter={(v) => formatIN(v)} mode={skuDeltaMode} />
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center tabular-nums">
                                 <ValueWithDelta value={r.share} delta={r.offtakeComp} formatter={(v) => formatPct(v, 1)} mode={skuDeltaMode} />
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center tabular-nums">
                                 <ValueWithDelta value={r.osa} delta={r.osaComp} formatter={(v) => formatPct(v, 0)} mode={skuDeltaMode} />
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center tabular-nums">
                                 <ValueWithDelta value={r.cvr} delta={r.cvrComp} formatter={(v) => formatPct(v, 1)} mode={skuDeltaMode} />
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center tabular-nums">
                                 <ValueWithDelta value={r.asp} delta={r.aspComp} formatter={(v) => formatIN(v, 0)} mode={skuDeltaMode} />
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center">
                                 {r.driver === "OK" ? <Tag tone="good">OK</Tag> : <Tag tone="warn">{r.driver}</Tag>}
                               </td>
-                              <td className="border-b border-slate-100 px-3 py-2 text-center space-x-2 whitespace-nowrap">
+                              <td className="border-b border-slate-100 px-5 py-3 text-center space-x-2 whitespace-nowrap">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
