@@ -577,7 +577,29 @@ function WatchTower() {
               }}
               data={
                 activeKpisTab === "Platform Overview"
-                  ? (dashboardData?.platformOverview || defaultPlatforms)
+                  ? (() => {
+                    const platforms = dashboardData?.platformOverview || defaultPlatforms;
+                    const selectedPlatform = filters.platform?.toLowerCase();
+
+                    // Sort platforms: All first, then selected platform, then others
+                    return platforms.sort((a, b) => {
+                      const aLabel = a.label?.toLowerCase();
+                      const bLabel = b.label?.toLowerCase();
+
+                      // "All" always comes first
+                      if (aLabel === 'all') return -1;
+                      if (bLabel === 'all') return 1;
+
+                      // Selected platform comes second (after "All")
+                      if (selectedPlatform && selectedPlatform !== 'all') {
+                        if (aLabel === selectedPlatform) return -1;
+                        if (bLabel === selectedPlatform) return 1;
+                      }
+
+                      // Rest maintain their order (alphabetical)
+                      return aLabel.localeCompare(bLabel);
+                    });
+                  })()
                   : activeKpisTab === "Category Overview"
                     ? (categoryOverviewData || defaultCategory)
                     : activeKpisTab === "Month Overview"
