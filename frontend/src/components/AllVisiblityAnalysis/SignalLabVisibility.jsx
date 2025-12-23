@@ -1021,13 +1021,27 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType }) {
+function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
+
+    const [rowsPerPage, setRowsPerPage] = useState(4);
+    const [page, setPage] = useState(1);
 
     const filtered = SAMPLE_SKUS.filter(
         (sku) => sku.metricType === metricType && sku.type === signalType
     );
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+    const safePage = Math.max(1, Math.min(page, totalPages));
+
+    const pageRows = useMemo(() => {
+        if (!usePagination) return filtered;
+        const start = (safePage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        return filtered.slice(start, end);
+    }, [filtered, safePage, rowsPerPage, usePagination]);
+
 
     return (
         <>
@@ -1048,7 +1062,7 @@ function SignalLabBase({ metricType }) {
 
             <div className="mt-5">
                 <div className="grid grid-cols-4 gap-4 items-start">
-                    {filtered.slice(0, 4).map((s) => (
+                    {pageRows.map((s) => (
                         <SignalCard
                             key={s.id}
                             sku={s}
@@ -1058,6 +1072,52 @@ function SignalLabBase({ metricType }) {
                     ))}
                 </div>
             </div>
+
+            {usePagination && (
+                <div className="mt-6 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+                    <div className="flex items-center gap-2">
+                        <button
+                            disabled={safePage === 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                        >
+                            Prev
+                        </button>
+
+                        <span className="text-slate-600">
+                            Page <b className="text-slate-900">{safePage}</b> / {totalPages}
+                        </span>
+
+                        <button
+                            disabled={safePage >= totalPages}
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                        >
+                            Next
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="text-slate-600">
+                            Rows/page
+                            <select
+                                value={rowsPerPage}
+                                onChange={(e) => {
+                                    setPage(1);
+                                    setRowsPerPage(Number(e.target.value));
+                                }}
+                                className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                            >
+                                <option value={4}>4</option>
+                                <option value={8}>8</option>
+                                <option value={12}>12</option>
+                                <option value={20}>20</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Detailed Table Overlay */}
             {selectedSkuForDetails && (
@@ -1071,6 +1131,7 @@ function SignalLabBase({ metricType }) {
 }
 
 
-export function SignalLabVisibility({ type }) {
-    return <SignalLabBase metricType={type} />;
+export function SignalLabVisibility({ type, usePagination = true }) {
+    return <SignalLabBase metricType={type} usePagination={usePagination} />;
 }
+

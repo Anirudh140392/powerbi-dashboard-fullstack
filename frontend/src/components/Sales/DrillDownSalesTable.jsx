@@ -250,6 +250,18 @@ const fmt = (n) => n?.toLocaleString(undefined, { maximumFractionDigits: 1 }) ||
 // -------------- COMPONENT -----------------
 export default function DrillDownSalesTable() {
     const [expanded, setExpanded] = useState({}); // Default expanded for demo
+    const [rowsPerPage, setRowsPerPage] = useState(5);
+    const [page, setPage] = useState(1);
+
+    const totalPages = Math.max(1, Math.ceil(DATA_HIERARCHY.length / rowsPerPage));
+    const safePage = Math.max(1, Math.min(page, totalPages));
+
+    const pageRows = useMemo(() => {
+        const start = (safePage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        return DATA_HIERARCHY.slice(start, end);
+    }, [safePage, rowsPerPage]);
+
 
     const expandAll = () => {
         const all = {};
@@ -490,10 +502,55 @@ export default function DrillDownSalesTable() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {DATA_HIERARCHY.map(row => renderRow(row))}
+                        {pageRows.map(row => renderRow(row))}
                     </TableBody>
                 </Table>
             </TableContainer>
+
+            {/* Pagination - Performance Marketing Style */}
+            <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+                <div className="flex items-center gap-2">
+                    <button
+                        disabled={safePage === 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                    >
+                        Prev
+                    </button>
+
+                    <span className="text-slate-600">
+                        Page <b className="text-slate-900">{safePage}</b> / {totalPages}
+                    </span>
+
+                    <button
+                        disabled={safePage >= totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                    >
+                        Next
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="text-slate-600">
+                        Rows/page
+                        <select
+                            value={rowsPerPage}
+                            onChange={(e) => {
+                                setPage(1);
+                                setRowsPerPage(Number(e.target.value));
+                            }}
+                            className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
         </Card>
     );
 }
