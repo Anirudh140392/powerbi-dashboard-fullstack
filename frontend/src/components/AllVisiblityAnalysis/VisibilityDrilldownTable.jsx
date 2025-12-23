@@ -332,6 +332,15 @@ const FROZEN_WIDTHS = {
 
 const filterOptions = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+    {
+        id: "kpi",
+        label: "KPI",
+        options: [
+            { id: "overallWeightedSos", label: "OVERALL WEIGHTED SOS" },
+            { id: "sponsoredWeightedSos", label: "SPONSORED WEIGHTED SOS" },
+            { id: "organicWeightedSos", label: "ORGANIC WEIGHTED SOS" }
+        ]
+    },
     { id: "keywords", label: "Keyword" },
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
     { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
@@ -1080,7 +1089,8 @@ export default function VisibilityDrilldownTable() {
                             </div>
 
                             {/* Panel Content */}
-                            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+                            {/* Panel Content */}
+                            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
                                 <KpiFilterPanel
                                     sectionConfig={filterOptions}
                                     keywords={keywordOptions}

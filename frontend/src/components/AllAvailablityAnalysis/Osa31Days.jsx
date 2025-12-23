@@ -242,27 +242,27 @@ export default function OsaDetailTableLight() {
                   </th>
 
                   <th
-                    className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
+                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
                     onClick={() => headerSort("avg7")}
                   >
                     7D AVG <SortIcon dir={sortKey === "avg7" ? sortDir : undefined} />
                   </th>
 
                   <th
-                    className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
+                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
                     onClick={() => headerSort("avg31")}
                   >
                     AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
                   </th>
 
-                  <th className="px-3 py-3 text-left text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200">
+                  <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
                     STATUS
                   </th>
 
                   {dayCols.map((d) => (
                     <th
                       key={d}
-                      className="px-2 py-3 text-center text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none whitespace-nowrap"
+                      className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
                       onClick={() => headerSort(`day_${d}`)}
                     >
                       DAY {d}
@@ -287,7 +287,7 @@ export default function OsaDetailTableLight() {
                         style={{ minWidth: 280 }}
                       >
                         <div>
-                          <div className="font-medium text-slate-900 leading-5">{r.name}</div>
+                          <div className="font-bold text-slate-900 leading-5 text-sm">{r.name}</div>
                           <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
                         </div>
                       </td>

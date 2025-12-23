@@ -672,6 +672,30 @@ const VisiblityAnalysisData = () => {
   //   );
   // };
 
+  // ---------------- FILTER OPTIONS ----------------
+  const VISIBILITY_FILTER_OPTIONS = [
+    { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+    { id: "keywords", label: "Keyword" },
+    { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
+    { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+    {
+      id: "kpi",
+      label: "KPI",
+      options: [
+        { id: "Overall Weighted SOS", label: "OVERALL WEIGHTED SOS" },
+        { id: "Sponsored Weighted SOS", label: "SPONSORED WEIGHTED SOS" },
+        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" }
+      ]
+    },
+    { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+    { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+    { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
+    { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
+    { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
+    { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
+    { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+  ];
+
   const TabbedHeatmapTable = () => {
     const [activeTab, setActiveTab] = useState("platform");
 
@@ -765,6 +789,7 @@ const VisiblityAnalysisData = () => {
           data={active.data}
           title={active.label}
           showPagination={true}
+          kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
         />
       </div>
     );

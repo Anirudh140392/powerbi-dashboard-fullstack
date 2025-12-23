@@ -197,7 +197,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  const LEVEL_TITLES = ["Keyword Type", "Brand", "Keyword", "SKU", "City"];
+  const LEVEL_TITLES = ["Keyword Type", "Direction", "City", "SKU", "SKU"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
@@ -777,7 +777,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
               {selectedInsight === "All Campaign Summary"
-                ? "Keyword Type → Brand → Keyword → SKU"
+                ? "Keyword Type → Direction → City → SKU"
                 : "AD Property → GROUP → KEYWORD"}
             </Typography>
           </Box>
