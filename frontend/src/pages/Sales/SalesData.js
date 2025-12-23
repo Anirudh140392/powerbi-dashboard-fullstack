@@ -126,24 +126,6 @@ export const SALES_MATRIX_DATA = {
                 "Last Year Sales": [50, 52, 55, 57],
                 "Projected Sales": [55, 60, 62, 65.6]
             }
-        },
-        {
-            kpi: "Total",
-            "MTD Sales": 476.6,
-            "Prev Month MTD": 535.6,
-            "Current DRR": 119.1,
-            "YTD Sales": 52082,
-            "Last Year Sales": 1584,
-            "Projected Sales": 3574.5,
-            trend: {},
-            series: {
-                "MTD Sales": [450, 460, 470, 476.6],
-                "Prev Month MTD": [530, 532, 534, 535.6],
-                "Current DRR": [115, 117, 118, 119.1],
-                "YTD Sales": [50000, 51000, 51500, 52082],
-                "Last Year Sales": [1500, 1520, 1550, 1584],
-                "Projected Sales": [3500, 3520, 3550, 3574.5]
-            }
         }
     ]
 };

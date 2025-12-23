@@ -220,7 +220,7 @@ export default function WatchTower() {
         <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
-            borderRadius: 4,
+            borderRadius: 6,
             boxShadow: 1,
             mb: 4,
           }}
@@ -243,31 +243,31 @@ export default function WatchTower() {
               <TabButton
                 label="By Platfrom"
                 active={activeKpisTab === "Platform Overview"}
-                onClick={() => {setActiveKpisTab("Platform Overview"); setCurrentPage(0);}}
+                onClick={() => { setActiveKpisTab("Platform Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Month"
                 active={activeKpisTab === "Month Overview"}
-                onClick={() => {setActiveKpisTab("Month Overview"); setCurrentPage(0);}}
+                onClick={() => { setActiveKpisTab("Month Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Category"
                 active={activeKpisTab === "Category Overview"}
-                onClick={() => {setActiveKpisTab("Category Overview"); setCurrentPage(0);}}
+                onClick={() => { setActiveKpisTab("Category Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Brands"
                 active={activeKpisTab === "Brands Overview"}
-                onClick={() => {setActiveKpisTab("Brands Overview"); setCurrentPage(0);}}
+                onClick={() => { setActiveKpisTab("Brands Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Skus"
                 active={activeKpisTab === "Skus Overview"}
-                onClick={() => {setActiveKpisTab("Skus Overview"); setCurrentPage(0);}}
+                onClick={() => { setActiveKpisTab("Skus Overview"); setCurrentPage(0); }}
               />
             </Box>
           </Box>
@@ -282,12 +282,12 @@ export default function WatchTower() {
                 activeKpisTab === "Platform Overview"
                   ? dashboardData?.platformOverview || defaultPlatforms
                   : activeKpisTab === "Category Overview"
-                  ? defaultCategory
-                  : activeKpisTab === "Month Overview"
-                  ? defaultMonths
-                  : activeKpisTab === "Brands Overview"
-                  ? defaultBrands
-                  : defaultSkus
+                    ? defaultCategory
+                    : activeKpisTab === "Month Overview"
+                      ? defaultMonths
+                      : activeKpisTab === "Brands Overview"
+                        ? defaultBrands
+                        : defaultSkus
               }
               activeKpisTab={activeKpisTab}
               currentPage={currentPage}
@@ -716,11 +716,10 @@ const FormatPerformanceStudio = () => {
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
-                  isActive
+                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
                     ? "border-sky-400 bg-sky-50 shadow-sm"
                     : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                }`}
+                  }`}
                 whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
               >
@@ -997,11 +996,10 @@ const FormatPerformanceStudio = () => {
                         prev === f.name ? null : f.name
                       )
                     }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
-                      isCompare
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
                         ? "border-violet-500 bg-violet-50 shadow-sm"
                         : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                    }`}
+                      }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
@@ -1015,9 +1013,8 @@ const FormatPerformanceStudio = () => {
                     />
 
                     <span
-                      className={`truncate ${
-                        isActive ? "font-semibold" : "font-normal"
-                      }`}
+                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        }`}
                     >
                       {f.name}
                     </span>
