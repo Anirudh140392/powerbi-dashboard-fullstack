@@ -935,7 +935,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                                 px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
                                   {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}%` : `${trend}%`}</span>
+                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : `${trend}`}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
@@ -953,7 +953,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                 <div className="flex items-baseline justify-between">
                                   <span className="text-2xl font-bold tracking-tight text-slate-900">{isPercentageBased ? `${value}%` : value}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                    {trend > 0 ? `+${trend}%` : `${trend}%`}
+                                    {trend > 0 ? `+${trend}` : `${trend}`}
                                   </span>
                                 </div>
 

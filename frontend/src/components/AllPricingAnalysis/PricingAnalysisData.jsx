@@ -351,7 +351,7 @@ const SuperTable = ({
     }, {})
   );
   const [sortConfig, setSortConfig] = useState(null); // { id, direction }
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1); // 1-indexed instead of 0
   const [rowsPerPage, setRowsPerPage] = useState(7);
   const [density, setDensity] = useState(initialDensity);
   const [anchorElColumns, setAnchorElColumns] = useState(null);
@@ -378,13 +378,9 @@ const SuperTable = ({
     }));
   };
 
-  const handleChangePage = (_, newPage) => {
-    setPage(newPage);
-  };
-
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    setPage(1); // Reset to page 1 when changing rows per page
   };
 
   const handleSelectAllClick = (event, processedRows) => {
@@ -479,13 +475,16 @@ const SuperTable = ({
   }, [rows, globalSearch, sortConfig, columns, visibleColumns]);
 
   const paginatedRows = useMemo(() => {
-    const start = page * rowsPerPage;
+    const start = (page - 1) * rowsPerPage; // 1-indexed page
     return processedRows.slice(start, start + rowsPerPage);
   }, [processedRows, page, rowsPerPage]);
 
   const numSelected = selected.length;
   const rowCount = processedRows.length;
   const visibleCols = columns.filter((c) => visibleColumns[c.id]);
+
+  const totalPages = Math.max(1, Math.ceil(rowCount / rowsPerPage));
+  const safePage = Math.max(1, Math.min(page, totalPages));
 
   return (
     <Card
@@ -762,10 +761,11 @@ const SuperTable = ({
         </Table>
       </TableContainer>
 
+      {/* Pagination - OSA% Detail View Style */}
       <Box
         sx={{
           px: 2,
-          py: 1,
+          py: 1.5,
           borderTop: "1px solid",
           borderColor: "divider",
           display: "flex",
@@ -774,18 +774,86 @@ const SuperTable = ({
           bgcolor: "rgba(250,250,252,0.9)",
         }}
       >
-        <Typography variant="caption" color="text.secondary">
-          Showing {paginatedRows.length} of {rowCount} rows
-        </Typography>
-        <TablePagination
-          component="div"
-          count={rowCount}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[7, 10, 25, 50]}
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <button
+            disabled={safePage === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            style={{
+              fontSize: "11px",
+              padding: "4px 12px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              cursor: safePage === 1 ? "not-allowed" : "pointer",
+              opacity: safePage === 1 ? 0.4 : 1,
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              safePage !== 1 && (e.target.style.background = "rgb(248, 250, 252)")
+            }
+            onMouseLeave={(e) => (e.target.style.background = "white")}
+          >
+            Prev
+          </button>
+
+          <Typography variant="caption" sx={{ fontSize: "11px", color: "rgb(100, 116, 139)" }}>
+            Page <strong style={{ color: "rgb(15, 23, 42)" }}>{safePage}</strong> /{" "}
+            {totalPages}
+          </Typography>
+
+          <button
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            style={{
+              fontSize: "11px",
+              padding: "4px 12px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              cursor: safePage >= totalPages ? "not-allowed" : "pointer",
+              opacity: safePage >= totalPages ? 0.4 : 1,
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              safePage < totalPages &&
+              (e.target.style.background = "rgb(248, 250, 252)")
+            }
+            onMouseLeave={(e) => (e.target.style.background = "white")}
+          >
+            Next
+          </button>
+        </Stack>
+
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Typography variant="caption" sx={{ fontSize: "11px", color: "rgb(100, 116, 139)" }}>
+            Rows/page
+          </Typography>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => {
+              setPage(1);
+              setRowsPerPage(Number(e.target.value));
+            }}
+            style={{
+              fontSize: "11px",
+              padding: "4px 8px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value={5}>5</option>
+            <option value={7}>7</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </Stack>
       </Box>
     </Card>
   );
