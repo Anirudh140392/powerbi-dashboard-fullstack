@@ -480,7 +480,7 @@ const SkuMiniIcon = ({ className = "h-3.5 w-3.5" }) => (
 // -------------------- Main Page --------------------
 export default function RCATable() {
   // Keep default category selected if you want. You can set null if you want true Step 1 start.
-  const [selectedCategory, setSelectedCategory] = useState(SAMPLE_CATEGORIES[0]);
+  const [selectedCategory, setSelectedCategory] = useState();
   const [selectedCity, setSelectedCity] = useState(null);
   const [selectedSku, setSelectedSku] = useState(null);
   const [railPos, setRailPos] = useState({ x: 16, y: 16 });
