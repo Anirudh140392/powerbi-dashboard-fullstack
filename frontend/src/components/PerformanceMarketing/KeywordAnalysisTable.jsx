@@ -90,33 +90,6 @@ const momKeywordData = {
     },
 
     {
-      keyword: "ice cream cake",
-      category: "Cakes & Desserts",
-      months: MONTHS.map((m, idx) => ({
-        month: m,
-        impressions: 14 + idx,
-        conversion: `${1 + (idx % 2)}%`,
-        spend: 6 + idx,
-        cpm: 350 + idx * 12,
-        roas: 1 + (idx % 3),
-      })),
-      children: [
-        {
-          keyword: "Premium Ice Cream Cakes",
-          category: "Premium",
-          months: MONTHS.map((m, idx) => ({
-            month: m,
-            impressions: 9 + idx * 2,
-            conversion: `${2 + (idx % 3)}%`,
-            spend: 5 + idx,
-            cpm: 370 + idx * 10,
-            roas: 1 + (idx % 4),
-          })),
-        },
-      ],
-    },
-
-    {
       keyword: "ice cream",
       category: "Cones & Sticks",
       months: MONTHS.map((m, idx) => ({
@@ -127,6 +100,34 @@ const momKeywordData = {
         cpm: 330 + idx * 8,
         roas: 1 + (idx % 5),
       })),
+      children: [
+        {
+          keyword: "ice cream cake",
+          category: "Cakes & Desserts",
+          months: MONTHS.map((m, idx) => ({
+            month: m,
+            impressions: 14 + idx,
+            conversion: `${1 + (idx % 2)}%`,
+            spend: 6 + idx,
+            cpm: 350 + idx * 12,
+            roas: 1 + (idx % 3),
+          })),
+          children: [
+            {
+              keyword: "Premium Ice Cream Cakes",
+              category: "Premium",
+              months: MONTHS.map((m, idx) => ({
+                month: m,
+                impressions: 9 + idx * 2,
+                conversion: `${2 + (idx % 3)}%`,
+                spend: 5 + idx,
+                cpm: 370 + idx * 10,
+                roas: 1 + (idx % 4),
+              })),
+            },
+          ],
+        },
+      ]
     },
 
     {
@@ -221,9 +222,32 @@ const filterTree = (node, search, minImp, categoryFilter) => {
   return null;
 };
 
+// -------------- MAX DEPTH -----------------
+const getMaxDepth = (nodes, depth = 0) => {
+  let max = depth;
+  nodes.forEach((node) => {
+    if (node.children?.length) {
+      max = Math.max(max, getMaxDepth(node.children, depth + 1));
+    }
+  });
+  return max;
+};
+
+const getExpandedDepth = (expandedKeys) => {
+  if (!expandedKeys) return 0;
+  let max = 0;
+  Object.keys(expandedKeys).forEach((key) => {
+    if (expandedKeys[key]) {
+      const depth = key.split("-child-").length; // approximated depth based on path structure
+      if (depth > max) max = depth;
+    }
+  });
+  return max;
+};
+
 // ---------- main component ----------
 export default function KeywordAnalysisTable() {
-  const [expanded, setExpanded] = useState({});
+  const [expandedNodes, setExpandedNodes] = useState({});
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -314,6 +338,45 @@ export default function KeywordAnalysisTable() {
     return processedKeywords.slice(start, start + rowsPerPage);
   }, [processedKeywords, page]);
 
+
+  const maxDepth = getMaxDepth(processedKeywords, 0);
+
+  // Calculate depth from expanded keys
+  const getDepthFromKey = (key) => {
+    // key format: "root-0" or "root-0-child-1" etc. 
+    // root is 0. 
+    // -child- adds 1 level.
+    return key.split("-child-").length - 1;
+  }
+
+  const checkAncestorsExpanded = (key, expandedMap) => {
+    // recursive check
+    if (!key.includes("-child-")) return true;
+    const lastIndex = key.lastIndexOf("-child-");
+    const parentKey = key.substring(0, lastIndex);
+    if (!expandedMap[parentKey]) return false;
+    return checkAncestorsExpanded(parentKey, expandedMap);
+  };
+
+  let expandedDepth = 0;
+  Object.keys(expandedNodes).forEach(k => {
+    if (expandedNodes[k]) {
+      // Check visibility
+      if (checkAncestorsExpanded(k, expandedNodes)) {
+        const d = getDepthFromKey(k);
+        if (d > expandedDepth) expandedDepth = d;
+        if (d + 1 > expandedDepth) expandedDepth = d + 1;
+      }
+    }
+  });
+
+  const visibleHierarchyCols = Math.max(
+    1,
+    Math.min(expandedDepth + 1, maxDepth + 1)
+  );
+
+  const LEVEL_TITLES = ["Keyword", "Sub-keyword", "Category"];
+
   const renderSortLabel = (label, key) => {
     const active = sortConfig.key === key;
     return (
@@ -345,13 +408,12 @@ export default function KeywordAnalysisTable() {
 
   const renderNode = (node, level = 0, path = "") => {
     const key = path || node.keyword;
-    const isOpen = expanded[key];
+    const isOpen = expandedNodes[key];
     const heat = getHeatColor(node.agg.conversion);
 
-    const monthsToShow =
-      monthFilter === "All"
-        ? node.months
-        : node.months.filter((m) => m.month === monthFilter);
+    const hasChildren = node.children && node.children.length > 0;
+
+    const rowBg = "#fff";
 
     return (
       <React.Fragment key={key}>
@@ -365,47 +427,53 @@ export default function KeywordAnalysisTable() {
             borderBottom: isOpen ? "none" : "1px solid #e5e7eb",
           }}
         >
-          <TableCell sx={{ width: 48, p: 0 }} align="center">
-            <IconButton
-              size="small"
-              onClick={() => setExpanded((p) => ({ ...p, [key]: !p[key] }))}
-              sx={{
-                border: "1px solid #e5e7eb",
-                width: 24,
-                height: 24,
-                borderRadius: 1.5,
-                backgroundColor: 'white'
-              }}
-            >
-              {isOpen ? <Minus size={14} /> : <Plus size={14} />}
-            </IconButton>
-          </TableCell>
+          {Array.from({ length: visibleHierarchyCols }).map((_, col) => {
+            const sticky = col === 0 ? {
+              position: "sticky",
+              left: 0,
+              zIndex: 10,
+              backgroundColor: rowBg,
+              minWidth: 150,
+              borderRight: "1px solid transparent",
+            } : {};
 
-          <TableCell align="center">
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              ml: level * 2
-            }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-                {node.keyword}
-              </Typography>
-            </Box>
-          </TableCell>
+            if (col === level) {
+              return (
+                <TableCell key={col} sx={{ ...sticky, p: 1 }}>
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    gap={1.2}
+                    onClick={() => setExpandedNodes((p) => ({ ...p, [key]: !p[key] }))}
+                    sx={{ cursor: "pointer", userSelect: "none" }}
+                  >
+                    <IconButton
+                      size="small"
+                      sx={{
+                        border: "1px solid #e5e7eb",
+                        width: 20,
+                        height: 20,
+                        borderRadius: 2,
+                        backgroundColor: 'white',
+                        '&:hover': { backgroundColor: '#f8fafc' }
+                      }}
+                    >
+                      {isOpen ? <Minus size={14} /> : <Plus size={14} />}
+                    </IconButton>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                      {node.keyword}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              );
+            }
+            return (
+              <TableCell key={col} sx={sticky}>
+                {/* placeholder */}
+              </TableCell>
+            );
+          })}
 
-          <TableCell align="center" sx={{ fontSize: 11 }}>
-            <Chip
-              label={node.category}
-              size="small"
-              sx={{
-                fontSize: 11,
-                height: 22,
-                backgroundColor: '#f1f5f9',
-                color: '#475569'
-              }}
-            />
-          </TableCell>
 
           <TableCell align="center" sx={{ fontSize: 11 }}>
             {monthFilter === "All" ? "All Months" : monthFilter}
@@ -434,70 +502,9 @@ export default function KeywordAnalysisTable() {
           <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.roas.toFixed(1)}</TableCell>
         </TableRow>
 
-        {/* Monthly Rows - Hidden as per request to start drill-down from sub-keywords */}
-        {/*
         {isOpen &&
-          monthsToShow.map((m) => {
-            const ch = getHeatColor(parsePercent(m.conversion));
-            const rowKey = `${key}-${m.month}`;
-
-            return (
-              <TableRow
-                key={rowKey}
-                component={motion.tr}
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                sx={{ background: "#fff" }}
-              >
-                <TableCell />
-                <TableCell>
-                  <Box sx={{ ml: (level + 1) * 2 }}>
-                    <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell align="center">
-                  <Chip
-                    label={node.category}
-                    size="small"
-                    sx={{
-                      fontSize: 10,
-                      height: 20,
-                      backgroundColor: '#f8fafc',
-                      color: '#64748b'
-                    }}
-                  />
-                </TableCell>
-                <TableCell align="center">{m.month}</TableCell>
-                <TableCell align="center">{m.impressions}</TableCell>
-                <TableCell align="center">
-                  <Box
-                    sx={{
-                      px: 1,
-                      py: "2px",
-                      borderRadius: 1,
-                      background: ch.bg,
-                      color: ch.color,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      display: "inline-flex",
-                    }}
-                  >
-                    {m.conversion}
-                  </Box>
-                </TableCell>
-                <TableCell align="center">{m.spend}</TableCell>
-                <TableCell align="center">{m.cpm}</TableCell>
-                <TableCell align="center">{m.roas}</TableCell>
-              </TableRow>
-            );
-          })}
-        */}
-
-        {isOpen &&
-          node.children?.map((c, i) =>
-            renderNode(c, level + 1, `${key}-child-${i}`)
+          node.children?.map((c) =>
+            renderNode(c, level + 1, `${key}-child-${c.keyword}`)
           )}
       </React.Fragment>
     );
@@ -572,7 +579,7 @@ export default function KeywordAnalysisTable() {
             {momKeywordData.title}
           </Typography>
           <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-            Category → Keyword → Sub-keyword
+            Keyword → Sub-keyword → Category
           </Typography>
         </Box>
 
@@ -635,9 +642,22 @@ export default function KeywordAnalysisTable() {
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow sx={{ borderTop: "1px solid #e5e7eb" }}>
-              <TableCell align="center" sx={{ backgroundColor: 'white' }} />
-              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Keyword</TableCell>
-              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Category</TableCell>
+              {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+                <TableCell
+                  key={i}
+                  sx={i === 0
+                    ? { position: "sticky", left: 0, background: "white", zIndex: 10, minWidth: 150, verticalAlign: "bottom", pb: 1.5, borderLeft: i > 0 ? "1px solid #f1f5f9" : "none", color: "#334155", fontWeight: 600 }
+                    : { background: "white", verticalAlign: "bottom", borderLeft: "1px solid #f1f5f9", pb: 1.5, color: "#334155" }
+                  }
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.6 }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
+                      {LEVEL_TITLES[i] || `Level ${i + 1}`}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              ))}
+
               <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Month</TableCell>
               <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("Impressions", "impressions")}
