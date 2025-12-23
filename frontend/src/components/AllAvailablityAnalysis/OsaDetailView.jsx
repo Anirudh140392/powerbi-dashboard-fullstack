@@ -109,6 +109,7 @@ export default function OsaDetailTableLight() {
             { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
             { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
             { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+            { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }] },
             { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
             { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
             { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
@@ -195,7 +196,7 @@ export default function OsaDetailTableLight() {
                         {/* Title + Legend */}
                         <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
                             <div className="flex flex-col gap-0.5">
-                                <div className="text-sm font-semibold text-slate-900">
+                                <div className="text-base font-semibold text-slate-900">
                                     OSA % Detail View
                                 </div>
                                 <div className="text-xs text-slate-500 font-normal">
@@ -239,7 +240,7 @@ export default function OsaDetailTableLight() {
                                         <tr>
                                             {/* Sticky first column header */}
                                             <th
-                                                className="sticky left-0 z-20 bg-[#f8fafc] text-left px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-200"
+                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
                                                 style={{ minWidth: 280 }}
                                             >
                                                 <div className="flex items-center h-full">PRODUCT / SKU</div>
@@ -253,7 +254,7 @@ export default function OsaDetailTableLight() {
                                             </th> */}
 
                                             <th
-                                                className="px-3 py-2 text-center text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
+                                                className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
                                                 onClick={() => headerSort("avg31")}
                                             >
                                                 <div className="flex items-center justify-center gap-1 h-full">
@@ -261,14 +262,14 @@ export default function OsaDetailTableLight() {
                                                 </div>
                                             </th>
 
-                                            <th className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200">
-                                                <div className="flex items-center h-full">STATUS</div>
+                                            <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
+                                                <div className="flex items-center justify-center h-full">STATUS</div>
                                             </th>
 
                                             {dayCols.map((d) => (
                                                 <th
                                                     key={d}
-                                                    className="px-2 py-2 text-center text-[10px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none whitespace-nowrap"
+                                                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
                                                     onClick={() => headerSort(`day_${d}`)}
                                                 >
                                                     <div className="flex items-center justify-center gap-1 h-full">
@@ -295,8 +296,8 @@ export default function OsaDetailTableLight() {
                                                         style={{ minWidth: 280 }}
                                                     >
                                                         <div>
-                                                            <div className="font-medium text-slate-900 leading-5 text-[11px]">{r.name}</div>
-                                                            <div className="text-[10px] text-slate-500 mt-0.5">{r.sku}</div>
+                                                            <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
+                                                            <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
                                                         </div>
                                                     </td>
 
@@ -416,7 +417,8 @@ export default function OsaDetailTableLight() {
                                 </div>
 
                                 {/* Panel Content */}
-                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+                                {/* Panel Content */}
+                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
                                     />
