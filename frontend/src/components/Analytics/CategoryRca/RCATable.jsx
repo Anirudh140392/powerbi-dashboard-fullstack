@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Typography } from "@mui/material";
 import RCATree from "./RCATree";
 
 // Guided RCA drill with floating breadcrumb rail (Category -> City -> SKU -> RCA)
@@ -756,7 +757,9 @@ export default function RCATable() {
                           }}
                         >
                           <td className={cn("sticky left-0 z-10 border-b border-slate-100 px-3 py-2", selected ? "bg-blue-50" : "bg-white")}>
-                            <div className="font-semibold text-slate-900">{r.category}</div>
+                            <Typography variant="subtitle1" fontWeight={700} color="text.primary" fontFamily='"Outfit", sans-serif'>
+                              {r.category}
+                            </Typography>
                           </td>
 
                           <td className="border-b border-slate-100 px-3 py-2">
@@ -824,27 +827,35 @@ export default function RCATable() {
                             <td colSpan={14} className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3 py-3">
                               <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">Spend</div>
+                                  <Typography variant="body2" color="text.secondary" fontWeight={600} fontFamily='"Outfit", sans-serif'>Spend</Typography>
                                   <div className="mt-1 flex items-center justify-between">
-                                    <ValueWithDelta value={r.spend} delta={r.spend_comp} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
+                                    <Typography variant="h5" fontWeight={600} color="text.primary" fontFamily='"Outfit", sans-serif'>
+                                      <ValueWithDelta value={r.spend} delta={r.spend_comp} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
+                                    </Typography>
                                   </div>
                                 </div>
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">ROAS</div>
+                                  <Typography variant="body2" color="text.secondary" fontWeight={600} fontFamily='"Outfit", sans-serif'>ROAS</Typography>
                                   <div className="mt-1 flex items-center justify-between">
-                                    <ValueWithDelta value={safeNum(r.roas) === null ? "--" : Number(r.roas).toFixed(1)} delta={r.roas_comp} formatter={(v) => v} mode={catDeltaMode} />
+                                    <Typography variant="h5" fontWeight={600} color="text.primary" fontFamily='"Outfit", sans-serif'>
+                                      <ValueWithDelta value={safeNum(r.roas) === null ? "--" : Number(r.roas).toFixed(1)} delta={r.roas_comp} formatter={(v) => v} mode={catDeltaMode} />
+                                    </Typography>
                                   </div>
                                 </div>
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">CPM / CPC</div>
+                                  <Typography variant="body2" color="text.secondary" fontWeight={600} fontFamily='"Outfit", sans-serif'>CPM / CPC</Typography>
                                   <div className="mt-1 text-xs text-slate-700">
                                     <div className="flex items-center justify-between">
-                                      <span>CPM</span>
-                                      <ValueWithDelta value={r.cpm} delta={r.cpm_comp} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
+                                      <Typography variant="body2" color="text.secondary" fontFamily='"Outfit", sans-serif'>CPM</Typography>
+                                      <Typography variant="h6" fontWeight={600} color="text.primary" fontFamily='"Outfit", sans-serif'>
+                                        <ValueWithDelta value={r.cpm} delta={r.cpm_comp} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
+                                      </Typography>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                      <span>CPC</span>
-                                      <ValueWithDelta value={r.cpc} delta={r.cpc_comp} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
+                                      <Typography variant="body2" color="text.secondary" fontFamily='"Outfit", sans-serif'>CPC</Typography>
+                                      <Typography variant="h6" fontWeight={600} color="text.primary" fontFamily='"Outfit", sans-serif'>
+                                        <ValueWithDelta value={r.cpc} delta={r.cpc_comp} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
+                                      </Typography>
                                     </div>
                                   </div>
                                 </div>
@@ -930,12 +941,12 @@ export default function RCATable() {
                             <tr
                               className={cn("hover:bg-slate-50 transition-colors", selected && "bg-blue-50")}
                               style={{ cursor: "pointer" }}
-                          onClick={() => {
-                            setSelectedCity(r);
-                            setSelectedSku(null);
-                            scheduleScroll(skuRef);
-                          }}
-                        >
+                              onClick={() => {
+                                setSelectedCity(r);
+                                setSelectedSku(null);
+                                scheduleScroll(skuRef);
+                              }}
+                            >
                               <td className={cn("sticky left-0 z-10 border-b border-slate-100 px-3 py-2 text-left", selected ? "bg-blue-50" : "bg-white")}>
                                 <div className="font-semibold text-slate-900">{r.city}</div>
                               </td>
@@ -987,35 +998,35 @@ export default function RCATable() {
                               </td>
                             </tr>
 
-                        {expandedCity === r.city && (
-                          <tr>
-                            <td colSpan={10} className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3 py-3">
-                              <div className="grid gap-2 md:grid-cols-3">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">Indexed Conversion</div>
-                                  <div className="mt-1 flex items-center justify-between">
-                                    <ValueWithDelta value={conv} delta={r.cvrComp} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
+                            {expandedCity === r.city && (
+                              <tr>
+                                <td colSpan={10} className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3 py-3">
+                                  <div className="grid gap-2 md:grid-cols-3">
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                      <div className="text-[11px] font-semibold text-slate-700">Indexed Conversion</div>
+                                      <div className="mt-1 flex items-center justify-between">
+                                        <ValueWithDelta value={conv} delta={r.cvrComp} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
+                                      </div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                      <div className="text-[11px] font-semibold text-slate-700">Wt. Disc%</div>
+                                      <div className="mt-1 flex items-center justify-between">
+                                        <ValueWithDelta value={wtDisc} delta={wtDiscDelta} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
+                                      </div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                      <div className="text-[11px] font-semibold text-slate-700">ASP</div>
+                                      <div className="mt-1 flex items-center justify-between">
+                                        <ValueWithDelta value={asp} delta={aspDelta} formatter={(v) => formatIN(v)} mode={cityDeltaMode} />
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">Wt. Disc%</div>
-                                  <div className="mt-1 flex items-center justify-between">
-                                    <ValueWithDelta value={wtDisc} delta={wtDiscDelta} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
-                                  </div>
-                                </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">ASP</div>
-                                  <div className="mt-1 flex items-center justify-between">
-                                    <ValueWithDelta value={asp} delta={aspDelta} formatter={(v) => formatIN(v)} mode={cityDeltaMode} />
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
