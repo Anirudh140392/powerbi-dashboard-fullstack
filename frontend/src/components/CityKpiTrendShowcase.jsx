@@ -641,7 +641,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(3);
 
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
@@ -978,12 +978,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
 
         {/* ------------------ PAGINATION FOOTER ------------------ */}
         <PaginationFooter
-          isVisible={showPagination}
+          isVisible={showPagination && filteredRows.length > 3}
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
           pageSize={pageSize}
           onPageSizeChange={setPageSize}
+          pageSizeOptions={[3, 6, 9, 12]}
         />
       </CardContent>
 
