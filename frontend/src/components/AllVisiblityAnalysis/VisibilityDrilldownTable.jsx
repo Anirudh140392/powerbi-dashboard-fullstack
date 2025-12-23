@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { KpiFilterPanel } from '../KpiFilterPanel'
 import { SlidersHorizontal, X } from 'lucide-react'
+import PaginationFooter from '../CommonLayout/PaginationFooter'
 
 const KPI_LABELS = {
     catImpShare: 'Cat Imp Share',
@@ -331,6 +332,7 @@ const FROZEN_WIDTHS = {
 
 const filterOptions = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+    { id: "keywords", label: "Keyword" },
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
     { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
     { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
@@ -356,8 +358,8 @@ export default function VisibilityDrilldownTable() {
     const [expandedRows, setExpandedRows] = useState(new Set())
     const [expandedKpis, setExpandedKpis] = useState(new Set())
     const [filters, setFilters] = useState({ keyword: null, sku: null, city: null, platform: 'All' })
-    const [page, setPage] = useState(0)
-    const [pageSize, setPageSize] = useState(20)
+    const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
+    const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
 
 
@@ -435,7 +437,12 @@ export default function VisibilityDrilldownTable() {
     const flatRows = useMemo(() => flattenHierarchy(hierarchyData, expandedRows, filters, activeView), [hierarchyData, expandedRows, filters, activeView])
 
     const totalPages = Math.max(1, Math.ceil(flatRows.length / pageSize))
-    const pageRows = flatRows.slice(page * pageSize, page * pageSize + pageSize)
+
+    // Pagination slicing
+    const pageRows = useMemo(() => {
+        const startIndex = (page - 1) * pageSize
+        return flatRows.slice(startIndex, startIndex + pageSize)
+    }, [flatRows, page, pageSize])
 
     // Check if any keyword type (level 0) is expanded to show Brand column
     const showBrandColumn = useMemo(() => {
@@ -942,28 +949,6 @@ export default function VisibilityDrilldownTable() {
                 </div>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-white">
-                <div className="text-xs text-slate-500">
-                    Page {page + 1} of {totalPages} ({flatRows.length} items)
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setPage((p) => Math.max(0, p - 1))}
-                        disabled={page === 0}
-                        className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold disabled:opacity-50"
-                    >
-                        Prev
-                    </button>
-                    <button
-                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                        disabled={page >= totalPages - 1}
-                        className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold disabled:opacity-50"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
-
             <AnimatePresence>
                 {filterPanelOpen && (
                     <>
@@ -1063,6 +1048,19 @@ export default function VisibilityDrilldownTable() {
                     </>
                 )}
             </AnimatePresence>
+
+            <div className="border-t border-slate-100">
+                <PaginationFooter
+                    isVisible={true}
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    pageSize={pageSize}
+                    onPageSizeChange={setPageSize}
+                />
+            </div>
+
+
             {
                 showFilterPanel && (
                     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
@@ -1085,6 +1083,8 @@ export default function VisibilityDrilldownTable() {
                             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
                                 <KpiFilterPanel
                                     sectionConfig={filterOptions}
+                                    keywords={keywordOptions}
+                                    onKeywordChange={(vals) => setPopupFilters(prev => ({ ...prev, keyword: vals[0] ?? null }))}
                                     onChange={(values) => {
                                         setPopupFilters(prev => ({
                                             ...prev,
@@ -1092,8 +1092,6 @@ export default function VisibilityDrilldownTable() {
                                         }))
                                     }}
                                 />
-
-
                             </div>
 
                             {/* Modal Footer */}
@@ -1114,7 +1112,7 @@ export default function VisibilityDrilldownTable() {
                                             platform: popupFilters.platform || 'All',
                                         }))
 
-                                        setPage(0)
+                                        setPage(1)
                                         setExpandedRows(new Set())
                                         setShowFilterPanel(false)
                                     }}
@@ -1122,7 +1120,6 @@ export default function VisibilityDrilldownTable() {
                                 >
                                     Apply Filters
                                 </button>
-
                             </div>
                         </div>
                     </div>
