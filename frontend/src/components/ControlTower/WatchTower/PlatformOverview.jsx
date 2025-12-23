@@ -13,7 +13,17 @@ import {
   IconButton,
 } from "@mui/material";
 import CategoryTable from "./CategoryTable";
-import { TrendingUp, Monitor, Calendar, Grid3x3, Tag, Package, Search } from "lucide-react";
+import {
+  TrendingUp,
+  Monitor,
+  Calendar,
+  Grid3x3,
+  Tag,
+  Package,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 import { LightbulbCogRCAIcon } from "../../Analytics/CategoryRca/RcaIcons";
 
@@ -23,20 +33,16 @@ const SmallCard = ({ item }) => {
   const { title, value, meta } = item || {};
   const isPositive = meta?.change?.includes("▲");
 
-  // Format value based on title
   const formatValue = (val, colTitle) => {
     if (colTitle === "Doi" || colTitle === "DOI") {
-      // Remove % symbol if present
       return val?.toString().replace("%", "") || "—";
     }
     return val ?? "—";
   };
 
-  // Format change to add % symbol if not already present
   const formatChange = (changeVal) => {
     if (!changeVal) return changeVal;
     const changeStr = changeVal.toString();
-    // If it doesn't already have %, add it
     if (!changeStr.includes("%")) {
       return changeStr + "%";
     }
@@ -53,17 +59,32 @@ const SmallCard = ({ item }) => {
       }}
     >
       <CardContent sx={{ py: 1.2, px: 1.5 }}>
-        <Typography fontSize="0.75rem" fontWeight={400} color="text.secondary" fontFamily="Roboto, sans-serif">
+        <Typography
+          fontSize="0.75rem"
+          fontWeight={400}
+          color="text.secondary"
+          fontFamily="Roboto, sans-serif"
+        >
           {title}
         </Typography>
 
-        <Typography fontWeight={700} fontSize="0.95rem" mt={0.3} fontFamily="Roboto, sans-serif">
+        <Typography
+          fontWeight={700}
+          fontSize="0.95rem"
+          mt={0.3}
+          fontFamily="Roboto, sans-serif"
+        >
           {formatValue(value, title)}
         </Typography>
 
         {meta && (
           <Box display="flex" alignItems="center" gap={1} mt={0.4}>
-            <Typography fontSize="0.75rem" color="text.secondary" fontFamily="Roboto, sans-serif" fontWeight={400}>
+            <Typography
+              fontSize="0.75rem"
+              color="text.secondary"
+              fontFamily="Roboto, sans-serif"
+              fontWeight={400}
+            >
               #{meta.units}
             </Typography>
             <Typography
@@ -88,20 +109,25 @@ const SmallCard = ({ item }) => {
 /* ---------------- MAIN COMPONENT ---------------- */
 const PlatformOverview = ({
   data = [],
-  onViewTrends = () => { },
-  onViewRca = () => { },
+  onViewTrends = () => {},
+  onViewRca = () => {},
   activeKpisTab = "Platform Overview",
+  currentPage,
+  setCurrentPage = () => {},
 }) => {
   const theme = useTheme();
 
   const [sortType, setSortType] = React.useState("default");
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [isPagination, setIsPagination] = React.useState(true);
 
   const [platformFilter, setPlatformFilter] = React.useState({
     platform: "blinkit",
     category: "Core Tub",
     brand: "Amul",
   });
+
+  const CARDS_PER_PAGE = 5;
 
   /* ---------------- SORT + SEARCH LOGIC ---------------- */
   const sortedPlatforms = React.useMemo(() => {
@@ -113,8 +139,10 @@ const PlatformOverview = ({
     formatted = formatted.map((platform) => {
       let sortedCols = [...platform.columns];
 
-      if (sortType === "asc") sortedCols.sort((a, b) => a.title.localeCompare(b.title));
-      if (sortType === "desc") sortedCols.sort((a, b) => b.title.localeCompare(a.title));
+      if (sortType === "asc")
+        sortedCols.sort((a, b) => a.title.localeCompare(b.title));
+      if (sortType === "desc")
+        sortedCols.sort((a, b) => b.title.localeCompare(a.title));
 
       return { ...platform, columns: sortedCols };
     });
@@ -127,6 +155,32 @@ const PlatformOverview = ({
 
     return formatted;
   }, [sortType, searchTerm, data]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedPlatforms.length / CARDS_PER_PAGE);
+  const paginatedPlatforms = isPagination
+    ? sortedPlatforms.slice(
+        currentPage * CARDS_PER_PAGE,
+        (currentPage + 1) * CARDS_PER_PAGE
+      )
+    : sortedPlatforms;
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  // Reset page when search or sort changes
+  React.useEffect(() => {
+    setCurrentPage(0);
+  }, [sortType, searchTerm]);
 
   /* ---------------- ICON MAPPING ---------------- */
   const getTabIcon = () => {
@@ -142,7 +196,9 @@ const PlatformOverview = ({
       case "Skus Overview":
         return <Package size={18} color={theme.palette.primary.main} />;
       default:
-        return <BsGrid3X3GapFill size={18} color={theme.palette.primary.main} />;
+        return (
+          <BsGrid3X3GapFill size={18} color={theme.palette.primary.main} />
+        );
     }
   };
 
@@ -182,7 +238,12 @@ const PlatformOverview = ({
                 {getTabIcon()}
               </Box>
 
-              <Typography ml={1.2} fontWeight={700} fontSize="1.2rem" fontFamily="Roboto, sans-serif">
+              <Typography
+                ml={1.2}
+                fontWeight={700}
+                fontSize="1.2rem"
+                fontFamily="Roboto, sans-serif"
+              >
                 {activeKpisTab}
               </Typography>
             </Box>
@@ -194,7 +255,10 @@ const PlatformOverview = ({
                   size="small"
                   value={platformFilter.platform}
                   onChange={(e) =>
-                    setPlatformFilter((p) => ({ ...p, platform: e.target.value }))
+                    setPlatformFilter((p) => ({
+                      ...p,
+                      platform: e.target.value,
+                    }))
                   }
                   sx={{
                     minWidth: 130,
@@ -212,7 +276,10 @@ const PlatformOverview = ({
                   size="small"
                   value={platformFilter.category}
                   onChange={(e) =>
-                    setPlatformFilter((p) => ({ ...p, category: e.target.value }))
+                    setPlatformFilter((p) => ({
+                      ...p,
+                      category: e.target.value,
+                    }))
                   }
                   sx={{
                     minWidth: 130,
@@ -231,7 +298,10 @@ const PlatformOverview = ({
                     size="small"
                     value={platformFilter.category}
                     onChange={(e) =>
-                      setPlatformFilter((p) => ({ ...p, category: e.target.value }))
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        category: e.target.value,
+                      }))
                     }
                     sx={{
                       minWidth: 130,
@@ -247,7 +317,10 @@ const PlatformOverview = ({
                     size="small"
                     value={platformFilter.brand}
                     onChange={(e) =>
-                      setPlatformFilter((p) => ({ ...p, brand: e.target.value }))
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        brand: e.target.value,
+                      }))
                     }
                     sx={{
                       minWidth: 130,
@@ -289,24 +362,20 @@ const PlatformOverview = ({
                 />
                 <BsSearch size={15} color={theme.palette.text.secondary} />
               </Box>
-
-
-
             </Box>
           </Box>
 
-          {/* ---------------- PLATFORM CARDS ---------------- */}
+          {/* PLATFORM CARDS - HORIZONTAL SCROLL WITH PAGINATION */}
           <Box
             sx={{
               display: "flex",
               gap: 2,
               overflowX: "auto",
-              overflowY: "auto",
               pb: 2,
               height: "800px",
             }}
           >
-            {sortedPlatforms.map((platform) => (
+            {paginatedPlatforms.map((platform) => (
               <Box key={platform.key} sx={{ minWidth: 280 }}>
                 <Card
                   sx={{
@@ -314,12 +383,11 @@ const PlatformOverview = ({
                     borderRadius: 3,
                     background: theme.palette.background.default,
                     boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
+                    height: "100%",
                   }}
                 >
-
-                  {/* ---------------- PREMIUM INLINE HEADER ---------------- */}
+                  {/* PREMIUM INLINE HEADER */}
                   <Box sx={{ mb: 1.5 }}>
-                    {/* First Row: Logo + Title + Inline Buttons */}
                     <Box
                       sx={{
                         display: "flex",
@@ -329,7 +397,9 @@ const PlatformOverview = ({
                       }}
                     >
                       {/* Left: Icon + Name */}
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1.2 }}
+                      >
                         {activeKpisTab === "Brands Overview" ? (
                           <Box
                             sx={{
@@ -372,21 +442,49 @@ const PlatformOverview = ({
                             gap: 0.5,
                             cursor: "pointer",
                             "&:hover": {
-                              opacity: 0.7
-                            }
+                              opacity: 0.7,
+                            },
                           }}
                         >
-                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                          <Typography
+                            fontWeight={700}
+                            fontSize="0.95rem"
+                            fontFamily="Roboto, sans-serif"
+                          >
                             {platform.label}
                           </Typography>
                           {sortType !== "default" && (
-                            <Box sx={{ display: "flex", flexDirection: "column", ml: 0.3 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                flexDirection: "column",
+                                ml: 0.3,
+                              }}
+                            >
                               {sortType === "asc" ? (
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
                                   <path d="M12 19V5M5 12l7-7 7 7" />
                                 </svg>
                               ) : (
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
                                   <path d="M12 5v14M5 12l7 7 7-7" />
                                 </svg>
                               )}
@@ -396,7 +494,9 @@ const PlatformOverview = ({
                       </Box>
 
                       {/* Right: Inline Buttons */}
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1.5 }}
+                      >
                         <Tooltip title="trend performance" arrow>
                           <IconButton
                             size="small"
@@ -405,8 +505,7 @@ const PlatformOverview = ({
                             sx={{
                               borderRadius: 2,
                               border: "1px solid #e5e7eb",
-                              background:
-                                "#EEF2F7",
+                              background: "#EEF2F7",
                               width: 32,
                               height: 32,
                             }}
@@ -433,31 +532,14 @@ const PlatformOverview = ({
                               },
                             }}
                           >
-                            <LightbulbCogRCAIcon size={18} color="#000000" glow="#fde68a" />
+                            <LightbulbCogRCAIcon
+                              size={18}
+                              color="#000000"
+                              glow="#fde68a"
+                            />
                           </IconButton>
                         </Tooltip>
-
-                        {/* Competition button stays same */}
-                        {/* <Tooltip title="Compare performance with competitors" arrow>
-    <Button
-      variant="text"
-      size="small"
-      sx={{
-        textTransform: "none",
-        fontSize: "9px",
-        fontWeight: 600,
-        color: "#2563eb",
-        display: "flex",
-        alignItems: "center",
-        gap: 0.3,
-        "&:hover": { background: "transparent", textDecoration: "underline" },
-      }}
-    >
-      Competition <span style={{ fontSize: "1rem" }}>›</span>
-    </Button>
-  </Tooltip> */}
                       </Box>
-
                     </Box>
 
                     {/* Second Row: Platform Type */}
@@ -476,11 +558,128 @@ const PlatformOverview = ({
                   {platform.columns.map((col, i) => (
                     <SmallCard key={i} item={col} />
                   ))}
-
                 </Card>
               </Box>
             ))}
           </Box>
+
+          {/* GLASSMORPHISM PAGINATION */}
+          {isPagination && (
+            <Box
+              sx={{
+                mt: 1,
+                display: "flex",
+                justifyContent: "right",
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.2,
+                  px: 2.5,
+                  py: 1.2,
+                  borderRadius: "999px",
+                  backdropFilter: "blur(14px)",
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.25))",
+                  border: "1px solid rgba(255,255,255,0.35)",
+                  boxShadow:
+                    "0 10px 30px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.6)",
+                }}
+              >
+                {/* PREV */}
+                <IconButton
+                  size="small"
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 0}
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    backdropFilter: "blur(8px)",
+                    background: "rgba(255,255,255,0.35)",
+                    border: "1px solid rgba(255,255,255,0.4)",
+                    transition: "all .25s ease",
+                    "&:hover": {
+                      background: "rgba(255,255,255,0.6)",
+                      transform: "translateY(-1px)",
+                    },
+                    "&.Mui-disabled": {
+                      opacity: 0.35,
+                    },
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </IconButton>
+
+                {/* PAGE NUMBERS */}
+                <Box sx={{ display: "flex", gap: 0.6 }}>
+                  {Array.from({ length: totalPages }, (_, i) => {
+                    const active = currentPage === i;
+
+                    return (
+                      <Button
+                        key={i}
+                        size="small"
+                        onClick={() => setCurrentPage(i)}
+                        sx={{
+                          minWidth: 34,
+                          height: 34,
+                          borderRadius: "50%",
+                          fontSize: "0.75rem",
+                          fontWeight: active ? 700 : 500,
+                          color: active ? "#fff" : theme.palette.text.primary,
+                          background: active
+                            ? "linear-gradient(135deg, #6366F1, #3B82F6)"
+                            : "rgba(255,255,255,0.35)",
+                          backdropFilter: "blur(10px)",
+                          border: "1px solid rgba(255,255,255,0.4)",
+                          boxShadow: active
+                            ? "0 6px 18px rgba(99,102,241,0.45)"
+                            : "none",
+                          transition: "all .25s ease",
+                          "&:hover": {
+                            background: active
+                              ? "linear-gradient(135deg, #4F46E5, #2563EB)"
+                              : "rgba(255,255,255,0.6)",
+                            transform: "translateY(-1px)",
+                          },
+                        }}
+                      >
+                        {i + 1}
+                      </Button>
+                    );
+                  })}
+                </Box>
+
+                {/* NEXT */}
+                <IconButton
+                  size="small"
+                  onClick={handleNextPage}
+                  disabled={currentPage >= totalPages - 1}
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    backdropFilter: "blur(8px)",
+                    background: "rgba(255,255,255,0.35)",
+                    border: "1px solid rgba(255,255,255,0.4)",
+                    transition: "all .25s ease",
+                    "&:hover": {
+                      background: "rgba(255,255,255,0.6)",
+                      transform: "translateY(-1px)",
+                    },
+                    "&.Mui-disabled": {
+                      opacity: 0.35,
+                    },
+                  }}
+                >
+                  <ChevronRight size={16} />
+                </IconButton>
+              </Box>
+            </Box>
+          )}
         </Card>
       ) : (
         <CategoryTable categories={allProducts} activeTab={activeKpisTab} />
