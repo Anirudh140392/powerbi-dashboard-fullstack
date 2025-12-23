@@ -60,6 +60,7 @@ export default function WatchTower() {
   const [rcaModalOpen, setRcaModalOpen] = useState(false);
   const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = React.useState(0);
 
   const [filters, setFilters] = useState({
     platform: "Zepto",
@@ -142,22 +143,40 @@ export default function WatchTower() {
     skuTable: [],
   });
 
-  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
+  const {
+    selectedBrand,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+    platform,
+    selectedKeyword,
+    selectedLocation,
+  } = React.useContext(FilterContext);
 
   // Update filters when context changes
   useEffect(() => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       platform: platform,
       brand: selectedBrand,
       keyword: selectedKeyword,
       location: selectedLocation,
-      startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
-      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null,
-      compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
-      compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
+      startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
+      endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
+      compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
+      compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
     }));
-  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
+  }, [
+    selectedBrand,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+    platform,
+    selectedKeyword,
+    selectedLocation,
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -207,8 +226,6 @@ export default function WatchTower() {
           }}
         >
           <PerformanceMatric cardWidth={285} cardHeight={140} />
-
-
         </Box>
 
         {/* Platform Overview */}
@@ -226,31 +243,31 @@ export default function WatchTower() {
               <TabButton
                 label="By Platfrom"
                 active={activeKpisTab === "Platform Overview"}
-                onClick={() => setActiveKpisTab("Platform Overview")}
+                onClick={() => {setActiveKpisTab("Platform Overview"); setCurrentPage(0);}}
               />
 
               <TabButton
                 label="By Month"
                 active={activeKpisTab === "Month Overview"}
-                onClick={() => setActiveKpisTab("Month Overview")}
+                onClick={() => {setActiveKpisTab("Month Overview"); setCurrentPage(0);}}
               />
 
               <TabButton
                 label="By Category"
                 active={activeKpisTab === "Category Overview"}
-                onClick={() => setActiveKpisTab("Category Overview")}
+                onClick={() => {setActiveKpisTab("Category Overview"); setCurrentPage(0);}}
               />
 
               <TabButton
                 label="By Brands"
                 active={activeKpisTab === "Brands Overview"}
-                onClick={() => setActiveKpisTab("Brands Overview")}
+                onClick={() => {setActiveKpisTab("Brands Overview"); setCurrentPage(0);}}
               />
 
               <TabButton
                 label="By Skus"
                 active={activeKpisTab === "Skus Overview"}
-                onClick={() => setActiveKpisTab("Skus Overview")}
+                onClick={() => {setActiveKpisTab("Skus Overview"); setCurrentPage(0);}}
               />
             </Box>
           </Box>
@@ -263,16 +280,18 @@ export default function WatchTower() {
               }}
               data={
                 activeKpisTab === "Platform Overview"
-                  ? (dashboardData?.platformOverview || defaultPlatforms)
+                  ? dashboardData?.platformOverview || defaultPlatforms
                   : activeKpisTab === "Category Overview"
-                    ? defaultCategory
-                    : activeKpisTab === "Month Overview"
-                      ? defaultMonths
-                      : activeKpisTab === "Brands Overview"
-                        ? defaultBrands
-                        : defaultSkus
+                  ? defaultCategory
+                  : activeKpisTab === "Month Overview"
+                  ? defaultMonths
+                  : activeKpisTab === "Brands Overview"
+                  ? defaultBrands
+                  : defaultSkus
               }
               activeKpisTab={activeKpisTab}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
             />
             {/* defaultMonths
 defaultCategory */}
@@ -287,7 +306,6 @@ defaultCategory */}
           }}
         >
           <TopActionsLayoutsShowcase />
-
         </Box>
         {/* Category / SKU Tabs */}
         <Box
@@ -344,8 +362,8 @@ defaultCategory */}
       <TrendsCompetitionDrawer
         open={showTrends}
         onClose={() => setShowTrends(false)}
-        selectedColumn='Blinkit'
-        dynamicKey='platform_overview_tower'
+        selectedColumn="Blinkit"
+        dynamicKey="platform_overview_tower"
       />
 
       <RCAModal
@@ -544,7 +562,6 @@ const FORMAT_ROWS = [
   },
 ];
 
-
 const FormatPerformanceStudio = () => {
   const [activeName, setActiveName] = useState(FORMAT_ROWS[0]?.name);
   const [compareName, setCompareName] = useState(null);
@@ -662,13 +679,29 @@ const FormatPerformanceStudio = () => {
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      style={{ fontFamily: 'Roboto, sans-serif' }}
+      style={{ fontFamily: "Roboto, sans-serif" }}
     >
       <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold bg" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '1.2rem' }}>Category performance</h2>
-            <p className="text-xs text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
+            <h2
+              className="text-lg font-semibold bg"
+              style={{
+                fontFamily: "Roboto, sans-serif",
+                fontWeight: 700,
+                fontSize: "1.2rem",
+              }}
+            >
+              Category performance
+            </h2>
+            <p
+              className="text-xs text-slate-500"
+              style={{
+                fontFamily: "Roboto, sans-serif",
+                fontWeight: 400,
+                fontSize: "0.75rem",
+              }}
+            >
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
@@ -683,17 +716,16 @@ const FormatPerformanceStudio = () => {
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                  ? "border-sky-400 bg-sky-50 shadow-sm"
-                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                  }`}
+                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
+                  isActive
+                    ? "border-sky-400 bg-sky-50 shadow-sm"
+                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                }`}
                 whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
               >
-
                 {/* LEFT SIDE */}
                 <div className="flex items-center gap-2">
-
                   {/* NUMBER BADGE */}
                   <div
                     className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
@@ -704,18 +736,40 @@ const FormatPerformanceStudio = () => {
                     #{index + 1}
                   </div>
 
-
                   {/* TEXT */}
                   <div className="text-left">
-                    <div className="font-medium" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '0.95rem' }}>{f.name}</div>
-                    <div className="text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
+                    <div
+                      className="font-medium"
+                      style={{
+                        fontFamily: "Roboto, sans-serif",
+                        fontWeight: 700,
+                        fontSize: "0.95rem",
+                      }}
+                    >
+                      {f.name}
+                    </div>
+                    <div
+                      className="text-[10px] text-slate-500"
+                      style={{
+                        fontFamily: "Roboto, sans-serif",
+                        fontWeight: 400,
+                        fontSize: "0.75rem",
+                      }}
+                    >
                       Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
                 </div>
 
                 {/* RIGHT SIDE */}
-                <div className="flex flex-col items-end text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, fontSize: '0.75rem' }}>
+                <div
+                  className="flex flex-col items-end text-[10px] text-slate-500"
+                  style={{
+                    fontFamily: "Roboto, sans-serif",
+                    fontWeight: 500,
+                    fontSize: "0.75rem",
+                  }}
+                >
                   <span>MS {f.marketSharePct}%</span>
                   <span>Conv {f.conversionPct}%</span>
                 </div>
@@ -929,7 +983,6 @@ const FormatPerformanceStudio = () => {
               })}
             </div> */}
             <div className="mt-2 flex flex-wrap gap-2 justify-center">
-
               {/* PILLS */}
               {visibleItems.map((f) => {
                 const weight = clamp01(f.roas / 12);
@@ -940,12 +993,15 @@ const FormatPerformanceStudio = () => {
                   <motion.button
                     key={f.name}
                     onClick={() =>
-                      setCompareName(prev => (prev === f.name ? null : f.name))
+                      setCompareName((prev) =>
+                        prev === f.name ? null : f.name
+                      )
                     }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
-                      ? "border-violet-500 bg-violet-50 shadow-sm"
-                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                      }`}
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
+                      isCompare
+                        ? "border-violet-500 bg-violet-50 shadow-sm"
+                        : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                    }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
@@ -959,8 +1015,9 @@ const FormatPerformanceStudio = () => {
                     />
 
                     <span
-                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
-                        }`}
+                      className={`truncate ${
+                        isActive ? "font-semibold" : "font-normal"
+                      }`}
                     >
                       {f.name}
                     </span>
@@ -979,7 +1036,7 @@ const FormatPerformanceStudio = () => {
               {/* ADD MORE (only if not all shown) */}
               {visibleCount < total && (
                 <button
-                  onClick={() => setVisibleCount(prev => prev + 7)}
+                  onClick={() => setVisibleCount((prev) => prev + 7)}
                   className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
                 >
                   + Add more
@@ -996,7 +1053,6 @@ const FormatPerformanceStudio = () => {
                 </button>
               )}
             </div>
-
           </motion.div>
         </AnimatePresence>
       </div>
