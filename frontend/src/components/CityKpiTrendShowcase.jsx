@@ -12,6 +12,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, X } from "lucide-react";
 // import {SimpleTableWithTabs} from "../components/CommonLayout/SimpleTableWithTabs";
 import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
+import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
 import { KpiFilterPanel } from "./KpiFilterPanel";
 
 // import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
@@ -122,6 +123,19 @@ const CITY_DATA = [
       assortment: { value: 78, trend: 0.4, series: [76, 77, 77, 78] },
     },
   },
+];
+
+const mockKeywords = [
+  { id: "kw_generic", label: "generic ice cream" },
+  { id: "kw_delivery", label: "ice cream delivery" },
+  { id: "kw_cone", label: "cone ice cream" },
+  { id: "kw_cornetto", label: "cornetto" },
+  { id: "kw_competitor", label: "amul ice cream" },
+  { id: "kw_family", label: "family pack ice cream" },
+  { id: "kw_kulfi", label: "kulfi" },
+  { id: "kw_cup", label: "cup ice cream" },
+  { id: "kw_sundae", label: "sundae" },
+  { id: "kw_choco", label: "chocolate ice cream" },
 ];
 
 // --- Helpers ---------------------------------------------------------------
@@ -621,9 +635,13 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
@@ -642,6 +660,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
   const filterOptions = React.useMemo(() => {
     return [
       { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+      { id: "keywords", label: "Keyword" },
       { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
       { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
       { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
@@ -699,6 +718,24 @@ function MatrixVariant({ dynamicKey, data, title }) {
     }
   };
 
+  // Calculate Pagination
+  const filteredRows = React.useMemo(() => {
+    return rows.filter(row => selectedKPIs.includes(row.kpi));
+  }, [rows, selectedKPIs]);
+
+  const totalPages = Math.ceil(filteredRows.length / pageSize);
+
+  const paginatedRows = React.useMemo(() => {
+    if (!showPagination) return filteredRows;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredRows.slice(startIndex, startIndex + pageSize);
+  }, [filteredRows, currentPage, pageSize, showPagination]);
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedKPIs, pageSize]);
+
   // ---------------- BUILD COMP META (same logic) ----------------
   const buildCompMeta = (columnName) => ({
     context: { level: "Table", region: "All" },
@@ -722,7 +759,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
   });
 
   return (
-    <Card className="border-slate-200 bg-white shadow-sm">
+    <Card className={`border-slate-200 bg-white shadow-sm ${showPagination ? 'pb-0' : ''}`}>
 
       {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
@@ -786,6 +823,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
               <KpiFilterPanel
                 sectionConfig={filterOptions}
+                keywords={mockKeywords}
               />
 
             </div>
@@ -852,7 +890,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody className="bg-white">
-                {rows.filter(row => selectedKPIs.includes(row.kpi)).map((row) => (
+                {paginatedRows.map((row) => (
                   <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
                     {/* Sticky KPI Column */}
@@ -937,6 +975,16 @@ function MatrixVariant({ dynamicKey, data, title }) {
             </table>
           </div>
         </ScrollArea>
+
+        {/* ------------------ PAGINATION FOOTER ------------------ */}
+        <PaginationFooter
+          isVisible={showPagination}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+        />
       </CardContent>
 
       {/* TRENDS DRAWER */}
@@ -1232,12 +1280,12 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} />;
 }
 

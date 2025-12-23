@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
-
+ 
 // Mock Data focused on "Kwality Walls"
 const MOCK_DATA = [
     {
@@ -137,7 +138,7 @@ const MOCK_DATA = [
         paidDelta: 0.0,
     },
 ];
-
+ 
 // Mock Data for Drilldown (Competitors for a keyword)
 const getCompetitorData = (keyword) => [
     { brand: "Kwality Walls", overall: 45, organic: 30, paid: 15 },
@@ -146,11 +147,11 @@ const getCompetitorData = (keyword) => [
     { brand: "Vadilal", overall: 10, organic: 8, paid: 2 },
     { brand: "Havmor", overall: 5, organic: 5, paid: 0 },
 ];
-
+ 
 const DeltaIndicator = ({ value }) => {
     const num = Number(value || 0);
     const absValue = Math.abs(num).toFixed(1); // Removed % as per screenshot
-
+ 
     if (num > 0) {
         return (
             <span className="inline-flex items-center gap-[1px] rounded-full border border-emerald-200 bg-emerald-50 px-0.5 py-0 text-[9px] font-medium text-emerald-700 h-[13px] leading-none">
@@ -159,7 +160,7 @@ const DeltaIndicator = ({ value }) => {
             </span>
         );
     }
-
+ 
     if (num < 0) {
         return (
             <span className="inline-flex items-center gap-[1px] rounded-full border border-rose-200 bg-rose-50 px-0.5 py-0 text-[9px] font-medium text-rose-700 h-[13px] leading-none">
@@ -168,7 +169,7 @@ const DeltaIndicator = ({ value }) => {
             </span>
         );
     }
-
+ 
     return (
         <span className="inline-flex items-center gap-[1px] rounded-full border border-slate-200 bg-slate-50 px-0.5 py-0 text-[9px] font-medium text-slate-600 h-[13px] leading-none">
             <Minus size={8} />
@@ -176,41 +177,22 @@ const DeltaIndicator = ({ value }) => {
         </span>
     );
 };
-
+ 
 export default function TopSearchTerms({ filter = "All" }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
-
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
+ 
     const handleBrandClick = (keyword) => {
         setSelectedKeyword(keyword);
     };
-
+ 
     const closeDrilldown = () => {
         setSelectedKeyword(null);
     };
-
+ 
     const drilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
-
-    // Pagination State
-    const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(5);
-
-    // Pagination Logic
-    const indexOfLastRow = currentPage * rowsPerPage;
-    const indexOfFirstRow = indexOfLastRow - rowsPerPage;
-    const currentRows = MOCK_DATA.slice(indexOfFirstRow, indexOfLastRow);
-    const totalPages = Math.ceil(MOCK_DATA.length / rowsPerPage);
-
-    const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setCurrentPage(newPage);
-        }
-    };
-
-    const handleRowsPerPageChange = (e) => {
-        setRowsPerPage(Number(e.target.value));
-        setCurrentPage(1);
-    };
-
+ 
     // Animation Variants
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -222,32 +204,32 @@ export default function TopSearchTerms({ filter = "All" }) {
             }
         }
     };
-
+ 
     const itemVariants = {
         hidden: { opacity: 0, y: 10 },
         visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 12 } }
     };
-
+ 
     const modalVariants = {
         hidden: { opacity: 0, scale: 0.95 },
         visible: { opacity: 1, scale: 1, transition: { type: "spring", duration: 0.3 } },
         exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
     };
-
+ 
     return (
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 bg-white">
                 <h3 className="text-base font-bold text-slate-800">Top Search Terms</h3>
-
+ 
                 <div className="flex items-center gap-4">
                     {/* Tabs */}
-
-
-
+ 
+ 
+ 
                 </div>
             </div>
-
+ 
             {/* Table */}
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -268,7 +250,7 @@ export default function TopSearchTerms({ filter = "All" }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {currentRows.map((row, idx) => (
+                        {MOCK_DATA.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => (
                             <motion.tr
                                 key={idx}
                                 variants={itemVariants}
@@ -309,42 +291,19 @@ export default function TopSearchTerms({ filter = "All" }) {
                     </motion.tbody>
                 </table>
             </div>
-
+ 
             {/* Footer / Pagination */}
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 bg-slate-50/50">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        className={`text-xs transition-colors ${currentPage === 1 ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-slate-700"}`}
-                    >
-                        Prev
-                    </button>
-                    <div className="text-xs text-slate-600 font-medium">
-                        Page {currentPage} / {totalPages}
-                    </div>
-                    <button
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        className={`text-xs transition-colors ${currentPage === totalPages ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-slate-700"}`}
-                    >
-                        Next
-                    </button>
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <span>Show:</span>
-                    <select
-                        value={rowsPerPage}
-                        onChange={handleRowsPerPageChange}
-                        className="border-none bg-transparent font-medium text-slate-700 focus:ring-0 cursor-pointer p-0"
-                    >
-                        <option value={5}>5</option>
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                    </select>
-                </div>
+            <div className="border-t border-slate-100 bg-slate-50/50">
+                <PaginationFooter
+                    isVisible={true}
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(MOCK_DATA.length / pageSize)}
+                    onPageChange={setCurrentPage}
+                    pageSize={pageSize}
+                    onPageSizeChange={setPageSize}
+                />
             </div>
-
+ 
             {/* Drilldown Modal */}
             <AnimatePresence>
                 {selectedKeyword && (
