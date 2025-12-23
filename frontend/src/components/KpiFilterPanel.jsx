@@ -43,7 +43,7 @@ export function KpiFilterPanel({
   onCityChange,
   onPlatformChange,
   onRulesChange,
-  pageSize = 5,
+  pageSize = 50,
   sectionConfig = SECTION_LABELS,
 }) {
   const [activeSection, setActiveSection] = useState(sectionConfig[0]?.id || "keywords");
@@ -413,7 +413,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize })
         </span>
       </div>
 
-      <div className="flex-1 rounded-lg border border-slate-100 bg-slate-50/60">
+      <div className="flex-1 rounded-lg border border-slate-100 bg-slate-50/60 overflow-y-auto min-h-[400px]">
         {pageItems.map((opt) => (
           <label
             key={opt.id}

@@ -635,7 +635,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -659,11 +659,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
   const [filterRules, setFilterRules] = useState(null);
 
   const filterOptions = React.useMemo(() => {
+    if (kpiFilterOptions) return kpiFilterOptions;
     return [
       { id: "date", label: "Date", options: [] }, // Date range picker would be custom
       { id: "keywords", label: "Keyword" },
       { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
       { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+      { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }] },
       { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
       { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
       { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
@@ -672,7 +674,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
       { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
       { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
     ];
-  }, [rows, columns]);
+  }, [rows, columns, kpiFilterOptions]);
 
   // Value Logic Filter (Legacy - kept for reference or removal)
   const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
@@ -821,7 +823,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
             </div>
 
             {/* Panel Content */}
-            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+            {/* Panel Content */}
+            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
               <KpiFilterPanel
                 sectionConfig={filterOptions}
                 keywords={mockKeywords}
@@ -1282,12 +1285,12 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} />;
 }
 
