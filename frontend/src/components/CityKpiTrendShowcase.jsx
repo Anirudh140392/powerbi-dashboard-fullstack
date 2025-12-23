@@ -638,6 +638,7 @@ function TrendIcon({ trend }) {
 function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
+  const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -923,7 +924,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
                                            ${cellClasses}`}
                               >
                                 <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (row.kpi === "Doi" || row.kpi === "Assortment" ? `${value}` : `${value}%`) : "–"}
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (isPercentageBased ? `${value}%` : `${value}`) : "–"}
                                 </span>
 
                                 <span
@@ -947,7 +948,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true }) {
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{row.kpi === "Doi" || row.kpi === "Assortment" ? value : `${value}%`}</span>
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{isPercentageBased ? `${value}%` : value}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
                                     {trend > 0 ? `+${trend}%` : `${trend}%`}
                                   </span>

@@ -61,7 +61,7 @@ const KPI_CARDS = [
   {
     id: "conversion",
     label: "Conversion",
-    value: "0.6%",
+    value: "1%",
     unit: "",
     tag: "28% MoM",
     tagTone: "positive",
@@ -82,7 +82,7 @@ const KPI_CARDS = [
   {
     id: "roas_new",
     label: "Roas",
-    value: "2.1",
+    value: "2",
     unit: "",
     tag: "10.5% MoM",
     tagTone: "positive",
@@ -173,6 +173,7 @@ export default function PerformanceMatric({
         backgroundColor: "white",
         padding: "12px 16px",
         boxSizing: "border-box",
+        borderRadius: "24px",
       }}
     >
       {/* Card Row */}

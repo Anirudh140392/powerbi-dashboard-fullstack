@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Typography } from "@mui/material";
 import CitySkuInventoryDrill from "./CitySkuInventoryDrill";
 import InventoryDrill from "./InventoryMainDrill";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
@@ -290,9 +291,9 @@ function TrendModal({ context, onClose }) {
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">
+          <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>
             {context.title}
-          </h3>
+          </Typography>
           <button
             type="button"
             onClick={onClose}
@@ -477,12 +478,12 @@ function InventeryConceptMain() {
           <div className="rounded-3xl bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">
+                <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>
                   Platform DOH Matrix
-                </h2>
-                <p className="text-[11px] text-slate-500">
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
                   Hover on any value for FE/BE split and click to see trend.
-                </p>
+                </Typography>
               </div>
 
               <SegmentToggle
@@ -505,7 +506,7 @@ function InventeryConceptMain() {
             <div className="overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-y-2 text-left text-xs">
                 <thead>
-                  <tr className="text-[11px] text-slate-500">
+                  <tr className="text-[11px] text-slate-500 uppercase">
                     <th className="w-40 px-3 py-1 font-medium">KPI</th>
 
                     {matrixTab === "platform" &&
@@ -630,7 +631,7 @@ function InventeryConceptMain() {
           </div>
           {/* FILTERS PANEL */}
         {/* <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900">Filters</h2>
+            <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Filters</Typography>
 
             <div className="grid grid-cols-2 gap-3 text-[11px]">
               <div>
@@ -703,9 +704,9 @@ function InventeryConceptMain() {
         {/* INVENTORY AT A GLANCE – HIERARCHY */}
         {/* <div className="rounded-3xl bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900">
+            <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>
               Inventory at a glance
-            </h2>
+            </Typography>
 
             <SegmentToggle
               options={["Cities", "SKUs", "Formats"]}
@@ -717,7 +718,7 @@ function InventeryConceptMain() {
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-y-1 text-xs">
               <thead>
-                <tr className="text-[11px] text-slate-500">
+                <tr className="text-[11px] text-slate-500 uppercase">
                   <th className="px-3 py-1">Hierarchy</th>
                   <th className="px-3 py-1">Platform</th>
                   <th className="px-3 py-1">City</th>
@@ -763,9 +764,9 @@ function InventeryConceptMain() {
 
         {/* INVENTORY SIGNALS */}
         {/* <div className="rounded-3xl bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">
+          <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700, mb: 3 }}>
             Inventory Signals – City & SKU
-          </h2>
+          </Typography>
 
           <div className="grid gap-3 md:grid-cols-4">
             {filteredSkus
