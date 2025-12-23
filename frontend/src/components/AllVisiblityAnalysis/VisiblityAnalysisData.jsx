@@ -764,6 +764,7 @@ const VisiblityAnalysisData = () => {
           dynamicKey="visibility"
           data={active.data}
           title={active.label}
+          showPagination={true}
         />
       </div>
     );
