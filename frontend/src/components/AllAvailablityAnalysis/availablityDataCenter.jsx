@@ -27,7 +27,7 @@ function createWeightedProductMatrix(absolute) {
 }
 
 const PRODUCT_MATRIX_ABSOLUTE = {
-  formatColumns: ["Blinkit", "Instamart", "Virtual Store", "Zepto"],
+  formatColumns: ["Blinkit", "Blinkit (2)", "Blinkit (Virtual)", "Blinkit (Sub)"],
   data: [
     {
       format: "Cassata",
@@ -37,15 +37,15 @@ const PRODUCT_MATRIX_ABSOLUTE = {
           name: "KW Cassatta",
           values: {
             Blinkit: 55,
-            Instamart: 81,
+            Zepto: 81,
             "Virtual Store": 0,
-            Zepto: 88,
+            Instamart: 88,
           },
           losses: {
             Blinkit: 18.42,
-            Instamart: 0.0,
+            Zepto: 0.0,
             "Virtual Store": 0.0,
-            Zepto: 1.12,
+            Instamart: 1.12,
           },
         },
       ],
@@ -210,7 +210,7 @@ const OLA_Detailed_ABSOLUTE = [
   },
 
   {
-    platform: "Instamart",
+    platform: "Blinkit (2)",
     ola: 82, // same as its only zone
     zones: [
       {
@@ -222,7 +222,7 @@ const OLA_Detailed_ABSOLUTE = [
   },
 
   {
-    platform: "Virtual Store",
+    platform: "Blinkit (Virtual)",
     ola: 72, // same as its only zone
     zones: [
       {
@@ -292,7 +292,7 @@ function createWeightedFormatMatrix(absolute) {
 }
 
 const FORMAT_MATRIX_ABSOLUTE = {
-  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
+  PlatformColumns: ["Blinkit", "Blinkit (Sub)", "Blinkit (2)", "Blinkit (Amz)", "Blinkit (Swg)"],
 
   formatColumns: [
     "Cassata", "Core Tub", "Cornetto", "Magnum",
@@ -311,35 +311,35 @@ const FORMAT_MATRIX_ABSOLUTE = {
     {
       kpi: "Osa",
       values: {
-        Blinkit: 82, Zepto: 78, Instamart: 65, Amazon: 75, Swiggy: 70
+        Blinkit: 82, "Blinkit (Sub)": 78, "Blinkit (2)": 65, "Blinkit (Amz)": 75, "Blinkit (Swg)": 70
       },
       trend: generateTrendMulti(78)
     },
     {
       kpi: "Doi",
       values: {
-        Blinkit: 45, Zepto: 52, Instamart: 48, Amazon: 49, Swiggy: 47
+        Blinkit: 45, "Blinkit (Sub)": 52, "Blinkit (2)": 48, "Blinkit (Amz)": 49, "Blinkit (Swg)": 47
       },
       trend: generateTrendMulti(48)
     },
     {
       kpi: "Fillrate",
       values: {
-        Blinkit: 91, Zepto: 84, Instamart: 79, Amazon: 86, Swiggy: 81
+        Blinkit: 91, "Blinkit (Sub)": 84, "Blinkit (2)": 79, "Blinkit (Amz)": 86, "Blinkit (Swg)": 81
       },
       trend: generateTrendMulti(85)
     },
     {
       kpi: "Assortment",
       values: {
-        Blinkit: 142, Zepto: 138, Instamart: 122, Amazon: 135, Swiggy: 128
+        Blinkit: 142, "Blinkit (Sub)": 138, "Blinkit (2)": 122, "Blinkit (Amz)": 135, "Blinkit (Swg)": 128
       },
       trend: generateTrendMulti(66)
     },
     {
       kpi: "PSL",
       values: {
-        Blinkit: 18, Zepto: 12, Instamart: 25, Amazon: 11, Swiggy: 20
+        Blinkit: 18, "Blinkit (Sub)": 12, "Blinkit (2)": 25, "Blinkit (Amz)": 11, "Blinkit (Swg)": 20
       },
       trend: generateTrendMulti(15)
     }
@@ -445,7 +445,7 @@ const FORMAT_MATRIX = {
 
 
 const FORMAT_MATRIX_Visibility = {
-  PlatformColumns: ["Blinkit", "Zepto", "Instamart", "Amazon", "Swiggy"],
+  PlatformColumns: ["Blinkit", "Blinkit (Sub)", "Blinkit (2)", "Blinkit (Amz)", "Blinkit (Swg)"],
 
   formatColumns: [
     "Cassata", "Core Tub", "Cornetto", "Magnum",
@@ -463,22 +463,22 @@ const FORMAT_MATRIX_Visibility = {
   PlatformData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Blinkit: 92, Zepto: 88, Instamart: 85, Amazon: 87, Swiggy: 90 },
+      values: { Blinkit: 92, "Blinkit (Sub)": 88, "Blinkit (2)": 85, "Blinkit (Amz)": 87, "Blinkit (Swg)": 90 },
       trend: generateTrendMulti(88)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Blinkit: 12, Zepto: 15, Instamart: 10, Amazon: 16, Swiggy: 14 },
+      values: { Blinkit: 12, "Blinkit (Sub)": 15, "Blinkit (2)": 10, "Blinkit (Amz)": 16, "Blinkit (Swg)": 14 },
       trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Blinkit: 96, Zepto: 94, Instamart: 92, Amazon: 91, Swiggy: 89 },
+      values: { Blinkit: 96, "Blinkit (Sub)": 94, "Blinkit (2)": 92, "Blinkit (Amz)": 91, "Blinkit (Swg)": 89 },
       trend: generateTrendMulti(92)
     },
     {
       kpi: "Display SOS",
-      values: { Blinkit: 89, Zepto: 91, Instamart: 85, Amazon: 88, Swiggy: 86 },
+      values: { Blinkit: 89, "Blinkit (Sub)": 91, "Blinkit (2)": 85, "Blinkit (Amz)": 88, "Blinkit (Swg)": 86 },
       trend: generateTrendMulti(88)
     }
   ],
@@ -777,7 +777,7 @@ const ONE_VIEW_DRILL_DATA = [
 
   // ---------------- ZEPTO ----------------
   {
-    label: "Zepto",
+    label: "Blinkit (Sub)",
     values: {},
     children: [
       {

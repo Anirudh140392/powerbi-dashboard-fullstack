@@ -211,7 +211,7 @@ const kpiFields = [
 
 const formatMetric = (kpi, value) => {
     if (value === undefined || Number.isNaN(value)) return '–'
-    if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}%`
+    if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}`
     return value.toFixed(1)
 }
 

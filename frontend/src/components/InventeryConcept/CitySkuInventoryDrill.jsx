@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Typography } from "@mui/material";
 import { SlidersHorizontal, X } from "lucide-react";
 
 import { KpiFilterPanel } from "../KpiFilterPanel";
@@ -234,8 +235,8 @@ export default function CitySkuInventoryDrill() {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
-                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                                <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Advanced Filters</Typography>
+                                <Typography variant="caption" color="text.secondary">Configure data visibility and rules</Typography>
                             </div>
                             <button
                                 onClick={() => setFilterPanelOpen(false)}
@@ -289,8 +290,8 @@ export default function CitySkuInventoryDrill() {
                 {/* HEADER */}
                 <div className="flex items-center justify-between px-6 pt-6 pb-2">
                     <div className="flex flex-col items-start gap-1">
-                        <div className="text-xs font-medium text-slate-500">Drill Table</div>
-                        <h1 className="text-xl font-bold text-slate-900">City Level Inventory</h1>
+                        <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Drill Table</Typography>
+                        <Typography variant="h5" fontWeight={600}>City Level Inventory</Typography>
                     </div>
 
                     <div className="flex items-center gap-6">
@@ -325,15 +326,15 @@ export default function CitySkuInventoryDrill() {
                     <table className="min-w-full text-xs">
                         <thead className="bg-slate-50 text-slate-600">
                             <tr>
-                                <th className="sticky left-0 z-10 bg-slate-50 px-6 py-3 text-left w-[220px]">City / SKU</th>
+                                <th className="sticky left-0 z-10 bg-slate-50 px-6 py-3 text-left w-[220px] uppercase">City / SKU</th>
                                 {expanded.size > 0 && (
-                                    <th className="sticky left-[220px] z-10 bg-slate-50 px-3 py-3 text-left w-[220px]">SKU</th>
+                                    <th className="sticky left-[220px] z-10 bg-slate-50 px-3 py-3 text-left w-[220px] uppercase">SKU</th>
                                 )}
-                                <th className="px-3 py-3 text-right">DRR Qty</th>
-                                <th className="px-3 py-3 text-right">Current DOH</th>
-                                <th className="px-3 py-3 text-right">Req PO Qty</th>
-                                <th className="px-3 py-3 text-right">Req Boxes</th>
-                                <th className="px-3 py-3 text-right">Threshold DOH</th>
+                                <th className="px-3 py-3 text-right uppercase">DRR Qty</th>
+                                <th className="px-3 py-3 text-right uppercase">Current DOH</th>
+                                <th className="px-3 py-3 text-right uppercase">Req PO Qty</th>
+                                <th className="px-3 py-3 text-right uppercase">Req Boxes</th>
+                                <th className="px-3 py-3 text-right uppercase">Threshold DOH</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -345,7 +346,7 @@ export default function CitySkuInventoryDrill() {
                                                 {expanded.has(row.id) ? "−" : "+"}
                                             </button>
                                         )}
-                                        <span className={row.level === "city" ? "font-semibold text-slate-900" : "text-slate-600"}>
+                                        <span className={row.level === "city" ? "font-semibold text-slate-900 capitalize" : "text-slate-600 capitalize"}>
                                             {row.level === "city" ? row.city : ""}
                                         </span>
                                     </td>
