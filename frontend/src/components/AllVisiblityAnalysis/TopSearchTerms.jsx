@@ -190,6 +190,27 @@ export default function TopSearchTerms({ filter = "All" }) {
 
     const drilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(5);
+
+    // Pagination Logic
+    const indexOfLastRow = currentPage * rowsPerPage;
+    const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+    const currentRows = MOCK_DATA.slice(indexOfFirstRow, indexOfLastRow);
+    const totalPages = Math.ceil(MOCK_DATA.length / rowsPerPage);
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
+
+    const handleRowsPerPageChange = (e) => {
+        setRowsPerPage(Number(e.target.value));
+        setCurrentPage(1);
+    };
+
     // Animation Variants
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -247,7 +268,7 @@ export default function TopSearchTerms({ filter = "All" }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {MOCK_DATA.map((row, idx) => (
+                        {currentRows.map((row, idx) => (
                             <motion.tr
                                 key={idx}
                                 variants={itemVariants}
@@ -292,21 +313,34 @@ export default function TopSearchTerms({ filter = "All" }) {
             {/* Footer / Pagination */}
             <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 bg-slate-50/50">
                 <div className="flex items-center gap-3">
-                    <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`text-xs transition-colors ${currentPage === 1 ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-slate-700"}`}
+                    >
                         Prev
                     </button>
                     <div className="text-xs text-slate-600 font-medium">
-                        Page 1 / 3
+                        Page {currentPage} / {totalPages}
                     </div>
-                    <button className="text-xs text-slate-600 hover:text-slate-800 transition-colors">
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`text-xs transition-colors ${currentPage === totalPages ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-slate-700"}`}
+                    >
                         Next
                     </button>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <select className="border-none bg-transparent font-medium text-slate-700 focus:ring-0 cursor-pointer">
-                        <option>Top 20</option>
-                        <option>Top 50</option>
-                        <option>Top 100</option>
+                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span>Show:</span>
+                    <select
+                        value={rowsPerPage}
+                        onChange={handleRowsPerPageChange}
+                        className="border-none bg-transparent font-medium text-slate-700 focus:ring-0 cursor-pointer p-0"
+                    >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
                     </select>
                 </div>
             </div>
