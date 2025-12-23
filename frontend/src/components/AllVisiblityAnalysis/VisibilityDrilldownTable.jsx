@@ -1051,7 +1051,7 @@ export default function VisibilityDrilldownTable() {
 
             <div className="border-t border-slate-100">
                 <PaginationFooter
-                    isVisible={true}
+                    isVisible={flatRows.length > 3}
                     currentPage={page}
                     totalPages={totalPages}
                     onPageChange={setPage}
