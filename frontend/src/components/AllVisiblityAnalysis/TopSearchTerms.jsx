@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Mock Data focused on "Kwality Walls"
@@ -179,6 +180,8 @@ const DeltaIndicator = ({ value }) => {
 
 export default function TopSearchTerms({ filter = "All" }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
 
     const handleBrandClick = (keyword) => {
         setSelectedKeyword(keyword);
@@ -247,7 +250,7 @@ export default function TopSearchTerms({ filter = "All" }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {MOCK_DATA.map((row, idx) => (
+                        {MOCK_DATA.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => (
                             <motion.tr
                                 key={idx}
                                 variants={itemVariants}
@@ -290,25 +293,15 @@ export default function TopSearchTerms({ filter = "All" }) {
             </div>
 
             {/* Footer / Pagination */}
-            <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 bg-slate-50/50">
-                <div className="flex items-center gap-3">
-                    <button className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
-                        Prev
-                    </button>
-                    <div className="text-xs text-slate-600 font-medium">
-                        Page 1 / 3
-                    </div>
-                    <button className="text-xs text-slate-600 hover:text-slate-800 transition-colors">
-                        Next
-                    </button>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <select className="border-none bg-transparent font-medium text-slate-700 focus:ring-0 cursor-pointer">
-                        <option>Top 20</option>
-                        <option>Top 50</option>
-                        <option>Top 100</option>
-                    </select>
-                </div>
+            <div className="border-t border-slate-100 bg-slate-50/50">
+                <PaginationFooter
+                    isVisible={true}
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(MOCK_DATA.length / pageSize)}
+                    onPageChange={setCurrentPage}
+                    pageSize={pageSize}
+                    onPageSizeChange={setPageSize}
+                />
             </div>
 
             {/* Drilldown Modal */}

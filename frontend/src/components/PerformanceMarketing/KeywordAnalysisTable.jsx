@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, ChevronUp, ChevronDown, LineChart, Search, SlidersHorizontal, X } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 
 // --------- CONSTANTS ----------
 const MONTHS = [
@@ -666,89 +667,20 @@ export default function KeywordAnalysisTable() {
         </Table>
       </TableContainer>
 
-      <Box
-        sx={{
-          mt: 2,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        {/* Left: Prev | Page X / Y | Next */}
-        <Box display="flex" alignItems="center" gap={1}>
-          <Button
-            size="small"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            sx={{
-              minWidth: 'auto',
-              borderRadius: 999,
-              px: 2,
-              py: 0.5,
-              border: '1px solid #e2e8f0',
-              color: '#64748b',
-              textTransform: 'none',
-              backgroundColor: 'white',
-              '&:hover': { backgroundColor: '#f8fafc' },
-              '&:disabled': { opacity: 0.5 }
-            }}
-          >
-            Prev
-          </Button>
-
-          <Typography sx={{ fontSize: 12, color: "#334155", fontWeight: 500, mx: 1 }}>
-            Page {page} / {Math.ceil(processedKeywords.length / rowsPerPage)}
-          </Typography>
-
-          <Button
-            size="small"
-            disabled={page >= Math.ceil(processedKeywords.length / rowsPerPage)}
-            onClick={() => setPage((p) => p + 1)}
-            sx={{
-              minWidth: 'auto',
-              borderRadius: 999,
-              px: 2,
-              py: 0.5,
-              border: '1px solid #e2e8f0',
-              color: '#64748b',
-              textTransform: 'none',
-              backgroundColor: 'white',
-              '&:hover': { backgroundColor: '#f8fafc' },
-              '&:disabled': { opacity: 0.5 }
-            }}
-          >
-            Next
-          </Button>
-        </Box>
-
-        {/* Right: Rows/page selector */}
-        <Box display="flex" alignItems="center" gap={1}>
-          <Typography sx={{ fontSize: 12, color: "#64748b" }}>
-            Rows/page
-          </Typography>
-          <Select
-            value={rowsPerPage}
-            onChange={(e) => {
-              setRowsPerPage(Number(e.target.value));
-              setPage(1);
-            }}
-            size="small"
-            sx={{
-              height: 32,
-              fontSize: 12,
-              borderRadius: 2,
-              backgroundColor: 'white',
-              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
-            }}
-          >
-            {[5, 10, 20, 50].map((n) => (
-              <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
-                {n}
-              </MenuItem>
-            ))}
-          </Select>
-        </Box>
-      </Box>
+      {/* PAGINATION FOOTER */}
+      <div className="border-t border-slate-100">
+        <PaginationFooter
+          isVisible={true}
+          currentPage={page}
+          totalPages={Math.ceil(processedKeywords.length / rowsPerPage)}
+          onPageChange={setPage}
+          pageSize={rowsPerPage}
+          onPageSizeChange={(newPageSize) => {
+            setRowsPerPage(newPageSize);
+            setPage(1);
+          }}
+        />
+      </div>
     </Card>
   );
 }
