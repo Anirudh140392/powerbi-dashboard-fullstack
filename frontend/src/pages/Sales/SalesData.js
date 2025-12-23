@@ -125,6 +125,8 @@ export const SALES_MATRIX_DATA = {
                 "YTD Sales": [700, 730, 760, 793],
                 "Last Year Sales": [50, 52, 55, 57],
                 "Projected Sales": [55, 60, 62, 65.6]
+
+
             }
         },
         {
@@ -135,7 +137,7 @@ export const SALES_MATRIX_DATA = {
             "YTD Sales": 52082,
             "Last Year Sales": 1584,
             "Projected Sales": 3574.5,
-            trend: {},
+            trend: { "MTD Sales": -11.0, "Prev Month MTD": 0, "Current DRR": 2.8, "YTD Sales": 9.8, "Last Year Sales": 0, "Projected Sales": -3.5 },
             series: {
                 "MTD Sales": [450, 460, 470, 476.6],
                 "Prev Month MTD": [530, 532, 534, 535.6],
