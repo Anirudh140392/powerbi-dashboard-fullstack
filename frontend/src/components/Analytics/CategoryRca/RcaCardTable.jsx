@@ -120,22 +120,26 @@ const fadeUp = {
 // ---------------------------
 // Slow wheel-to-horizontal scroll hook
 // ---------------------------
-function useSlowHScroll(ref, speed = 0.55) {
+function useSlowHScroll(ref) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
     const onWheel = (e) => {
-      // convert vertical wheel into horizontal scrolling when user is over the lane
-      // slow + smooth
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      e.preventDefault();
-      el.scrollLeft += e.deltaY * speed;
+      if (e.deltaY === 0) return;
+      // If we are scrolling vertically, we convert it to horizontal
+      // but only if there's no significant horizontal intent
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        el.scrollLeft += e.deltaY;
+        // Don't preventDefault here to allow page scroll if at the end of the lane
+        // but it might feel better for lanes to "capture" the wheel
+        e.preventDefault();
+      }
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [ref, speed]);
+  }, [ref]);
 }
 
 // ---------------------------
@@ -175,8 +179,8 @@ function MiniKpi({ label, value }) {
         gap: 12,
       }}
     >
-      <div style={{ fontSize: 12.5, fontWeight: 850, color: "#475569" }}>{label}</div>
-      <div style={{ fontSize: 13.5, fontWeight: 950, color: "#0f172a" }}>{value}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: "#475569" }}>{label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 500, color: "#0f172a" }}>{value}</div>
     </div>
   );
 }
@@ -289,6 +293,7 @@ function PremiumCard({
       whileTap={!disabled ? { scale: 0.995 } : undefined}
       onClick={!disabled ? onClick : undefined}
       style={{
+        flexShrink: 0,
         minWidth: kind === "sku" ? 360 : 320,
         maxWidth: kind === "sku" ? 360 : 320,
         borderRadius: 26,
@@ -342,7 +347,7 @@ function PremiumCard({
             style={{
               marginTop: 6,
               fontSize: 18,
-              fontWeight: 1000,
+              fontWeight: 600,
               color: "#0f172a",
               lineHeight: 1.15,
               letterSpacing: "-0.02em",
@@ -460,10 +465,12 @@ function PremiumCard({
                 <div style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase", color: "#64748b" }}>
                   Details
                 </div>
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <MiniKpi label="Insight" value={kpis.osa.d < 0 ? "OSA drag detected" : "Efficiency healthy"} />
                   <MiniKpi label="Suggested action" value={kpis.sov.d < 0 ? "Boost SOV in top keywords" : "Hold, optimize spend"} />
-                  <MiniKpi label="Notes" value={footerRight || "Open trends for deeper RCA"} />
+                  <div style={{ gridColumn: "span 2" }}>
+                    <MiniKpi label="Notes" value={footerRight || "Open trends for deeper RCA"} />
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -481,7 +488,7 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
   return (
     <div
       style={{
-        padding: 18,
+        padding: "18px 18px 8px 18px", // Reduced bottom padding since scrollbar will take space
         borderRadius: 26,
         border: "1px solid rgba(15,23,42,0.10)",
         background: "rgba(255,255,255,0.82)",
@@ -489,6 +496,29 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
         backdropFilter: "blur(10px)",
       }}
     >
+      <style>{`
+        .lane-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(79, 70, 229, 0.4) rgba(15, 23, 42, 0.03);
+        }
+        .lane-scroll::-webkit-scrollbar {
+          height: 8px; /* Slightly thicker */
+        }
+        .lane-scroll::-webkit-scrollbar-track {
+          background: rgba(15, 23, 42, 0.03);
+          border-radius: 10px;
+        }
+        .lane-scroll::-webkit-scrollbar-thumb {
+          background: rgba(79, 70, 229, 0.4);
+          border-radius: 10px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+        .lane-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(79, 70, 229, 0.7);
+          background-clip: content-box;
+        }
+      `}</style>
       <LaneHeader
         title={title}
         subtitle={subtitle}
@@ -497,13 +527,16 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
 
       <div
         ref={laneRef}
+        className="lane-scroll"
         style={{
           display: "flex",
+          alignItems: "flex-start",
           gap: 14,
-          overflowX: "auto",
-          paddingBottom: 10,
-          paddingTop: 4,
-          scrollBehavior: "smooth",
+          overflowX: "scroll",
+          paddingBottom: 18, // Space for scrollbar
+          paddingTop: 12,
+          paddingLeft: 4,
+          paddingRight: 4,
         }}
       >
         {children}
@@ -521,9 +554,9 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
           style={{
             position: "absolute",
             left: 0,
-            top: -52,
+            top: -120, // Moved up to avoid scrollbar
             width: 46,
-            height: 52,
+            height: 100,
             background: "linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0))",
             pointerEvents: "none",
           }}
@@ -532,9 +565,9 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
           style={{
             position: "absolute",
             right: 0,
-            top: -52,
+            top: -120, // Moved up to avoid scrollbar
             width: 46,
-            height: 52,
+            height: 100,
             background: "linear-gradient(270deg, rgba(255,255,255,1), rgba(255,255,255,0))",
             pointerEvents: "none",
           }}
@@ -562,9 +595,9 @@ export default function RcaCardTable() {
   const cityLaneRef = useRef(null);
   const skuLaneRef = useRef(null);
 
-  useSlowHScroll(catLaneRef, 0.55);
-  useSlowHScroll(cityLaneRef, 0.55);
-  useSlowHScroll(skuLaneRef, 0.55);
+  useSlowHScroll(catLaneRef);
+  useSlowHScroll(cityLaneRef);
+  useSlowHScroll(skuLaneRef);
 
   const toggleExpand = (key) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
@@ -577,21 +610,26 @@ export default function RcaCardTable() {
     <div
       style={{
         minHeight: "100vh",
+        width: "100%",
         background: "#f8fafc",
-        padding: 28,
+        padding: "28px 0", // Vertical padding only, horizontal handled by containers
         fontFamily: "Inter, ui-sans-serif, system-ui",
+        overflowX: "hidden",
+        overflowY: "auto",
       }}
     >
       {/* Top header */}
       <div
         style={{
-          maxWidth: 1280,
+          width: "100%",
+          maxWidth: 1480,
           margin: "0 auto",
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "space-between",
           gap: 16,
           marginBottom: 16,
+          padding: "0 18px",
         }}
       >
         <div>
@@ -601,15 +639,12 @@ export default function RcaCardTable() {
           <div style={{ marginTop: 6, fontSize: 26, fontWeight: 1050, color: "#0f172a", letterSpacing: "-0.03em" }}>
             Category → City → SKU
           </div>
-          <div style={{ marginTop: 8, fontSize: 14.5, fontWeight: 850, color: "#475569" }}>
-            Everything visible. Select to filter the next lane. View more expands inside the card.
-          </div>
         </div>
 
         <Breadcrumb category={cat} city={city} onReset={reset} />
       </div>
 
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gap: 14 }}>
+      <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", display: "grid", gap: 14, padding: "0 18px" }}>
         {/* CATEGORY LANE */}
         <Lane
           title="Categories"
@@ -700,7 +735,7 @@ export default function RcaCardTable() {
                     kpis={s.kpis}
                     expanded={!!expanded[key]}
                     onToggleExpand={() => toggleExpand(key)}
-                    onClick={() => {}}
+                    onClick={() => { }}
                     footerLeft={`⭐ ${s.meta.rating} • ${s.meta.reviews} reviews`}
                     footerRight="Tap for SKU details"
                   />
