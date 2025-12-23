@@ -29,6 +29,7 @@ export function KpiFilterPanel({
   keywords,
   brands,
   categories,
+  regions,
   skus,
   cities,
   platforms,
@@ -36,6 +37,7 @@ export function KpiFilterPanel({
   onKeywordChange,
   onBrandChange,
   onCategoryChange,
+  onRegionChange,
   onSkuChange,
   onWeekendChange,
   onCityChange,
@@ -138,6 +140,18 @@ export function KpiFilterPanel({
                 options={skus}
                 pageSize={pageSize}
                 onChange={onSkuChange}
+              />
+            );
+          }
+          if (section.id === "regions" && regions) {
+            return (
+              <MultiSelectSection
+                key="regions"
+                title={section.label + " filter"}
+                description="Filter by geographical regions."
+                options={regions}
+                pageSize={pageSize}
+                onChange={onRegionChange}
               />
             );
           }

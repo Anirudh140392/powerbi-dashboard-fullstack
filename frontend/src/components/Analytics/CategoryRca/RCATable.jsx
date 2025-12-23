@@ -160,7 +160,7 @@ function Modal({ open, onClose, title, children }) {
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
+          <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>{title}</Typography>
           <button onClick={onClose} className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">
             Close
           </button>
@@ -262,8 +262,8 @@ function TableShell({ title, subtitle, right, children }) {
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
       <div className="flex flex-col gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <div className="text-xs text-slate-600">{subtitle}</div>
+          <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>{title}</Typography>
+          <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
         </div>
         {right}
       </div>
@@ -307,8 +307,8 @@ function Stepper({ step, category, city, sku }) {
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="text-lg font-semibold text-slate-900">Guided RCA Path</div>
-          <div className="mt-1 text-xs text-slate-600">Follow: Category {"->"} City {"->"} SKU {"->"} RCA</div>
+          <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Guided RCA Path</Typography>
+          <Typography variant="caption" color="text.secondary">Follow: Category {"->"} City {"->"} SKU {"->"} RCA</Typography>
         </div>
       </div>
 
@@ -396,7 +396,7 @@ function BreadcrumbRail({
       onPointerCancel={onDragEnd}
     >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Drill Path</h3>
+        <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Drill Path</Typography>
         <button
           type="button"
           onClick={onClose}
@@ -724,18 +724,18 @@ export default function RCATable() {
               <table className="w-full border-separate border-spacing-0 text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-white/90">
-                    <th className="sticky left-0 z-20 border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">
+                    <th className="sticky left-0 z-20 border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">
                       Category
                     </th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Estimated Offtake (INR)</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Units</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Est. Category Share</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Cat. Size (INR)</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Indexed Impressions</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Wt. OSA %</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Ad. SOV</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Reason</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Actions</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Estimated Offtake (INR)</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Units</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Est. Category Share</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Cat. Size (INR)</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Indexed Impressions</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Wt. OSA %</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Ad. SOV</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Reason</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Actions</th>
                   </tr>
                 </thead>
 

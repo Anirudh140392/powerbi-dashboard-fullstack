@@ -210,7 +210,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW V04",
         skuName: "Choco Chip Tub",
         packSize: "750 ml",
-        platform: "Flipkart",
+        platform: "BigBasket",
         categoryTag: "Tub",
         offtakeValue: "₹ 2.2 lac",
         impact: "-3.5%",
@@ -259,7 +259,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW V07",
         skuName: "Feast Bar",
         packSize: "90 ml",
-        platform: "Instamart",
+        platform: "Zepto",
         categoryTag: "Stick",
         offtakeValue: "₹ 3.9 lac",
         impact: "+5.1%",
@@ -283,7 +283,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW V08",
         skuName: "Oreo Cone",
         packSize: "110 ml",
-        platform: "Zepto",
+        platform: "Instamart",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.5 lac",
         impact: "+4.8%",
@@ -354,7 +354,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW A02",
         skuName: "Party Pack Mango",
         packSize: "1.3 L",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 5.4 lac",
         impact: "-3.7%",
@@ -375,7 +375,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW A03",
         skuName: "Vanilla Cup 100ml",
         packSize: "100 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 4.8 lac",
         impact: "-3.2%",
@@ -396,7 +396,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW A04",
         skuName: "Strawberry Cone",
         packSize: "110 ml",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.9 lac",
         impact: "-2.9%",
@@ -418,7 +418,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW AG01",
         skuName: "Choco Brownie Fudge",
         packSize: "500 ml",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 4.2 lac",
         impact: "-6.9%",
@@ -439,7 +439,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW AG02",
         skuName: "Chocobar Mini Multi",
         packSize: "6 x 45 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Mini",
         offtakeValue: "₹ 3.7 lac",
         impact: "+4.3%",
@@ -484,7 +484,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW AG04",
         skuName: "Mango Stick",
         packSize: "60 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 3.1 lac",
         impact: "+3.2%",
@@ -663,7 +663,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-801",
         skuName: "Belgian Chocolate 500ml",
         packSize: "500 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 2.0 lac",
         impact: "-4.1%",
@@ -680,7 +680,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-P-CUP",
         skuName: "Cup Ice Cream",
         packSize: "Small",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.8 lac",
         impact: "-3.2%",
@@ -697,7 +697,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-803",
         skuName: "Vanilla Cup 100ml",
         packSize: "100 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.5 lac",
         impact: "-3.8%",
@@ -715,7 +715,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-P-MAG",
         skuName: "Magnum Ice Cream",
         packSize: "Stick",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Premium",
         offtakeValue: "₹ 4.1 lac",
         impact: "+5.2%",
@@ -732,7 +732,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-802",
         skuName: "Cornetto Double Choco",
         packSize: "110 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.7 lac",
         impact: "+3.9%",
@@ -766,7 +766,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-804",
         skuName: "Trixy Cookie",
         packSize: "100 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 3.5 lac",
         impact: "+4.1%",
@@ -802,7 +802,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-901",
         skuName: "Butterscotch 700ml",
         packSize: "700 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 2.1 lac",
         impact: "-3.5%",
@@ -819,7 +819,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-I-CUP",
         skuName: "Cup Ice Cream",
         packSize: "Small",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.6 lac",
         impact: "-2.5%",
@@ -836,7 +836,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-903",
         skuName: "Vanilla Cup 100ml",
         packSize: "100 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.4 lac",
         impact: "-3.1%",
@@ -854,7 +854,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-I-CON",
         skuName: "Cone Ice Cream",
         packSize: "Mixed",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.2 lac",
         impact: "+3.1%",
@@ -871,7 +871,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-902",
         skuName: "Magnum Truffle 80ml",
         packSize: "80 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 2.9 lac",
         impact: "+2.6%",
@@ -888,7 +888,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-I-BAR",
         skuName: "Choco Bar",
         packSize: "Single",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 2.7 lac",
         impact: "+2.9%",
@@ -953,7 +953,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                         </span>
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-50 border text-sky-700">
-                        Blinkit
+                        {sku.platform}
                     </span>
                 </div>
 
@@ -983,7 +983,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                             >
                                 <span className="text-slate-500">{KPI_LABELS[key]}:</span>
                                 <span className="font-semibold text-slate-800 text-[11px]">
-                                    {sku.kpis[key]}
+                                    {sku.kpis[key]?.toString().replace("%", "")}
                                 </span>
                             </div>
                         ) : null
@@ -999,7 +999,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     {citiesToShow.map((c) => (
                         <div key={c.city} className="p-2 border rounded-xl bg-slate-50 flex flex-col items-center text-center">
                             <div className="font-medium">{c.city}</div>
-                            <div className="text-[10px] text-slate-500">{c.metric}</div>
+                            <div className="text-[10px] text-slate-500">{c.metric?.toString().replace("%", "")}</div>
                             <ImpactPill value={c.change} />
                         </div>
                     ))}

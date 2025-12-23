@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Typography } from "@mui/material";
 import { SlidersHorizontal, X } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 
@@ -135,8 +136,8 @@ export default function InventoryDrill() {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
-                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                                <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Advanced Filters</Typography>
+                                <Typography variant="caption" color="text.secondary">Configure data visibility and rules</Typography>
                             </div>
                             <button
                                 onClick={() => setFilterPanelOpen(false)}
@@ -190,8 +191,8 @@ export default function InventoryDrill() {
                 {/* HEADER */}
                 <div className="flex items-center justify-between px-6 pt-6 pb-2">
                     <div className="flex flex-col items-start gap-1">
-                        <div className="text-xs font-medium text-slate-500">Inventory Matrix</div>
-                        <h1 className="text-xl font-bold text-slate-900">Inventory Overview</h1>
+                        <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Inventory Matrix</Typography>
+                        <Typography variant="h5" fontWeight={600}>Inventory Overview</Typography>
                     </div>
 
                     <div className="flex items-center gap-6">
@@ -225,11 +226,11 @@ export default function InventoryDrill() {
                     <table className="min-w-full text-xs">
                         <thead className="bg-slate-50 text-slate-600">
                             <tr>
-                                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left w-[260px]">
+                                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left w-[260px] uppercase">
                                     SKU
                                 </th>
                                 {cityColumns.map((city, i) => (
-                                    <th key={city} className="px-3 py-2 text-center font-semibold uppercase">
+                                    <th key={city} className="px-3 py-2 text-center font-semibold uppercase capitalize">
                                         {city}
                                     </th>
                                 ))}
