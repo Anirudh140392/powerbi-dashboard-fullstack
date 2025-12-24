@@ -421,6 +421,7 @@ const buildDataModel = () => {
         Doi: 40 + brandIdx * 1.3 + cityIdx * 0.6,
         Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
         Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
+        PSL: 15 + brandIdx * 0.4 + cityIdx * 0.2,
       };
     });
 
@@ -445,6 +446,7 @@ const buildDataModel = () => {
         Doi: 42 + skuIdx * 1.0 + cityIdx * 0.4,
         Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
         Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
+        PSL: 12 + skuIdx * 0.5 + cityIdx * 0.2,
       };
     });
 
@@ -467,6 +469,7 @@ const buildDataModel = () => {
         Doi: 40 + brandIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
         Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
+        PSL: 14 + brandIdx * 0.6 + Math.sin(idx / 5) * 1.0,
       }));
     });
 
@@ -489,6 +492,7 @@ const buildDataModel = () => {
         Doi: 41 + skuIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
         Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
+        PSL: 11 + skuIdx * 0.5 + Math.cos(idx / 3) * 1.1,
       }));
     });
   });
@@ -915,6 +919,12 @@ const KPI_KEYS = [
     key: "Assortment",
     label: "Assortment",
     color: "#F97316", // orange
+    unit: "%",
+  },
+  {
+    key: "PSL",
+    label: "PSL",
+    color: "#E11D48", // rose
     unit: "%",
   },
 ];

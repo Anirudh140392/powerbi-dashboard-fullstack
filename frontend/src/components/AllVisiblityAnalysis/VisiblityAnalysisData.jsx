@@ -684,7 +684,8 @@ const VisiblityAnalysisData = () => {
       options: [
         { id: "Overall Weighted SOS", label: "OVERALL WEIGHTED SOS" },
         { id: "Sponsored Weighted SOS", label: "SPONSORED WEIGHTED SOS" },
-        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" }
+        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" },
+        { id: "Display SOS", label: "DISPLAY SOS" }
       ]
     },
     { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
@@ -881,7 +882,6 @@ const VisiblityAnalysisData = () => {
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <VisibilityLayoutOne />
-
         </div> */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">

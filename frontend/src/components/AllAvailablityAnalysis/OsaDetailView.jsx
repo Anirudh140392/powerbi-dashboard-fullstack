@@ -109,7 +109,7 @@ export default function OsaDetailTableLight() {
             { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
             { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
             { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-            { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }] },
+            { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
             { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
             { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
             { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
@@ -421,6 +421,15 @@ export default function OsaDetailTableLight() {
                                 <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
+                                        onSectionChange={(sectionId, values) => {
+                                            if (sectionId === 'kpi') {
+                                                // Handle KPI filter changes - Assuming 'values' is an array of selected IDs
+                                                // For now just console log, or update a state if we wanted to filter the table
+                                                console.log("Selected KPIs:", values);
+                                                // To make this functional, we would add:
+                                                // setStatusFilter(values); // if statusFilter is used for KPIs
+                                            }
+                                        }}
                                     />
                                 </div>
 
