@@ -328,8 +328,6 @@ const FROZEN_WIDTHS = {
     spacer: 40,
 }
 
-
-
 const filterOptions = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
     {
@@ -338,7 +336,8 @@ const filterOptions = [
         options: [
             { id: "overallWeightedSos", label: "OVERALL WEIGHTED SOS" },
             { id: "sponsoredWeightedSos", label: "SPONSORED WEIGHTED SOS" },
-            { id: "organicWeightedSos", label: "ORGANIC WEIGHTED SOS" }
+            { id: "organicWeightedSos", label: "ORGANIC WEIGHTED SOS" },
+            { id: "displaySos", label: "DISPLAY SOS" }
         ]
     },
     { id: "keywords", label: "Keyword" },
@@ -1095,10 +1094,10 @@ export default function VisibilityDrilldownTable() {
                                     sectionConfig={filterOptions}
                                     keywords={keywordOptions}
                                     onKeywordChange={(vals) => setPopupFilters(prev => ({ ...prev, keyword: vals[0] ?? null }))}
-                                    onChange={(values) => {
+                                    onSectionChange={(sectionId, vals) => {
                                         setPopupFilters(prev => ({
                                             ...prev,
-                                            ...values,
+                                            [sectionId]: vals,
                                         }))
                                     }}
                                 />
