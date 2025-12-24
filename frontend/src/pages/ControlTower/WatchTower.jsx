@@ -57,6 +57,8 @@ import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
+  const [selectedTrendName, setSelectedTrendName] = useState("All");
+  const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
   const [rcaModalOpen, setRcaModalOpen] = useState(false);
   const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ export default function WatchTower() {
     metrics: {},
   });
 
-  const handleViewTrends = (card) => {
+  const handleViewTrends = (card, level = "MRP") => {
     console.log("card clicked", card);
 
     const series =
@@ -126,6 +128,8 @@ export default function WatchTower() {
     }));
 
     setShowTrends(true);
+    setSelectedTrendName(typeof card === 'string' ? card : (card.name || card.title || "All"));
+    setSelectedTrendLevel(level);
   };
 
   const [dashboardData, setDashboardData] = useState({
@@ -362,7 +366,8 @@ defaultCategory */}
       <TrendsCompetitionDrawer
         open={showTrends}
         onClose={() => setShowTrends(false)}
-        selectedColumn="Blinkit"
+        selectedColumn={selectedTrendName}
+        selectedLevel={selectedTrendLevel}
         dynamicKey="platform_overview_tower"
       />
 
@@ -717,8 +722,8 @@ const FormatPerformanceStudio = () => {
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
                 className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                    ? "border-sky-400 bg-sky-50 shadow-sm"
-                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                  ? "border-sky-400 bg-sky-50 shadow-sm"
+                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
                   }`}
                 whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
@@ -997,8 +1002,8 @@ const FormatPerformanceStudio = () => {
                       )
                     }
                     className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
-                        ? "border-violet-500 bg-violet-50 shadow-sm"
-                        : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                      ? "border-violet-500 bg-violet-50 shadow-sm"
+                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
                       }`}
                     whileHover={{ y: -2 }}
                   >

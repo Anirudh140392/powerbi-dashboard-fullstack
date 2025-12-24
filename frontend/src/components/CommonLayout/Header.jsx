@@ -20,7 +20,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
-import DateRangeSelector from "./DateRangeSelector";
+import DateRangeComparePicker from "./DateRangeComparePicker";
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -117,7 +117,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 display: "flex",
                 gap: 2,
                 flexWrap: "wrap",
-                overflow: "hidden"
+                overflow: "visible"
               }}
             >
               {/* PLATFORM SELECTION */}
@@ -245,8 +245,8 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 </Box>
               )}
 
-              {/* TIME PERIOD */}
-              <Box sx={{ width: 190 }}>
+              {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
+              <Box sx={{ width: 220 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
@@ -257,34 +257,22 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 >
                   TIME PERIOD
                 </Typography>
-                <DateRangeSelector
-                  startDate={timeStart}
-                  endDate={timeEnd}
-                  onChange={(start, end) => {
+                <DateRangeComparePicker
+                  timeStart={timeStart}
+                  timeEnd={timeEnd}
+                  compareStart={compareStart}
+                  compareEnd={compareEnd}
+                  onApply={(start, end, cStart, cEnd, compareOn) => {
                     setTimeStart(start);
                     setTimeEnd(end);
-                  }}
-                />
-              </Box>
-
-              {/* COMPARE WITH */}
-              <Box sx={{ width: 190 }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  COMPARE WITH
-                </Typography>
-                <DateRangeSelector
-                  startDate={compareStart}
-                  endDate={compareEnd}
-                  onChange={(start, end) => {
-                    setCompareStart(start);
-                    setCompareEnd(end);
+                    if (compareOn) {
+                      setCompareStart(cStart);
+                      setCompareEnd(cEnd);
+                    } else {
+                      // Optionally reset comparison if needed, but keeping existing for now
+                      setCompareStart(null);
+                      setCompareEnd(null);
+                    }
                   }}
                 />
               </Box>
@@ -308,10 +296,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               flexWrap: "wrap",
               mt: 2,
               alignItems: "center",
-              overflow: "hidden"
+              overflow: "visible"
             }}
           >
-            {/* DATE INFO */}
+            {/* DATE INFO
             <Button
               variant="outlined"
               sx={{
@@ -321,10 +309,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               }}
             >
               Data till {timeEnd.format("DD MMM YY")}
-            </Button>
+            </Button> */}
 
             {/* PRICE MODE SWITCH */}
-            <Box sx={{ display: "flex", gap: 1 }}>
+            {/* <Box sx={{ display: "flex", gap: 1 }}>
               {["MRP", "SP"].map((label) => (
                 <Button
                   key={label}
@@ -341,7 +329,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   {label}
                 </Button>
               ))}
-            </Box>
+            </Box> */}
           </Box>
         )}
       </AnimatePresence>

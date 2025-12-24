@@ -413,8 +413,8 @@ const buildDataModel = () => {
         // existing KPIs
         estCatShare: base,
         wtOsa: 88 + brandIdx * 0.7 + cityIdx * 0.8,
-        overallSov: 30 + brandIdx * 1.1 + cityIdx * 0.9,
-        adSov: 22 + brandIdx * 0.9 + cityIdx * 0.6,
+        overallSos: 30 + brandIdx * 1.1 + cityIdx * 0.9,
+        adSos: 22 + brandIdx * 0.9 + cityIdx * 0.6,
 
         // NEW REQUIRED KPI FIELDS
         Osa: 80 + brandIdx * 1.2 + cityIdx * 0.5,
@@ -437,8 +437,8 @@ const buildDataModel = () => {
 
         // existing KPIs
         wtOsa: 86 + skuIdx * 0.8 + cityIdx * 0.6,
-        overallSov: 28 + skuIdx * 1.0 + cityIdx * 0.7 + brandIdx * 0.3,
-        adSov: 20 + skuIdx * 0.7 + cityIdx * 0.5,
+        overallSos: 28 + skuIdx * 1.0 + cityIdx * 0.7 + brandIdx * 0.3,
+        adSos: 20 + skuIdx * 0.7 + cityIdx * 0.5,
 
         // NEW REQUIRED KPI FIELDS
         Osa: 78 + skuIdx * 1.1 + cityIdx * 0.5,
@@ -459,8 +459,8 @@ const buildDataModel = () => {
         // existing KPIs
         wtOsa: base + Math.sin(idx / 3 + brandIdx) * 3,
         estCatShare: 20 + brandIdx * 1.3 + Math.cos(idx / 4 + cityIdx) * 2,
-        overallSov: 30 + brandIdx * 1.0 + Math.sin(idx / 5 + cityIdx) * 4,
-        adSov: 22 + brandIdx * 0.9 + Math.cos(idx / 6 + brandIdx) * 5,
+        overallSos: 30 + brandIdx * 1.0 + Math.sin(idx / 5 + cityIdx) * 4,
+        adSos: 22 + brandIdx * 0.9 + Math.cos(idx / 6 + brandIdx) * 5,
 
         // NEW KPI TREND LINES
         Osa: 78 + brandIdx * 1.2 + Math.sin(idx / 3) * 2,
@@ -481,8 +481,8 @@ const buildDataModel = () => {
         // existing KPI trend lines
         wtOsa: 84 + skuIdx * 1.8 + Math.sin(idx / 3 + brandIdx) * 3,
         estCatShare: 18 + skuIdx * 1.2 + Math.cos(idx / 4) * 2,
-        overallSov: 28 + skuIdx * 0.9 + Math.sin(idx / 5) * 4,
-        adSov: 19 + skuIdx * 0.8 + Math.cos(idx / 6) * 5,
+        overallSos: 28 + skuIdx * 0.9 + Math.sin(idx / 5) * 4,
+        adSos: 19 + skuIdx * 0.8 + Math.cos(idx / 6) * 5,
 
         // NEW KPI trend lines
         Osa: 76 + skuIdx * 1.1 + Math.sin(idx / 3) * 2,
@@ -1258,12 +1258,8 @@ export const KpiTrendShowcase = () => {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-3 text-sm text-slate-500">
-            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-              Competition
-            </span>
-            <span className="text-xs">at MRP for</span>
-            <Badge className="border-blue-200 bg-blue-50 text-xs">
-              Body Lotion
+            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+              {filters.categories[0] || "All Categories"}
             </Badge>
           </div>
           <h1 className="text-lg font-semibold text-slate-900">

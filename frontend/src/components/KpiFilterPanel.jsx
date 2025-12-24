@@ -828,9 +828,9 @@ const mockPlatforms = [
 
 const mockKpiFields = [
   { id: "catImpShare", label: "Cat Imp Share %", type: "number" },
-  { id: "adSov", label: "Ad SOV %", type: "number" },
-  { id: "orgSov", label: "Organic SOV %", type: "number" },
-  { id: "overallSov", label: "Overall SOV %", type: "number" },
+  { id: "adSos", label: "Ad SOS %", type: "number" },
+  { id: "orgSos", label: "Organic SOS %", type: "number" },
+  { id: "overallSos", label: "Overall SOS %", type: "number" },
   { id: "adPos", label: "Ad position", type: "number" },
   { id: "orgPos", label: "Organic position", type: "number" },
 ];

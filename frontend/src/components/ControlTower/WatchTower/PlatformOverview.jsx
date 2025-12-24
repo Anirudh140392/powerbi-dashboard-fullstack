@@ -109,11 +109,11 @@ const SmallCard = ({ item }) => {
 /* ---------------- MAIN COMPONENT ---------------- */
 const PlatformOverview = ({
   data = [],
-  onViewTrends = () => {},
-  onViewRca = () => {},
+  onViewTrends = () => { },
+  onViewRca = () => { },
   activeKpisTab = "Platform Overview",
   currentPage,
-  setCurrentPage = () => {},
+  setCurrentPage = () => { },
 }) => {
   const theme = useTheme();
 
@@ -160,9 +160,9 @@ const PlatformOverview = ({
   const totalPages = Math.ceil(sortedPlatforms.length / CARDS_PER_PAGE);
   const paginatedPlatforms = isPagination
     ? sortedPlatforms.slice(
-        currentPage * CARDS_PER_PAGE,
-        (currentPage + 1) * CARDS_PER_PAGE
-      )
+      currentPage * CARDS_PER_PAGE,
+      (currentPage + 1) * CARDS_PER_PAGE
+    )
     : sortedPlatforms;
 
   const handleNextPage = () => {
@@ -500,7 +500,7 @@ const PlatformOverview = ({
                         <Tooltip title="trend performance" arrow>
                           <IconButton
                             size="small"
-                            onClick={() => onViewTrends(platform.label)}
+                            onClick={() => onViewTrends(platform.label, activeKpisTab.split(' ')[0])}
                             className="trend-icon"
                             sx={{
                               borderRadius: 2,

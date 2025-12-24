@@ -9,132 +9,132 @@ const MOCK_DATA = [
         keyword: "ice cream",
         topBrand: "KWALITY WALLS",
         searchVolume: 12500,
-        overallSov: 65,
+        overallSos: 65,
         overallDelta: -3.1,
-        organicSov: 45,
+        organicSos: 45,
         organicDelta: -4.5,
-        paidSov: 20,
+        paidSos: 20,
         paidDelta: 0.0,
     },
     {
         keyword: "cornetto",
         topBrand: "KWALITY WALLS",
         searchVolume: 8200,
-        overallSov: 88,
+        overallSos: 88,
         overallDelta: 0.9,
-        organicSov: 55,
+        organicSos: 55,
         organicDelta: 2.4,
-        paidSov: 33,
+        paidSos: 33,
         paidDelta: -0.9,
     },
     {
         keyword: "chocolate ice cream",
         topBrand: "KWALITY WALLS",
         searchVolume: 5600,
-        overallSov: 42,
+        overallSos: 42,
         overallDelta: -0.5,
-        organicSov: 30,
+        organicSos: 30,
         organicDelta: -0.8,
-        paidSov: 12,
+        paidSos: 12,
         paidDelta: 0.0,
     },
     {
         keyword: "vanilla tub",
         topBrand: "AMUL",
         searchVolume: 4100,
-        overallSov: 15,
+        overallSos: 15,
         overallDelta: -1.4,
-        organicSov: 10,
+        organicSos: 10,
         organicDelta: -2.0,
-        paidSov: 5,
+        paidSos: 5,
         paidDelta: 0.0,
     },
     {
         keyword: "strawberry cone",
         topBrand: "KWALITY WALLS",
         searchVolume: 3500,
-        overallSov: 72,
+        overallSos: 72,
         overallDelta: -1.0,
-        organicSov: 40,
+        organicSos: 40,
         organicDelta: -1.5,
-        paidSov: 32,
+        paidSos: 32,
         paidDelta: 0.0,
     },
     {
         keyword: "family pack ice cream",
         topBrand: "KWALITY WALLS",
         searchVolume: 3200,
-        overallSov: 55,
+        overallSos: 55,
         overallDelta: -1.0,
-        organicSov: 35,
+        organicSos: 35,
         organicDelta: -0.2,
-        paidSov: 20,
+        paidSos: 20,
         paidDelta: -0.2,
     },
     {
         keyword: "magnum",
         topBrand: "KWALITY WALLS",
         searchVolume: 2900,
-        overallSov: 92,
+        overallSos: 92,
         overallDelta: -2.7,
-        organicSov: 60,
+        organicSos: 60,
         organicDelta: -4.0,
-        paidSov: 32,
+        paidSos: 32,
         paidDelta: 0.0,
     },
     {
         keyword: "cup ice cream",
         topBrand: "MOTHER DAIRY",
         searchVolume: 2400,
-        overallSov: 25,
+        overallSos: 25,
         overallDelta: 2.5,
-        organicSov: 15,
+        organicSos: 15,
         organicDelta: 3.7,
-        paidSov: 10,
+        paidSos: 10,
         paidDelta: -1.0,
     },
     {
         keyword: "chocobar",
         topBrand: "KWALITY WALLS",
         searchVolume: 2100,
-        overallSov: 60,
+        overallSos: 60,
         overallDelta: -4.4,
-        organicSov: 45,
+        organicSos: 45,
         organicDelta: -2.8,
-        paidSov: 15,
+        paidSos: 15,
         paidDelta: -3.6,
     },
     {
         keyword: "mango duets",
         topBrand: "KWALITY WALLS",
         searchVolume: 1800,
-        overallSov: 48,
+        overallSos: 48,
         overallDelta: -0.8,
-        organicSov: 30,
+        organicSos: 30,
         organicDelta: -1.0,
-        paidSov: 18,
+        paidSos: 18,
         paidDelta: 0.0,
     },
     {
         keyword: "butterscotch tub",
         topBrand: "AMUL",
         searchVolume: 1600,
-        overallSov: 12,
+        overallSos: 12,
         overallDelta: -0.1,
-        organicSov: 8,
+        organicSos: 8,
         organicDelta: 0.0,
-        paidSov: 4,
+        paidSos: 4,
         paidDelta: 0.0,
     },
     {
         keyword: "kulfi",
         topBrand: "KWALITY WALLS",
         searchVolume: 1500,
-        overallSov: 35,
+        overallSos: 35,
         overallDelta: -0.6,
-        organicSov: 25,
+        organicSos: 25,
         organicDelta: -1.1,
-        paidSov: 10,
+        paidSos: 10,
         paidDelta: 0.0,
     },
 ];
@@ -237,11 +237,11 @@ export default function TopSearchTerms({ filter = "All" }) {
                         <tr className="border-b border-slate-100 bg-slate-50/50">
                             <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[20%]">Keywords</th>
                             <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[15%]">
-                                Leading Brand <span className="normal-case font-normal text-xs text-slate-700">(by Overall Share of Visibility)</span>
+                                Leading Brand <span className="normal-case font-normal text-xs text-slate-700">(by Overall Share of Search)</span>
                             </th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Overall Share of Visibility</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Organic Share of Visibility</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Paid Share of Visibility</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Overall Share of Search</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Organic Share of Search</th>
+                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Paid Share of Search</th>
                         </tr>
                     </thead>
                     <motion.tbody
@@ -270,19 +270,19 @@ export default function TopSearchTerms({ filter = "All" }) {
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
-                                        <span className="text-xs font-bold text-emerald-900">{row.overallSov}%</span>
+                                        <span className="text-xs font-bold text-emerald-900">{row.overallSos}%</span>
                                         <DeltaIndicator value={row.overallDelta} />
                                     </div>
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
-                                        <span className="text-xs font-bold text-emerald-900">{row.organicSov}%</span>
+                                        <span className="text-xs font-bold text-emerald-900">{row.organicSos}%</span>
                                         <DeltaIndicator value={row.organicDelta} />
                                     </div>
                                 </td>
                                 <td className="px-6 py-2 text-center text-[11px] text-slate-700">
                                     <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
-                                        <span className="text-xs font-bold text-emerald-900">{row.paidSov}%</span>
+                                        <span className="text-xs font-bold text-emerald-900">{row.paidSos}%</span>
                                         <DeltaIndicator value={row.paidDelta} />
                                     </div>
                                 </td>
@@ -336,9 +336,9 @@ export default function TopSearchTerms({ filter = "All" }) {
                                     <thead>
                                         <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
                                             <th className="pb-2 font-semibold">Brand</th>
-                                            <th className="pb-2 font-semibold text-center">Overall SOV</th>
-                                            <th className="pb-2 font-semibold text-center">Organic SOV</th>
-                                            <th className="pb-2 font-semibold text-center">Paid SOV</th>
+                                            <th className="pb-2 font-semibold text-center">Overall Sos</th>
+                                            <th className="pb-2 font-semibold text-center">Organic Sos</th>
+                                            <th className="pb-2 font-semibold text-center">Paid Sos</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">

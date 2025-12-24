@@ -47,8 +47,8 @@ export default function CityDetailedTable({ sku, onClose }) {
             shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
             wtOsa: `${(70 + Math.random() * 30).toFixed(1)}%`,
             osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
-            overallSov: `${(Math.random() * 5).toFixed(1)}%`,
-            adSov: `${(Math.random() * 15).toFixed(1)}%`,
+            overallSos: `${(Math.random() * 5).toFixed(1)}%`,
+            adSos: `${(Math.random() * 15).toFixed(1)}%`,
             wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
             discChange: `+${(Math.random() * 2).toFixed(1)}%`,
         }));
@@ -105,8 +105,8 @@ export default function CityDetailedTable({ sku, onClose }) {
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Offtake</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Cat Share</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. OSA %</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Overall SOV</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Ad SOV</th>
+                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Overall Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Ad Sos</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. Disc %</th>
                                 </tr>
                             </thead>
@@ -141,14 +141,14 @@ export default function CityDetailedTable({ sku, onClose }) {
                                             </div>
                                         </td>
 
-                                        {/* Overall SOV */}
+                                        {/* Overall Sos */}
                                         <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.overallSov}
+                                            {row.overallSos}
                                         </td>
 
-                                        {/* Ad SOV */}
+                                        {/* Ad Sos */}
                                         <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.adSov}
+                                            {row.adSos}
                                         </td>
 
                                         {/* Disc % */}
