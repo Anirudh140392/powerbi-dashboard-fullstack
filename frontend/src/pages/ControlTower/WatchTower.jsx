@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axiosInstance from "../../api/axiosInstance";
-import { Container, Box, useTheme } from "@mui/material";
+import { Container, Box, useTheme, Skeleton } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
 import dayjs from "dayjs";
@@ -203,7 +203,13 @@ function WatchTower() {
 
     topMetrics: [],
     skuTable: [],
+    performanceMetricsKpis: [], // Initialize for skeleton loading
+    platformOverview: [],       // Initialize for skeleton loading
   });
+
+  // Individual loading states for each section
+  const [performanceLoading, setPerformanceLoading] = useState(true);
+  const [platformOverviewLoading, setPlatformOverviewLoading] = useState(true);
 
 
 
@@ -247,125 +253,152 @@ function WatchTower() {
     });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  // ==================== NEW: Concurrent Data Fetching ====================
-  // STAGE 1: Fetch critical data in parallel (overview + platform)
-  // STAGE 2: Fetch remaining sections in parallel (month, category, brands)
+  // ==================== SEQUENTIAL DATA LOADING ====================
+  // Load sections SEQUENTIALLY in this order:
+  // 1. Watch Overview → 2. Platform Overview → 3. Category Overview (for Category Performance) → 4. Month Overview → 5. Brand Overview
+  // All API calls run one after another (single-threaded)
 
   useEffect(() => {
     let ignore = false;
 
-    const fetchAllData = async () => {
+    const fetchSequentially = async () => {
       // Prevent fetching if critical filters are missing
       if (!filters.brand || !filters.location) {
         console.log("⏭️ Skipping fetch: Brand or Location missing");
         return;
       }
 
-      setLoading(true);
+      console.log("🚀 Starting sequential data loading...");
+      const totalStartTime = performance.now();
 
       try {
-        // ⚡ STAGE 1: Fetch critical data in PARALLEL
-        console.log("⚡ STAGE 1: Loading critical data (overview + platform)...");
-        const startTime = performance.now();
+        // ============ STEP 1: WATCH OVERVIEW (IMMEDIATE - MUST COMPLETE FIRST) ============
+        console.log("📊 [1/6] Loading Watch Overview...");
+        setLoading(true);
+        const step1Start = performance.now();
 
-        const [overviewRes, platformRes] = await Promise.all([
-          axiosInstance.get("/watchtower/overview", { params: filters }),
-          axiosInstance.get("/watchtower/platform-overview", { params: filters })
-        ]);
-
-        const stage1Time = performance.now() - startTime;
-        console.log(`✅ STAGE 1 complete in ${(stage1Time / 1000).toFixed(2)}s`);
+        const overviewRes = await axiosInstance.get("/watchtower/overview", { params: filters });
 
         if (!ignore) {
-          // Update dashboard data immediately
           setDashboardData(prev => ({
             ...prev,
             topMetrics: overviewRes.data.topMetrics || [],
-            summaryMetrics: overviewRes.data.summaryMetrics || prev.summaryMetrics,
-            performanceMetricsKpis: overviewRes.data.performanceMetricsKpis || [],
-            platformOverview: platformRes.data || []
+            summaryMetrics: overviewRes.data.summaryMetrics || prev.summaryMetrics
           }));
-
-          // ✅ Hide main loader - USER SEES CONTENT NOW!
-          setLoading(false);
-          console.log("🎉 Main content displayed! User can interact now.");
-
-          // 🔄 STAGE 2: Fetch remaining sections in PARALLEL (background)
-          console.log("🔄 STAGE 2: Loading additional sections in background...");
-          fetchAdditionalSections();
+          setLoading(false); // ✅ Hide loader - USER SEES WATCH OVERVIEW NOW!
+          console.log(`✅ [1/6] Watch Overview loaded in ${((performance.now() - step1Start) / 1000).toFixed(2)}s`);
         }
+
+        // ============ ALL OTHER SECTIONS FIRE IN PARALLEL - WHICHEVER COMPLETES FIRST DISPLAYS FIRST ============
+
+        // STEP 2: PERFORMANCE METRICS (PARALLEL)
+        const step2Start = performance.now();
+        setPerformanceLoading(true);
+        axiosInstance.get("/watchtower/performance-metrics", { params: filters })
+          .then(performanceRes => {
+            if (!ignore) {
+              setDashboardData(prev => ({
+                ...prev,
+                performanceMetricsKpis: performanceRes.data.performanceMetricsKpis || []
+              }));
+              setPerformanceLoading(false);
+              console.log(`✅ [2/6] Performance Metrics loaded in ${((performance.now() - step2Start) / 1000).toFixed(2)}s`);
+            }
+          })
+          .catch(err => {
+            console.error("Error loading Performance Metrics:", err);
+            if (!ignore) setPerformanceLoading(false);
+          });
+
+        // STEP 3: PLATFORM OVERVIEW (PARALLEL)
+        const step3Start = performance.now();
+        setPlatformOverviewLoading(true);
+        axiosInstance.get("/watchtower/platform-overview", { params: filters })
+          .then(platformRes => {
+            if (!ignore) {
+              setDashboardData(prev => ({
+                ...prev,
+                platformOverview: platformRes.data || []
+              }));
+              setPlatformOverviewLoading(false);
+              console.log(`✅ [3/6] Platform Overview loaded in ${((performance.now() - step3Start) / 1000).toFixed(2)}s`);
+            }
+          })
+          .catch(err => {
+            console.error("Error loading Platform Overview:", err);
+            if (!ignore) setPlatformOverviewLoading(false);
+          });
+
+        // STEP 4: CATEGORY OVERVIEW (PARALLEL)
+        const step4Start = performance.now();
+        setCategoryOverviewLoading(true);
+        axiosInstance.get("/watchtower/category-overview", { params: { ...filters, categoryOverviewPlatform } })
+          .then(categoryRes => {
+            if (!ignore) {
+              setCategoryOverviewData(categoryRes.data);
+              setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
+              setCategoryOverviewLoading(false);
+              console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
+            }
+          })
+          .catch(err => {
+            console.error("Error loading Category Overview:", err);
+            if (!ignore) setCategoryOverviewLoading(false);
+          });
+
+        // STEP 5: MONTH OVERVIEW (PARALLEL)
+        const step5Start = performance.now();
+        setMonthOverviewLoading(true);
+        axiosInstance.get("/watchtower/month-overview", { params: { ...filters, monthOverviewPlatform } })
+          .then(monthRes => {
+            if (!ignore) {
+              setMonthOverviewData(monthRes.data);
+              setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
+              setMonthOverviewLoading(false);
+              console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
+            }
+          })
+          .catch(err => {
+            console.error("Error loading Month Overview:", err);
+            if (!ignore) setMonthOverviewLoading(false);
+          });
+
+        // STEP 6: BRAND OVERVIEW (PARALLEL)
+        const step6Start = performance.now();
+        setBrandsOverviewLoading(true);
+        axiosInstance.get("/watchtower/brands-overview", { params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory } })
+          .then(brandsRes => {
+            if (!ignore) {
+              setBrandsOverviewData(brandsRes.data);
+              setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
+              setBrandsOverviewLoading(false);
+              console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
+            }
+          })
+          .catch(err => {
+            console.error("Error loading Brand Overview:", err);
+            if (!ignore) setBrandsOverviewLoading(false);
+          });
+
+        console.log(`🚀 All section requests fired in parallel! Each will display as soon as ready.`);
+
       } catch (error) {
         if (!ignore) {
-          console.error("❌ Error in STAGE 1:", error);
+          console.error("❌ Error in sequential loading:", error);
           setLoading(false);
-        }
-      }
-    };
-
-    const fetchAdditionalSections = async () => {
-      const stage2StartTime = performance.now();
-      setMonthOverviewLoading(true);
-      setCategoryOverviewLoading(true);
-      setBrandsOverviewLoading(true);
-
-      // Fetch all 3 sections in PARALLEL
-      const results = await Promise.allSettled([
-        axiosInstance.get("/watchtower/month-overview", {
-          params: { ...filters, monthOverviewPlatform }
-        }),
-        axiosInstance.get("/watchtower/category-overview", {
-          params: { ...filters, categoryOverviewPlatform }
-        }),
-        axiosInstance.get("/watchtower/brands-overview", {
-          params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory }
-        })
-      ]);
-
-      const stage2Time = performance.now() - stage2StartTime;
-      console.log(`✅ STAGE 2 complete in ${(stage2Time / 1000).toFixed(2)}s`);
-
-      if (!ignore) {
-        // Update Month Overview
-        if (results[0].status === 'fulfilled') {
-          const monthData = results[0].value.data;
-          setMonthOverviewData(monthData);
-          setDashboardData(prev => ({ ...prev, monthOverview: monthData }));
+          setPerformanceLoading(false);
+          setPlatformOverviewLoading(false);
           setMonthOverviewLoading(false);
-          console.log("  ✓ Month overview loaded");
-        } else {
-          console.error("  ✗ Month overview failed:", results[0].reason);
-          setMonthOverviewLoading(false);
-        }
-
-        // Update Category Overview
-        if (results[1].status === 'fulfilled') {
-          const categoryData = results[1].value.data;
-          setCategoryOverviewData(categoryData);
-          setDashboardData(prev => ({ ...prev, categoryOverview: categoryData }));
           setCategoryOverviewLoading(false);
-          console.log("  ✓ Category overview loaded");
-        } else {
-          console.error("  ✗ Category overview failed:", results[1].reason);
-          setCategoryOverviewLoading(false);
-        }
-
-        // Update Brands Overview
-        if (results[2].status === 'fulfilled') {
-          const brandsData = results[2].value.data;
-          setBrandsOverviewData(brandsData);
-          setDashboardData(prev => ({ ...prev, brandsOverview: brandsData }));
-          setBrandsOverviewLoading(false);
-          console.log("  ✓ Brands overview loaded");
-        } else {
-          console.error("  ✗ Brands overview failed:", results[2].reason);
           setBrandsOverviewLoading(false);
         }
       }
     };
 
-    fetchAllData();
+    fetchSequentially();
     return () => { ignore = true; };
-  }, [filters, monthOverviewPlatform, categoryOverviewPlatform, brandsOverviewPlatform, brandsOverviewCategory]); // Removed loading from deps
+  }, [filters]); // Only re-fetch ALL sections when filters change (brand, location, dates)
+  // Platform-specific changes (monthOverviewPlatform, categoryOverviewPlatform, etc.) are handled by their own useEffects below
 
   // Separate effect for Month Overview platform changes (after initial load)
   useEffect(() => {
@@ -499,14 +532,10 @@ function WatchTower() {
         onFiltersChange={setFilters}
       >
         {/* Top Cards */}
-        {loading ? (
-          <Loader message="Fetching Watch Tower Insights..." />
-        ) : (
-          <CardMetric
-            data={dashboardData.topMetrics}
-            onViewTrends={handleViewTrends}
-          />
-        )}
+        <CardMetric
+          data={dashboardData.topMetrics}
+          onViewTrends={handleViewTrends}
+        />
 
         {/* Performance Marketing */}
         <Box
@@ -578,7 +607,7 @@ function WatchTower() {
               data={
                 activeKpisTab === "Platform Overview"
                   ? (() => {
-                    const platforms = dashboardData?.platformOverview || defaultPlatforms;
+                    const platforms = dashboardData?.platformOverview || [];
                     const selectedPlatform = filters.platform?.toLowerCase();
 
                     // Sort platforms: All first, then selected platform, then others
@@ -601,12 +630,12 @@ function WatchTower() {
                     });
                   })()
                   : activeKpisTab === "Category Overview"
-                    ? (categoryOverviewData || defaultCategory)
+                    ? (categoryOverviewData || [])
                     : activeKpisTab === "Month Overview"
-                      ? (monthOverviewData || defaultMonths)
+                      ? (monthOverviewData || [])
                       : activeKpisTab === "Brands Overview"
                         ? (brandsOverviewData || [])
-                        : defaultSkus
+                        : []
               }
               monthOverviewPlatform={monthOverviewPlatform}
               onMonthPlatformChange={setMonthOverviewPlatform}
@@ -888,6 +917,85 @@ const FORMAT_ROWS = [
 
 
 const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatform, setCategoryOverviewPlatform }) => {
+  // Check if data is loading
+  const isLoading = !categoryOverviewData || categoryOverviewData.length === 0;
+
+  // Skeleton loading state
+  if (isLoading) {
+    return (
+      <motion.div
+        className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        style={{ fontFamily: 'Roboto, sans-serif' }}
+      >
+        {/* Left side - Category list skeletons */}
+        <div className="md:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
+              <Skeleton variant="text" width={280} height={16} animation="wave" sx={{ borderRadius: 1 }} />
+            </div>
+            <Skeleton variant="rounded" width={100} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="w-full flex items-center justify-between rounded-2xl px-3 py-2 border border-slate-200 bg-white/70">
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Skeleton variant="circular" width={24} height={24} animation="wave" />
+                  <Box>
+                    <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+                    <Skeleton variant="text" width={140} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                  </Box>
+                </Box>
+                <Box display="flex" flexDirection="column" alignItems="flex-end">
+                  <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                  <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                </Box>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right side - KPI detail skeletons */}
+        <div className="md:col-span-3">
+          <div className="h-full rounded-3xl bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-2">
+              <Box>
+                <Skeleton variant="text" width={120} height={16} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={220} height={14} animation="wave" sx={{ borderRadius: 1, mt: 0.5 }} />
+              </Box>
+              <Box display="flex" flexDirection="column" alignItems="flex-end">
+                <Skeleton variant="text" width={60} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={80} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1, mt: 1 }} />
+                <Skeleton variant="text" width={50} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+              </Box>
+            </div>
+            <div className="flex gap-4">
+              {/* ROAS circle skeleton */}
+              <Skeleton variant="circular" width={96} height={96} animation="wave" />
+              {/* KPI bands skeletons */}
+              <div className="flex-1 space-y-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <Box key={i}>
+                    <Box display="flex" justifyContent="space-between" mb={0.5}>
+                      <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                    </Box>
+                    <Skeleton variant="rounded" width="100%" height={12} animation="wave" sx={{ borderRadius: 2 }} />
+                  </Box>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   // Transform categoryOverviewData from API into FORMAT_ROWS structure
   const FORMAT_ROWS = useMemo(() => {
     if (!categoryOverviewData || categoryOverviewData.length === 0) {

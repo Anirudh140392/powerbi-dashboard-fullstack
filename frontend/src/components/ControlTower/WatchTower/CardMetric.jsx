@@ -1,43 +1,15 @@
-import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
+import { Box, Card, CardContent, Typography, Chip, Skeleton } from "@mui/material";
 import { useState } from "react";
 
 const CardMetric = ({ data }) => {
+  // Check if data is loading (empty/undefined)
+  const isLoading = !data || data.length === 0;
+
   const defaultCards = [
-    {
-      title: "Offtake",
-      value: "₹0",
-      sub: "MTD (Month-to-Date)",
-      change: "0%",
-      changeColor: "grey",
-      prevText: "vs Previous Month",
-      extra: "#Units: 0",
-      extraChange: "0%",
-      extraChangeColor: "grey",
-    },
-    {
-      title: "Availability",
-      value: "0%",
-      sub: "MTD Coverage",
-      change: "0%",
-      changeColor: "grey",
-      prevText: "vs Previous Month",
-    },
-    {
-      title: "Promo Spends %",
-      value: "0%",
-      sub: "MTD (Avg.)",
-      change: "0%",
-      changeColor: "grey",
-      prevText: "vs Previous Month",
-    },
-    {
-      title: "Market Share",
-      value: "0%",
-      sub: "MTD",
-      change: "0%",
-      changeColor: "grey",
-      prevText: "vs Previous Month",
-    },
+    { title: "Offtake", value: "₹0", sub: "MTD (Month-to-Date)", change: "0%", changeColor: "grey", prevText: "vs Previous Month", extra: "#Units: 0", extraChange: "0%", extraChangeColor: "grey" },
+    { title: "Availability", value: "0%", sub: "MTD Coverage", change: "0%", changeColor: "grey", prevText: "vs Previous Month" },
+    { title: "Promo Spends %", value: "0%", sub: "MTD (Avg.)", change: "0%", changeColor: "grey", prevText: "vs Previous Month" },
+    { title: "Market Share", value: "0%", sub: "MTD", change: "0%", changeColor: "grey", prevText: "vs Previous Month" },
   ];
 
   const cards = data && data.length > 0 ? data.map(item => ({
@@ -59,10 +31,6 @@ const CardMetric = ({ data }) => {
   // Generate smooth data
   const generateValues = (card) => {
     if (card.chart && card.chart.length > 0) {
-      // Normalize chart data to 0-100 range for the mini chart if needed, 
-      // or just pass as is if the component handles it. 
-      // The current component expects values roughly between 20-80 for visual appeal.
-      // Let's just return the chart data.
       return card.chart;
     }
     return months.map(() => Math.floor(Math.random() * 60) + 20);
@@ -76,12 +44,7 @@ const CardMetric = ({ data }) => {
     <Box sx={{ mb: 4 }}>
       <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4 }}>
         {/* Header */}
-        <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={3}
-        >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Box display="flex" alignItems="center" gap={1.5}>
             <Box
               sx={{
@@ -97,14 +60,11 @@ const CardMetric = ({ data }) => {
             >
               📈
             </Box>
-
             <Typography variant="h5" fontWeight={600}>
               Watchtower Overview
             </Typography>
-
             <Chip label="All" size="large" variant="outlined" />
           </Box>
-
           <Chip label="MTD vs Previous Month" variant="filled" />
         </Box>
 
@@ -119,26 +79,84 @@ const CardMetric = ({ data }) => {
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {cards.map((card, index) => {
-            const values = generateValues(card);
-            const color = isProfit(card.change) ? "#28a745" : "#dc3545";
-            const cardLabels = card.labels || months; // Fallback to hardcoded if missing
+          {isLoading ? (
+            // Skeleton loading cards
+            [1, 2, 3, 4].map((_, index) => (
+              <SkeletonChartCard key={index} scrollNeeded={scrollNeeded} totalCards={4} />
+            ))
+          ) : (
+            cards.map((card, index) => {
+              const values = generateValues(card);
+              const color = isProfit(card.change) ? "#28a745" : "#dc3545";
+              const cardLabels = card.labels || months;
 
-            return (
-              <MiniChartCard
-                key={index}
-                card={card}
-                months={cardLabels}
-                values={values}
-                color={color}
-                scrollNeeded={scrollNeeded}
-                totalCards={cards.length}
-              />
-            );
-          })}
+              return (
+                <MiniChartCard
+                  key={index}
+                  card={card}
+                  months={cardLabels}
+                  values={values}
+                  color={color}
+                  scrollNeeded={scrollNeeded}
+                  totalCards={cards.length}
+                />
+              );
+            })
+          )}
         </Box>
       </Card>
     </Box>
+  );
+};
+
+/* ------------ Skeleton Chart Card - Fancy Shimmer Loading ------------ */
+const SkeletonChartCard = ({ scrollNeeded, totalCards }) => {
+  return (
+    <Card
+      sx={{
+        flexShrink: 0,
+        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+        borderRadius: 3,
+        scrollSnapAlign: "start",
+      }}
+    >
+      <CardContent>
+        {/* Title skeleton */}
+        <Skeleton variant="text" width="50%" height={20} animation="wave" sx={{ borderRadius: 1 }} />
+
+        {/* Value skeleton */}
+        <Box display="flex" alignItems="baseline" gap={1} mt={0.5}>
+          <Skeleton variant="text" width="40%" height={32} animation="wave" sx={{ borderRadius: 1 }} />
+          <Skeleton variant="text" width="30%" height={18} animation="wave" sx={{ borderRadius: 1 }} />
+        </Box>
+
+        {/* Change skeleton */}
+        <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+          <Skeleton variant="text" width={50} height={18} animation="wave" sx={{ borderRadius: 1, bgcolor: 'grey.300' }} />
+          <Skeleton variant="text" width={80} height={18} animation="wave" sx={{ borderRadius: 1 }} />
+        </Box>
+
+        {/* Extra units skeleton */}
+        <Skeleton variant="text" width="60%" height={18} animation="wave" sx={{ mt: 0.5, borderRadius: 1 }} />
+
+        {/* Chart skeleton */}
+        <Box mt={1.5} sx={{ height: 80, position: "relative" }}>
+          <Skeleton
+            variant="rectangular"
+            width="100%"
+            height={60}
+            animation="wave"
+            sx={{ borderRadius: 2, mt: 1 }}
+          />
+          {/* Fake chart dots */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+            {[1, 2, 3, 4, 5, 6, 7].map(i => (
+              <Skeleton key={i} variant="circular" width={8} height={8} animation="wave" />
+            ))}
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
   );
 };
 

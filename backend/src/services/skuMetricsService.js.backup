@@ -1,7 +1,6 @@
 import { Op } from 'sequelize';
 import RbPdpOlap from '../models/RbPdpOlap.js';
 import sequelize from '../config/db.js';
-import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
 /**
  * Map metric keys to database column names
@@ -166,30 +165,25 @@ function formatMetricValue(value, metricKey) {
  * @returns {Promise<Array>} Array of SKU data with metric values per platform
  */
 export async function getSkuMetrics(metricKey, filters = {}) {
-    // Generate cache key based on metric and filters
-    const cacheKey = generateCacheKey(`sku_metrics:${metricKey}`, filters);
+    try {
+        // Normalize metric key (remove spaces, lowercase, replace with underscore)
+        const normalizedMetricKey = metricKey.toLowerCase().replace(/\s+/g, '_');
 
-    return getCachedOrCompute(cacheKey, async () => {
-        try {
-            // Normalize metric key (remove spaces, lowercase, replace with underscore)
-            const normalizedMetricKey = metricKey.toLowerCase().replace(/\s+/g, '_');
+        // Get the database column name for this metric
+        const dbColumn = METRIC_COLUMN_MAP[normalizedMetricKey];
 
-            // Get the database column name for this metric
-            const dbColumn = METRIC_COLUMN_MAP[normalizedMetricKey];
-
-            if (!dbColumn) {
-                console.warn(`Unknown metric key: ${metricKey}. Using default (Sales).`);
-                // Default to Sales column
-                const defaultColumn = 'Sales';
-                return await fetchSkuData(defaultColumn, normalizedMetricKey, filters);
-            }
-
-            return await fetchSkuData(dbColumn, normalizedMetricKey, filters);
-        } catch (error) {
-            console.error('Error in getSkuMetrics:', error);
-            return [];
+        if (!dbColumn) {
+            console.warn(`Unknown metric key: ${metricKey}. Using default (Sales).`);
+            // Default to Sales column
+            const defaultColumn = 'Sales';
+            return await fetchSkuData(defaultColumn, normalizedMetricKey, filters);
         }
-    }, CACHE_TTL.SHORT); // 5 minutes - SKU metrics change fairly frequently
+
+        return await fetchSkuData(dbColumn, normalizedMetricKey, filters);
+    } catch (error) {
+        console.error('Error in getSkuMetrics:', error);
+        return [];
+    }
 }
 
 /**

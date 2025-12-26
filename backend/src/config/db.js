@@ -12,22 +12,35 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT || 3306,
     logging: false, // set true if you want SQL logs
     pool: {
-      max: 50,        // Increased from 10 to handle parallel SOS queries
-      min: 5,         // Maintain minimum connections
-      acquire: 120000, // Increased from 60s to 120s
-      idle: 20000,    // increased idle timeout
-      evict: 10000    // Check for idle connections every 10s
+      max: 100,       // Increased from 50 to handle burst of concurrent SOS queries
+      min: 10,        // Minimum connections to keep available
+      acquire: 120000, // 2 minutes - wait longer for connection instead of timing out
+      idle: 60000,    // 1 minute idle timeout
+      evict: 10000,   // Check for idle connections every 10s
+      maxUses: 10000  // Recycle connections to prevent memory leaks
     },
     dialectOptions: {
-      connectTimeout: 120000, // Increased from 60s to 120s
+      connectTimeout: 120000, // 2 minute for initial connection
+      // MySQL2-specific settings
+      socketPath: undefined,
+      supportBigNumbers: true,
+      bigNumberStrings: false,
+      dateStrings: false,
+      multipleStatements: true  // Enable for potential batch operations
+      // Note: MySQL2 doesn't support statementCacheSize through Sequelize
+    },
+    query: {
+      timeout: 60000  // 1 minute query timeout (increased for SOS queries on rb_kw)
     },
     retry: {
-      max: 3, // Retry failed queries up to 3 times
+      max: 3, // Reduced retries to fail faster
       match: [
         /ETIMEDOUT/,
         /ECONNRESET/,
         /ECONNREFUSED/,
         /PROTOCOL_CONNECTION_LOST/,
+        /ER_LOCK_WAIT_TIMEOUT/,
+        /ER_LOCK_DEADLOCK/,
       ]
     }
   }

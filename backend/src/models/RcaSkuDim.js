@@ -22,6 +22,9 @@ const RcaSkuDim = sequelize.define('rca_sku_dim', {
     sku: {
         type: DataTypes.STRING,
     },
+    comp_flag: {
+        type: DataTypes.TINYINT,
+    },
     // Add other columns if known, but these are the essentials for the dropdowns
 }, {
     tableName: 'rca_sku_dim',

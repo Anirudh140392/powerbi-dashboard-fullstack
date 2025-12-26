@@ -94,10 +94,10 @@ export async function getCached(key) {
  * Set cached data with TTL
  * @param {string} key - Cache key
  * @param {object} data - Data to cache
- * @param {number} ttl - Time to live in seconds (default: 1800 = 30 minutes)
+ * @param {number} ttl - Time to live in seconds (default: 3600 = 1 hour for metrics)
  * @returns {Promise<boolean>} Success status
  */
-export async function setCached(key, data, ttl = 1800) {
+export async function setCached(key, data, ttl = 3600) {
     if (!redisClient.isReady()) {
         return false;
     }
@@ -109,6 +109,51 @@ export async function setCached(key, data, ttl = 1800) {
     } catch (error) {
         console.error(`Error setting cache for key ${key}:`, error.message);
         return false;
+    }
+}
+
+// Tiered TTL constants for different data types
+export const CACHE_TTL = {
+    VERY_STATIC: 604800,    // 7 days - platforms, brands (almost never change)
+    STATIC: 86400,          // 24 hours - categories, locations (rarely change)
+    METRICS: 7200,          // 2 hours - aggregated metrics (increased for better repeat performance)
+    COMPUTED_HEAVY: 14400,  // 4 hours - expensive computations (bulk operations)
+    REALTIME: 600,          // 10 minutes - real-time dashboards (increased)
+    SHORT: 300,             // 5 minutes - very dynamic data (increased)
+    TRENDING: 180           // 3 minutes - trending/live data
+};
+
+/**
+ * Warm cache with common queries on startup
+ * Pre-populates frequently accessed static data
+ */
+export async function warmCommonCaches() {
+    if (!redisClient.isReady()) {
+        console.log('⚠️  Redis not ready, skipping cache warming');
+        return;
+    }
+
+    try {
+        console.log('🔥 Warming common caches...');
+
+        // Import services (lazy to avoid circular dependencies)
+        const { default: watchTowerService } = await import('../services/watchTowerService.js');
+        const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
+
+        // Warm platform list (used in every dropdown)
+        const platformKey = 'watchtower:platforms:all';
+        const platforms = await watchTowerService.getPlatforms();
+        await setCached(platformKey, platforms, CACHE_TTL.VERY_STATIC);
+
+        // Warm metric keys (used in SKU metrics dropdown)
+        const metricKeysKey = 'metric_keys';
+        const metricKeys = await getAllMetricKeys();
+        await setCached(metricKeysKey, metricKeys, CACHE_TTL.VERY_STATIC);
+
+        console.log('✅ Cache warming complete: platforms, metric keys');
+    } catch (error) {
+        console.error('❌ Error warming cache:', error.message);
+        // Don't throw - cache warming is optional
     }
 }
 
@@ -138,19 +183,25 @@ export async function deleteCached(pattern) {
  * Main caching wrapper - get from cache or compute
  * @param {string} key - Cache key
  * @param {Function} computeFn - Async function to compute data if cache miss
- * @param {number} ttl - Time to live in seconds
+ * @param {number} ttl - Time to live in seconds (default: 3600 = 1 hour)
  * @returns {Promise<object>} Cached or computed data
  */
-export async function getCachedOrCompute(key, computeFn, ttl = 1800) {
+export async function getCachedOrCompute(key, computeFn, ttl = 3600) {
     // Try to get from cache first
     const cached = await getCached(key);
 
     if (cached !== null) {
-        console.log(`✅ Cache HIT: ${key}`);
+        // Only log if explicitly enabled
+        if (process.env.LOG_CACHE === 'true') {
+            console.log(`✅ Cache HIT: ${key}`);
+        }
         return cached;
     }
 
-    console.log(`❌ Cache MISS: ${key}`);
+    // Only log cache misses if enabled
+    if (process.env.LOG_CACHE === 'true') {
+        console.log(`❌ Cache MISS: ${key}`);
+    }
 
     // Compute the result
     const result = await computeFn();
