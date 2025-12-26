@@ -900,31 +900,13 @@ const KPI_KEYS = [
   {
     key: "Osa",
     label: "OSA",
-    color: "#2563EB", // blue
-    unit: "%",
-  },
-  {
-    key: "Doi",
-    label: "DOI",
-    color: "#7C3AED", // purple
-    unit: " days",
-  },
-  {
-    key: "Fillrate",
-    label: "Fillrate",
-    color: "#22C55E", // green
+    color: "#F97316", // orange (matching other drawer)
     unit: "%",
   },
   {
     key: "Assortment",
     label: "Assortment",
-    color: "#F97316", // orange
-    unit: "%",
-  },
-  {
-    key: "PSL",
-    label: "PSL",
-    color: "#E11D48", // rose
+    color: "#22C55E", // green
     unit: "%",
   },
 ];
