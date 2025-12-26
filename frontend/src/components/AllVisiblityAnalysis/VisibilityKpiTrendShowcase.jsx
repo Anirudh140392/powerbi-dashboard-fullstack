@@ -1413,9 +1413,50 @@ export const VisibilityKpiTrendShowcase = () => {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-3 text-sm text-slate-500">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-              {filters.categories[0] || "All Categories"}
-            </Badge>
+            {/* DYNAMIC PILLS */}
+            {filters.categories.length > 0 ? (
+              filters.categories.map((cat) => (
+                <Badge
+                  key={cat}
+                  className="bg-blue-50 text-blue-700 border-blue-100"
+                >
+                  {cat}
+                </Badge>
+              ))
+            ) : (
+              <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                All Categories
+              </Badge>
+            )}
+
+            {filters.brands.map((brand) => (
+              <Badge
+                key={brand}
+                className="bg-purple-50 text-purple-700 border-purple-100"
+              >
+                {brand}
+              </Badge>
+            ))}
+
+            {tab === "sku" &&
+              filters.skus.map((sku) => (
+                <Badge
+                  key={sku}
+                  className="bg-green-50 text-green-700 border-green-100"
+                >
+                  {sku}
+                </Badge>
+              ))}
+
+            {tab === "keyword" &&
+              filters.keywords.map((kw) => (
+                <Badge
+                  key={kw}
+                  className="bg-orange-50 text-orange-700 border-orange-100"
+                >
+                  {kw}
+                </Badge>
+              ))}
           </div>
           <h1 className="text-lg font-semibold text-slate-900">
             Competition List
@@ -1476,6 +1517,9 @@ export const VisibilityKpiTrendShowcase = () => {
             <TabsTrigger value="brand" className="px-4">
               Brands
             </TabsTrigger>
+            <TabsTrigger value="sku" className="px-4">
+              SKUs
+            </TabsTrigger>
             <TabsTrigger value="keyword" className="px-4">
               Keywords
             </TabsTrigger>
@@ -1506,6 +1550,28 @@ export const VisibilityKpiTrendShowcase = () => {
           {viewMode === "kpi" && (
             <KpiCompareView
               mode="brand"
+              filters={filters}
+              city={city}
+              onBackToTrend={() => setViewMode("trend")}
+            />
+          )}
+        </TabsContent>
+
+        {/* SKU TAB */}
+        <TabsContent value="sku" className="mt-3">
+          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "trend" && (
+            <TrendView
+              mode="sku"
+              filters={filters}
+              city={city}
+              onBackToTable={() => setViewMode("table")}
+              onSwitchToKpi={() => setViewMode("kpi")}
+            />
+          )}
+          {viewMode === "kpi" && (
+            <KpiCompareView
+              mode="sku"
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
