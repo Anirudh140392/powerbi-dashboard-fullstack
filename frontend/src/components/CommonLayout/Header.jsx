@@ -71,9 +71,11 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 2,
+          flexWrap: "nowrap",
+          gap: 1,
           alignItems: "center",
+          overflowX: "auto",
+          pb: 0.5, // slightly partial scrolling buffer
         }}
       >
         {/* LEFT SIDE */}
@@ -99,7 +101,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <ChevronDown size={18} />
             </IconButton>
 
-            <Typography variant="h6" fontWeight="700">
+            <Typography variant="h6" fontWeight="700" sx={{ whiteSpace: "nowrap" }}>
               {title}
             </Typography>
           </Box>
@@ -115,13 +117,58 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 2,
-                flexWrap: "wrap",
+                gap: 1,
+                flexWrap: "nowrap",
                 overflow: "visible"
               }}
             >
+              {/* DARK STORE / MARKET PLACE COUNT */}
+              <Box sx={{ flexShrink: 0 }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.5,
+                    opacity: 0.7,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {["Flipkart", "Amazon"].includes(platform)
+                    ? "MARKET PLACE"
+                    : "DARK STORE"}
+                </Typography>
+                <Box
+                  sx={{
+                    width: 160,
+                    height: "38px",
+                    bgcolor: "#F8FAFC",
+                    borderRadius: "8px",
+                    border: "1px solid #E2E8F0",
+                    display: "flex",
+                    alignItems: "center",
+                    px: 2,
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    color: "#334155",
+                  }}
+                >
+                  {/* Mock Counts based on Platform */}
+                  {platform === "Blinkit"
+                    ? 342
+                    : platform === "Zepto"
+                      ? 215
+                      : platform === "Instamart"
+                        ? 450
+                        : platform === "Flipkart"
+                          ? 15
+                          : platform === "Amazon"
+                            ? 28
+                            : 0}
+                </Box>
+              </Box>
+
               {/* PLATFORM SELECTION */}
-              <Box>
+              <Box sx={{ flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
@@ -134,21 +181,43 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 </Typography>
                 <Autocomplete
                   disableClearable
-                  options={platforms}
+                  options={["All", ...platforms]}
                   value={platform}
                   onChange={(event, newValue) => setPlatform(newValue)}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       size="small"
-                      sx={{ width: 130 }}
+                      hiddenLabel
+                      sx={{
+                        width: 160,
+                        "& .MuiOutlinedInput-root": {
+                          height: "38px",
+                          bgcolor: "#F8FAFC",
+                          borderRadius: "8px",
+                          fontSize: "0.85rem",
+                          fontWeight: 500,
+                          "& fieldset": { borderColor: "#E2E8F0" },
+                          "&:hover fieldset": { borderColor: "#CBD5E1" },
+                          "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
+                        },
+                      }}
                     />
                   )}
+                  ListboxProps={{
+                    sx: {
+                      "& .MuiAutocomplete-option": {
+                        padding: "4px 8px !important",
+                        minHeight: "28px",
+                        fontSize: "0.75rem",
+                      },
+                    },
+                  }}
                 />
               </Box>
 
               {/* BRAND SELECTION */}
-              <Box>
+              <Box sx={{ flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
@@ -160,27 +229,47 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   BRAND
                 </Typography>
                 <Autocomplete
-                  options={brands}
+                  options={["All", ...brands]}
                   value={selectedBrand}
                   onChange={(event, newValue) => setSelectedBrand(newValue)}
                   disableClearable
                   ListboxProps={{
                     style: {
-                      maxHeight: "160px", // Approx 4 items (assuming ~40px per item)
+                      maxHeight: "160px",
+                    },
+                    sx: {
+                      "& .MuiAutocomplete-option": {
+                        padding: "4px 8px !important",
+                        minHeight: "28px",
+                        fontSize: "0.75rem",
+                      },
                     },
                   }}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       size="small"
-                      sx={{ width: 130 }}
+                      hiddenLabel
+                      sx={{
+                        width: 160,
+                        "& .MuiOutlinedInput-root": {
+                          height: "38px",
+                          bgcolor: "#F8FAFC",
+                          borderRadius: "8px",
+                          fontSize: "0.85rem",
+                          fontWeight: 500,
+                          "& fieldset": { borderColor: "#E2E8F0" },
+                          "&:hover fieldset": { borderColor: "#CBD5E1" },
+                          "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
+                        },
+                      }}
                     />
                   )}
                 />
               </Box>
 
               {/* LOCATION SELECTION */}
-              <Box>
+              <Box sx={{ flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
@@ -193,27 +282,49 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 </Typography>
                 <Autocomplete
                   disableClearable
-                  options={locations}
+                  options={["All", ...locations]}
                   value={selectedLocation}
                   onChange={(event, newValue) => setSelectedLocation(newValue)}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       size="small"
-                      sx={{ width: 130 }}
+                      hiddenLabel
+                      sx={{
+                        width: 160,
+                        "& .MuiOutlinedInput-root": {
+                          height: "38px",
+                          bgcolor: "#F8FAFC",
+                          borderRadius: "8px",
+                          fontSize: "0.85rem",
+                          fontWeight: 500,
+                          "& fieldset": { borderColor: "#E2E8F0" },
+                          "&:hover fieldset": { borderColor: "#CBD5E1" },
+                          "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
+                        },
+                      }}
                     />
                   )}
                   ListboxProps={{
                     style: {
                       maxHeight: "160px",
                     },
+                    sx: {
+                      "& .MuiAutocomplete-option": {
+                        padding: "4px 8px !important",
+                        minHeight: "28px",
+                        fontSize: "0.75rem",
+                      },
+                    },
                   }}
                 />
               </Box>
 
+
+
               {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
               {location.pathname === '/visibility-anlysis' && (
-                <Box>
+                <Box sx={{ flexShrink: 0 }}>
                   <Typography
                     sx={{
                       fontSize: "0.7rem",
@@ -233,12 +344,32 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       <TextField
                         {...params}
                         size="small"
-                        sx={{ width: 130 }}
+                        hiddenLabel
+                        sx={{
+                          width: 160,
+                          "& .MuiOutlinedInput-root": {
+                            height: "38px",
+                            bgcolor: "#F8FAFC",
+                            borderRadius: "8px",
+                            fontSize: "0.85rem",
+                            fontWeight: 500,
+                            "& fieldset": { borderColor: "#E2E8F0" },
+                            "&:hover fieldset": { borderColor: "#CBD5E1" },
+                            "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
+                          },
+                        }}
                       />
                     )}
                     ListboxProps={{
                       style: {
                         maxHeight: "160px",
+                      },
+                      sx: {
+                        "& .MuiAutocomplete-option": {
+                          padding: "4px 8px !important",
+                          minHeight: "28px",
+                          fontSize: "0.75rem",
+                        },
                       },
                     }}
                   />
@@ -246,7 +377,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               )}
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: 220 }}>
+              <Box sx={{ width: 220, flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",

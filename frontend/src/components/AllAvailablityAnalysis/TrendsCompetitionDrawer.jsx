@@ -1486,31 +1486,41 @@ export default function TrendsCompetitionDrawer({
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              {/* PLATFORM FILTER WRAPPER */}
               <Box display="flex" alignItems="center" gap={1}>
-                {/* CLICKABLE LABEL (now only toggles open/close) */}
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ cursor: "pointer", userSelect: "none" }}
+                <Select
+                  size="small"
+                  value={allTrendMeta.context.audience}
+                  onChange={(e) => {
+                    allSetTrendMeta((prev) => ({
+                      ...prev,
+                      context: { ...prev.context, audience: e.target.value },
+                    }));
+                    setShowPlatformPills(true); // always show pills after changing mode
+                  }}
+                  sx={{
+                    width: 160,
+                    height: 38,
+                    backgroundColor: "#F8FAFC",
+                    borderRadius: "8px",
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#E2E8F0",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#CBD5E1",
+                    },
+                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#3B82F6",
+                    },
+                  }}
                 >
-                  <Select
-                    size="small"
-                    value={allTrendMeta.context.audience}
-                    onChange={(e) => {
-                      allSetTrendMeta((prev) => ({
-                        ...prev,
-                        context: { ...prev.context, audience: e.target.value },
-                      }));
-                      setShowPlatformPills(true); // always show pills after changing mode
-                    }}
-                  >
-                    <MenuItem value="Platform">Platform</MenuItem>
-                    <MenuItem value="Format">Format</MenuItem>
-                    <MenuItem value="Brand">Brand</MenuItem>
-                    <MenuItem value="City">City</MenuItem>
-                  </Select>
-                </Typography>
+                  <MenuItem value="Platform">Platform</MenuItem>
+                  <MenuItem value="Format">Format</MenuItem>
+                  <MenuItem value="Brand">Brand</MenuItem>
+                  <MenuItem value="City">City</MenuItem>
+                </Select>
+
 
                 {/* DYNAMIC PILLS */}
                 {/* DYNAMIC PILLS */}
@@ -1795,6 +1805,6 @@ export default function TrendsCompetitionDrawer({
           selectedIds={selectedCompareSkus.map((s) => s.id)}
         />
       </Box>
-    </Box>
+    </Box >
   );
 }
