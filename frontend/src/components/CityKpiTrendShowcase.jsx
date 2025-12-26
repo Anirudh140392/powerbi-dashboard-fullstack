@@ -12,6 +12,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, X } from "lucide-react";
 // import {SimpleTableWithTabs} from "../components/CommonLayout/SimpleTableWithTabs";
 import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
+import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
 import { KpiFilterPanel } from "./KpiFilterPanel";
 
 // import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
@@ -38,7 +39,9 @@ const KPI_CONFIG = [
   { key: "osa", label: "OSA" },
   { key: "doi", label: "DOI" },
   { key: "fillrate", label: "Fillrate" },
+  { key: "fillrate", label: "Fillrate" },
   { key: "assortment", label: "Assortment" },
+  { key: "psl", label: "PSL" },
 ];
 
 const CITY_DATA = [
@@ -122,6 +125,19 @@ const CITY_DATA = [
       assortment: { value: 78, trend: 0.4, series: [76, 77, 77, 78] },
     },
   },
+];
+
+const mockKeywords = [
+  { id: "kw_generic", label: "generic ice cream" },
+  { id: "kw_delivery", label: "ice cream delivery" },
+  { id: "kw_cone", label: "cone ice cream" },
+  { id: "kw_cornetto", label: "cornetto" },
+  { id: "kw_competitor", label: "amul ice cream" },
+  { id: "kw_family", label: "family pack ice cream" },
+  { id: "kw_kulfi", label: "kulfi" },
+  { id: "kw_cup", label: "cup ice cream" },
+  { id: "kw_sundae", label: "sundae" },
+  { id: "kw_choco", label: "chocolate ice cream" },
 ];
 
 // --- Helpers ---------------------------------------------------------------
@@ -621,9 +637,14 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
+  const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(3);
 
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
@@ -640,10 +661,13 @@ function MatrixVariant({ dynamicKey, data, title }) {
   const [filterRules, setFilterRules] = useState(null);
 
   const filterOptions = React.useMemo(() => {
+    if (kpiFilterOptions) return kpiFilterOptions;
     return [
       { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+      { id: "keywords", label: "Keyword" },
       { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
       { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+      { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
       { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
       { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
       { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
@@ -652,7 +676,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
       { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
       { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
     ];
-  }, [rows, columns]);
+  }, [rows, columns, kpiFilterOptions]);
 
   // Value Logic Filter (Legacy - kept for reference or removal)
   const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
@@ -699,6 +723,24 @@ function MatrixVariant({ dynamicKey, data, title }) {
     }
   };
 
+  // Calculate Pagination
+  const filteredRows = React.useMemo(() => {
+    return rows.filter(row => selectedKPIs.includes(row.kpi));
+  }, [rows, selectedKPIs]);
+
+  const totalPages = Math.ceil(filteredRows.length / pageSize);
+
+  const paginatedRows = React.useMemo(() => {
+    if (!showPagination) return filteredRows;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredRows.slice(startIndex, startIndex + pageSize);
+  }, [filteredRows, currentPage, pageSize, showPagination]);
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedKPIs, pageSize]);
+
   // ---------------- BUILD COMP META (same logic) ----------------
   const buildCompMeta = (columnName) => ({
     context: { level: "Table", region: "All" },
@@ -722,7 +764,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
   });
 
   return (
-    <Card className="border-slate-200 bg-white shadow-sm">
+    <Card className={`border-slate-200 bg-white shadow-sm ${showPagination ? 'pb-0' : ''}`}>
 
       {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
@@ -783,9 +825,11 @@ function MatrixVariant({ dynamicKey, data, title }) {
             </div>
 
             {/* Panel Content */}
-            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+            {/* Panel Content */}
+            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
               <KpiFilterPanel
                 sectionConfig={filterOptions}
+                keywords={mockKeywords}
               />
 
             </div>
@@ -822,7 +866,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                   <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 
                                    text-left text-[11px] font-bold uppercase 
                                    tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] min-w-[140px]">
-                    KPI
+                    {firstColLabel}
                   </th>
 
                   {columns.slice(1).map((col) => (
@@ -852,7 +896,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody className="bg-white">
-                {rows.filter(row => selectedKPIs.includes(row.kpi)).map((row) => (
+                {paginatedRows.map((row) => (
                   <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
                     {/* Sticky KPI Column */}
@@ -885,7 +929,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                            ${cellClasses}`}
                               >
                                 <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (row.kpi === "Doi" || row.kpi === "Assortment" ? `${value}` : `${value}%`) : "–"}
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (isPercentageBased ? `${value}%` : `${value}`) : "–"}
                                 </span>
 
                                 <span
@@ -893,7 +937,7 @@ function MatrixVariant({ dynamicKey, data, title }) {
                                                 px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
                                   {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}%` : `${trend}%`}</span>
+                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : `${trend}`}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
@@ -909,9 +953,9 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{row.kpi === "Doi" || row.kpi === "Assortment" ? value : `${value}%`}</span>
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{isPercentageBased ? `${value}%` : value}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                    {trend > 0 ? `+${trend}%` : `${trend}%`}
+                                    {trend > 0 ? `+${trend}` : `${trend}`}
                                   </span>
                                 </div>
 
@@ -937,6 +981,17 @@ function MatrixVariant({ dynamicKey, data, title }) {
             </table>
           </div>
         </ScrollArea>
+
+        {/* ------------------ PAGINATION FOOTER ------------------ */}
+        <PaginationFooter
+          isVisible={showPagination && filteredRows.length > 3}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          pageSizeOptions={[3, 6, 9, 12]}
+        />
       </CardContent>
 
       {/* TRENDS DRAWER */}
@@ -1232,12 +1287,12 @@ function MatrixVariant({ dynamicKey, data, title }) {
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
 }
 

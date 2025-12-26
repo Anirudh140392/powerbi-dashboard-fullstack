@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { SlidersHorizontal, X, Plus, Minus } from 'lucide-react'
 import { Box, Button, Typography, Select, MenuItem } from '@mui/material'
 import { KpiFilterPanel } from '../KpiFilterPanel'
+import PaginationFooter from '../CommonLayout/PaginationFooter'
 
 const KPI_LABELS = {
   impressions: 'Impressions',
@@ -297,7 +298,7 @@ export default function DrilldownLatestTable() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [pageSize, setPageSize] = useState(20)
-  const [page, setPage] = useState(0)
+  const [page, setPage] = useState(1)
 
   const [filters, setFilters] = useState({
     weekendFlag: 'All',
@@ -395,11 +396,11 @@ export default function DrilldownLatestTable() {
 
   // Reset page when filters change
   useEffect(() => {
-    setPage(0)
+    setPage(1)
   }, [filters, pageSize, hierarchy])
 
   const totalPages = Math.max(1, Math.ceil(hierarchy.length / pageSize))
-  const pageRows = hierarchy.slice(page * pageSize, page * pageSize + pageSize)
+  const pageRows = hierarchy.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
 
   const toggleSort = (field) => {
     if (sortField !== field) {
@@ -796,80 +797,19 @@ export default function DrilldownLatestTable() {
             </div>
 
             {/* PAGINATION */}
-            <Box
-              sx={{
-                mt: 2,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                pt: 2,
-              }}
-            >
-              <Box display="flex" alignItems="center" gap={1}>
-                <Button
-                  size="small"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  sx={{
-                    minWidth: 'auto',
-                    borderRadius: 999,
-                    px: 2,
-                    py: 0.5,
-                    border: '1px solid #e2e8f0',
-                    color: '#64748b',
-                    textTransform: 'none',
-                    backgroundColor: 'white',
-                    '&:hover': { backgroundColor: '#f8fafc' },
-                  }}
-                >
-                  Prev
-                </Button>
-                <Typography sx={{ fontSize: 11, color: "#334155", fontWeight: 500, mx: 1 }}>
-                  Page {page + 1} of {totalPages}
-                </Typography>
-                <Button
-                  size="small"
-                  disabled={page + 1 >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  sx={{
-                    minWidth: 'auto',
-                    borderRadius: 999,
-                    px: 2,
-                    py: 0.5,
-                    border: '1px solid #e2e8f0',
-                    color: '#64748b',
-                    textTransform: 'none',
-                    backgroundColor: 'white',
-                    '&:hover': { backgroundColor: '#f8fafc' },
-                  }}
-                >
-                  Next
-                </Button>
-              </Box>
-
-              <Box display="flex" alignItems="center" gap={1}>
-                <Typography sx={{ fontSize: 11, color: "#64748b" }}>Rows / page</Typography>
-                <Select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value))
-                    setPage(0)
-                  }}
-                  size="small"
-                  sx={{
-                    height: 28,
-                    fontSize: 11,
-                    borderRadius: 1.5,
-                    backgroundColor: 'white',
-                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
-                  }}
-                >
-                  {[10, 20, 50, 100].map((n) => (
-                    <MenuItem key={n} value={n} sx={{ fontSize: 11 }}>{n}</MenuItem>
-                  ))}
-                </Select>
-              </Box>
-            </Box>
+            <div className="mt-2 border-t border-slate-100">
+              <PaginationFooter
+                isVisible={true}
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                pageSize={pageSize}
+                onPageSizeChange={(newPageSize) => {
+                  setPageSize(newPageSize);
+                  setPage(1);
+                }}
+              />
+            </div>
           </div>
         </div>
 

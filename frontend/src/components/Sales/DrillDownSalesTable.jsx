@@ -13,8 +13,36 @@ import {
     IconButton,
     Button
 } from "@mui/material";
-import { motion } from "framer-motion";
-import { Plus, Minus, LineChartIcon } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Minus, LineChartIcon, SlidersHorizontal, X } from "lucide-react";
+import { KpiFilterPanel } from '../KpiFilterPanel'
+import PaginationFooter from '../CommonLayout/PaginationFooter'
+
+/* -------------------------------------------------------------------------- */
+/*                               RENDER HELPERS                               */
+/* -------------------------------------------------------------------------- */
+const fmt = (val) => val?.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+
+const getMetricStyle = (label, val) => {
+    if (val === undefined || val === null) return {};
+    let status = 'action';
+
+    // Simple mock logic for thresholds
+    if (label.includes('DRR')) {
+        if (val > 100) status = 'healthy';
+        else if (val > 50) status = 'watch';
+    } else {
+        if (val > 5000) status = 'healthy';
+        else if (val > 1000) status = 'watch';
+    }
+
+    const styles = {
+        healthy: { bgcolor: "rgba(16, 185, 129, 0.12)", color: "#064e3b" },
+        watch: { bgcolor: "rgba(245, 158, 11, 0.12)", color: "#92400e" },
+        action: { bgcolor: "rgba(239, 68, 68, 0.12)", color: "#991b1b" }
+    };
+    return styles[status] || {};
+};
 
 /* -------------------------------------------------------------------------- */
 /*                                MOCK DATA                                   */
@@ -244,21 +272,113 @@ const METRIC_HEADERS = [
     { label: "PROJECTED SALES", align: "right" },
 ];
 
-// Helper to format numbers
-const fmt = (n) => n?.toLocaleString(undefined, { maximumFractionDigits: 1 }) || "0";
-
 // -------------- COMPONENT -----------------
 export default function DrillDownSalesTable() {
-    const [expanded, setExpanded] = useState({}); // Default expanded for demo
+    const [expanded, setExpanded] = useState(new Set());
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+    const [rowsPerPage, setRowsPerPage] = useState(5);
+    const [page, setPage] = useState(1);
+    const [filters, setFilters] = useState({ platform: [], region: [], city: [], keyword: [] });
+    const [popupFilters, setPopupFilters] = useState({ platform: [], region: [], city: [], keyword: [] });
+
+    // Extract filter options from data hierarchy
+    const filterOptionsData = useMemo(() => {
+        const platforms = new Set(["All"]);
+        const regions = new Set(["All"]);
+        const cities = new Set(["All"]);
+        const keywords = new Set(["All"]);
+
+        DATA_HIERARCHY.forEach(p => {
+            platforms.add(p.name);
+            p.children?.forEach(r => {
+                regions.add(r.name);
+                r.children?.forEach(c => {
+                    cities.add(c.name);
+                    c.children?.forEach(k => {
+                        keywords.add(k.name);
+                    });
+                });
+            });
+        });
+
+        return {
+            platforms: Array.from(platforms).map(v => ({ id: v, label: v })),
+            regions: Array.from(regions).map(v => ({ id: v, label: v })),
+            cities: Array.from(cities).map(v => ({ id: v, label: v })),
+            keywords: Array.from(keywords).map(v => ({ id: v, label: v })),
+        };
+    }, []);
+
+    const sectionConfig = [
+        { id: "platforms", label: "Platforms" },
+        { id: "regions", label: "Regions" },
+        { id: "cities", label: "Cities" },
+        { id: "keywords", label: "Keywords" },
+    ];
+
+    // Filter and Flatten Logic
+    const flattenedRows = useMemo(() => {
+        const rows = [];
+
+        const walk = (node, depth, parentPaths) => {
+            const currentPath = {
+                platform: depth === 0 ? node.name : parentPaths.platform,
+                region: depth === 1 ? node.name : parentPaths.region,
+                city: depth === 2 ? node.name : parentPaths.city,
+                keyword: depth === 3 ? node.name : parentPaths.keyword,
+            };
+
+            // A node passes if its known path components match the filters
+            // For components not yet known (deeper than current depth), we assume true
+            const passesFilter =
+                (filters.platform.length === 0 || depth < 0 || filters.platform.includes(currentPath.platform)) &&
+                (filters.region.length === 0 || depth < 1 || filters.region.includes(currentPath.region)) &&
+                (filters.city.length === 0 || depth < 2 || filters.city.includes(currentPath.city)) &&
+                (filters.keyword.length === 0 || depth < 3 || filters.keyword.includes(currentPath.keyword));
+
+            if (!passesFilter) return;
+
+            const fullIdPath = [...(parentPaths.fullIdPath || []), node.id];
+            const key = fullIdPath.join(">");
+            const isOpen = expanded.has(key);
+            const children = node.children || [];
+            const hasChildren = children.length > 0;
+
+            rows.push({
+                ...node,
+                key,
+                level: depth,
+                path: fullIdPath,
+                hasChildren
+            });
+
+            if (isOpen && hasChildren) {
+                children.forEach(child => walk(child, depth + 1, { ...currentPath, fullIdPath }));
+            }
+        };
+
+        DATA_HIERARCHY.forEach(p => walk(p, 0, { platform: 'All', region: 'All', city: 'All', keyword: 'All', fullIdPath: [] }));
+        return rows;
+    }, [filters, expanded]);
+
+    const totalPages = Math.max(1, Math.ceil(flattenedRows.length / rowsPerPage));
+    const safePage = Math.max(1, Math.min(page, totalPages));
+
+    const pageRows = useMemo(() => {
+        const start = (safePage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        return flattenedRows.slice(start, end);
+    }, [flattenedRows, safePage, rowsPerPage]);
 
     const expandAll = () => {
-        const all = {};
+        const all = new Set();
         const traverse = (nodes, path = []) => {
             nodes.forEach(n => {
-                const key = [...path, n.id].join(">");
+                const fullPath = [...path, n.id];
+                const key = fullPath.join(">");
                 if (n.children && n.children.length > 0) {
-                    all[key] = true;
-                    traverse(n.children, [...path, n.id]);
+                    all.add(key);
+                    traverse(n.children, fullPath);
                 }
             });
         };
@@ -266,234 +386,322 @@ export default function DrillDownSalesTable() {
         setExpanded(all);
     };
 
-    const collapseAll = () => setExpanded({});
+    const collapseAll = () => setExpanded(new Set());
 
-    // Dynamic Column Visibility Logic
-    // Compute the max depth currently visible based on expansion
     const maxVisibleDepth = useMemo(() => {
-        let maxDepth = 0; // Default: Only Platform visible
-
-        Object.keys(expanded).forEach(key => {
-            if (expanded[key]) {
-                // If key is "flipkart" (depth 0 expanded), we show depth 1 (Region)
-                // If "flipkart>north1" (depth 1 expanded), we show depth 2 (City)
-                const depth = key.split('>').length;
-                if (depth > maxDepth) {
-                    maxDepth = depth;
-                }
-            }
+        let maxDepth = 0;
+        expanded.forEach(key => {
+            const depth = key.split('>').length;
+            if (depth > maxDepth) maxDepth = depth;
         });
-
-        // Cap at Max Hierarchy Level
         return Math.min(maxDepth, HIERARCHY_LEVELS.length - 1);
     }, [expanded]);
 
     const visibleHierarchyCols = HIERARCHY_LEVELS.slice(0, maxVisibleDepth + 1);
 
-    // Helper/Recursive renderer matching HeatMapDrillTable style
-    const renderRow = (node, level = 0, path = []) => {
-        const fullPath = [...path, node.id];
-        const key = fullPath.join(">");
-        const isOpen = expanded[key];
-        const children = node.children || [];
-        const hasChildren = children.length > 0;
+    const toggleExpand = (key) => {
+        setExpanded(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
 
-        // Determine row background
-        // Level 0 (Platform) gets slight gray, Level 3 (Keyword) gets white etc.
-        // Mimicking the reference image style
+    const renderRow = (row) => {
+        const { key, level, name, hasChildren, mtdSales, prevMtd, drr, ytdSales, lastYear, projected } = row;
+        const isOpen = expanded.has(key);
         const isPlatform = level === 0;
-        const rowBg = isPlatform ? "#fff" : "#fff";
+        const rowBg = "#fff";
 
         return (
-            <React.Fragment key={key}>
-                <TableRow
-                    component={motion.tr}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    sx={{
-                        backgroundColor: rowBg,
-                        "&:hover": { backgroundColor: "#f8fafc" },
-                        borderBottom: "1px solid #f1f5f9"
-                    }}
-                >
-                    {/* HIERARCHY COLUMNS */}
-                    {visibleHierarchyCols.map((colName, colIndex) => {
-                        const isCurrentLevel = colIndex === level;
-                        const isFirstCol = colIndex === 0;
+            <TableRow
+                key={key}
+                component={motion.tr}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                sx={{
+                    backgroundColor: rowBg,
+                    "&:hover": { backgroundColor: "#f8fafc" },
+                    borderBottom: "1px solid #f1f5f9"
+                }}
+            >
+                {visibleHierarchyCols.map((colName, colIndex) => {
+                    const isCurrentLevel = colIndex === level;
+                    const isFirstCol = colIndex === 0;
+                    const stickyStyle = isFirstCol ? {
+                        position: "sticky", left: 0, zIndex: 10, backgroundColor: rowBg, minWidth: 150, borderRight: "1px solid #f1f5f9"
+                    } : {};
 
-                        const stickyStyle = isFirstCol ? {
-                            position: "sticky", left: 0, zIndex: 10, backgroundColor: rowBg, minWidth: 150, borderRight: "1px solid #f1f5f9"
-                        } : {};
-
-                        if (isCurrentLevel) {
-                            return (
-                                <TableCell key={colIndex} sx={{ ...stickyStyle, py: 1.5 }}>
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                        {/* Expand Button box */}
-                                        <Box sx={{ width: 20, display: "flex", justifyContent: "center" }}>
-                                            {hasChildren ? (
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => setExpanded(prev => ({ ...prev, [key]: !prev[key] }))}
-                                                    sx={{
-                                                        width: 20, height: 20,
-                                                        borderRadius: 1,
-                                                        border: "1px solid #e2e8f0",
-                                                        color: "#64748b",
-                                                        bgcolor: isOpen ? "#f1f5f9" : "transparent"
-                                                    }}
-                                                >
-                                                    {isOpen ? <Minus size={12} /> : <Plus size={12} />}
-                                                </IconButton>
-                                            ) : (
-                                                <Box sx={{ width: 20 }} />
-                                            )}
-                                        </Box>
-                                        <Typography sx={{ fontSize: 13, fontWeight: isPlatform ? 700 : 500, color: "#1e293b" }}>
-                                            {node.name}
-                                        </Typography>
+                    if (isCurrentLevel) {
+                        return (
+                            <TableCell key={colIndex} sx={{ ...stickyStyle, py: 1.5 }}>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Box sx={{ width: 20, display: "flex", justifyContent: "center" }}>
+                                        {hasChildren ? (
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => toggleExpand(key)}
+                                                sx={{
+                                                    width: 20, height: 20,
+                                                    borderRadius: 1,
+                                                    border: "1px solid #e2e8f0",
+                                                    color: "#64748b",
+                                                    bgcolor: isOpen ? "#f1f5f9" : "transparent"
+                                                }}
+                                            >
+                                                {isOpen ? <Minus size={12} /> : <Plus size={12} />}
+                                            </IconButton>
+                                        ) : (
+                                            <Box sx={{ width: 20 }} />
+                                        )}
                                     </Box>
-                                </TableCell>
-                            );
-                        } else {
-                            return (
-                                <TableCell key={colIndex} sx={{ ...stickyStyle, color: "#cbd5e1" }}>
-                                    –
-                                </TableCell>
-                            );
-                        }
-                    })}
+                                    <Typography sx={{ fontSize: 13, fontWeight: isPlatform ? 700 : 500, color: "#1e293b" }}>
+                                        {name}
+                                    </Typography>
+                                </Box>
+                            </TableCell>
+                        );
+                    } else {
+                        return (
+                            <TableCell key={colIndex} sx={{ ...stickyStyle, color: "#cbd5e1" }}>
+                                –
+                            </TableCell>
+                        );
+                    }
+                })}
 
-                    {/* METRIC COLUMNS */}
-                    {/* MTD SALES */}
-                    <TableCell align="right">
-                        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#1e293b" }}>
-                            {fmt(node.mtdSales)}
+                <TableCell align="right">
+                    <Box display="inline-flex" alignItems="center" justifyContent="center"
+                        sx={{ ...getMetricStyle('MTD Sales', mtdSales), borderRadius: 1, px: 1, py: 0.5, minWidth: 50 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                            {fmt(mtdSales)}
                         </Typography>
-                    </TableCell>
+                    </Box>
+                </TableCell>
 
-                    {/* PREV MTD */}
-                    <TableCell align="right">
-                        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#64748b" }}>
-                            {fmt(node.prevMtd)}
+                <TableCell align="right">
+                    <Box display="inline-flex" alignItems="center" justifyContent="center"
+                        sx={{ ...getMetricStyle('Prev Month', prevMtd), borderRadius: 1, px: 1, py: 0.5, minWidth: 50 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                            {fmt(prevMtd)}
                         </Typography>
-                    </TableCell>
+                    </Box>
+                </TableCell>
 
-                    {/* CURRENT DRR (Badge) */}
-                    <TableCell align="center">
-                        <Box
-                            display="inline-flex"
-                            alignItems="center"
-                            justifyContent="center"
-                            sx={{
-                                bgcolor: "rgba(13, 148, 136, 0.1)", // Teal background tint
-                                color: "#0f766e",
-                                borderRadius: 1,
-                                px: 1,
-                                py: 0.5,
-                                minWidth: 50
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
-                                {fmt(node.drr)}
-                            </Typography>
-                        </Box>
-                    </TableCell>
-
-                    {/* YTD SALES */}
-                    <TableCell align="right">
-                        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#1e293b" }}>
-                            {fmt(node.ytdSales)}
+                <TableCell align="center">
+                    <Box
+                        display="inline-flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        sx={{
+                            ...getMetricStyle('DRR', drr),
+                            borderRadius: 1,
+                            px: 1,
+                            py: 0.5,
+                            minWidth: 50
+                        }}
+                    >
+                        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+                            {fmt(drr)}
                         </Typography>
-                    </TableCell>
+                    </Box>
+                </TableCell>
 
-                    {/* LAST YEAR */}
-                    <TableCell align="right">
-                        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#64748b" }}>
-                            {fmt(node.lastYear)}
+                <TableCell align="right">
+                    <Box display="inline-flex" alignItems="center" justifyContent="center"
+                        sx={{ ...getMetricStyle('YTD Sales', ytdSales), borderRadius: 1, px: 1, py: 0.5, minWidth: 50 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                            {fmt(ytdSales)}
                         </Typography>
-                    </TableCell>
+                    </Box>
+                </TableCell>
 
-                    {/* PROJECTED */}
-                    <TableCell align="right">
-                        <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#1e293b" }}>
-                            {fmt(node.projected)}
+                <TableCell align="right">
+                    <Box display="inline-flex" alignItems="center" justifyContent="center"
+                        sx={{ ...getMetricStyle('Last Year', lastYear), borderRadius: 1, px: 1, py: 0.5, minWidth: 50 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                            {fmt(lastYear)}
                         </Typography>
-                    </TableCell>
+                    </Box>
+                </TableCell>
 
-                </TableRow>
-
-                {/* RECURSION */}
-                {isOpen && children.map(child => renderRow(child, level + 1, fullPath))}
-            </React.Fragment>
+                <TableCell align="right">
+                    <Box display="inline-flex" alignItems="center" justifyContent="center"
+                        sx={{ ...getMetricStyle('Projected', projected), borderRadius: 1, px: 1, py: 0.5, minWidth: 50 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
+                            {fmt(projected)}
+                        </Typography>
+                    </Box>
+                </TableCell>
+            </TableRow>
         );
     };
 
     return (
-        <Card
-            sx={{
-                borderRadius: 3,
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                bgcolor: "white",
-                p: 2
-            }}
-        >
-            {/* HEADER CONTROLS */}
-            <Box display="flex" justifyContent="flex-end" mb={2} gap={1}>
-                <Button onClick={expandAll} size="small" sx={{ textTransform: "none", fontSize: 12, bgcolor: "#e0f2fe", color: "#0284c7" }}>Expand All</Button>
-                <Button onClick={collapseAll} size="small" sx={{ textTransform: "none", fontSize: 12, bgcolor: "#fee2e2", color: "#dc2626" }}>Collapse All</Button>
-            </Box>
+        <div className="flex w-full flex-col rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-4 pb-2">
+                <div>
+                    <h1 className="text-lg font-semibold text-slate-900">Sales at a glance</h1>
+                    <p className="text-sm text-slate-500">Hierarchical drilldown with daily and cumulative sales metrics.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <div className="h-6 w-px bg-slate-200"></div>
+                    <button
+                        onClick={() => setShowFilterPanel(true)}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                    >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>Filters</span>
+                    </button>
+                    <div className="h-6 w-px bg-slate-200"></div>
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50/50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                            Healthy
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50/50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                            Watch
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50/50 px-2.5 py-1 text-[11px] font-medium text-rose-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                            Action
+                        </span>
+                    </div>
+                </div>
+            </div>
 
-            <TableContainer sx={{ maxHeight: 600 }}>
-                <Table stickyHeader>
-                    <TableHead>
-                        <TableRow>
-                            {visibleHierarchyCols.map((label, i) => (
-                                <TableCell
-                                    key={i}
-                                    sx={{
-                                        py: 2,
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        color: "#64748b",
-                                        bgcolor: "#f8fafc",
-                                        borderBottom: "1px solid #e2e8f0",
-                                        ...(i === 0 ? { position: "sticky", left: 0, zIndex: 20 } : {})
-                                    }}
-                                >
-                                    <Box display="flex" alignItems="center" gap={0.5}>
+            <div className="flex-1 overflow-auto p-4">
+                <div className="flex items-center justify-between mb-3 px-2">
+                    <div className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">
+                        Platform → Region → City → Keyword
+                    </div>
+                    <Box display="flex" gap={1}>
+                        <Button
+                            onClick={expandAll}
+                            size="small"
+                            sx={{
+                                textTransform: "none", fontSize: 10, fontWeight: 700,
+                                bgcolor: "#f0f9ff", color: "#0369a1", borderRadius: "20px", px: 2, py: 0.2,
+                                '&:hover': { bgcolor: '#e0f2fe' }
+                            }}
+                        >
+                            Expand All
+                        </Button>
+                        <Button
+                            onClick={collapseAll}
+                            size="small"
+                            sx={{
+                                textTransform: "none", fontSize: 10, fontWeight: 700,
+                                bgcolor: "#fef2f2", color: "#b91c1c", borderRadius: "20px", px: 2, py: 0.2,
+                                '&:hover': { bgcolor: '#fee2e2' }
+                            }}
+                        >
+                            Collapse All
+                        </Button>
+                    </Box>
+                </div>
+
+                <TableContainer sx={{ maxHeight: 600, border: 'none' }}>
+                    <Table stickyHeader size="small">
+                        <TableHead>
+                            <TableRow>
+                                {visibleHierarchyCols.map((label, i) => (
+                                    <TableCell
+                                        key={i}
+                                        sx={{
+                                            py: 1.5, fontSize: 12, fontWeight: 700,
+                                            color: "#475569", bgcolor: "#f8fafc", borderBottom: "1px solid #f1f5f9",
+                                            ...(i === 0 ? { position: "sticky", left: 0, zIndex: 20 } : {})
+                                        }}
+                                    >
                                         {label}
-                                        {/* {i > 0 && <LineChartIcon className="w-3 h-3 text-slate-400" />} */}
-                                    </Box>
-                                </TableCell>
-                            ))}
-                            {METRIC_HEADERS.map((h, i) => (
-                                <TableCell
-                                    key={i + visibleHierarchyCols.length}
-                                    align={h.align}
-                                    sx={{
-                                        py: 2,
-                                        fontSize: 12,
-                                        fontWeight: 700,
-                                        color: "#64748b",
-                                        bgcolor: "#f8fafc",
-                                        borderBottom: "1px solid #e2e8f0"
-                                    }}
-                                >
-                                    <Box display="flex" alignItems="center" justifyContent={h.align === "left" ? "flex-start" : h.align === "right" ? "flex-end" : "center"} gap={0.5}>
+                                    </TableCell>
+                                ))}
+                                {METRIC_HEADERS.map((h, i) => (
+                                    <TableCell
+                                        key={i + visibleHierarchyCols.length}
+                                        align={h.align}
+                                        sx={{
+                                            py: 1.5, fontSize: 12, fontWeight: 700,
+                                            color: "#475569", bgcolor: "#f8fafc", borderBottom: "1px solid #f1f5f9"
+                                        }}
+                                    >
                                         {h.label}
-                                        {/* <LineChartIcon className="w-3 h-3 text-slate-400" /> */}
-                                    </Box>
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {DATA_HIERARCHY.map(row => renderRow(row))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </Card>
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {pageRows.map(row => renderRow(row))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+
+                <PaginationFooter
+                    isVisible={true}
+                    currentPage={safePage}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    pageSize={rowsPerPage}
+                    onPageSizeChange={setRowsPerPage}
+                />
+            </div>
+            {showFilterPanel && (
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 transition-all backdrop-blur-sm">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                            </div>
+                            <button
+                                onClick={() => setShowFilterPanel(false)}
+                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Panel Content */}
+                        <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+                            <KpiFilterPanel
+                                sectionConfig={sectionConfig}
+                                platforms={filterOptionsData.platforms}
+                                regions={filterOptionsData.regions}
+                                cities={filterOptionsData.cities}
+                                keywords={filterOptionsData.keywords}
+                                onPlatformChange={(vals) => setPopupFilters(prev => ({ ...prev, platform: vals.filter(v => v !== 'All') }))}
+                                onRegionChange={(vals) => setPopupFilters(prev => ({ ...prev, region: vals.filter(v => v !== 'All') }))}
+                                onCityChange={(vals) => setPopupFilters(prev => ({ ...prev, city: vals.filter(v => v !== 'All') }))}
+                                onKeywordChange={(vals) => setPopupFilters(prev => ({ ...prev, keyword: vals.filter(v => v !== 'All') }))}
+                            />
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                            <button
+                                onClick={() => setShowFilterPanel(false)}
+                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setFilters(popupFilters);
+                                    setPage(1);
+                                    setShowFilterPanel(false);
+                                }}
+                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                            >
+                                Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 }

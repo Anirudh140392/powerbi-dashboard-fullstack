@@ -554,7 +554,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
 export default function VisibilityTrendsCompetitionDrawer({
   dynamicKey,
   open = true,
-  onClose = () => {},
+  onClose = () => { },
   selectedColumn,
 }) {
   const [view, setView] = useState("Trends");
@@ -754,13 +754,7 @@ export default function VisibilityTrendsCompetitionDrawer({
     setAddSkuOpen(false);
   };
 
-  const PLATFORM_OPTIONS = [
-    "Blinkit",
-    "Zepto",
-    "Instamart",
-    "Swiggy",
-    "Amazon",
-  ];
+  const PLATFORM_OPTIONS = ["Blinkit", "Zepto", "Instamart", "BigBasket"];
   const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
   const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Britannia"];
@@ -872,12 +866,12 @@ export default function VisibilityTrendsCompetitionDrawer({
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
-                      ? FORMAT_OPTIONS
-                      : allTrendMeta.context.audience === "City"
-                      ? CITY_OPTIONS
-                      : allTrendMeta.context.audience === "Brand"
-                      ? BRAND_OPTIONS
-                      : []
+                        ? FORMAT_OPTIONS
+                        : allTrendMeta.context.audience === "City"
+                          ? CITY_OPTIONS
+                          : allTrendMeta.context.audience === "Brand"
+                            ? BRAND_OPTIONS
+                            : []
                     ).map((p) => (
                       <Box
                         key={p}
@@ -904,18 +898,6 @@ export default function VisibilityTrendsCompetitionDrawer({
                   </Box>
                 )}
               </Box>
-
-              {/* LEVEL CHIP */}
-              <Chip
-                size="small"
-                label={trendMeta.context.level}
-                sx={{
-                  borderRadius: "999px",
-                  backgroundColor: "#DCFCE7",
-                  color: "#166534",
-                  fontWeight: 500,
-                }}
-              />
 
               {/* AUDIENCE CHIP */}
             </Box>
@@ -1017,16 +999,6 @@ export default function VisibilityTrendsCompetitionDrawer({
               <Typography variant="h6" fontWeight={600}>
                 Compare SKUs
               </Typography>
-              <Chip
-                size="small"
-                label={compareMeta.context.level}
-                sx={{
-                  borderRadius: "999px",
-                  backgroundColor: "#DCFCE7",
-                  color: "#166534",
-                  fontWeight: 500,
-                }}
-              />
             </Box>
 
             {/* Range + Timestep */}

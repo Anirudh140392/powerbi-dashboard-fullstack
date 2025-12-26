@@ -15,11 +15,11 @@ import {
 -------------------------------------------------------*/
 const visibilityKpiOrder = [
     "adPosition",
-    "adSov",
+    "adSos",
     "organicPosition",
-    "overallSov",
+    "overallSos",
     "volumeShare",
-    "organicSov",
+    "organicSos",
 ];
 
 const availabilityKpiOrder = [
@@ -54,11 +54,11 @@ const inventoryKpiOrder = [
 -------------------------------------------------------*/
 const KPI_LABELS = {
     adPosition: "Ad Pos.",
-    adSov: "Ad SOV",
+    adSos: "Ad Sos",
     organicPosition: "Organic Pos.",
-    overallSov: "Overall SOV",
+    overallSos: "Overall Sos",
     volumeShare: "Volume Share",
-    organicSov: "Organic SOV",
+    organicSos: "Organic Sos",
 
     assortment: "Assortment",
     soh: "SOH",
@@ -144,14 +144,14 @@ const SAMPLE_SKUS = [
         impact: "-6.2%",
         kpis: {
             adPosition: "3",
-            adSov: "14.5%",
+            adSos: "14.5%",
             organicPosition: "18",
-            overallSov: "9.8%",
+            overallSos: "9.8%",
             volumeShare: "8.2%",
-            organicSov: "6.7%",
+            organicSos: "6.7%",
         },
         topCities: [
-            { city: "Delhi", metric: "Overall SOV 7.2%", change: "-3.4%" },
+            { city: "Delhi", metric: "Overall Sos 7.2%", change: "-3.4%" },
             { city: "Gurgaon", metric: "Volume Share 6.8%", change: "-2.1%" },
         ],
     },
@@ -168,15 +168,15 @@ const SAMPLE_SKUS = [
         impact: "-4.9%",
         kpis: {
             adPosition: "4",
-            adSov: "8.9%",
+            adSos: "8.9%",
             organicPosition: "22",
-            overallSov: "7.4%",
+            overallSos: "7.4%",
             volumeShare: "5.3%",
-            organicSov: "4.1%",
+            organicSos: "4.1%",
         },
         topCities: [
-            { city: "Mumbai", metric: "Ad SOV 6.2%", change: "-2.7%" },
-            { city: "Thane", metric: "Organic SOV 3.2%", change: "-1.9%" },
+            { city: "Mumbai", metric: "Ad Sos 6.2%", change: "-2.7%" },
+            { city: "Thane", metric: "Organic Sos 3.2%", change: "-1.9%" },
         ],
     },
     {
@@ -192,14 +192,14 @@ const SAMPLE_SKUS = [
         impact: "-3.8%",
         kpis: {
             adPosition: "5",
-            adSov: "7.5%",
+            adSos: "7.5%",
             organicPosition: "25",
-            overallSov: "6.8%",
+            overallSos: "6.8%",
             volumeShare: "4.9%",
-            organicSov: "3.5%",
+            organicSos: "3.5%",
         },
         topCities: [
-            { city: "Bangalore", metric: "Ad SOV 5.8%", change: "-2.1%" },
+            { city: "Bangalore", metric: "Ad Sos 5.8%", change: "-2.1%" },
             { city: "Chennai", metric: "Volume Share 4.2%", change: "-1.5%" },
         ],
     },
@@ -210,21 +210,21 @@ const SAMPLE_SKUS = [
         skuCode: "KW V04",
         skuName: "Choco Chip Tub",
         packSize: "750 ml",
-        platform: "Flipkart",
+        platform: "BigBasket",
         categoryTag: "Tub",
         offtakeValue: "₹ 2.2 lac",
         impact: "-3.5%",
         kpis: {
             adPosition: "6",
-            adSov: "6.2%",
+            adSos: "6.2%",
             organicPosition: "28",
-            overallSov: "5.5%",
+            overallSos: "5.5%",
             volumeShare: "4.1%",
-            organicSov: "3.1%",
+            organicSos: "3.1%",
         },
         topCities: [
-            { city: "Hyderabad", metric: "Overall SOV 4.9%", change: "-1.8%" },
-            { city: "Pune", metric: "Organic SOV 2.8%", change: "-1.2%" },
+            { city: "Hyderabad", metric: "Overall Sos 4.9%", change: "-1.8%" },
+            { city: "Pune", metric: "Organic Sos 2.8%", change: "-1.2%" },
         ],
     },
 
@@ -241,14 +241,14 @@ const SAMPLE_SKUS = [
         impact: "+7.8%",
         kpis: {
             adPosition: "1",
-            adSov: "29.4%",
+            adSos: "29.4%",
             organicPosition: "4",
-            overallSov: "18.6%",
+            overallSos: "18.6%",
             volumeShare: "15.2%",
-            organicSov: "12.3%",
+            organicSos: "12.3%",
         },
         topCities: [
-            { city: "Bangalore", metric: "Ad SOV 34.1%", change: "+9.3%" },
+            { city: "Bangalore", metric: "Ad Sos 34.1%", change: "+9.3%" },
             { city: "Hyderabad", metric: "Volume Share 17.5%", change: "+5.1%" },
         ],
     },
@@ -259,21 +259,21 @@ const SAMPLE_SKUS = [
         skuCode: "KW V07",
         skuName: "Feast Bar",
         packSize: "90 ml",
-        platform: "Instamart",
+        platform: "Zepto",
         categoryTag: "Stick",
         offtakeValue: "₹ 3.9 lac",
         impact: "+5.1%",
         kpis: {
             adPosition: "2",
-            adSov: "22.7%",
+            adSos: "22.7%",
             organicPosition: "7",
-            overallSov: "13.9%",
+            overallSos: "13.9%",
             volumeShare: "11.4%",
-            organicSov: "9.6%",
+            organicSos: "9.6%",
         },
         topCities: [
-            { city: "Pune", metric: "Overall SOV 16.2%", change: "+4.2%" },
-            { city: "Mumbai", metric: "Ad SOV 21.5%", change: "+3.7%" },
+            { city: "Pune", metric: "Overall Sos 16.2%", change: "+4.2%" },
+            { city: "Mumbai", metric: "Ad Sos 21.5%", change: "+3.7%" },
         ],
     },
     {
@@ -283,21 +283,21 @@ const SAMPLE_SKUS = [
         skuCode: "KW V08",
         skuName: "Oreo Cone",
         packSize: "110 ml",
-        platform: "Zepto",
+        platform: "Instamart",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.5 lac",
         impact: "+4.8%",
         kpis: {
             adPosition: "2",
-            adSov: "20.1%",
+            adSos: "20.1%",
             organicPosition: "8",
-            overallSov: "12.5%",
+            overallSos: "12.5%",
             volumeShare: "10.1%",
-            organicSov: "8.4%",
+            organicSos: "8.4%",
         },
         topCities: [
             { city: "Delhi", metric: "Volume Share 11.2%", change: "+3.5%" },
-            { city: "Gurgaon", metric: "Overall SOV 13.1%", change: "+2.9%" },
+            { city: "Gurgaon", metric: "Overall Sos 13.1%", change: "+2.9%" },
         ],
     },
     {
@@ -313,15 +313,15 @@ const SAMPLE_SKUS = [
         impact: "+4.2%",
         kpis: {
             adPosition: "3",
-            adSov: "18.5%",
+            adSos: "18.5%",
             organicPosition: "10",
-            overallSov: "11.2%",
+            overallSos: "11.2%",
             volumeShare: "9.5%",
-            organicSov: "7.8%",
+            organicSos: "7.8%",
         },
         topCities: [
-            { city: "Chennai", metric: "Ad SOV 19.8%", change: "+3.1%" },
-            { city: "Bangalore", metric: "Organic SOV 8.5%", change: "+2.5%" },
+            { city: "Chennai", metric: "Ad Sos 19.8%", change: "+3.1%" },
+            { city: "Bangalore", metric: "Organic Sos 8.5%", change: "+2.5%" },
         ],
     },
 
@@ -354,7 +354,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW A02",
         skuName: "Party Pack Mango",
         packSize: "1.3 L",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 5.4 lac",
         impact: "-3.7%",
@@ -375,7 +375,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW A03",
         skuName: "Vanilla Cup 100ml",
         packSize: "100 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 4.8 lac",
         impact: "-3.2%",
@@ -396,7 +396,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW A04",
         skuName: "Strawberry Cone",
         packSize: "110 ml",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.9 lac",
         impact: "-2.9%",
@@ -418,7 +418,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW AG01",
         skuName: "Choco Brownie Fudge",
         packSize: "500 ml",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 4.2 lac",
         impact: "-6.9%",
@@ -439,7 +439,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW AG02",
         skuName: "Chocobar Mini Multi",
         packSize: "6 x 45 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Mini",
         offtakeValue: "₹ 3.7 lac",
         impact: "+4.3%",
@@ -484,7 +484,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW AG04",
         skuName: "Mango Stick",
         packSize: "60 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 3.1 lac",
         impact: "+3.2%",
@@ -663,7 +663,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-801",
         skuName: "Belgian Chocolate 500ml",
         packSize: "500 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 2.0 lac",
         impact: "-4.1%",
@@ -680,7 +680,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-P-CUP",
         skuName: "Cup Ice Cream",
         packSize: "Small",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.8 lac",
         impact: "-3.2%",
@@ -697,7 +697,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-803",
         skuName: "Vanilla Cup 100ml",
         packSize: "100 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.5 lac",
         impact: "-3.8%",
@@ -715,7 +715,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-P-MAG",
         skuName: "Magnum Ice Cream",
         packSize: "Stick",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Premium",
         offtakeValue: "₹ 4.1 lac",
         impact: "+5.2%",
@@ -732,7 +732,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-802",
         skuName: "Cornetto Double Choco",
         packSize: "110 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.7 lac",
         impact: "+3.9%",
@@ -766,7 +766,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-804",
         skuName: "Trixy Cookie",
         packSize: "100 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 3.5 lac",
         impact: "+4.1%",
@@ -802,7 +802,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-901",
         skuName: "Butterscotch 700ml",
         packSize: "700 ml",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Tub",
         offtakeValue: "₹ 2.1 lac",
         impact: "-3.5%",
@@ -819,7 +819,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-I-CUP",
         skuName: "Cup Ice Cream",
         packSize: "Small",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.6 lac",
         impact: "-2.5%",
@@ -836,7 +836,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-903",
         skuName: "Vanilla Cup 100ml",
         packSize: "100 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Cup",
         offtakeValue: "₹ 1.4 lac",
         impact: "-3.1%",
@@ -854,7 +854,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-I-CON",
         skuName: "Cone Ice Cream",
         packSize: "Mixed",
-        platform: "Zepto",
+        platform: "Blinkit",
         categoryTag: "Cone",
         offtakeValue: "₹ 3.2 lac",
         impact: "+3.1%",
@@ -871,7 +871,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-902",
         skuName: "Magnum Truffle 80ml",
         packSize: "80 ml",
-        platform: "Flipkart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 2.9 lac",
         impact: "+2.6%",
@@ -888,7 +888,7 @@ const SAMPLE_SKUS = [
         skuCode: "KW-I-BAR",
         skuName: "Choco Bar",
         packSize: "Single",
-        platform: "Instamart",
+        platform: "Blinkit",
         categoryTag: "Stick",
         offtakeValue: "₹ 2.7 lac",
         impact: "+2.9%",
@@ -934,7 +934,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
 
     const PRIMARY_METRICS = {
-        visibility: { label: "Overall SOV", key: "overallSov" },
+        visibility: { label: "Overall Sos", key: "overallSos" },
         availability: { label: "Overall OSA", key: "weightedOsa" }
     };
 
@@ -953,7 +953,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                         </span>
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-50 border text-sky-700">
-                        Blinkit
+                        {sku.platform}
                     </span>
                 </div>
 
@@ -983,7 +983,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                             >
                                 <span className="text-slate-500">{KPI_LABELS[key]}:</span>
                                 <span className="font-semibold text-slate-800 text-[11px]">
-                                    {sku.kpis[key]}
+                                    {sku.kpis[key]?.toString().replace("%", "")}
                                 </span>
                             </div>
                         ) : null
@@ -999,7 +999,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     {citiesToShow.map((c) => (
                         <div key={c.city} className="p-2 border rounded-xl bg-slate-50 flex flex-col items-center text-center">
                             <div className="font-medium">{c.city}</div>
-                            <div className="text-[10px] text-slate-500">{c.metric}</div>
+                            <div className="text-[10px] text-slate-500">{c.metric?.toString().replace("%", "")}</div>
                             <ImpactPill value={c.change} />
                         </div>
                     ))}
@@ -1021,13 +1021,27 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType }) {
+function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
+
+    const [rowsPerPage, setRowsPerPage] = useState(4);
+    const [page, setPage] = useState(1);
 
     const filtered = SAMPLE_SKUS.filter(
         (sku) => sku.metricType === metricType && sku.type === signalType
     );
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+    const safePage = Math.max(1, Math.min(page, totalPages));
+
+    const pageRows = useMemo(() => {
+        if (!usePagination) return filtered;
+        const start = (safePage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        return filtered.slice(start, end);
+    }, [filtered, safePage, rowsPerPage, usePagination]);
+
 
     return (
         <>
@@ -1048,7 +1062,7 @@ function SignalLabBase({ metricType }) {
 
             <div className="mt-5">
                 <div className="grid grid-cols-4 gap-4 items-start">
-                    {filtered.slice(0, 4).map((s) => (
+                    {pageRows.map((s) => (
                         <SignalCard
                             key={s.id}
                             sku={s}
@@ -1058,6 +1072,52 @@ function SignalLabBase({ metricType }) {
                     ))}
                 </div>
             </div>
+
+            {usePagination && (
+                <div className="mt-6 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+                    <div className="flex items-center gap-2">
+                        <button
+                            disabled={safePage === 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                        >
+                            Prev
+                        </button>
+
+                        <span className="text-slate-600">
+                            Page <b className="text-slate-900">{safePage}</b> / {totalPages}
+                        </span>
+
+                        <button
+                            disabled={safePage >= totalPages}
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                        >
+                            Next
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="text-slate-600">
+                            Rows/page
+                            <select
+                                value={rowsPerPage}
+                                onChange={(e) => {
+                                    setPage(1);
+                                    setRowsPerPage(Number(e.target.value));
+                                }}
+                                className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                            >
+                                <option value={4}>4</option>
+                                <option value={8}>8</option>
+                                <option value={12}>12</option>
+                                <option value={20}>20</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Detailed Table Overlay */}
             {selectedSkuForDetails && (
@@ -1071,6 +1131,7 @@ function SignalLabBase({ metricType }) {
 }
 
 
-export function SignalLabVisibility({ type }) {
-    return <SignalLabBase metricType={type} />;
+export function SignalLabVisibility({ type, usePagination = true }) {
+    return <SignalLabBase metricType={type} usePagination={usePagination} />;
 }
+

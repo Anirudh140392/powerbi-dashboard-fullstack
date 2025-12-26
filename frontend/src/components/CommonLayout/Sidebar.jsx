@@ -68,6 +68,7 @@ const Sidebar = ({
       { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
     ],
   };
 
@@ -142,27 +143,17 @@ const Sidebar = ({
         ) : (
           <Box
             sx={{
-              width: 26, // 🔥 TIGHTENED to 26px to hide ALL text "traily..."
-              height: 24,
-              position: 'relative',
-              overflow: 'hidden',
+              height: 18, // Reduced height for actual size feel
               display: 'flex',
-              alignItems: 'center',
-              mr: 1 // Push away from toggle if needed
+              alignItems: 'flex-end',
+              gap: '1.5px', // Tighter gap
+              mr: 1.5,
+              mb: 0.5
             }}
           >
-            <Box
-              component="img"
-              src="/sidebar_logo.png"
-              alt="Icon"
-              sx={{
-                height: 24,
-                width: 'auto',
-                position: 'absolute',
-                left: 0,
-                maxWidth: 'none',
-              }}
-            />
+            <Box sx={{ width: 3, height: '40%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
+            <Box sx={{ width: 3, height: '70%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
+            <Box sx={{ width: 3, height: '100%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
           </Box>
         )}
         {!isMobile && (
@@ -173,9 +164,7 @@ const Sidebar = ({
               p: 0.5,
               '&:hover': { color: '#fff' },
               ...(isCollapsed && {
-                position: 'absolute',
-                right: 2,
-                bgcolor: 'rgba(255,255,255,0.05)' // Subtle background for the button in mini mode
+                bgcolor: 'rgba(255,255,255,0.05)'
               })
             }}
           >
@@ -185,27 +174,29 @@ const Sidebar = ({
       </Box>
 
       {/* Search Bar - Slimmer or Conditional */}
-      {!isCollapsed && (
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            bgcolor: 'rgba(255, 255, 255, 0.04)',
-            borderRadius: '10px',
-            px: 1.2, py: 0.4,
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            '&:focus-within': { borderColor: '#3b82f6', bgcolor: 'rgba(255, 255, 255, 0.06)' }
-          }}>
-            <SearchIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '1rem' }} />
-            <InputBase
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              sx={{ ml: 0.8, color: '#fff', fontSize: '0.8rem', flex: 1 }}
-            />
+      {
+        !isCollapsed && (
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              bgcolor: 'rgba(255, 255, 255, 0.04)',
+              borderRadius: '10px',
+              px: 1.2, py: 0.4,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              '&:focus-within': { borderColor: '#3b82f6', bgcolor: 'rgba(255, 255, 255, 0.06)' }
+            }}>
+              <SearchIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '1rem' }} />
+              <InputBase
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                sx={{ ml: 0.8, color: '#fff', fontSize: '0.8rem', flex: 1 }}
+              />
+            </Box>
           </Box>
-        </Box>
-      )}
+        )
+      }
 
       {/* Menu scroll area - Set to overflow hidden to remove scrollbar */}
       <Box sx={{
@@ -288,7 +279,7 @@ const Sidebar = ({
       </Box>
 
       {/* Footer Branding Removed */}
-    </Box>
+    </Box >
   );
 
   if (isMobile) {

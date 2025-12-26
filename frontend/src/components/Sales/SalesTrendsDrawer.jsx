@@ -747,18 +747,6 @@ export default function SalesTrendsDrawer({
                                 )}
                             </Box>
 
-                            {/* LEVEL CHIP */}
-                            <Chip
-                                size="small"
-                                label={trendMeta.context.level}
-                                sx={{
-                                    borderRadius: "999px",
-                                    backgroundColor: "#DCFCE7",
-                                    color: "#166534",
-                                    fontWeight: 500,
-                                }}
-                            />
-
                             {/* AUDIENCE CHIP */}
                         </Box>
 
@@ -859,16 +847,6 @@ export default function SalesTrendsDrawer({
                             <Typography variant="h6" fontWeight={600}>
                                 Compare SKUs
                             </Typography>
-                            <Chip
-                                size="small"
-                                label={compareMeta.context.level}
-                                sx={{
-                                    borderRadius: "999px",
-                                    backgroundColor: "#DCFCE7",
-                                    color: "#166534",
-                                    fontWeight: 500,
-                                }}
-                            />
                         </Box>
 
                         {/* Range + Timestep */}

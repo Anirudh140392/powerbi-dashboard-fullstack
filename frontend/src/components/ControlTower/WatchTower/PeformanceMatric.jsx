@@ -21,7 +21,7 @@ const KPI_CARDS = [
     label: "Share Of Search",
     value: "25%",
     unit: "",
-    tag: "-1.3% MoM",
+    tag: "-1.3%",
     tagTone: "warning",
     footer: "Organic + Paid view",
     trendTitle: "Share of Search Trend",
@@ -42,7 +42,7 @@ const KPI_CARDS = [
     label: "Inorganic Sales",
     value: "11%",
     unit: "",
-    tag: "5.4% MoM",
+    tag: "5.4%",
     tagTone: "positive",
     footer: "Non-brand contribution",
     trendTitle: "Inorganic Sales Trend",
@@ -61,9 +61,9 @@ const KPI_CARDS = [
   {
     id: "conversion",
     label: "Conversion",
-    value: "0.6%",
+    value: "1%",
     unit: "",
-    tag: "28% MoM",
+    tag: "28%",
     tagTone: "positive",
     footer: "Orders / Clicks",
     trendTitle: "Conversion Trend",
@@ -82,9 +82,9 @@ const KPI_CARDS = [
   {
     id: "roas_new",
     label: "Roas",
-    value: "2.1",
+    value: "2",
     unit: "",
-    tag: "10.5% MoM",
+    tag: "10.5%",
     tagTone: "positive",
     footer: "Return on Ad Spend",
     trendTitle: "ROAS Trend",
@@ -105,7 +105,7 @@ const KPI_CARDS = [
     label: "Bmi / Sales Ratio",
     value: "5%",
     unit: "",
-    tag: "-4.6% MoM",
+    tag: "-4.6%",
     tagTone: "warning",
     footer: "Efficiency index",
     trendTitle: "BMI / Sales Ratio Trend",
@@ -153,7 +153,8 @@ export default function PerformanceMatric({
 
   const [activeTrendId, setActiveTrendId] = useState(null);
   const [showTrends, setShowTrends] = useState(false);
-  const [selectedKpiId, setSelectedKpiId] = useState(null);
+  const [selectedTrendName, setSelectedTrendName] = useState("All");
+  const [selectedTrendLevel, setSelectedTrendLevel] = useState("Metric");
 
   const activeCard = KPI_CARDS_DATA.find((c) => c.id === activeTrendId) || null;
 
@@ -169,6 +170,7 @@ export default function PerformanceMatric({
         backgroundColor: "white",
         padding: "12px 16px",
         boxSizing: "border-box",
+        borderRadius: "24px",
       }}
     >
       {/* Card Row */}
@@ -193,7 +195,11 @@ export default function PerformanceMatric({
               cardWidth={cardWidth}
               cardHeight={cardHeight}
               onOpenTrend={() => setActiveTrendId(card.id)}
-              onTrendClick={() => handleKpiTrendClick(card.id)}
+              onViewTrends={(name) => {
+                setSelectedTrendName(name);
+                setSelectedTrendLevel("Metric");
+                setShowTrends(true);
+              }}
             />
           ))}
       </div>
@@ -203,13 +209,10 @@ export default function PerformanceMatric({
       )}
       <TrendsCompetitionDrawer
         open={showTrends}
-        onClose={() => {
-          setShowTrends(false);
-          setSelectedKpiId(null);
-        }}
-        selectedColumn="Blinkit"
+        onClose={() => setShowTrends(false)}
+        selectedColumn={selectedTrendName}
+        selectedLevel={selectedTrendLevel}
         dynamicKey="performance_dashboard_tower"
-        kpiId={selectedKpiId}
         filters={filters}
       />
     </div>
@@ -256,7 +259,7 @@ function SkeletonKpiCard() {
 /* ------------------------------------------------------
    KPI CARD
 -------------------------------------------------------*/
-function KpiCard({ card, onOpenTrend, onTrendClick }) {
+function KpiCard({ card, onOpenTrend, onViewTrends }) {
   const { bg, text } = getTagColors(card.tagTone);
 
   return (
@@ -296,7 +299,7 @@ function KpiCard({ card, onOpenTrend, onTrendClick }) {
         <Typography variant="body2" color="text.secondary">{card.label}</Typography>
 
         <div
-          onClick={onTrendClick}
+          onClick={() => onViewTrends(card.label)}
           className="trend-icon"
           style={{
             background: "#EEF2F7",
