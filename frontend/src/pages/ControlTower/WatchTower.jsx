@@ -58,9 +58,12 @@ import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
 
 function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
+  const [selectedTrendName, setSelectedTrendName] = useState("All");
+  const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
   const [rcaModalOpen, setRcaModalOpen] = useState(false);
   const [rcaModalTitle, setRcaModalTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = React.useState(0);
 
   const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
 
@@ -95,6 +98,7 @@ function WatchTower() {
     timeSeries: [],
     metrics: {},
   });
+
 
   // Fetch Trend Data when params change
   useEffect(() => {
@@ -207,11 +211,10 @@ function WatchTower() {
     platformOverview: [],       // Initialize for skeleton loading
   });
 
+
   // Individual loading states for each section
   const [performanceLoading, setPerformanceLoading] = useState(true);
   const [platformOverviewLoading, setPlatformOverviewLoading] = useState(true);
-
-
 
   const [monthOverviewPlatform, setMonthOverviewPlatform] = useState(platform || "Blinkit");
   const [monthOverviewData, setMonthOverviewData] = useState([]);
@@ -230,7 +233,6 @@ function WatchTower() {
   useEffect(() => {
     setBrandsOverviewCategory("All");
   }, [brandsOverviewPlatform]);
-
 
   // Update filters when context changes
   useEffect(() => {
@@ -541,7 +543,7 @@ function WatchTower() {
         <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
-            borderRadius: 4,
+            borderRadius: 6,
             boxShadow: 1,
             mb: 4,
           }}
@@ -550,9 +552,9 @@ function WatchTower() {
             cardWidth={285}
             cardHeight={140}
             data={dashboardData.performanceMetricsKpis}
-            filters={filters} // NEW: Pass filters to PerformanceMatric
+            filters={filters}
           />
-        </Box>
+        </Box >
 
         {/* Platform Overview */}
         {/* Tabs */}
@@ -569,31 +571,31 @@ function WatchTower() {
               <TabButton
                 label="By Platfrom"
                 active={activeKpisTab === "Platform Overview"}
-                onClick={() => setActiveKpisTab("Platform Overview")}
+                onClick={() => { setActiveKpisTab("Platform Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Month"
                 active={activeKpisTab === "Month Overview"}
-                onClick={() => setActiveKpisTab("Month Overview")}
+                onClick={() => { setActiveKpisTab("Month Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Category"
                 active={activeKpisTab === "Category Overview"}
-                onClick={() => setActiveKpisTab("Category Overview")}
+                onClick={() => { setActiveKpisTab("Category Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Brands"
                 active={activeKpisTab === "Brands Overview"}
-                onClick={() => setActiveKpisTab("Brands Overview")}
+                onClick={() => { setActiveKpisTab("Brands Overview"); setCurrentPage(0); }}
               />
 
               <TabButton
                 label="By Skus"
                 active={activeKpisTab === "Skus Overview"}
-                onClick={() => setActiveKpisTab("Skus Overview")}
+                onClick={() => { setActiveKpisTab("Skus Overview"); setCurrentPage(0); }}
               />
             </Box>
           </Box>
@@ -647,6 +649,8 @@ function WatchTower() {
               onBrandsCategoryChange={setBrandsOverviewCategory}
               activeKpisTab={activeKpisTab}
               filters={filters}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
             />
             {/* defaultMonths
 defaultCategory */}
@@ -661,7 +665,6 @@ defaultCategory */}
           }}
         >
           <TopActionsLayoutsShowcase />
-
         </Box>
         {/* Category / SKU Tabs */}
         <Box
@@ -709,14 +712,16 @@ defaultCategory */}
             </Box>
           )} */}
         </Box>
-      </CommonContainer>
+      </CommonContainer >
 
       {/* Trend Drawer */}
-      <TrendsCompetitionDrawer
+      < TrendsCompetitionDrawer
         open={showTrends}
-        onClose={() => setShowTrends(false)}
-        selectedColumn='Blinkit'
-        dynamicKey='platform_overview_tower'
+        onClose={() => setShowTrends(false)
+        }
+        selectedColumn={selectedTrendName}
+        selectedLevel={selectedTrendLevel}
+        dynamicKey="platform_overview_tower"
       />
 
       <RCAModal
@@ -917,84 +922,8 @@ const FORMAT_ROWS = [
 
 
 const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatform, setCategoryOverviewPlatform }) => {
-  // Check if data is loading
+  // Check if data is loading - MOVED AFTER HOOKS
   const isLoading = !categoryOverviewData || categoryOverviewData.length === 0;
-
-  // Skeleton loading state
-  if (isLoading) {
-    return (
-      <motion.div
-        className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        style={{ fontFamily: 'Roboto, sans-serif' }}
-      >
-        {/* Left side - Category list skeletons */}
-        <div className="md:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
-              <Skeleton variant="text" width={280} height={16} animation="wave" sx={{ borderRadius: 1 }} />
-            </div>
-            <Skeleton variant="rounded" width={100} height={36} animation="wave" sx={{ borderRadius: 2 }} />
-          </div>
-          <div className="space-y-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-full flex items-center justify-between rounded-2xl px-3 py-2 border border-slate-200 bg-white/70">
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Skeleton variant="circular" width={24} height={24} animation="wave" />
-                  <Box>
-                    <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
-                    <Skeleton variant="text" width={140} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                  </Box>
-                </Box>
-                <Box display="flex" flexDirection="column" alignItems="flex-end">
-                  <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                  <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                </Box>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right side - KPI detail skeletons */}
-        <div className="md:col-span-3">
-          <div className="h-full rounded-3xl bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-2">
-              <Box>
-                <Skeleton variant="text" width={120} height={16} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={220} height={14} animation="wave" sx={{ borderRadius: 1, mt: 0.5 }} />
-              </Box>
-              <Box display="flex" flexDirection="column" alignItems="flex-end">
-                <Skeleton variant="text" width={60} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={80} height={24} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1, mt: 1 }} />
-                <Skeleton variant="text" width={50} height={20} animation="wave" sx={{ borderRadius: 1 }} />
-              </Box>
-            </div>
-            <div className="flex gap-4">
-              {/* ROAS circle skeleton */}
-              <Skeleton variant="circular" width={96} height={96} animation="wave" />
-              {/* KPI bands skeletons */}
-              <div className="flex-1 space-y-3">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <Box key={i}>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                      <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                    </Box>
-                    <Skeleton variant="rounded" width="100%" height={12} animation="wave" sx={{ borderRadius: 2 }} />
-                  </Box>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
 
   // Transform categoryOverviewData from API into FORMAT_ROWS structure
   const FORMAT_ROWS = useMemo(() => {
@@ -1064,7 +993,6 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
       setActiveName(FORMAT_ROWS[0].name);
     }
   }, [FORMAT_ROWS, activeName]);
-
   const [compareName, setCompareName] = useState(null);
 
   const active = useMemo(
@@ -1189,19 +1117,112 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
       format: (v) => active.cpc, // Use formatted string from backend
     },
   ];
+
+  // Skeleton loading state - AFTER all hooks have been called
+  if (isLoading) {
+    return (
+      <motion.div
+        className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        style={{ fontFamily: 'Roboto, sans-serif' }}
+      >
+        {/* Left side - Category list skeletons */}
+        <div className="md:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
+              <Skeleton variant="text" width={280} height={16} animation="wave" sx={{ borderRadius: 1 }} />
+            </div>
+            <Skeleton variant="rounded" width={100} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="w-full flex items-center justify-between rounded-2xl px-3 py-2 border border-slate-200 bg-white/70">
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Skeleton variant="circular" width={24} height={24} animation="wave" />
+                  <Box>
+                    <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+                    <Skeleton variant="text" width={140} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                  </Box>
+                </Box>
+                <Box display="flex" flexDirection="column" alignItems="flex-end">
+                  <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                  <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                </Box>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right side - KPI detail skeletons */}
+        <div className="md:col-span-3">
+          <div className="h-full rounded-3xl bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-2">
+              <Box>
+                <Skeleton variant="text" width={120} height={16} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={220} height={14} animation="wave" sx={{ borderRadius: 1, mt: 0.5 }} />
+              </Box>
+              <Box display="flex" flexDirection="column" alignItems="flex-end">
+                <Skeleton variant="text" width={60} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={80} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1, mt: 1 }} />
+                <Skeleton variant="text" width={50} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+              </Box>
+            </div>
+            <div className="flex gap-4">
+              {/* ROAS circle skeleton */}
+              <Skeleton variant="circular" width={96} height={96} animation="wave" />
+              {/* KPI bands skeletons */}
+              <div className="flex-1 space-y-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <Box key={i}>
+                    <Box display="flex" justifyContent="space-between" mb={0.5}>
+                      <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                      <Skeleton variant="text" width={50} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                    </Box>
+                    <Skeleton variant="rounded" width="100%" height={12} animation="wave" sx={{ borderRadius: 2 }} />
+                  </Box>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      style={{ fontFamily: 'Roboto, sans-serif' }}
+      style={{ fontFamily: "Roboto, sans-serif" }}
     >
       <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold bg" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '1.2rem' }}>Category performance</h2>
-            <p className="text-xs text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
+            <h2
+              className="text-lg font-semibold bg"
+              style={{
+                fontFamily: "Roboto, sans-serif",
+                fontWeight: 700,
+                fontSize: "1.2rem",
+              }}
+            >
+              Category performance
+            </h2>
+            <p
+              className="text-xs text-slate-500"
+              style={{
+                fontFamily: "Roboto, sans-serif",
+                fontWeight: 400,
+                fontSize: "0.75rem",
+              }}
+            >
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
@@ -1233,10 +1254,8 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
                 whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
               >
-
                 {/* LEFT SIDE */}
                 <div className="flex items-center gap-2">
-
                   {/* NUMBER BADGE */}
                   <div
                     className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
@@ -1247,18 +1266,40 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
                     #{index + 1}
                   </div>
 
-
                   {/* TEXT */}
                   <div className="text-left">
-                    <div className="font-medium" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: '0.95rem' }}>{f.name}</div>
-                    <div className="text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 400, fontSize: '0.75rem' }}>
+                    <div
+                      className="font-medium"
+                      style={{
+                        fontFamily: "Roboto, sans-serif",
+                        fontWeight: 700,
+                        fontSize: "0.95rem",
+                      }}
+                    >
+                      {f.name}
+                    </div>
+                    <div
+                      className="text-[10px] text-slate-500"
+                      style={{
+                        fontFamily: "Roboto, sans-serif",
+                        fontWeight: 400,
+                        fontSize: "0.75rem",
+                      }}
+                    >
                       Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
                 </div>
 
                 {/* RIGHT SIDE */}
-                <div className="flex flex-col items-end text-[10px] text-slate-500" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500, fontSize: '0.75rem' }}>
+                <div
+                  className="flex flex-col items-end text-[10px] text-slate-500"
+                  style={{
+                    fontFamily: "Roboto, sans-serif",
+                    fontWeight: 500,
+                    fontSize: "0.75rem",
+                  }}
+                >
                   <span>MS {f.marketSharePct}%</span>
                   <span>Conv {f.conversionPct}%</span>
                 </div>
@@ -1472,7 +1513,6 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
               })}
             </div> */}
             <div className="mt-2 flex flex-wrap gap-2 justify-center">
-
               {/* PILLS */}
               {visibleItems.map((f) => {
                 const weight = clamp01(f.roas / 12);
@@ -1483,7 +1523,9 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
                   <motion.button
                     key={f.name}
                     onClick={() =>
-                      setCompareName(prev => (prev === f.name ? null : f.name))
+                      setCompareName((prev) =>
+                        prev === f.name ? null : f.name
+                      )
                     }
                     className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
                       ? "border-violet-500 bg-violet-50 shadow-sm"
@@ -1522,7 +1564,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
               {/* ADD MORE (only if not all shown) */}
               {visibleCount < total && (
                 <button
-                  onClick={() => setVisibleCount(prev => prev + 7)}
+                  onClick={() => setVisibleCount((prev) => prev + 7)}
                   className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
                 >
                   + Add more
@@ -1539,7 +1581,6 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
                 </button>
               )}
             </div>
-
           </motion.div>
         </AnimatePresence>
       </div>

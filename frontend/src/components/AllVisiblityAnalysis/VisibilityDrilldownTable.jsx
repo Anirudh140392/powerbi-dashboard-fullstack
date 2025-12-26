@@ -2,12 +2,13 @@ import React, { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { KpiFilterPanel } from '../KpiFilterPanel'
 import { SlidersHorizontal, X } from 'lucide-react'
+import PaginationFooter from '../CommonLayout/PaginationFooter'
 
 const KPI_LABELS = {
     catImpShare: 'Cat Imp Share',
-    adSov: 'Ad SOV',
-    orgSov: 'Organic SOV',
-    overallSov: 'Overall SOV',
+    adSos: 'Ad Sos',
+    orgSos: 'Organic Sos',
+    overallSos: 'Overall Sos',
     adPos: 'Ad Pos',
     orgPos: 'Org Pos',
 }
@@ -19,66 +20,66 @@ const PLATFORM_LABELS = {
     BigBasket: 'BigBasket',
 }
 
-const PERCENT_KPIS = ['catImpShare', 'adSov', 'orgSov', 'overallSov']
+const PERCENT_KPIS = ['catImpShare', 'adSos', 'orgSos', 'overallSos']
 
 const sampleHierarchy = [
     {
         id: 'generic',
         label: 'Generic',
         level: 'keyword-type',
-        metrics: { catImpShare: 65.6, adSov: 0.6, orgSov: 1.0, overallSov: 0.8 },
+        metrics: { catImpShare: 65.6, adSos: 0.6, orgSos: 1.0, overallSos: 0.8 },
         platforms: {
-            Blinkit: { overallSov: 0.8, adSov: 0.6, orgSov: 1.0, catImpShare: 65.6 },
-            Zepto: { overallSov: 0.7, adSov: 0.5, orgSov: 0.9, catImpShare: 64.2 },
-            Instamart: { overallSov: 0.9, adSov: 0.7, orgSov: 1.1, catImpShare: 66.3 },
-            BigBasket: { overallSov: 0.8, adSov: 0.6, orgSov: 1.0, catImpShare: 65.1 },
+            Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
+            Zepto: { overallSos: 0.7, adSos: 0.5, orgSos: 0.9, catImpShare: 64.2 },
+            Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
+            BigBasket: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.1 },
         },
         children: [
             {
                 id: 'generic-brand-kwality',
                 label: 'Kwality Walls',
                 level: 'brand',
-                metrics: { catImpShare: 65.6, adSov: 0.6, orgSov: 1.0, overallSov: 0.8 },
+                metrics: { catImpShare: 65.6, adSos: 0.6, orgSos: 1.0, overallSos: 0.8 },
                 platforms: {
-                    Blinkit: { overallSov: 0.8, adSov: 0.6, orgSov: 1.0, catImpShare: 65.6 },
+                    Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
                 },
                 children: [
                     {
                         id: 'generic-ice-cream-delivery',
                         label: 'ice cream delivery',
                         level: 'keyword',
-                        metrics: { catImpShare: 6.2, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
+                        metrics: { catImpShare: 6.2, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
                         platforms: {
-                            Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 6.2 },
-                            Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 5.8 },
+                            Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 6.2 },
+                            Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 5.8 },
                         },
                         children: [
                             {
                                 id: 'generic-delivery-cornetto',
                                 label: 'Cornetto Double Chocolate',
                                 level: 'sku',
-                                metrics: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 12 },
+                                metrics: { catImpShare: 0.3, adSos: 0.2, orgSos: 0.1, overallSos: 0.2, adPos: 4, orgPos: 12 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 11 },
-                                    Zepto: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 13 },
+                                    Blinkit: { catImpShare: 0.3, adSos: 0.2, orgSos: 0.1, overallSos: 0.2, adPos: 3, orgPos: 11 },
+                                    Zepto: { catImpShare: 0.3, adSos: 0.2, orgSos: 0.1, overallSos: 0.2, adPos: 5, orgPos: 13 },
                                 },
                                 children: [
                                     {
                                         id: 'generic-delivery-cornetto-delhi',
                                         label: 'Delhi NCR',
                                         level: 'city',
-                                        metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 3, orgPos: 10 },
+                                        metrics: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 3, orgPos: 10 },
                                         platforms: {
-                                            Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 2, orgPos: 9 },
+                                            Blinkit: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 2, orgPos: 9 },
                                         }
                                     },
                                     {
                                         id: 'generic-delivery-cornetto-mumbai',
                                         label: 'Mumbai',
                                         level: 'city',
-                                        metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 3, orgPos: 10 },
+                                        metrics: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 3, orgPos: 10 },
                                         platforms: {
-                                            Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 2, orgPos: 9 },
+                                            Blinkit: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 2, orgPos: 9 },
                                         }
                                     }
                                 ],
@@ -89,29 +90,29 @@ const sampleHierarchy = [
                         id: 'generic-cone-ice-cream',
                         label: 'cone ice cream',
                         level: 'keyword',
-                        metrics: { catImpShare: 5.1, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
+                        metrics: { catImpShare: 5.1, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
                         platforms: {
-                            Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 5.1 },
-                            Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 4.8 },
+                            Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 5.1 },
+                            Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 4.8 },
                         },
                         children: [
                             {
                                 id: 'generic-cone-cornetto',
                                 label: 'Cornetto Disc',
                                 level: 'sku',
-                                metrics: { catImpShare: 2.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 11 },
+                                metrics: { catImpShare: 2.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 5, orgPos: 11 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 2.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 10 },
-                                    Zepto: { catImpShare: 2.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 12 },
+                                    Blinkit: { catImpShare: 2.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 4, orgPos: 10 },
+                                    Zepto: { catImpShare: 2.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 6, orgPos: 12 },
                                 },
                                 children: [
                                     {
                                         id: 'generic-cone-cornetto-delhi',
                                         label: 'Delhi NCR',
                                         level: 'city',
-                                        metrics: { catImpShare: 1.0, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 10 },
+                                        metrics: { catImpShare: 1.0, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 4, orgPos: 10 },
                                         platforms: {
-                                            Blinkit: { catImpShare: 1.0, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 9 },
+                                            Blinkit: { catImpShare: 1.0, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 3, orgPos: 9 },
                                         }
                                     }
                                 ]
@@ -126,36 +127,36 @@ const sampleHierarchy = [
         id: 'brand',
         label: 'Brand',
         level: 'keyword-type',
-        metrics: { catImpShare: 0.5, adSov: 88.4, orgSov: 83.0, overallSov: 85.1 },
+        metrics: { catImpShare: 0.5, adSos: 88.4, orgSos: 83.0, overallSos: 85.1 },
         platforms: {
-            Blinkit: { catImpShare: 0.5, adSov: 88.4, orgSov: 83.0, overallSov: 85.1 },
+            Blinkit: { catImpShare: 0.5, adSos: 88.4, orgSos: 83.0, overallSos: 85.1 },
         },
         children: [
             {
                 id: 'brand-kwality-walls',
                 label: 'kwality walls ice cream',
                 level: 'brand',
-                metrics: { catImpShare: 14.2, adSov: 41.2, orgSov: 36.7, overallSov: 38.4 },
+                metrics: { catImpShare: 14.2, adSos: 41.2, orgSos: 36.7, overallSos: 38.4 },
                 platforms: {
-                    Blinkit: { overallSov: 38.4, adSov: 41.2, orgSov: 36.7, catImpShare: 14.2 },
+                    Blinkit: { overallSos: 38.4, adSos: 41.2, orgSos: 36.7, catImpShare: 14.2 },
                 },
                 children: [
                     {
                         id: 'brand-kwality-keyword-1',
                         label: 'ice cream',
                         level: 'keyword',
-                        metrics: { catImpShare: 14.2, adSov: 41.2, orgSov: 36.7, overallSov: 38.4 },
+                        metrics: { catImpShare: 14.2, adSos: 41.2, orgSos: 36.7, overallSos: 38.4 },
                         platforms: {
-                            Blinkit: { overallSov: 38.4, adSov: 41.2, orgSov: 36.7, catImpShare: 14.2 },
+                            Blinkit: { overallSos: 38.4, adSos: 41.2, orgSos: 36.7, catImpShare: 14.2 },
                         },
                         children: [
                             {
                                 id: 'brand-kwality-magnum',
                                 label: 'Magnum Almond',
                                 level: 'sku',
-                                metrics: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 2, orgPos: 8 },
+                                metrics: { catImpShare: 0.2, adSos: 0.4, orgSos: 0.2, overallSos: 0.6, adPos: 2, orgPos: 8 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 1, orgPos: 7 },
+                                    Blinkit: { catImpShare: 0.2, adSos: 0.4, orgSos: 0.2, overallSos: 0.6, adPos: 1, orgPos: 7 },
                                 },
                                 children: [],
                             },
@@ -169,27 +170,27 @@ const sampleHierarchy = [
         id: 'competition',
         label: 'Competition',
         level: 'keyword-type',
-        metrics: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
+        metrics: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
         platforms: {
-            Blinkit: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
+            Blinkit: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
         },
         children: [
             {
                 id: 'competition-amul',
                 label: 'Amul',
                 level: 'brand',
-                metrics: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
+                metrics: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
                 platforms: {
-                    Blinkit: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
+                    Blinkit: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
                 },
                 children: [
                     {
                         id: 'competition-amul-cone',
                         label: 'Amul Cone',
                         level: 'keyword',
-                        metrics: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 9, orgPos: 18 },
+                        metrics: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 9, orgPos: 18 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 17 },
+                            Blinkit: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 17 },
                         },
                         children: [],
                     }
@@ -201,16 +202,16 @@ const sampleHierarchy = [
 
 const kpiFields = [
     { id: 'catImpShare', label: 'Cat Imp Share', type: 'number' },
-    { id: 'adSov', label: 'Ad SOV', type: 'number' },
-    { id: 'orgSov', label: 'Organic SOV', type: 'number' },
-    { id: 'overallSov', label: 'Overall SOV', type: 'number' },
+    { id: 'adSos', label: 'Ad Sos', type: 'number' },
+    { id: 'orgSos', label: 'Organic Sos', type: 'number' },
+    { id: 'overallSos', label: 'Overall Sos', type: 'number' },
     { id: 'adPos', label: 'Ad Pos', type: 'number' },
     { id: 'orgPos', label: 'Org Pos', type: 'number' },
 ]
 
 const formatMetric = (kpi, value) => {
     if (value === undefined || Number.isNaN(value)) return '–'
-    if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}%`
+    if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}`
     return value.toFixed(1)
 }
 
@@ -327,10 +328,19 @@ const FROZEN_WIDTHS = {
     spacer: 40,
 }
 
-
-
 const filterOptions = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+    {
+        id: "kpi",
+        label: "KPI",
+        options: [
+            { id: "overallWeightedSos", label: "OVERALL WEIGHTED SOS" },
+            { id: "sponsoredWeightedSos", label: "SPONSORED WEIGHTED SOS" },
+            { id: "organicWeightedSos", label: "ORGANIC WEIGHTED SOS" },
+            { id: "displaySos", label: "DISPLAY SOS" }
+        ]
+    },
+    { id: "keywords", label: "Keyword" },
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
     { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
     { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
@@ -356,8 +366,8 @@ export default function VisibilityDrilldownTable() {
     const [expandedRows, setExpandedRows] = useState(new Set())
     const [expandedKpis, setExpandedKpis] = useState(new Set())
     const [filters, setFilters] = useState({ keyword: null, sku: null, city: null, platform: 'All' })
-    const [page, setPage] = useState(0)
-    const [pageSize, setPageSize] = useState(20)
+    const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
+    const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
 
 
@@ -435,7 +445,12 @@ export default function VisibilityDrilldownTable() {
     const flatRows = useMemo(() => flattenHierarchy(hierarchyData, expandedRows, filters, activeView), [hierarchyData, expandedRows, filters, activeView])
 
     const totalPages = Math.max(1, Math.ceil(flatRows.length / pageSize))
-    const pageRows = flatRows.slice(page * pageSize, page * pageSize + pageSize)
+
+    // Pagination slicing
+    const pageRows = useMemo(() => {
+        const startIndex = (page - 1) * pageSize
+        return flatRows.slice(startIndex, startIndex + pageSize)
+    }, [flatRows, page, pageSize])
 
     // Check if any keyword type (level 0) is expanded to show Brand column
     const showBrandColumn = useMemo(() => {
@@ -555,7 +570,7 @@ export default function VisibilityDrilldownTable() {
             return { backgroundColor: 'rgba(239, 68, 68, 0.12)', color: '#991b1b' } // red
         }
 
-        // For SOV and catImpShare metrics, higher is better
+        // For Sos and catImpShare metrics, higher is better
         if (value >= 50) return { backgroundColor: 'rgba(22, 163, 74, 0.12)', color: '#166534' } // green
         if (value >= 10) return { backgroundColor: 'rgba(234, 179, 8, 0.12)', color: '#854d0e' } // yellow
         if (value >= 1) return { backgroundColor: 'rgba(249, 115, 22, 0.12)', color: '#9a3412' } // orange
@@ -942,28 +957,6 @@ export default function VisibilityDrilldownTable() {
                 </div>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-white">
-                <div className="text-xs text-slate-500">
-                    Page {page + 1} of {totalPages} ({flatRows.length} items)
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setPage((p) => Math.max(0, p - 1))}
-                        disabled={page === 0}
-                        className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold disabled:opacity-50"
-                    >
-                        Prev
-                    </button>
-                    <button
-                        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                        disabled={page >= totalPages - 1}
-                        className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold disabled:opacity-50"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
-
             <AnimatePresence>
                 {filterPanelOpen && (
                     <>
@@ -1063,6 +1056,19 @@ export default function VisibilityDrilldownTable() {
                     </>
                 )}
             </AnimatePresence>
+
+            <div className="border-t border-slate-100">
+                <PaginationFooter
+                    isVisible={flatRows.length > 3}
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    pageSize={pageSize}
+                    onPageSizeChange={setPageSize}
+                />
+            </div>
+
+
             {
                 showFilterPanel && (
                     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
@@ -1082,18 +1088,19 @@ export default function VisibilityDrilldownTable() {
                             </div>
 
                             {/* Panel Content */}
-                            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-10 pb-6">
+                            {/* Panel Content */}
+                            <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
                                 <KpiFilterPanel
                                     sectionConfig={filterOptions}
-                                    onChange={(values) => {
+                                    keywords={keywordOptions}
+                                    onKeywordChange={(vals) => setPopupFilters(prev => ({ ...prev, keyword: vals[0] ?? null }))}
+                                    onSectionChange={(sectionId, vals) => {
                                         setPopupFilters(prev => ({
                                             ...prev,
-                                            ...values,
+                                            [sectionId]: vals,
                                         }))
                                     }}
                                 />
-
-
                             </div>
 
                             {/* Modal Footer */}
@@ -1114,7 +1121,7 @@ export default function VisibilityDrilldownTable() {
                                             platform: popupFilters.platform || 'All',
                                         }))
 
-                                        setPage(0)
+                                        setPage(1)
                                         setExpandedRows(new Set())
                                         setShowFilterPanel(false)
                                     }}
@@ -1122,7 +1129,6 @@ export default function VisibilityDrilldownTable() {
                                 >
                                     Apply Filters
                                 </button>
-
                             </div>
                         </div>
                     </div>

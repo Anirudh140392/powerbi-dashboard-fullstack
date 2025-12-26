@@ -4,6 +4,7 @@ import {
     ChevronLeft,
     ChevronRight,
 } from "lucide-react";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 
 function getHeatmapClass(value) {
     // Basic heuristic: >100 or high % is good (green), low is bad (red)
@@ -46,8 +47,8 @@ export default function CityDetailedTable({ sku, onClose }) {
             shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
             wtOsa: `${(70 + Math.random() * 30).toFixed(1)}%`,
             osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
-            overallSov: `${(Math.random() * 5).toFixed(1)}%`,
-            adSov: `${(Math.random() * 15).toFixed(1)}%`,
+            overallSos: `${(Math.random() * 5).toFixed(1)}%`,
+            adSos: `${(Math.random() * 15).toFixed(1)}%`,
             wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
             discChange: `+${(Math.random() * 2).toFixed(1)}%`,
         }));
@@ -104,8 +105,8 @@ export default function CityDetailedTable({ sku, onClose }) {
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Offtake</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Cat Share</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. OSA %</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Overall SOV</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Ad SOV</th>
+                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Overall Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Ad Sos</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. Disc %</th>
                                 </tr>
                             </thead>
@@ -140,14 +141,14 @@ export default function CityDetailedTable({ sku, onClose }) {
                                             </div>
                                         </td>
 
-                                        {/* Overall SOV */}
+                                        {/* Overall Sos */}
                                         <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.overallSov}
+                                            {row.overallSos}
                                         </td>
 
-                                        {/* Ad SOV */}
+                                        {/* Ad Sos */}
                                         <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.adSov}
+                                            {row.adSos}
                                         </td>
 
                                         {/* Disc % */}
@@ -162,35 +163,19 @@ export default function CityDetailedTable({ sku, onClose }) {
                     </div>
 
                     {/* Pagination */}
-                    <div className="flex items-center justify-between mt-4">
-                        <div className="text-xs text-slate-500">
-                            Showing <span className="font-medium">{(page - 1) * rowsPerPage + 1}</span> to <span className="font-medium">{Math.min(page * rowsPerPage, allCities.length)}</span> of <span className="font-medium">{allCities.length}</span> cities
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                disabled={page === 1}
-                                onClick={() => setPage(p => p - 1)}
-                                className="p-1 rounded hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-transparent"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            {Array.from({ length: totalPages }).map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => setPage(i + 1)}
-                                    className={`w-6 h-6 text-xs rounded transition-colors ${page === i + 1 ? "bg-slate-900 text-white" : "hover:bg-slate-100 text-slate-600"}`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
-                            <button
-                                disabled={page === totalPages}
-                                onClick={() => setPage(p => p + 1)}
-                                className="p-1 rounded hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-transparent"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
+                    {/* Pagination */}
+                    <div className="mt-4 border-t border-slate-100">
+                        <PaginationFooter
+                            isVisible={true}
+                            currentPage={page}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                            pageSize={rowsPerPage}
+                            onPageSizeChange={(newPageSize) => {
+                                setRowsPerPage(newPageSize);
+                                setPage(1);
+                            }}
+                        />
                     </div>
                 </div>
             </div>

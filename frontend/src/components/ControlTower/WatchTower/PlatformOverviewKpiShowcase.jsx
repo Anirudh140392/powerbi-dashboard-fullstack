@@ -792,20 +792,23 @@ const buildDataModel = () => {
   const skuTrendsByCity = {};
 
   // helper → generate KPI object
-  const buildKpis = (base, idxFactor = 1) => ({
-    offtakes: base * 10 + idxFactor * 2,
-    spend: base * 1.8 + idxFactor * 0.4,
-    roas: 4 + (idxFactor % 3) * 0.3,
-    inorgSales: base * 0.9 + idxFactor * 0.2,
-    dspSales: base * 0.7 + idxFactor * 0.15,
-    conversion: 1.8 + (idxFactor % 4) * 0.2,
-    availability: 75 + idxFactor * 0.8,
-    sos: 22 + idxFactor * 0.6,
-    marketShare: 10 + idxFactor * 0.7,
-    promoMyBrand: 6 + idxFactor * 0.3,
-    promoCompete: 5 + idxFactor * 0.25,
-    cpm: 140 + idxFactor * 4,
-    cpc: 9 + idxFactor * 0.4,
+  const buildKpis = (base, idxFactor = 1, cityIdx = 0) => ({
+    offtakes: base * 10 + idxFactor * 2 + cityIdx * 15,
+    spend: base * 1.8 + idxFactor * 0.4 + cityIdx * 2.5,
+    roas: 4 + (idxFactor % 3) * 0.3 + cityIdx * 0.2,
+    inorgSales: base * 0.9 + idxFactor * 0.2 + cityIdx * 1.2,
+    dspSales: base * 0.7 + idxFactor * 0.15 + cityIdx * 0.8,
+    conversion: 1.8 + (idxFactor % 4) * 0.2 + cityIdx * 0.1,
+    availability: 75 + idxFactor * 0.8 + cityIdx * 1.5,
+    osa: 75 + idxFactor * 0.8 + cityIdx * 1.5,
+    sos: 22 + idxFactor * 0.6 + cityIdx * 2,
+    price: 250 + idxFactor * 20 + cityIdx * 45,
+    categoryShare: 15 + idxFactor * 0.5 + cityIdx * 1.2,
+    marketShare: 10 + idxFactor * 0.7 + cityIdx * 0.9,
+    promoMyBrand: 6 + idxFactor * 0.3 + cityIdx * 0.4,
+    promoCompete: 5 + idxFactor * 0.25 + cityIdx * 0.3,
+    cpm: 140 + idxFactor * 4 + cityIdx * 8,
+    cpc: 9 + idxFactor * 0.4 + cityIdx * 0.5,
   });
 
   RAW_DATA.cities.forEach((city, cityIdx) => {
@@ -819,7 +822,7 @@ const buildDataModel = () => {
         id: brand.id,
         name: brand.name,
         category: brand.category,
-        ...buildKpis(base, brandIdx),
+        ...buildKpis(base, brandIdx, cityIdx),
       };
     });
 
@@ -836,7 +839,7 @@ const buildDataModel = () => {
         brandId: sku.brandId,
         brandName: BRAND_ID_TO_NAME[sku.brandId],
         category: sku.category,
-        ...buildKpis(base, skuIdx),
+        ...buildKpis(base, skuIdx, cityIdx),
       };
     });
 
@@ -856,7 +859,10 @@ const buildDataModel = () => {
         dspSales: base * 0.7 + Math.sin(idx / 7) * 0.2,
         conversion: 1.9 + Math.cos(idx / 6) * 0.15,
         availability: 78 + Math.sin(idx / 5) * 2,
+        osa: 78 + Math.sin(idx / 5) * 2,
         sos: 23 + Math.cos(idx / 4) * 1.5,
+        price: 320 + Math.sin(idx / 3) * 30,
+        categoryShare: 18 + Math.cos(idx / 6) * 2.5,
         marketShare: 11 + Math.sin(idx / 6) * 1.2,
         promoMyBrand: 6 + Math.sin(idx / 5) * 0.8,
         promoCompete: 5 + Math.cos(idx / 6) * 0.7,
@@ -881,7 +887,10 @@ const buildDataModel = () => {
         dspSales: base * 0.65 + Math.sin(idx / 7) * 0.2,
         conversion: 1.7 + Math.cos(idx / 6) * 0.12,
         availability: 76 + Math.sin(idx / 5) * 2,
+        osa: 76 + Math.sin(idx / 5) * 2,
         sos: 21 + Math.cos(idx / 4) * 1.3,
+        price: 280 + Math.sin(idx / 3) * 25,
+        categoryShare: 16 + Math.cos(idx / 6) * 1.5,
         marketShare: 9.5 + Math.sin(idx / 6) * 1,
         promoMyBrand: 5.5 + Math.sin(idx / 5) * 0.6,
         promoCompete: 4.8 + Math.cos(idx / 6) * 0.6,
@@ -1149,7 +1158,7 @@ const BRAND_COLORS = [
 
 const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands = null, onBackToTable, onSwitchToKpi }) => {
   // ✅ single selected KPI
-  const [activeMetric, setActiveMetric] = useState("offtakes");
+  const [activeMetric, setActiveMetric] = useState("osa");
 
   const metricMeta =
     KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
@@ -1421,46 +1430,10 @@ const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands
 //   { key: "cpm", label: "CPM" },
 //   { key: "cpc", label: "CPC" },
 // ];
-
 const KPI_KEYS = [
   {
-    key: "offtakes",
-    label: "Offtakes",
-    color: "#16A34A", // green
-  },
-  {
-    key: "spend",
-    label: "Spend",
-    color: "#DC2626", // red
-    prefix: "₹",
-  },
-  {
-    key: "roas",
-    label: "ROAS",
-    color: "#7C3AED", // purple
-    suffix: "x",
-  },
-  {
-    key: "inorgSales",
-    label: "Inorg Sales",
-    color: "#0EA5E9", // sky blue
-    prefix: "₹",
-  },
-  {
-    key: "dspSales",
-    label: "DSP Sales",
-    color: "#14B8A6", // teal
-    prefix: "₹",
-  },
-  {
-    key: "conversion",
-    label: "Conversion",
-    color: "#F59E0B", // amber
-    unit: "%",
-  },
-  {
-    key: "availability",
-    label: "Availability",
+    key: "osa",
+    label: "OSA",
     color: "#2563EB", // blue
     unit: "%",
   },
@@ -1471,34 +1444,22 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
+    key: "price",
+    label: "Price",
+    color: "#0891B2", // cyan
+    prefix: "₹",
+  },
+  {
+    key: "categoryShare",
+    label: "Category Share",
+    color: "#BE185D", // dark pink
+    unit: "%",
+  },
+  {
     key: "marketShare",
     label: "Market Share",
     color: "#22C55E", // emerald
     unit: "%",
-  },
-  {
-    key: "promoMyBrand",
-    label: "Promo – My Brand",
-    color: "#EC4899", // pink
-    unit: "%",
-  },
-  {
-    key: "promoCompete",
-    label: "Promo – Compete",
-    color: "#8B5CF6", // violet
-    unit: "%",
-  },
-  {
-    key: "cpm",
-    label: "CPM",
-    color: "#64748B", // slate
-    prefix: "₹",
-  },
-  {
-    key: "cpc",
-    label: "CPC",
-    color: "#475569", // dark slate
-    prefix: "₹",
   },
 ];
 
@@ -1774,14 +1735,15 @@ const BrandTable = ({ rows }) => (
 
     <CardContent className="pt-3">
       <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
+        <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
           <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left">Brand</th>
-              <th className="px-3 py-2 text-right">Offtakes</th>
-              <th className="px-3 py-2 text-right">Spend</th>
-              <th className="px-3 py-2 text-right">ROAS</th>
-              <th className="px-3 py-2 text-right">Availability %</th>
+              <th className="px-3 py-2 text-left w-[20%]">Brand</th>
+              <th className="px-3 py-2 text-right w-[16%]">OSA</th>
+              <th className="px-3 py-2 text-right w-[16%]">SOS</th>
+              <th className="px-3 py-2 text-right w-[16%]">Price</th>
+              <th className="px-3 py-2 text-right w-[16%]">Category Share</th>
+              <th className="px-3 py-2 text-right w-[16%]">Market Share</th>
             </tr>
           </thead>
 
@@ -1794,30 +1756,41 @@ const BrandTable = ({ rows }) => (
                   idx % 2 === 1 && "bg-slate-50/60"
                 )}
               >
-                <td className="px-3 py-2 font-medium text-slate-800">
+                <td className="px-3 py-2 font-medium text-slate-900">
                   {row.name}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-3 py-2 text-right text-slate-900 font-medium">
                   {(() => {
-                    const val = row.offtakes;
-                    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                    if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
-                    return `₹${val.toFixed(0)}`;
+                    const val = row.offtakes || row.osa || 0;
+                    if (typeof val === 'number') {
+                      if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                      if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
+                      if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                      return row.osa ? `${val.toFixed(1)}%` : `₹${val.toFixed(0)}`;
+                    }
+                    return val;
                   })()}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-3 py-2 text-right text-slate-900">
                   {(() => {
-                    const val = row.spend;
-                    if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                    if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
-                    return `₹${val.toFixed(0)}`;
+                    const val = row.spend || row.sos || 0;
+                    if (typeof val === 'number') {
+                      if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                      if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
+                      if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                      return row.sos ? `${val.toFixed(1)}%` : `₹${val.toFixed(0)}`;
+                    }
+                    return val;
                   })()}
                 </td>
-                <td className="px-3 py-2 text-right">{row.roas.toFixed(2)}x</td>
-                <td className="px-3 py-2 text-right">
-                  {row.availability.toFixed(1)}%
+                <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                  ₹{row.price.toFixed(1)}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-900">
+                  {row.categoryShare.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right text-slate-900">
+                  {row.marketShare.toFixed(1)}%
                 </td>
               </tr>
             ))}
@@ -1849,14 +1822,16 @@ const SkuTable = ({ rows }) => (
 
     <CardContent className="pt-3">
       <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
+        <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
           <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-2 text-left">SKU</th>
-              <th className="px-3 py-2 text-left">Brand</th>
-              <th className="px-3 py-2 text-right">Offtakes</th>
-              <th className="px-3 py-2 text-right">ROAS</th>
-              <th className="px-3 py-2 text-right">Availability %</th>
+              <th className="px-3 py-2 text-left w-[20%]">SKU</th>
+              <th className="px-3 py-2 text-left w-[20%]">Brand</th>
+              <th className="px-3 py-2 text-right w-[12%]">OSA</th>
+              <th className="px-3 py-2 text-right w-[12%]">SOS</th>
+              <th className="px-3 py-2 text-right w-[12%]">Price</th>
+              <th className="px-3 py-2 text-right w-[12%]">Cat Share</th>
+              <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
             </tr>
           </thead>
 
@@ -1869,14 +1844,31 @@ const SkuTable = ({ rows }) => (
                   idx % 2 === 1 && "bg-slate-50/60"
                 )}
               >
-                <td className="px-3 py-2 font-medium">{row.name}</td>
-                <td className="px-3 py-2">{row.brandName}</td>
-                <td className="px-3 py-2 text-right">
-                  ₹{row.offtakes >= 10000000 ? `${(row.offtakes / 10000000).toFixed(2)} Cr` : row.offtakes >= 100000 ? `${(row.offtakes / 100000).toFixed(2)} L` : row.offtakes >= 1000 ? `${(row.offtakes / 1000).toFixed(2)} K` : row.offtakes.toFixed(0)}
+                <td className="px-3 py-2 font-medium text-slate-900">{row.name}</td>
+                <td className="px-3 py-2 text-slate-900">{row.brandName}</td>
+                <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                  {(() => {
+                    const val = row.offtakes || row.osa || 0;
+                    if (typeof val === 'number') {
+                      if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                      if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
+                      if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                      return row.osa ? `${val.toFixed(1)}%` : `₹${val.toFixed(0)}`;
+                    }
+                    return val;
+                  })()}
                 </td>
-                <td className="px-3 py-2 text-right">{row.roas.toFixed(2)}x</td>
-                <td className="px-3 py-2 text-right">
-                  {row.availability.toFixed(1)}%
+                <td className="px-3 py-2 text-right text-slate-900">
+                  {row.sos.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                  ₹{row.price.toFixed(1)}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-900">
+                  {row.categoryShare.toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right text-slate-900">
+                  {row.marketShare.toFixed(1)}%
                 </td>
               </tr>
             ))}
@@ -1912,21 +1904,10 @@ const PlatformOverviewKpiShowcase = ({
   selectedCategory: parentCategory,
   selectedBrand: parentBrand,
   selectedSku: parentSku,
+  selectedItem,
+  selectedLevel,
   onFilterChange
 }) => {
-  // Create RAW_DATA with props
-  const RAW_DATA = useMemo(() => createRawData(filterOptions, propBrandOptions), [filterOptions, propBrandOptions]);
-  const derived = useMemo(() => getDerivedOptions(RAW_DATA), [RAW_DATA]);
-  const { CITIES, BRAND_ID_TO_NAME, BRAND_NAME_TO_ID, SKU_ID_TO_NAME, SKU_NAME_TO_ID, SKUS_BY_BRAND_ID } = derived;
-
-  // Use prop SKU options if available, otherwise use derived
-  const CATEGORY_OPTIONS = derived.CATEGORY_OPTIONS;
-  const BRAND_OPTIONS = propBrandOptions.length > 0 ? propBrandOptions : derived.BRAND_OPTIONS;
-  const SKU_OPTIONS = propSkuOptions.length > 0 ? propSkuOptions : derived.SKU_OPTIONS;
-
-  // Rebuild DATA_MODEL when RAW_DATA changes (fall back/mock data)
-  const DATA_MODEL = useMemo(() => buildDataModel(), [RAW_DATA]);
-
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
 
   // Use parent's selected city if provided, otherwise use first city
@@ -2056,9 +2037,8 @@ const PlatformOverviewKpiShowcase = ({
             <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
               Competition
             </span>
-            <span className="text-xs">at MRP for</span>
             <Badge className="border-blue-200 bg-blue-50 text-xs">
-              Body Lotion
+              {selectedItem || "All"}
             </Badge>
           </div>
           <h1 className="text-lg font-semibold text-slate-900">

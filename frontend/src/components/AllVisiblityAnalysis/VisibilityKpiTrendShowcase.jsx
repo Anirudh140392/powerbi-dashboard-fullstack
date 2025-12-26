@@ -595,8 +595,8 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     activeTab === "category"
       ? "categories"
       : activeTab === "brand"
-      ? "brands"
-      : "keywords";
+        ? "brands"
+        : "keywords";
 
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
@@ -995,8 +995,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
         mode === "brand"
           ? BRAND_ID_TO_NAME[id]
           : mode === "sku"
-          ? SKU_ID_TO_NAME[id]
-          : KEYWORD_ID_TO_NAME[id]
+            ? SKU_ID_TO_NAME[id]
+            : KEYWORD_ID_TO_NAME[id]
       ),
     [selectedIds, mode]
   );
@@ -1055,8 +1055,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
               {mode === "brand"
                 ? "Brands:"
                 : mode === "sku"
-                ? "SKUs:"
-                : "Keywords:"}
+                  ? "SKUs:"
+                  : "Keywords:"}
             </span>
             {selectedLabels.map((label) => (
               <Badge key={label} className="border-slate-200 bg-slate-50">
@@ -1101,8 +1101,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                         mode === "brand"
                           ? BRAND_ID_TO_NAME[id]
                           : mode === "sku"
-                          ? SKU_ID_TO_NAME[id]
-                          : KEYWORD_ID_TO_NAME[id]
+                            ? SKU_ID_TO_NAME[id]
+                            : KEYWORD_ID_TO_NAME[id]
                       }
                       dot={false}
                       strokeWidth={2}
@@ -1413,12 +1413,8 @@ export const VisibilityKpiTrendShowcase = () => {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-3 text-sm text-slate-500">
-            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-              Competition
-            </span>
-            <span className="text-xs">at MRP for</span>
-            <Badge className="border-blue-200 bg-blue-50 text-xs">
-              Body Lotion
+            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+              {filters.categories[0] || "All Categories"}
             </Badge>
           </div>
           <h1 className="text-lg font-semibold text-slate-900">

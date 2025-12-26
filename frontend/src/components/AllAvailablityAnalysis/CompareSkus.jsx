@@ -15,8 +15,8 @@ const TREND_DATA = {
     { id: "ecs", label: "Est. Cat Share", color: "#8E44AD" },
     { id: "osa", label: "Wt. OSA%", color: "#27AE60" },
     { id: "dsl", label: "DS Listing%", color: "#2980B9" },
-    { id: "sov", label: "Overall SOV", color: "#E91E63" },
-    { id: "adsov", label: "Ad. SOV", color: "#7CB342" },
+    { id: "Sos", label: "Overall Sos", color: "#E91E63" },
+    { id: "adSos", label: "Ad. Sos", color: "#7CB342" },
     { id: "discount", label: "Wt. Discount%", color: "#795548" },
     { id: "ppu", label: "Wt. PPU (x100)", color: "#6E0000" }
   ],

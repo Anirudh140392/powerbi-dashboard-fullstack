@@ -1,7 +1,7 @@
 import { Box, Card, CardContent, Typography, Chip, Skeleton } from "@mui/material";
 import { useState } from "react";
 
-const CardMetric = ({ data }) => {
+const CardMetric = ({ data, onViewTrends }) => {
   // Check if data is loading (empty/undefined)
   const isLoading = !data || data.length === 0;
 
@@ -99,6 +99,7 @@ const CardMetric = ({ data }) => {
                   color={color}
                   scrollNeeded={scrollNeeded}
                   totalCards={cards.length}
+                  onClick={() => onViewTrends && onViewTrends(card.title, "Metric")}
                 />
               );
             })
@@ -168,6 +169,7 @@ const MiniChartCard = ({
   color,
   scrollNeeded,
   totalCards,
+  onClick,
 }) => {
   const [hover, setHover] = useState(null);
 
@@ -199,7 +201,9 @@ const MiniChartCard = ({
         scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
+        cursor: "pointer",
       }}
+      onClick={onClick}
     >
       <CardContent>
         <Typography variant="body2" color="text.secondary" fontSize={16}>

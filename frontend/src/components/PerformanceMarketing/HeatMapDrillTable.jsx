@@ -26,6 +26,7 @@ import performanceData from "../../utils/PerformanceMarketingData";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import PerformanceTrendDatas from "./PerformanceTrendDatas";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 
 // ----------------- HELPERS -----------------
 const parsePercent = (v) =>
@@ -196,14 +197,14 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  const LEVEL_TITLES = ["Keyword Type", "Brand", "Keyword", "SKU", "City"];
+  const LEVEL_TITLES = ["Keyword Type", "Direction", "City", "SKU", "SKU"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
   const [expanded, setExpanded] = useState({});
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState("Q1");
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   // ---------- FILTERS STATE ----------
   const [activeFilters, setActiveFilters] = useState({
     brands: [],     // Formats
@@ -776,7 +777,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
               {selectedInsight === "All Campaign Summary"
-                ? "Keyword Type → Brand → Keyword → SKU"
+                ? "Keyword Type → Direction → City → SKU"
                 : "AD Property → GROUP → KEYWORD"}
             </Typography>
           </Box>
@@ -961,7 +962,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
             <TableBody>
               {filteredRows
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
                 .map((row) => renderRow(row, 0, []))}
 
 
@@ -969,90 +970,20 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           </Table>
         </TableContainer >
 
-        {/* SIMPLE PAGINATION */}
-        <Box
-          sx={{
-            mt: 2,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          {/* Left: Prev | Page X / Y | Next */}
-          <Box display="flex" alignItems="center" gap={1}>
-            <Button
-              size="small"
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-              sx={{
-                minWidth: 'auto',
-                borderRadius: 999,
-                px: 2,
-                py: 0.5,
-                border: '1px solid #e2e8f0',
-                color: '#64748b',
-                textTransform: 'none',
-                backgroundColor: 'white',
-                '&:hover': { backgroundColor: '#f8fafc' },
-                '&:disabled': { opacity: 0.5 }
-              }}
-            >
-              Prev
-            </Button>
-
-            <Typography sx={{ fontSize: 12, color: "#334155", fontWeight: 500, mx: 1 }}>
-              Page {page + 1} / {Math.ceil(filteredRows.length / rowsPerPage)}
-            </Typography>
-
-            <Button
-              size="small"
-              disabled={page >= Math.ceil(filteredRows.length / rowsPerPage) - 1}
-              onClick={() => setPage((p) => p + 1)}
-              sx={{
-                minWidth: 'auto',
-                borderRadius: 999,
-                px: 2,
-                py: 0.5,
-                border: '1px solid #e2e8f0',
-                color: '#64748b',
-                textTransform: 'none',
-                backgroundColor: 'white',
-                '&:hover': { backgroundColor: '#f8fafc' },
-                '&:disabled': { opacity: 0.5 }
-              }}
-            >
-              Next
-            </Button>
-          </Box>
-
-          {/* Right: Rows/page selector */}
-          <Box display="flex" alignItems="center" gap={1}>
-            <Typography sx={{ fontSize: 12, color: "#64748b" }}>
-              Rows/page
-            </Typography>
-            <Select
-              value={rowsPerPage}
-              onChange={(e) => {
-                setRowsPerPage(Number(e.target.value));
-                setPage(0);
-              }}
-              size="small"
-              sx={{
-                height: 32,
-                fontSize: 12,
-                borderRadius: 2,
-                backgroundColor: 'white',
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' }
-              }}
-            >
-              {[5, 10, 20, 50].map((n) => (
-                <MenuItem key={n} value={n} sx={{ fontSize: 12 }}>
-                  {n}
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-        </Box>
+        {/* PAGINATION FOOTER */}
+        <div className="border-t border-slate-100">
+          <PaginationFooter
+            isVisible={true}
+            currentPage={page}
+            totalPages={Math.ceil(filteredRows.length / rowsPerPage)}
+            onPageChange={setPage}
+            pageSize={rowsPerPage}
+            onPageSizeChange={(newPageSize) => {
+              setRowsPerPage(newPageSize);
+              setPage(1);
+            }}
+          />
+        </div>
       </Card >
 
       {/* TREND DRAWER */}

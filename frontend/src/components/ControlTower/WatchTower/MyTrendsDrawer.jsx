@@ -24,114 +24,39 @@ import {
   Tooltip,
   ResponsiveContainer
 } from "recharts";
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
 import TrendController from "../../../utils/TrendController";
-import axiosInstance from "../../../api/axiosInstance"; // FIXED: Changed from utils to api
-import { useEffect } from "react"; // ADDED: For filter options fetching
 
-const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onParamsChange }) => {
+const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => {
   const theme = useTheme();
   const hasRemoteData = Array.isArray(trendData.timeSeries) && trendData.timeSeries.length > 0;
 
-  const { months: selectedPeriod, timeStep, platform: initialPlatform, category: initialCategory, brand: initialBrand, city: initialCity } = trendParams;
-
-  // ADDED: 4 separate filter states
-  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "All");
-  const [selectedCity, setSelectedCity] = useState(initialCity || "All");
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory || "All");
-  const [selectedBrand, setSelectedBrand] = useState(initialBrand || "All");
-
-  // ADDED: Audience dropdown state
-  const [audience, setAudience] = useState("Platform"); // Platform, Format, Brand, City
-  const [showFilterPills, setShowFilterPills] = useState(false);
-
-  // ADDED: Dynamic filter options
-  const [categoryOptions, setCategoryOptions] = useState(["All"]);
-  const [brandOptions, setBrandOptions] = useState(["All"]);
-  const [cityOptions, setCityOptions] = useState(["All"]);
-  const PLATFORM_OPTIONS = ["All", "Blinkit", "Zepto", "Swiggy Instamart", "BigBasket"];
-
+  const [selectedPeriod, setSelectedPeriod] = useState('3M');
+  const [timeStep, setTimeStep] = useState('Weekly');
   const [selectedMetrics, setSelectedMetrics] = useState({
     offtake: true,
     estCategoryShare: true,
     osa: true,
     discount: true,
-    overallSOV: false
+    overallSos: false
   });
 
   const controller = new TrendController();
 
-  // ADDED: Fetch categories when audience is Format
-  useEffect(() => {
-    if (audience === "Format" && open) {
-      axiosInstance
-        .get("/watchtower/trends-filter-options", {
-          params: { filterType: "categories", platform: selectedPlatform },
-        })
-        .then((res) => setCategoryOptions(res.data.options || ["All"]))
-        .catch(() => setCategoryOptions(["All"]));
-    }
-  }, [audience, selectedPlatform, open]);
-
-  // ADDED: Fetch brands when audience is Brand
-  useEffect(() => {
-    if (audience === "Brand" && open) {
-      axiosInstance
-        .get("/watchtower/trends-filter-options", {
-          params: { filterType: "brands", platform: selectedPlatform },
-        })
-        .then((res) => setBrandOptions(res.data.options || ["All"]))
-        .catch(() => setBrandOptions(["All"]));
-    }
-  }, [audience, selectedPlatform, open]);
-
-  // ADDED: Fetch cities when audience is City
-  useEffect(() => {
-    if (audience === "City" && open) {
-      axiosInstance
-        .get("/watchtower/trends-filter-options", {
-          params: {
-            filterType: "cities",
-            platform: selectedPlatform,
-            brand: selectedBrand,
-          },
-        })
-        .then((res) => setCityOptions(res.data.options || ["All"]))
-        .catch(() => setCityOptions(["All"]));
-    }
-  }, [audience, selectedPlatform, selectedBrand, open]);
-
-  const monthsCount =
+  const months =
     selectedPeriod === "1M" ? 1 :
       selectedPeriod === "3M" ? 3 :
         selectedPeriod === "6M" ? 6 : 12;
 
-  const data = hasRemoteData ? trendData.timeSeries : controller.generateData(monthsCount, timeStep);
+  const data = hasRemoteData ? trendData.timeSeries : controller.generateData(months, timeStep);
   const metrics = hasRemoteData ? (trendData.metrics || {}) : controller.getMetrics(data);
+
+  const platform = trendParams.platform || "Blinkit";
 
   const handleMetricToggle = (key) => {
     setSelectedMetrics({
       ...selectedMetrics,
       [key]: !selectedMetrics[key]
     });
-  };
-
-  const handlePeriodChange = (newPeriod) => {
-    onParamsChange(prev => ({ ...prev, months: newPeriod }));
-  };
-
-  const handleTimeStepChange = (newStep) => {
-    onParamsChange(prev => ({ ...prev, timeStep: newStep }));
-  };
-
-  const formatNumber = (num) => {
-    if (num >= 10000000) return `₹ ${(num / 10000000).toFixed(2)} Cr`;
-    if (num >= 100000) return `₹ ${(num / 100000).toFixed(2)} L`;
-    if (num >= 1000) return `₹ ${(num / 1000).toFixed(2)} K`;
-    return `₹ ${num.toFixed(0)}`;
   };
 
   const CustomTooltip = ({ active, payload }) => {
@@ -154,21 +79,22 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
               {payload[0].payload.date}
             </Typography>
             <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: '0.65rem', ml: 1, display: 'inline-flex', alignItems: 'center', gap: 0.3 }}>
-              ⏱ <span>Avg: last {timeStep.toLowerCase()}</span>
+              ⏱ <span>Avg: last weekly</span>
             </Typography>
           </Box>
-          {selectedMetrics.offtake && payload[0].payload.offtake !== undefined && (
+          {selectedMetrics.offtake && payload[0].payload.offtake && (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: theme.palette.error.main }}></Box>
                 <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>Offtake</Typography>
               </Box>
               <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                {formatNumber(payload[0].payload.offtake)}
+                ₹ {payload[0].payload.offtake.toFixed(2)} Cr
+                <span style={{ color: theme.palette.success.main, marginLeft: 6, fontSize: '0.7rem' }}>(+6.6%)</span>
               </Typography>
             </Box>
           )}
-          {selectedMetrics.osa && payload[0].payload.osa !== undefined && (
+          {selectedMetrics.osa && payload[0].payload.osa && (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: theme.palette.success.main }}></Box>
@@ -190,7 +116,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
     { key: 'estCategoryShare', label: 'Est. Category Share', color: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7' },
     { key: 'osa', label: 'OSA%', color: theme.palette.success.main },
     { key: 'discount', label: 'Wt. Discount%', color: theme.palette.primary.main },
-    { key: 'overallSOV', label: 'Overall SOV', color: theme.palette.info ? theme.palette.info.main : '#ec4899' }
+    { key: 'overallSos', label: 'Overall SOS', color: theme.palette.info ? theme.palette.info.main : '#ec4899' }
   ];
 
   return (
@@ -226,10 +152,10 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
               bgcolor: theme.palette.primary.main,
               boxShadow: theme.palette.mode === 'dark' ? '0 0 0 3px rgba(255,255,255,0.04)' : '0 0 0 3px rgba(59, 130, 246, 0.08)'
             }}></Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '1.125rem', color: '#111827' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '1.125rem', color: theme.palette.text.primary }}>
               My Trends
             </Typography>
-            <Typography sx={{ color: '#6b7280', fontSize: '0.875rem', mx: 0.5 }}>
+            <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', mx: 0.5 }}>
               at
             </Typography>
             <Chip
@@ -244,17 +170,11 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                 '& .MuiChip-label': { px: 1.5 }
               }}
             />
-            <Typography sx={{ color: '#6b7280', fontSize: '0.875rem', mx: 0.5 }}>
+            <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', mx: 0.5 }}>
               for
             </Typography>
             <Chip
-              label={
-                audience === "Platform" ? selectedPlatform :
-                  audience === "Format" ? selectedCategory :
-                    audience === "Brand" ? selectedBrand :
-                      audience === "City" ? selectedCity :
-                        "All"
-              }
+              label={platform}
               size="small"
               sx={{
                 bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#dbeafe',
@@ -278,111 +198,34 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
           </IconButton>
         </Box>
 
-        {/* ADDED: Audience Filters Section */}
-        <Box sx={{ px: 3, pt: 2, pb: 1.5, borderBottom: `1px solid ${theme.palette.divider}` }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: theme.palette.text.secondary }}>
-              Filter By:
-            </Typography>
-
-            <Select
-              size="small"
-              value={audience}
-              onChange={(e) => {
-                setAudience(e.target.value);
-                setShowFilterPills(true);
-              }}
-              sx={{ fontSize: '0.875rem', minWidth: 120 }}
-            >
-              <MenuItem value="Platform">Platform</MenuItem>
-              <MenuItem value="Format">Format</MenuItem>
-              <MenuItem value="Brand">Brand</MenuItem>
-              <MenuItem value="City">City</MenuItem>
-            </Select>
-
-            {showFilterPills && (
-              <Box
-                display="flex"
-                gap={0.5}
-                sx={{
-                  flexWrap: "wrap",
-                  maxHeight: "120px",
-                  overflowY: "auto",
-                  overflowX: "hidden",
-                  pr: 1,
-                  "&::-webkit-scrollbar": { width: 6 },
-                  "&::-webkit-scrollbar-thumb": {
-                    background: "#cbd5e1",
-                    borderRadius: 10,
-                  },
-                }}
-              >
-                {(audience === "Platform"
-                  ? PLATFORM_OPTIONS
-                  : audience === "Format"
-                    ? categoryOptions
-                    : audience === "Brand"
-                      ? brandOptions
-                      : audience === "City"
-                        ? cityOptions
-                        : []
-                ).map((p) => (
-                  <Box
-                    key={p}
-                    onClick={() => {
-                      if (audience === "Platform") {
-                        setSelectedPlatform(p);
-                      } else if (audience === "Format") {
-                        setSelectedCategory(p);
-                      } else if (audience === "Brand") {
-                        setSelectedBrand(p);
-                      } else if (audience === "City") {
-                        setSelectedCity(p);
-                      }
-                    }}
-                    sx={{
-                      px: 1.5,
-                      py: 0.7,
-                      borderRadius: "999px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      border: "1px solid #E5E7EB",
-                      backgroundColor:
-                        (audience === "Platform" && selectedPlatform === p) ||
-                          (audience === "Format" && selectedCategory === p) ||
-                          (audience === "Brand" && selectedBrand === p) ||
-                          (audience === "City" && selectedCity === p)
-                          ? "#0ea5e9"
-                          : "white",
-                      color:
-                        (audience === "Platform" && selectedPlatform === p) ||
-                          (audience === "Format" && selectedCategory === p) ||
-                          (audience === "Brand" && selectedBrand === p) ||
-                          (audience === "City" && selectedCity === p)
-                          ? "white"
-                          : "#0f172a",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {p}
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </Box>
-        </Box>
-
         {/* Controls */}
         <Box sx={{ px: 3, pt: 2.5, pb: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
           {/* Period Selection Row */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  sx={{
+                    py: 0,
+                    '& .MuiSvgIcon-root': { fontSize: 18 }
+                  }}
+                />
+              }
+              label={
+                <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.primary, fontWeight: 500 }}>
+                  Custom
+                </Typography>
+              }
+              sx={{ mr: 1, mb: 0 }}
+            />
+
             <Box sx={{ display: 'flex', gap: 1 }}>
               {['1M', '3M', '6M', '1Y'].map(period => (
                 <Button
                   key={period}
                   size="small"
-                  onClick={() => handlePeriodChange(period)}
+                  onClick={() => setSelectedPeriod(period)}
                   variant={selectedPeriod === period ? 'contained' : 'outlined'}
                   sx={{
                     minWidth: '50px',
@@ -393,20 +236,19 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                     textTransform: 'none',
                     borderRadius: '6px',
                     ...(selectedPeriod === period ? {
-                      bgcolor: '#3b82f6',
-                      color: '#ffffff',
+                      bgcolor: theme.palette.primary.main,
                       boxShadow: 'none',
                       '&:hover': {
-                        bgcolor: '#2563eb',
+                        bgcolor: theme.palette.primary.dark,
                         boxShadow: 'none'
                       }
                     } : {
-                      color: '#6b7280',
-                      borderColor: '#e5e7eb',
+                      color: theme.palette.text.secondary,
+                      borderColor: theme.palette.divider,
                       bgcolor: 'transparent',
                       '&:hover': {
-                        bgcolor: '#f9fafb',
-                        borderColor: '#e5e7eb'
+                        bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f9fafb',
+                        borderColor: theme.palette.divider
                       }
                     })
                   }}
@@ -416,53 +258,14 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
               ))}
             </Box>
 
-            <FormControlLabel
-              control={
-                <Checkbox
-                  size="small"
-                  checked={selectedPeriod === 'Custom'}
-                  onChange={(e) => handlePeriodChange(e.target.checked ? 'Custom' : '3M')}
-                  sx={{
-                    py: 0,
-                    '& .MuiSvgIcon-root': { fontSize: 18 }
-                  }}
-                />
-              }
-              label={
-                <Typography sx={{ fontSize: '0.8rem', color: '#111827', fontWeight: 500 }}>
-                  Custom
-                </Typography>
-              }
-              sx={{ ml: 1, mb: 0 }}
-            />
-
-            {selectedPeriod === 'Custom' && (
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <DatePicker
-                    label="Start"
-                    value={trendParams.startDate ? dayjs(trendParams.startDate) : null}
-                    onChange={(newValue) => onParamsChange(prev => ({ ...prev, startDate: newValue }))}
-                    slotProps={{ textField: { size: 'small', sx: { width: 130 } } }}
-                  />
-                  <DatePicker
-                    label="End"
-                    value={trendParams.endDate ? dayjs(trendParams.endDate) : null}
-                    onChange={(newValue) => onParamsChange(prev => ({ ...prev, endDate: newValue }))}
-                    slotProps={{ textField: { size: 'small', sx: { width: 130 } } }}
-                  />
-                </Box>
-              </LocalizationProvider>
-            )}
-
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 'auto' }}>
-              <Typography sx={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 500 }}>
+              <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.secondary, fontWeight: 500 }}>
                 Time Step:
               </Typography>
               <FormControl size="small">
                 <Select
                   value={timeStep}
-                  onChange={(e) => handleTimeStepChange(e.target.value)}
+                  onChange={(e) => setTimeStep(e.target.value)}
                   IconComponent={KeyboardArrowDownIcon}
                   sx={{
                     fontSize: '0.8rem',
@@ -474,10 +277,10 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                       fontWeight: 500
                     },
                     '& .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#e5e7eb'
+                      borderColor: theme.palette.divider
                     },
                     '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#e5e7eb'
+                      borderColor: theme.palette.divider
                     }
                   }}
                 >
@@ -514,7 +317,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                       borderRadius: '50%',
                       bgcolor: metric.color
                     }}></Box>
-                    <Typography sx={{ fontSize: '0.8rem', color: '#111827', fontWeight: 500 }}>
+                    <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.primary, fontWeight: 500 }}>
                       {metric.label}
                     </Typography>
                   </Box>
@@ -555,7 +358,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                   tickLine={false}
                   axisLine={{ stroke: theme.palette.divider }}
                   domain={['auto', 'auto']}
-                  tickFormatter={(value) => formatNumber(value)}
+                  tickFormatter={(value) => `₹ ${value} Cr`}
                   dx={-5}
                 />
                 <YAxis
@@ -613,11 +416,11 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {}, onPar
                     activeDot={{ r: 5, fill: theme.palette.primary.main, strokeWidth: 2, stroke: theme.palette.background.paper }}
                   />
                 )}
-                {selectedMetrics.overallSOV && (
+                {selectedMetrics.overallSos && (
                   <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="sov"
+                    dataKey="Sos"
                     stroke={theme.palette.info ? theme.palette.info.main : '#ec4899'}
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.info ? theme.palette.info.main : '#ec4899', strokeWidth: 0 }}

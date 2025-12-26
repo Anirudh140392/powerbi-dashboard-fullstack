@@ -12,7 +12,8 @@ html,
 body {
   height: 100%;
   width: 100%;
-  overflow: hidden !important;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 @theme inline {

@@ -443,14 +443,15 @@ const buildDataModel = () => {
         // existing KPIs
         estCatShare: base,
         wtOsa: 88 + brandIdx * 0.7 + cityIdx * 0.8,
-        overallSov: 30 + brandIdx * 1.1 + cityIdx * 0.9,
-        adSov: 22 + brandIdx * 0.9 + cityIdx * 0.6,
+        overallSos: 30 + brandIdx * 1.1 + cityIdx * 0.9,
+        adSos: 22 + brandIdx * 0.9 + cityIdx * 0.6,
 
         // NEW REQUIRED KPI FIELDS
         Osa: 80 + brandIdx * 1.2 + cityIdx * 0.5,
         Doi: 40 + brandIdx * 1.3 + cityIdx * 0.6,
         Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
         Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
+        PSL: 15 + brandIdx * 0.4 + cityIdx * 0.2,
       };
     });
 
@@ -467,14 +468,15 @@ const buildDataModel = () => {
 
         // existing KPIs
         wtOsa: 86 + skuIdx * 0.8 + cityIdx * 0.6,
-        overallSov: 28 + skuIdx * 1.0 + cityIdx * 0.7 + brandIdx * 0.3,
-        adSov: 20 + skuIdx * 0.7 + cityIdx * 0.5,
+        overallSos: 28 + skuIdx * 1.0 + cityIdx * 0.7 + brandIdx * 0.3,
+        adSos: 20 + skuIdx * 0.7 + cityIdx * 0.5,
 
         // NEW REQUIRED KPI FIELDS
         Osa: 78 + skuIdx * 1.1 + cityIdx * 0.5,
         Doi: 42 + skuIdx * 1.0 + cityIdx * 0.4,
         Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
         Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
+        PSL: 12 + skuIdx * 0.5 + cityIdx * 0.2,
       };
     });
 
@@ -489,14 +491,15 @@ const buildDataModel = () => {
         // existing KPIs
         wtOsa: base + Math.sin(idx / 3 + brandIdx) * 3,
         estCatShare: 20 + brandIdx * 1.3 + Math.cos(idx / 4 + cityIdx) * 2,
-        overallSov: 30 + brandIdx * 1.0 + Math.sin(idx / 5 + cityIdx) * 4,
-        adSov: 22 + brandIdx * 0.9 + Math.cos(idx / 6 + brandIdx) * 5,
+        overallSos: 30 + brandIdx * 1.0 + Math.sin(idx / 5 + cityIdx) * 4,
+        adSos: 22 + brandIdx * 0.9 + Math.cos(idx / 6 + brandIdx) * 5,
 
         // NEW KPI TREND LINES
         Osa: 78 + brandIdx * 1.2 + Math.sin(idx / 3) * 2,
         Doi: 40 + brandIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
         Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
+        PSL: 14 + brandIdx * 0.6 + Math.sin(idx / 5) * 1.0,
       }));
     });
 
@@ -511,14 +514,15 @@ const buildDataModel = () => {
         // existing KPI trend lines
         wtOsa: 84 + skuIdx * 1.8 + Math.sin(idx / 3 + brandIdx) * 3,
         estCatShare: 18 + skuIdx * 1.2 + Math.cos(idx / 4) * 2,
-        overallSov: 28 + skuIdx * 0.9 + Math.sin(idx / 5) * 4,
-        adSov: 19 + skuIdx * 0.8 + Math.cos(idx / 6) * 5,
+        overallSos: 28 + skuIdx * 0.9 + Math.sin(idx / 5) * 4,
+        adSos: 19 + skuIdx * 0.8 + Math.cos(idx / 6) * 5,
 
         // NEW KPI trend lines
         Osa: 76 + skuIdx * 1.1 + Math.sin(idx / 3) * 2,
         Doi: 41 + skuIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
         Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
+        PSL: 11 + skuIdx * 0.5 + Math.cos(idx / 3) * 1.1,
       }));
     });
   });
@@ -934,6 +938,12 @@ const KPI_KEYS = [
     key: "Assortment",
     label: "Assortment",
     color: "#F97316", // orange
+    unit: "%",
+  },
+  {
+    key: "PSL",
+    label: "PSL",
+    color: "#E11D48", // rose
     unit: "%",
   },
 ];
@@ -1357,12 +1367,8 @@ export const KpiTrendShowcase = ({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-3 text-sm text-slate-500">
-            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-              Competition
-            </span>
-            <span className="text-xs">at MRP for</span>
-            <Badge className="border-blue-200 bg-blue-50 text-xs">
-              Body Lotion
+            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
+              {filters.categories[0] || "All Categories"}
             </Badge>
           </div>
           <h1 className="text-lg font-semibold text-slate-900">
