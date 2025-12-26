@@ -1075,6 +1075,19 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
+const ProgressBar = ({ value, color }) => (
+  <div className="h-1.5 w-24 rounded-full bg-slate-100">
+    <div
+      className="h-1.5 rounded-full transition-all duration-500"
+      style={{
+        width: `${Math.max(0, Math.min(100, value))}%`,
+        backgroundColor:
+          color || (value >= 80 ? "#10b981" : value >= 60 ? "#f59e0b" : "#ef4444"),
+      }}
+    />
+  </div>
+);
+
 const BrandTable = ({ rows }) => (
   <Card className="mt-3">
     <CardHeader className="border-b pb-2">
@@ -1089,8 +1102,6 @@ const BrandTable = ({ rows }) => (
             <tr>
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-right">Osa</th>
-              <th className="px-3 py-2 text-right">Doi</th>
-              <th className="px-3 py-2 text-right">Fillrate</th>
               <th className="px-3 py-2 text-right">Assortment</th>
             </tr>
           </thead>
@@ -1107,23 +1118,22 @@ const BrandTable = ({ rows }) => (
                   {row.name}
                 </td>
                 <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Osa.toFixed(1)}%
+                  <div className="flex flex-col items-end gap-1">
+                    <span>{row.Osa.toFixed(1)}%</span>
+                    <ProgressBar value={row.Osa} />
+                  </div>
                 </td>
                 <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Doi.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Fillrate.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Assortment.toFixed(1)}
+                  <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                    {row.Assortment.toFixed(1)}
+                  </span>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={3}
                   className="px-3 py-6 text-center text-[12px] text-slate-400"
                 >
                   No brands matching current filters.
@@ -1152,8 +1162,6 @@ const SkuTable = ({ rows }) => (
               <th className="px-3 py-2 text-left">SKU</th>
               <th className="px-3 py-2 text-left">Brand</th>
               <th className="px-3 py-2 text-right">Osa</th>
-              <th className="px-3 py-2 text-right">Doi</th>
-              <th className="px-3 py-2 text-right">Fillrate</th>
               <th className="px-3 py-2 text-right">Assortment</th>
             </tr>
           </thead>
@@ -1173,23 +1181,22 @@ const SkuTable = ({ rows }) => (
                   {row.brandName}
                 </td>
                 <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Osa.toFixed(1)}%
+                  <div className="flex flex-col items-end gap-1">
+                    <span>{row.Osa.toFixed(1)}%</span>
+                    <ProgressBar value={row.Osa} />
+                  </div>
                 </td>
                 <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Doi.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Fillrate.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Assortment.toFixed(0)}
+                  <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                    {row.Assortment.toFixed(0)}
+                  </span>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={4}
                   className="px-3 py-6 text-center text-[12px] text-slate-400"
                 >
                   No SKUs matching current filters.
@@ -1267,10 +1274,43 @@ export const KpiTrendShowcase = () => {
       {/* Header */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-3 text-sm text-slate-500">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-              {filters.categories[0] || "All Categories"}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+            {/* Categories: Always show selected or 'All Categories' */}
+            {filters.categories.length > 0 ? (
+              filters.categories.map((c) => (
+                <Badge
+                  key={c}
+                  className="bg-blue-50 text-blue-700 border-blue-100"
+                >
+                  {c}
+                </Badge>
+              ))
+            ) : (
+              <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                All Categories
+              </Badge>
+            )}
+
+            {/* Brands: Always show selected */}
+            {filters.brands.map((b) => (
+              <Badge
+                key={b}
+                className="bg-indigo-50 text-indigo-700 border-indigo-100"
+              >
+                {b}
+              </Badge>
+            ))}
+
+            {/* SKUs: Show only if tab is 'sku' */}
+            {tab === "sku" &&
+              filters.skus.map((s) => (
+                <Badge
+                  key={s}
+                  className="bg-purple-50 text-purple-700 border-purple-100"
+                >
+                  {s}
+                </Badge>
+              ))}
           </div>
           <h1 className="text-lg font-semibold text-slate-900">
             Competition List
