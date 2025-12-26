@@ -40,11 +40,16 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     selectedLocation,
     setSelectedLocation,
     platforms,
-    platform, setPlatform,
-    timeStart, setTimeStart,
-    timeEnd, setTimeEnd,
-    compareStart, setCompareStart,
-    compareEnd, setCompareEnd
+    platform,
+    setPlatform,
+    timeStart,
+    setTimeStart,
+    timeEnd,
+    setTimeEnd,
+    compareStart,
+    setCompareStart,
+    compareEnd,
+    setCompareEnd,
   } = React.useContext(FilterContext);
 
   const location = useLocation();
@@ -95,13 +100,17 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 bgcolor: "#f1f5f9",
                 "&:hover": { bgcolor: "#e2e8f0" },
                 transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.3s ease"
+                transition: "transform 0.3s ease",
               }}
             >
               <ChevronDown size={18} />
             </IconButton>
 
-            <Typography variant="h6" fontWeight="700" sx={{ whiteSpace: "nowrap" }}>
+            <Typography
+              variant="h6"
+              fontWeight="700"
+              sx={{ whiteSpace: "nowrap" }}
+            >
               {title}
             </Typography>
           </Box>
@@ -119,7 +128,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 display: "flex",
                 gap: 1,
                 flexWrap: "nowrap",
-                overflow: "visible"
+                overflow: "visible",
               }}
             >
               {/* DARK STORE / MARKET PLACE COUNT */}
@@ -133,13 +142,16 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     textTransform: "uppercase",
                   }}
                 >
-                  {["Flipkart", "Amazon"].includes(platform)
+                  {platform === "All"
+                    ? "All"
+                    : ["Flipkart", "Amazon"].includes(platform)
                     ? "MARKET PLACE"
                     : "DARK STORE"}
                 </Typography>
+
                 <Box
                   sx={{
-                    width: 160,
+                    width: 120,
                     height: "38px",
                     bgcolor: "#F8FAFC",
                     borderRadius: "8px",
@@ -147,23 +159,46 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     display: "flex",
                     alignItems: "center",
                     px: 2,
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    color: "#334155",
+                    gap: 1,
                   }}
                 >
-                  {/* Mock Counts based on Platform */}
-                  {platform === "Blinkit"
-                    ? 342
-                    : platform === "Zepto"
-                      ? 215
-                      : platform === "Instamart"
-                        ? 450
-                        : platform === "Flipkart"
-                          ? 15
-                          : platform === "Amazon"
-                            ? 28
-                            : 0}
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      bgcolor: "#22C55E",
+                      flexShrink: 0,
+                    }}
+                  />
+
+                  <Typography
+                    sx={{
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: "#334155",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {platform === "All"
+                      ? 5
+                      : ["Blinkit", "Zepto", "Instamart"].includes(platform)
+                      ? 3
+                      : ["Flipkart", "Amazon"].includes(platform)
+                      ? 2
+                      : 0}
+                  </Typography>
+
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                      color: "#64748b",
+                      lineHeight: 1,
+                    }}
+                  >
+                    Active
+                  </Typography>
                 </Box>
               </Box>
 
@@ -320,10 +355,8 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 />
               </Box>
 
-
-
               {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
-              {location.pathname === '/visibility-anlysis' && (
+              {location.pathname === "/visibility-anlysis" && (
                 <Box sx={{ flexShrink: 0 }}>
                   <Typography
                     sx={{
@@ -355,7 +388,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                             fontWeight: 500,
                             "& fieldset": { borderColor: "#E2E8F0" },
                             "&:hover fieldset": { borderColor: "#CBD5E1" },
-                            "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
+                            "&.Mui-focused fieldset": {
+                              borderColor: "#3B82F6",
+                            },
                           },
                         }}
                       />
@@ -427,7 +462,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               flexWrap: "wrap",
               mt: 2,
               alignItems: "center",
-              overflow: "visible"
+              overflow: "visible",
             }}
           >
             {/* DATE INFO
