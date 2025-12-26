@@ -15,11 +15,11 @@ import {
 -------------------------------------------------------*/
 const visibilityKpiOrder = [
     "adPosition",
-    "adSov",
+    "adSos",
     "organicPosition",
-    "overallSov",
+    "overallSos",
     "volumeShare",
-    "organicSov",
+    "organicSos",
 ];
 
 const availabilityKpiOrder = [
@@ -54,11 +54,11 @@ const inventoryKpiOrder = [
 -------------------------------------------------------*/
 const KPI_LABELS = {
     adPosition: "Ad Pos.",
-    adSov: "Ad SOV",
+    adSos: "Ad Sos",
     organicPosition: "Organic Pos.",
-    overallSov: "Overall SOV",
+    overallSos: "Overall Sos",
     volumeShare: "Volume Share",
-    organicSov: "Organic SOV",
+    organicSos: "Organic Sos",
 
     assortment: "Assortment",
     soh: "SOH",
@@ -144,14 +144,14 @@ const SAMPLE_SKUS = [
         impact: "-6.2%",
         kpis: {
             adPosition: "3",
-            adSov: "14.5%",
+            adSos: "14.5%",
             organicPosition: "18",
-            overallSov: "9.8%",
+            overallSos: "9.8%",
             volumeShare: "8.2%",
-            organicSov: "6.7%",
+            organicSos: "6.7%",
         },
         topCities: [
-            { city: "Delhi", metric: "Overall SOV 7.2%", change: "-3.4%" },
+            { city: "Delhi", metric: "Overall Sos 7.2%", change: "-3.4%" },
             { city: "Gurgaon", metric: "Volume Share 6.8%", change: "-2.1%" },
         ],
     },
@@ -168,15 +168,15 @@ const SAMPLE_SKUS = [
         impact: "-4.9%",
         kpis: {
             adPosition: "4",
-            adSov: "8.9%",
+            adSos: "8.9%",
             organicPosition: "22",
-            overallSov: "7.4%",
+            overallSos: "7.4%",
             volumeShare: "5.3%",
-            organicSov: "4.1%",
+            organicSos: "4.1%",
         },
         topCities: [
-            { city: "Mumbai", metric: "Ad SOV 6.2%", change: "-2.7%" },
-            { city: "Thane", metric: "Organic SOV 3.2%", change: "-1.9%" },
+            { city: "Mumbai", metric: "Ad Sos 6.2%", change: "-2.7%" },
+            { city: "Thane", metric: "Organic Sos 3.2%", change: "-1.9%" },
         ],
     },
     {
@@ -192,14 +192,14 @@ const SAMPLE_SKUS = [
         impact: "-3.8%",
         kpis: {
             adPosition: "5",
-            adSov: "7.5%",
+            adSos: "7.5%",
             organicPosition: "25",
-            overallSov: "6.8%",
+            overallSos: "6.8%",
             volumeShare: "4.9%",
-            organicSov: "3.5%",
+            organicSos: "3.5%",
         },
         topCities: [
-            { city: "Bangalore", metric: "Ad SOV 5.8%", change: "-2.1%" },
+            { city: "Bangalore", metric: "Ad Sos 5.8%", change: "-2.1%" },
             { city: "Chennai", metric: "Volume Share 4.2%", change: "-1.5%" },
         ],
     },
@@ -216,15 +216,15 @@ const SAMPLE_SKUS = [
         impact: "-3.5%",
         kpis: {
             adPosition: "6",
-            adSov: "6.2%",
+            adSos: "6.2%",
             organicPosition: "28",
-            overallSov: "5.5%",
+            overallSos: "5.5%",
             volumeShare: "4.1%",
-            organicSov: "3.1%",
+            organicSos: "3.1%",
         },
         topCities: [
-            { city: "Hyderabad", metric: "Overall SOV 4.9%", change: "-1.8%" },
-            { city: "Pune", metric: "Organic SOV 2.8%", change: "-1.2%" },
+            { city: "Hyderabad", metric: "Overall Sos 4.9%", change: "-1.8%" },
+            { city: "Pune", metric: "Organic Sos 2.8%", change: "-1.2%" },
         ],
     },
 
@@ -241,14 +241,14 @@ const SAMPLE_SKUS = [
         impact: "+7.8%",
         kpis: {
             adPosition: "1",
-            adSov: "29.4%",
+            adSos: "29.4%",
             organicPosition: "4",
-            overallSov: "18.6%",
+            overallSos: "18.6%",
             volumeShare: "15.2%",
-            organicSov: "12.3%",
+            organicSos: "12.3%",
         },
         topCities: [
-            { city: "Bangalore", metric: "Ad SOV 34.1%", change: "+9.3%" },
+            { city: "Bangalore", metric: "Ad Sos 34.1%", change: "+9.3%" },
             { city: "Hyderabad", metric: "Volume Share 17.5%", change: "+5.1%" },
         ],
     },
@@ -265,15 +265,15 @@ const SAMPLE_SKUS = [
         impact: "+5.1%",
         kpis: {
             adPosition: "2",
-            adSov: "22.7%",
+            adSos: "22.7%",
             organicPosition: "7",
-            overallSov: "13.9%",
+            overallSos: "13.9%",
             volumeShare: "11.4%",
-            organicSov: "9.6%",
+            organicSos: "9.6%",
         },
         topCities: [
-            { city: "Pune", metric: "Overall SOV 16.2%", change: "+4.2%" },
-            { city: "Mumbai", metric: "Ad SOV 21.5%", change: "+3.7%" },
+            { city: "Pune", metric: "Overall Sos 16.2%", change: "+4.2%" },
+            { city: "Mumbai", metric: "Ad Sos 21.5%", change: "+3.7%" },
         ],
     },
     {
@@ -289,15 +289,15 @@ const SAMPLE_SKUS = [
         impact: "+4.8%",
         kpis: {
             adPosition: "2",
-            adSov: "20.1%",
+            adSos: "20.1%",
             organicPosition: "8",
-            overallSov: "12.5%",
+            overallSos: "12.5%",
             volumeShare: "10.1%",
-            organicSov: "8.4%",
+            organicSos: "8.4%",
         },
         topCities: [
             { city: "Delhi", metric: "Volume Share 11.2%", change: "+3.5%" },
-            { city: "Gurgaon", metric: "Overall SOV 13.1%", change: "+2.9%" },
+            { city: "Gurgaon", metric: "Overall Sos 13.1%", change: "+2.9%" },
         ],
     },
     {
@@ -313,15 +313,15 @@ const SAMPLE_SKUS = [
         impact: "+4.2%",
         kpis: {
             adPosition: "3",
-            adSov: "18.5%",
+            adSos: "18.5%",
             organicPosition: "10",
-            overallSov: "11.2%",
+            overallSos: "11.2%",
             volumeShare: "9.5%",
-            organicSov: "7.8%",
+            organicSos: "7.8%",
         },
         topCities: [
-            { city: "Chennai", metric: "Ad SOV 19.8%", change: "+3.1%" },
-            { city: "Bangalore", metric: "Organic SOV 8.5%", change: "+2.5%" },
+            { city: "Chennai", metric: "Ad Sos 19.8%", change: "+3.1%" },
+            { city: "Bangalore", metric: "Organic Sos 8.5%", change: "+2.5%" },
         ],
     },
 
@@ -934,7 +934,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
 
     const PRIMARY_METRICS = {
-        visibility: { label: "Overall SOV", key: "overallSov" },
+        visibility: { label: "Overall Sos", key: "overallSos" },
         availability: { label: "Overall OSA", key: "weightedOsa" }
     };
 

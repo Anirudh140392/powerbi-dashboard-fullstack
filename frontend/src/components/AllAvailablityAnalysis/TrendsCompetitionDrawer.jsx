@@ -390,8 +390,9 @@ const MetricChip = ({ label, color, active, onClick }) => {
 export default function TrendsCompetitionDrawer({
   dynamicKey,
   open = true,
-  onClose = () => {},
+  onClose = () => { },
   selectedColumn,
+  selectedLevel,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -887,6 +888,12 @@ export default function TrendsCompetitionDrawer({
           },
           { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
           {
+            id: "CategoryShare",
+            label: "Category Share",
+            color: "#EC4899",
+            axis: "right",
+          },
+          {
             id: "MarketShare",
             label: "Market Share",
             color: "#9333EA",
@@ -919,6 +926,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.4,
             Availability: 84,
             SOS: 42,
+            CategoryShare: 24.3,
             MarketShare: 18.1,
             PromoMyBrand: 12.4,
             PromoCompete: 9.8,
@@ -935,6 +943,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 2.9,
             Availability: 79,
             SOS: 38,
+            CategoryShare: 22.8,
             MarketShare: 16.9,
             PromoMyBrand: 14.8,
             PromoCompete: 11.2,
@@ -951,6 +960,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.2,
             Availability: 78,
             SOS: 40,
+            CategoryShare: 23.5,
             MarketShare: 17.2,
             PromoMyBrand: 11.9,
             PromoCompete: 9.3,
@@ -967,6 +977,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 2.6,
             Availability: 72,
             SOS: 35,
+            CategoryShare: 21.7,
             MarketShare: 16.1,
             PromoMyBrand: 15.6,
             PromoCompete: 12.9,
@@ -983,6 +994,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.5,
             Availability: 82,
             SOS: 43,
+            CategoryShare: 24.8,
             MarketShare: 18.0,
             PromoMyBrand: 10.8,
             PromoCompete: 8.6,
@@ -999,6 +1011,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.0,
             Availability: 76,
             SOS: 39,
+            CategoryShare: 23.1,
             MarketShare: 16.8,
             PromoMyBrand: 13.9,
             PromoCompete: 10.7,
@@ -1015,6 +1028,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.6,
             Availability: 85,
             SOS: 45,
+            CategoryShare: 25.6,
             MarketShare: 18.9,
             PromoMyBrand: 14.6,
             PromoCompete: 10.5,
@@ -1031,6 +1045,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 2.4,
             Availability: 70,
             SOS: 33,
+            CategoryShare: 21.2,
             MarketShare: 15.6,
             PromoMyBrand: 16.8,
             PromoCompete: 13.5,
@@ -1047,6 +1062,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.3,
             Availability: 81,
             SOS: 41,
+            CategoryShare: 24.1,
             MarketShare: 17.7,
             PromoMyBrand: 11.6,
             PromoCompete: 9.1,
@@ -1063,6 +1079,7 @@ export default function TrendsCompetitionDrawer({
             Conversion: 3.9,
             Availability: 87,
             SOS: 47,
+            CategoryShare: 26.2,
             MarketShare: 19.4,
             PromoMyBrand: 13.2,
             PromoCompete: 9.7,
@@ -1093,6 +1110,7 @@ export default function TrendsCompetitionDrawer({
           },
           { id: "Spend", label: "Spend", color: "#DC2626", default: true },
           { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
+          { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
           { id: "MarketShare", label: "Market Share", color: "#9333EA" },
           { id: "Conversion", label: "Conversion", color: "#F97316" },
         ],
@@ -1106,6 +1124,7 @@ export default function TrendsCompetitionDrawer({
               Offtakes: 54,
               Spend: 4.2,
               ROAS: 6.8,
+              CategoryShare: 23.8,
               MarketShare: 17.6,
               Conversion: 3.2,
             },
@@ -1114,6 +1133,7 @@ export default function TrendsCompetitionDrawer({
               Offtakes: 55,
               Spend: 4.5,
               ROAS: 7.0,
+              CategoryShare: 24.2,
               MarketShare: 17.9,
               Conversion: 3.3,
             },
@@ -1122,6 +1142,7 @@ export default function TrendsCompetitionDrawer({
               Offtakes: 56,
               Spend: 4.8,
               ROAS: 7.2,
+              CategoryShare: 24.5,
               MarketShare: 18.1,
               Conversion: 3.4,
             },
@@ -1130,6 +1151,7 @@ export default function TrendsCompetitionDrawer({
               Offtakes: 57,
               Spend: 5.0,
               ROAS: 7.4,
+              CategoryShare: 24.9,
               MarketShare: 18.4,
               Conversion: 3.5,
             },
@@ -1159,6 +1181,7 @@ export default function TrendsCompetitionDrawer({
           { id: "Spend", label: "Spend", type: "metric" },
           { id: "ROAS", label: "ROAS", type: "metric" },
           { id: "SOS", label: "SOS", type: "metric" },
+          { id: "CategoryShare", label: "Category Share", type: "metric" },
           { id: "MarketShare", label: "Market Share", type: "metric" },
         ],
 
@@ -1169,6 +1192,7 @@ export default function TrendsCompetitionDrawer({
             Spend: { value: 6.8, delta: 0.4 },
             ROAS: { value: 7.3, delta: 0.2 },
             SOS: { value: 44, delta: 1.2 },
+            CategoryShare: { value: 24.6, delta: 0.8 },
             MarketShare: { value: 18.8, delta: 0.4 },
           },
           {
@@ -1177,6 +1201,7 @@ export default function TrendsCompetitionDrawer({
             Spend: { value: 5.1, delta: -0.3 },
             ROAS: { value: 6.9, delta: -0.1 },
             SOS: { value: 39, delta: -0.8 },
+            CategoryShare: { value: 22.3, delta: -0.5 },
             MarketShare: { value: 18.5, delta: -0.3 },
           },
         ],
@@ -1494,12 +1519,12 @@ export default function TrendsCompetitionDrawer({
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
-                      ? FORMAT_OPTIONS
-                      : allTrendMeta.context.audience === "City"
-                      ? CITY_OPTIONS
-                      : allTrendMeta.context.audience === "Brand"
-                      ? BRAND_OPTIONS
-                      : []
+                        ? FORMAT_OPTIONS
+                        : allTrendMeta.context.audience === "City"
+                          ? CITY_OPTIONS
+                          : allTrendMeta.context.audience === "Brand"
+                            ? BRAND_OPTIONS
+                            : []
                     ).map((p) => (
                       <Box
                         key={p}
@@ -1526,18 +1551,6 @@ export default function TrendsCompetitionDrawer({
                   </Box>
                 )}
               </Box>
-
-              {/* LEVEL CHIP */}
-              <Chip
-                size="small"
-                label={trendMeta.context.level}
-                sx={{
-                  borderRadius: "999px",
-                  backgroundColor: "#DCFCE7",
-                  color: "#166534",
-                  fontWeight: 500,
-                }}
-              />
 
               {/* AUDIENCE CHIP */}
             </Box>
@@ -1633,7 +1646,11 @@ export default function TrendsCompetitionDrawer({
         {view === "Competition" && (
           <>
             {dynamicKey === "platform_overview_tower" ? (
-              <PlatformOverviewKpiShowcase dynamicKey={dynamicKey} />
+              <PlatformOverviewKpiShowcase
+                dynamicKey={dynamicKey}
+                selectedItem={selectedColumn}
+                selectedLevel={selectedLevel}
+              />
             ) : (
               <KpiTrendShowcase dynamicKey={dynamicKey} />
             )}

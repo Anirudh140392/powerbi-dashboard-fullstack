@@ -4,9 +4,9 @@ import { KpiFilterPanel, KpiField } from '../components/KpiFilterPanel'
 
 const KPI_LABELS = {
     catImpShare: 'Cat Imp Share',
-    adSov: 'Ad SOV',
-    orgSov: 'Organic SOV',
-    overallSov: 'Overall SOV',
+    adSos: 'Ad Sos',
+    orgSos: 'Organic Sos',
+    overallSos: 'Overall Sos',
     adPos: 'Ad Pos',
     orgPos: 'Org Pos',
 }
@@ -18,7 +18,7 @@ const PLATFORM_LABELS = {
     BigBasket: 'BigBasket',
 }
 
-const PERCENT_KPIS = ['catImpShare', 'adSov', 'orgSov', 'overallSov']
+const PERCENT_KPIS = ['catImpShare', 'adSos', 'orgSos', 'overallSos']
 
 const sampleHierarchy = [
     {
@@ -26,12 +26,12 @@ const sampleHierarchy = [
         label: 'Generic',
 
         level: 'keyword-type',
-        metrics: { catImpShare: 65.6, adSov: 0.6, orgSov: 1.0, overallSov: 0.8 },
+        metrics: { catImpShare: 65.6, adSos: 0.6, orgSos: 1.0, overallSos: 0.8 },
         platforms: {
-            Blinkit: { overallSov: 0.8, adSov: 0.6, orgSov: 1.0, catImpShare: 65.6 },
-            Zepto: { overallSov: 0.7, adSov: 0.5, orgSov: 0.9, catImpShare: 64.2 },
-            Instamart: { overallSov: 0.9, adSov: 0.7, orgSov: 1.1, catImpShare: 66.3 },
-            BigBasket: { overallSov: 0.8, adSov: 0.6, orgSov: 1.0, catImpShare: 65.1 },
+            Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
+            Zepto: { overallSos: 0.7, adSos: 0.5, orgSos: 0.9, catImpShare: 64.2 },
+            Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
+            BigBasket: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.1 },
         },
         children: [
             {
@@ -39,10 +39,10 @@ const sampleHierarchy = [
                 label: 'ice cream delivery',
 
                 level: 'keyword',
-                metrics: { catImpShare: 6.2, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
+                metrics: { catImpShare: 6.2, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
                 platforms: {
-                    Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 6.2 },
-                    Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 5.8 },
+                    Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 6.2 },
+                    Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 5.8 },
                 },
                 children: [
                     {
@@ -50,38 +50,38 @@ const sampleHierarchy = [
                         label: 'Cornetto Double Chocolate',
 
                         level: 'sku',
-                        metrics: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 12 },
+                        metrics: { catImpShare: 0.3, adSos: 0.2, orgSos: 0.1, overallSos: 0.2, adPos: 4, orgPos: 12 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 11 },
-                            Zepto: { catImpShare: 0.3, adSov: 0.2, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 13 },
+                            Blinkit: { catImpShare: 0.3, adSos: 0.2, orgSos: 0.1, overallSos: 0.2, adPos: 3, orgPos: 11 },
+                            Zepto: { catImpShare: 0.3, adSos: 0.2, orgSos: 0.1, overallSos: 0.2, adPos: 5, orgPos: 13 },
                         },
                         children: [
                             {
                                 id: 'generic-delivery-cornetto-delhi',
                                 label: 'Delhi NCR',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 3, orgPos: 10 },
+                                metrics: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 3, orgPos: 10 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 2, orgPos: 9 },
-                                    Zepto: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3, adPos: 4, orgPos: 11 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 2, orgPos: 9 },
+                                    Zepto: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3, adPos: 4, orgPos: 11 },
                                 }
                             },
                             {
                                 id: 'generic-delivery-cornetto-mumbai',
                                 label: 'Mumbai',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.0, overallSov: 0.2, adPos: 5, orgPos: 12 },
+                                metrics: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.0, overallSos: 0.2, adPos: 5, orgPos: 12 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.2, orgSov: 0.0, overallSov: 0.2, adPos: 4, orgPos: 11 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.2, orgSos: 0.0, overallSos: 0.2, adPos: 4, orgPos: 11 },
                                 }
                             },
                             {
                                 id: 'generic-delivery-cornetto-bangalore',
                                 label: 'Bangalore',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.0, overallSov: 0.2, adPos: 6, orgPos: 14 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.0, overallSos: 0.2, adPos: 6, orgPos: 14 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.0, overallSov: 0.2, adPos: 5, orgPos: 13 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.0, overallSos: 0.2, adPos: 5, orgPos: 13 },
                                 }
                             },
                         ],
@@ -93,10 +93,10 @@ const sampleHierarchy = [
                 label: 'cone ice cream',
 
                 level: 'keyword',
-                metrics: { catImpShare: 5.1, adSov: 0.1, orgSov: 0.2, overallSov: 0.3 },
+                metrics: { catImpShare: 5.1, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
                 platforms: {
-                    Blinkit: { overallSov: 0.3, adSov: 0.1, orgSov: 0.2, catImpShare: 5.1 },
-                    Zepto: { overallSov: 0.2, adSov: 0.1, orgSov: 0.2, catImpShare: 4.8 },
+                    Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 5.1 },
+                    Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 4.8 },
                 },
                 children: [
                     {
@@ -104,29 +104,29 @@ const sampleHierarchy = [
                         label: 'Kwality Walls Crunchy Cone',
 
                         level: 'sku',
-                        metrics: { catImpShare: 0.2, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 7, orgPos: 16 },
+                        metrics: { catImpShare: 0.2, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 7, orgPos: 16 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.2, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 14 },
-                            Zepto: { catImpShare: 0.2, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 18 },
+                            Blinkit: { catImpShare: 0.2, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 6, orgPos: 14 },
+                            Zepto: { catImpShare: 0.2, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 18 },
                         },
                         children: [
                             {
                                 id: 'generic-cone-kwality-delhi',
                                 label: 'Delhi NCR',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 5, orgPos: 12 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 5, orgPos: 12 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 4, orgPos: 10 },
-                                    Zepto: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 14 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 4, orgPos: 10 },
+                                    Zepto: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 6, orgPos: 14 },
                                 }
                             },
                             {
                                 id: 'generic-cone-kwality-mumbai',
                                 label: 'Mumbai',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 7, orgPos: 15 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 7, orgPos: 15 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 6, orgPos: 13 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 6, orgPos: 13 },
                                 }
                             },
                         ],
@@ -140,12 +140,12 @@ const sampleHierarchy = [
         label: 'Brand',
 
         level: 'keyword-type',
-        metrics: { catImpShare: 0.5, adSov: 88.4, orgSov: 83.0, overallSov: 85.1 },
+        metrics: { catImpShare: 0.5, adSos: 88.4, orgSos: 83.0, overallSos: 85.1 },
         platforms: {
-            Blinkit: { catImpShare: 0.5, adSov: 88.4, orgSov: 83.0, overallSov: 85.1 },
-            Zepto: { catImpShare: 0.4, adSov: 87.2, orgSov: 81.5, overallSov: 84.0 },
-            Instamart: { catImpShare: 0.6, adSov: 89.1, orgSov: 84.2, overallSov: 86.3 },
-            BigBasket: { catImpShare: 0.5, adSov: 88.0, orgSov: 82.8, overallSov: 85.0 },
+            Blinkit: { catImpShare: 0.5, adSos: 88.4, orgSos: 83.0, overallSos: 85.1 },
+            Zepto: { catImpShare: 0.4, adSos: 87.2, orgSos: 81.5, overallSos: 84.0 },
+            Instamart: { catImpShare: 0.6, adSos: 89.1, orgSos: 84.2, overallSos: 86.3 },
+            BigBasket: { catImpShare: 0.5, adSos: 88.0, orgSos: 82.8, overallSos: 85.0 },
         },
         children: [
             {
@@ -153,10 +153,10 @@ const sampleHierarchy = [
                 label: 'kwality walls ice cream',
 
                 level: 'keyword',
-                metrics: { catImpShare: 14.2, adSov: 41.2, orgSov: 36.7, overallSov: 38.4 },
+                metrics: { catImpShare: 14.2, adSos: 41.2, orgSos: 36.7, overallSos: 38.4 },
                 platforms: {
-                    Blinkit: { overallSov: 38.4, adSov: 41.2, orgSov: 36.7, catImpShare: 14.2 },
-                    Zepto: { overallSov: 37.3, adSov: 40.2, orgSov: 35.3, catImpShare: 13.8 },
+                    Blinkit: { overallSos: 38.4, adSos: 41.2, orgSos: 36.7, catImpShare: 14.2 },
+                    Zepto: { overallSos: 37.3, adSos: 40.2, orgSos: 35.3, catImpShare: 13.8 },
                 },
                 children: [
                     {
@@ -164,28 +164,28 @@ const sampleHierarchy = [
                         label: 'Magnum Almond',
 
                         level: 'sku',
-                        metrics: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 2, orgPos: 8 },
+                        metrics: { catImpShare: 0.2, adSos: 0.4, orgSos: 0.2, overallSos: 0.6, adPos: 2, orgPos: 8 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 1, orgPos: 7 },
-                            Zepto: { catImpShare: 0.2, adSov: 0.4, orgSov: 0.2, overallSov: 0.6, adPos: 3, orgPos: 9 },
+                            Blinkit: { catImpShare: 0.2, adSos: 0.4, orgSos: 0.2, overallSos: 0.6, adPos: 1, orgPos: 7 },
+                            Zepto: { catImpShare: 0.2, adSos: 0.4, orgSos: 0.2, overallSos: 0.6, adPos: 3, orgPos: 9 },
                         },
                         children: [
                             {
                                 id: 'brand-kwality-magnum-delhi',
                                 label: 'Delhi NCR',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 2, orgPos: 7 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 2, orgPos: 7 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 1, orgPos: 6 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 1, orgPos: 6 },
                                 }
                             },
                             {
                                 id: 'brand-kwality-magnum-mumbai',
                                 label: 'Mumbai',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 3, orgPos: 8 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 3, orgPos: 8 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 2, orgPos: 7 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 2, orgPos: 7 },
                                 }
                             },
                         ],
@@ -199,12 +199,12 @@ const sampleHierarchy = [
         label: 'Competition',
 
         level: 'keyword-type',
-        metrics: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
+        metrics: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
         platforms: {
-            Blinkit: { catImpShare: 33.9, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
-            Zepto: { catImpShare: 32.8, adSov: 0.7, orgSov: 0.2, overallSov: 0.3 },
-            Instamart: { catImpShare: 34.5, adSov: 0.9, orgSov: 0.3, overallSov: 0.5 },
-            BigBasket: { catImpShare: 33.2, adSov: 0.8, orgSov: 0.2, overallSov: 0.4 },
+            Blinkit: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
+            Zepto: { catImpShare: 32.8, adSos: 0.7, orgSos: 0.2, overallSos: 0.3 },
+            Instamart: { catImpShare: 34.5, adSos: 0.9, orgSos: 0.3, overallSos: 0.5 },
+            BigBasket: { catImpShare: 33.2, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
         },
         children: [
             {
@@ -212,10 +212,10 @@ const sampleHierarchy = [
                 label: 'amul ice cream',
 
                 level: 'keyword',
-                metrics: { catImpShare: 8.1, adSov: 0.2, orgSov: 0.1, overallSov: 0.3 },
+                metrics: { catImpShare: 8.1, adSos: 0.2, orgSos: 0.1, overallSos: 0.3 },
                 platforms: {
-                    Blinkit: { overallSov: 0.3, adSov: 0.2, orgSov: 0.1, catImpShare: 8.1 },
-                    Zepto: { overallSov: 0.2, adSov: 0.2, orgSov: 0.1, catImpShare: 7.8 },
+                    Blinkit: { overallSos: 0.3, adSos: 0.2, orgSos: 0.1, catImpShare: 8.1 },
+                    Zepto: { overallSos: 0.2, adSos: 0.2, orgSos: 0.1, catImpShare: 7.8 },
                 },
                 children: [
                     {
@@ -223,28 +223,28 @@ const sampleHierarchy = [
                         label: 'Amul Cone',
 
                         level: 'sku',
-                        metrics: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 9, orgPos: 18 },
+                        metrics: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 9, orgPos: 18 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 17 },
-                            Zepto: { catImpShare: 0.3, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 10, orgPos: 19 },
+                            Blinkit: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 17 },
+                            Zepto: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 10, orgPos: 19 },
                         },
                         children: [
                             {
                                 id: 'competition-amul-cone-delhi',
                                 label: 'Delhi NCR',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 16 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 16 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 7, orgPos: 15 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 7, orgPos: 15 },
                                 }
                             },
                             {
                                 id: 'competition-amul-cone-mumbai',
                                 label: 'Mumbai',
                                 level: 'city',
-                                metrics: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 9, orgPos: 17 },
+                                metrics: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 9, orgPos: 17 },
                                 platforms: {
-                                    Blinkit: { catImpShare: 0.1, adSov: 0.1, orgSov: 0.1, overallSov: 0.2, adPos: 8, orgPos: 16 },
+                                    Blinkit: { catImpShare: 0.1, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 16 },
                                 }
                             },
                         ],
@@ -257,9 +257,9 @@ const sampleHierarchy = [
 
 const kpiFields = [
     { id: 'catImpShare', label: 'Cat Imp Share', type: 'number' },
-    { id: 'adSov', label: 'Ad SOV', type: 'number' },
-    { id: 'orgSov', label: 'Organic SOV', type: 'number' },
-    { id: 'overallSov', label: 'Overall SOV', type: 'number' },
+    { id: 'adSos', label: 'Ad Sos', type: 'number' },
+    { id: 'orgSos', label: 'Organic Sos', type: 'number' },
+    { id: 'overallSos', label: 'Overall Sos', type: 'number' },
     { id: 'adPos', label: 'Ad Pos', type: 'number' },
     { id: 'orgPos', label: 'Org Pos', type: 'number' },
 ]
@@ -548,7 +548,7 @@ export default function Visibility4() {
             return 'rgba(239, 68, 68, 0.2)' // red
         }
 
-        // For SOV and catImpShare metrics, higher is better
+        // For Sos and catImpShare metrics, higher is better
         if (value >= 50) return 'rgba(34, 197, 94, 0.2)' // green
         if (value >= 10) return 'rgba(234, 179, 8, 0.2)' // yellow
         if (value >= 1) return 'rgba(251, 146, 60, 0.2)' // orange

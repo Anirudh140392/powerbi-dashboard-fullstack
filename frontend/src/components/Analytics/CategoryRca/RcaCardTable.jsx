@@ -32,7 +32,7 @@ const mkKpis = () => {
   const spend = rand(40_000, 9_20_000);
   const roas = Math.max(0.7, Math.round((offtake / Math.max(1, spend)) * 10) / 10);
   const osa = rand(58, 97);
-  const sov = rand(6, 42);
+  const sos = rand(6, 42);
   const cvr = Math.round((Math.random() * 5 + 1.8) * 10) / 10;
 
   const d = () => Math.round((Math.random() * 30 - 15) * 10) / 10;
@@ -42,7 +42,7 @@ const mkKpis = () => {
     osa: { v: fmtPct(osa), d: d() },
     spend: { v: fmtInr(spend), d: d() },
     roas: { v: roas.toFixed(1), d: d() },
-    sov: { v: fmtPct(sov), d: d() },
+    sos: { v: fmtPct(sos), d: d() },
     cvr: { v: fmtPct(cvr), d: d() },
   };
 };
@@ -415,7 +415,7 @@ function PremiumCard({
         >
           <MiniKpi label="Wt. OSA" value={`${kpis.osa.v} (${kpis.osa.d >= 0 ? "+" : "-"}${Math.abs(kpis.osa.d).toFixed(1)}%)`} />
           <MiniKpi label="Ad Spend" value={`${kpis.spend.v}`} />
-          <MiniKpi label="SOV" value={`${kpis.sov.v}`} />
+          <MiniKpi label="SOS" value={`${kpis.sos.v}`} />
           <MiniKpi label="CVR" value={`${kpis.cvr.v}`} />
         </div>
 
@@ -467,7 +467,7 @@ function PremiumCard({
                 </div>
                 <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <MiniKpi label="Insight" value={kpis.osa.d < 0 ? "OSA drag detected" : "Efficiency healthy"} />
-                  <MiniKpi label="Suggested action" value={kpis.sov.d < 0 ? "Boost SOV in top keywords" : "Hold, optimize spend"} />
+                  <MiniKpi label="Suggested action" value={kpis.sos.d < 0 ? "Boost SOS in top keywords" : "Hold, optimize spend"} />
                   <div style={{ gridColumn: "span 2" }}>
                     <MiniKpi label="Notes" value={footerRight || "Open trends for deeper RCA"} />
                   </div>
