@@ -225,7 +225,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       size="small"
                       hiddenLabel
                       sx={{
-                        width: 160,
+                        width: 120,
                         "& .MuiOutlinedInput-root": {
                           height: "38px",
                           bgcolor: "#F8FAFC",
@@ -270,7 +270,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   disableClearable
                   ListboxProps={{
                     style: {
-                      maxHeight: "160px",
+                      maxHeight: "120px",
                     },
                     sx: {
                       "& .MuiAutocomplete-option": {
@@ -286,7 +286,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       size="small"
                       hiddenLabel
                       sx={{
-                        width: 160,
+                        width: 120,
                         "& .MuiOutlinedInput-root": {
                           height: "38px",
                           bgcolor: "#F8FAFC",
@@ -326,7 +326,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       size="small"
                       hiddenLabel
                       sx={{
-                        width: 160,
+                        width: 120,
                         "& .MuiOutlinedInput-root": {
                           height: "38px",
                           bgcolor: "#F8FAFC",
@@ -342,7 +342,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   )}
                   ListboxProps={{
                     style: {
-                      maxHeight: "160px",
+                      maxHeight: "120px",
                     },
                     sx: {
                       "& .MuiAutocomplete-option": {
@@ -379,7 +379,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                         size="small"
                         hiddenLabel
                         sx={{
-                          width: 160,
+                          width: 120,
                           "& .MuiOutlinedInput-root": {
                             height: "38px",
                             bgcolor: "#F8FAFC",
