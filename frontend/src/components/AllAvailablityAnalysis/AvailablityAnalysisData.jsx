@@ -240,6 +240,8 @@ const PowerHierarchyHeat = ({ olaMode = "absolute" }) => {
   );
 };
 
+
+
 const ProductLevelHeat = ({ olaMode = "absolute" }) => {
   const [expandedFormats, setExpandedFormats] = useState({});
   const [expandedProducts, setExpandedProducts] = useState({});
