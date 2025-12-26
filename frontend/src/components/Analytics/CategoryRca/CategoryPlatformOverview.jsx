@@ -18,7 +18,7 @@ const categoryData = [
     metrics: {
       estimatedOfftake: { value: "₹2.3 Cr", change: "1.8%", changeValue: "₹4.3 lac", positive: false, units: "1.4 lac", unitChange: "6.6%", unitPositive: false },
       estCategoryShare: { value: "35.9%", change: "5.4%", changeValue: "-2.0%", positive: false },
-      indexedImpressions: { value: "19.4 lac", change: "4.7%", changeValue: "86.5 K", positive: true, wtOsa: "75.4%", wtOsaChange: "15.5%", wtOsaPositive: false, adSov: "14.2%", adSovChange: "10.6%", adSovPositive: true },
+      indexedImpressions: { value: "19.4 lac", change: "4.7%", changeValue: "86.5 K", positive: true, wtOsa: "75.4%", wtOsaChange: "15.5%", wtOsaPositive: false, adSos: "14.2%", adSosChange: "10.6%", adSosPositive: true },
       indexedConversion: { value: "7.0%", change: "10.6%", changeValue: "-0.8%", positive: false, wtDisc: "24.0%", wtDiscChange: "73.9%", wtDiscPositive: true },
       asp: { value: "₹132.2", change: "7.2%", changeValue: "₹10.3", positive: false }
     }
@@ -29,7 +29,7 @@ const categoryData = [
     metrics: {
       estimatedOfftake: { value: "₹1.6 Cr", change: "4.3%", changeValue: "₹7.0 lac", positive: false, units: "86.4 K", unitChange: "8.8%", unitPositive: false },
       estCategoryShare: { value: "42.9%", change: "8.9%", changeValue: "-4.2%", positive: false },
-      indexedImpressions: { value: "13.7 lac", change: "3.7%", changeValue: "48.7 K", positive: true, wtOsa: "73.8%", wtOsaChange: "17.3%", wtOsaPositive: false, adSov: "15.3%", adSovChange: "20.3%", adSovPositive: true },
+      indexedImpressions: { value: "13.7 lac", change: "3.7%", changeValue: "48.7 K", positive: true, wtOsa: "73.8%", wtOsaChange: "17.3%", wtOsaPositive: false, adSos: "15.3%", adSosChange: "20.3%", adSosPositive: true },
       indexedConversion: { value: "6.3%", change: "12.1%", changeValue: "-0.9%", positive: false, wtDisc: "22.4%", wtDiscChange: "66.3%", wtDiscPositive: true },
       asp: { value: "₹141.0", change: "5.8%", changeValue: "₹8.8", positive: false }
     }
@@ -40,7 +40,7 @@ const categoryData = [
     metrics: {
       estimatedOfftake: { value: "₹46.5 lac", change: "8.5%", changeValue: "₹3.6 lac", positive: true, units: "28.4 K", unitChange: "1.6%", unitPositive: false },
       estCategoryShare: { value: "29.1%", change: "2.9%", changeValue: "0.8%", positive: true },
-      indexedImpressions: { value: "4.1 lac", change: "6.8%", changeValue: "25.9 K", positive: true, wtOsa: "79.2%", wtOsaChange: "12.7%", wtOsaPositive: false, adSov: "15.4%", adSovChange: "22.6%", adSovPositive: true },
+      indexedImpressions: { value: "4.1 lac", change: "6.8%", changeValue: "25.9 K", positive: true, wtOsa: "79.2%", wtOsaChange: "12.7%", wtOsaPositive: false, adSos: "15.4%", adSosChange: "22.6%", adSosPositive: true },
       indexedConversion: { value: "7.0%", change: "7.9%", changeValue: "-0.6%", positive: false, wtDisc: "30.5%", wtDiscChange: "114.7%", wtDiscPositive: true },
       asp: { value: "₹115.5", change: "10.7%", changeValue: "₹13.8", positive: false }
     }
@@ -51,7 +51,7 @@ const categoryData = [
     metrics: {
       estimatedOfftake: { value: "₹12.7 lac", change: "1.3%", changeValue: "₹17.2 K", positive: false, units: "6.9 K", unitChange: "1.4%", unitPositive: false },
       estCategoryShare: { value: "23.0%", change: "3.7%", changeValue: "-0.9%", positive: false },
-      indexedImpressions: { value: "30.2 K", change: "3.8%", changeValue: "1.2 K", positive: false, wtOsa: "82.4%", wtOsaChange: "8.3%", wtOsaPositive: false, adSov: "2.1%", adSovChange: "78.9%", adSovPositive: false },
+      indexedImpressions: { value: "30.2 K", change: "3.8%", changeValue: "1.2 K", positive: false, wtOsa: "82.4%", wtOsaChange: "8.3%", wtOsaPositive: false, adSos: "2.1%", adSosChange: "78.9%", adSosPositive: false },
       indexedConversion: { value: "12.7%", change: "6.8%", changeValue: "0.8%", positive: true, wtDisc: "22.5%", wtDiscChange: "27.6%", wtDiscPositive: true },
       asp: { value: "₹143.3", change: "5.9%", changeValue: "₹9.1", positive: false }
     }
@@ -157,9 +157,9 @@ const ImpressionsCard = ({ data }) => {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '11px' }}>
         <span style={{ fontSize: '11px', color: theme.palette.text.secondary }}>
-          Ad. SOV: <span style={{ fontWeight: 600, color: theme.palette.text.primary }}>{data.adSov}</span>
+          Ad. SOS: <span style={{ fontWeight: 600, color: theme.palette.text.primary }}>{data.adSos}</span>
         </span>
-        <Change value={data.adSovChange} positive={data.adSovPositive} />
+        <Change value={data.adSosChange} positive={data.adSosPositive} />
       </div>
     </div>
   );

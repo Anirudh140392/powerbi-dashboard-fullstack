@@ -67,7 +67,7 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
               <Typography variant="h6" fontWeight={600}>
                 Insights
               </Typography>
-            
+
             </Box>
           </Box>
 
@@ -171,10 +171,10 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
                   Wt. OSA %
                 </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>
-                  Overall SOV
+                  Overall SOS
                 </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>
-                  Ad SOV
+                  Ad SOS
                 </TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>
                   Wt. Disc %
@@ -244,18 +244,18 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={600} fontSize="0.75rem">
-                      {city.overallSov}
+                      {city.overallSos}
                     </Typography>
                     <Typography
                       variant="caption"
                       fontSize="0.7rem"
                       sx={{
-                        color: city.overallSovChange.includes("-")
+                        color: city.overallSosChange.includes("-")
                           ? "#dc2626"
                           : "#16a34a",
                       }}
                     >
-                      {city.overallSovChange}
+                      {city.overallSosChange}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
@@ -263,7 +263,7 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
                       -
                     </Typography>
                     <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
-                      {city.adSov}
+                      {city.adSos}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
@@ -310,10 +310,10 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={600} fontSize="0.75rem">
-                      {product.overall.overallSov}
+                      {product.overall.overallSos}
                     </Typography>
                     <Typography variant="caption" fontSize="0.7rem" sx={{ color: "#dc2626" }}>
-                      {product.overall.overallSovChange}
+                      {product.overall.overallSosChange}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
@@ -321,7 +321,7 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
                       -
                     </Typography>
                     <Typography variant="caption" color="text.secondary" fontSize="0.7rem">
-                      {product.overall.adSov}
+                      {product.overall.adSos}
                     </Typography>
                   </TableCell>
                   <TableCell align="right">

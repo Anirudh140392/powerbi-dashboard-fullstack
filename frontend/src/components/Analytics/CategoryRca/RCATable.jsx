@@ -39,7 +39,7 @@ function deriveCategoryKpis(row) {
   const units = Math.max(1, Math.round(sales / 10));
   const impressions = Math.max(1, Math.round((safeNum(row.spend) ?? 0) * 150));
   const wtOsa = safeNum(row.availability_pct) ?? 0;
-  const adSov = safeNum(row.sos_pct) ?? 0;
+  const adSos = safeNum(row.sos_pct) ?? 0;
   const conv = safeNum(row.a2c_pct) ?? 0;
   const wtDisc = Math.min(80, Math.max(0, (safeNum(row.cpc) ?? 0) / 2));
   const asp = Math.max(80, Math.round((safeNum(row.cpm) ?? 200) / 2));
@@ -56,7 +56,7 @@ function deriveCategoryKpis(row) {
     units,
     impressions,
     wtOsa,
-    adSov,
+    adSos,
     conv,
     wtDisc,
     asp,
@@ -75,7 +75,7 @@ function deriveCityKpis(row) {
   const units = Math.max(1, Math.round(sales / 10));
   const impressions = Math.max(1, Math.round(sales * 15));
   const wtOsa = safeNum(row.availability) ?? 0;
-  const adSov = safeNum(row.sos) ?? 0;
+  const adSos = safeNum(row.sos) ?? 0;
   const conv = safeNum(row.cvr) ?? 0;
   const wtDisc = Math.min(80, Math.max(0, (safeNum(row.aspComp) ?? 0) * 1.2));
   const asp = safeNum(row.asp) ?? 0;
@@ -91,7 +91,7 @@ function deriveCityKpis(row) {
     units,
     impressions,
     wtOsa,
-    adSov,
+    adSos,
     conv,
     wtDisc,
     asp,
@@ -733,7 +733,7 @@ export default function RCATable() {
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Cat. Size (INR)</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Indexed Impressions</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Wt. OSA %</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Ad. SOV</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Ad. SOS</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Reason</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Actions</th>
                   </tr>
@@ -742,7 +742,7 @@ export default function RCATable() {
                 <tbody>
                   {categories.map((r) => {
                     const selected = selectedCategory?.category === r.category;
-                    const { catSize, units, impressions, wtOsa, adSov, conv, wtDisc, asp, unitsDelta, catSizeDelta, impressionsDelta, wtDiscDelta, aspDelta } = deriveCategoryKpis(r);
+                    const { catSize, units, impressions, wtOsa, adSos, conv, wtDisc, asp, unitsDelta, catSizeDelta, impressionsDelta, wtDiscDelta, aspDelta } = deriveCategoryKpis(r);
 
                     return (
                       <React.Fragment key={r.category}>
@@ -782,7 +782,7 @@ export default function RCATable() {
                             <ValueWithDelta value={wtOsa} delta={r.availability_comp} formatter={(v) => formatPct(v, 0)} mode={catDeltaMode} />
                           </td>
                           <td className="border-b border-slate-100 px-3 py-2 text-center tabular-nums">
-                            <ValueWithDelta value={adSov} delta={r.sos_comp} formatter={(v) => formatPct(v, 1)} mode={catDeltaMode} />
+                            <ValueWithDelta value={adSos} delta={r.sos_comp} formatter={(v) => formatPct(v, 1)} mode={catDeltaMode} />
                           </td>
                           <td className="border-b border-slate-100 px-3 py-2 text-center">{r.reason || "--"}</td>
                           <td className="border-b border-slate-100 px-3 py-2 space-x-2 whitespace-nowrap text-center">
@@ -926,7 +926,7 @@ export default function RCATable() {
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Cat. Size (INR)</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Indexed Impressions</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Wt. OSA %</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Ad. SOV</th>
+                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Ad. SOS</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Verdict</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Actions</th>
                       </tr>
@@ -935,7 +935,7 @@ export default function RCATable() {
                     <tbody>
                       {cities.map((r) => {
                         const selected = selectedCity?.city === r.city;
-                        const { catSize, units, impressions, wtOsa, adSov, conv, wtDisc, asp, unitsDelta, catSizeDelta, impressionsDelta, wtDiscDelta, aspDelta } = deriveCityKpis(r);
+                        const { catSize, units, impressions, wtOsa, adSos, conv, wtDisc, asp, unitsDelta, catSizeDelta, impressionsDelta, wtDiscDelta, aspDelta } = deriveCityKpis(r);
                         return (
                           <React.Fragment key={r.city}>
                             <tr
@@ -969,7 +969,7 @@ export default function RCATable() {
                                 <ValueWithDelta value={wtOsa} delta={r.availabilityComp} formatter={(v) => formatPct(v, 0)} mode={cityDeltaMode} />
                               </td>
                               <td className="border-b border-slate-100 px-3 py-2 text-center">
-                                <ValueWithDelta value={adSov} delta={r.sosComp} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
+                                <ValueWithDelta value={adSos} delta={r.sosComp} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
                               </td>
                               <td className="border-b border-slate-100 px-3 py-2 text-center">
                                 {r.verdict === "OK" ? <Tag tone="good">OK</Tag> : <Tag tone="warn">{r.verdict}</Tag>}

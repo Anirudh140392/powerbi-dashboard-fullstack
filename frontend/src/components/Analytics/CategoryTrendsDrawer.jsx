@@ -37,16 +37,16 @@ import {
 
 // Hardcoded trend data
 const trendDataHardcoded = [
-  { date: "06 Sep'25", offtake: 41.5, osa: 88, categoryShare: 53.2, discount: 12, sov: 35 },
-  { date: "10 Sep'25", offtake: 44.2, osa: 87, categoryShare: 54.8, discount: 13, sov: 36 },
-  { date: "14 Sep'25", offtake: 42.8, osa: 86, categoryShare: 52.1, discount: 11, sov: 34 },
-  { date: "18 Sep'25", offtake: 38.5, osa: 85, categoryShare: 50.5, discount: 10, sov: 33 },
-  { date: "22 Sep'25", offtake: 59.2, osa: 89, categoryShare: 58.3, discount: 15, sov: 42 },
-  { date: "26 Sep'25", offtake: 48.5, osa: 87, categoryShare: 55.7, discount: 13, sov: 38 },
-  { date: "30 Sep'25", offtake: 35.8, osa: 84, categoryShare: 49.2, discount: 9, sov: 31 }
+  { date: "06 Sep'25", offtake: 41.5, osa: 88, categoryShare: 53.2, discount: 12, Sos: 35 },
+  { date: "10 Sep'25", offtake: 44.2, osa: 87, categoryShare: 54.8, discount: 13, Sos: 36 },
+  { date: "14 Sep'25", offtake: 42.8, osa: 86, categoryShare: 52.1, discount: 11, Sos: 34 },
+  { date: "18 Sep'25", offtake: 38.5, osa: 85, categoryShare: 50.5, discount: 10, Sos: 33 },
+  { date: "22 Sep'25", offtake: 59.2, osa: 89, categoryShare: 58.3, discount: 15, Sos: 42 },
+  { date: "26 Sep'25", offtake: 48.5, osa: 87, categoryShare: 55.7, discount: 13, Sos: 38 },
+  { date: "30 Sep'25", offtake: 35.8, osa: 84, categoryShare: 49.2, discount: 9, Sos: 31 }
 ];
 
-const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
+const CategoryTrendsDrawer = ({ open = false, onClose = () => { } }) => {
   const [activeTab, setActiveTab] = useState('trends'); // 'trends', 'competition', 'crossPlatform'
 
   // Trends
@@ -57,7 +57,7 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
     estCategoryShare: false,
     osa: false,
     discount: false,
-    overallSOV: false
+    overallSos: false
   });
 
   // Competition
@@ -124,18 +124,18 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
     { key: 'estCategoryShare', label: 'Est. Cat. Share', color: '#a855f7' },
     { key: 'osa', label: 'Indexed Imp.', color: '#10b981' },
     { key: 'discount', label: 'Indexed CVR', color: '#3b82f6' },
-    { key: 'overallSOV', label: 'ASP', color: '#ec4899' }
+    { key: 'overallSos', label: 'ASP', color: '#ec4899' }
   ];
 
   // Brand data (unchanged)
   const brandData = [
-    { name: 'Colgate', categoryShare: 32.9, categoryShareChange: -4.5, osa: 74.6, osaChange: -18.3, sov: 20.0, sovChange: -6.6, adSov: 18.8, adSovChange: 0.4 },
-    { name: 'Sensodyne', categoryShare: 19.6, categoryShareChange: 2.2, osa: 94.2, osaChange: 3.9, sov: 19.3, sovChange: 2.7, adSov: 18.5, adSovChange: -3.1 },
-    { name: 'Oral-B', categoryShare: 11.7, categoryShareChange: -0.9, osa: 86.7, osaChange: -4.2, sov: 16.2, sovChange: -2.8, adSov: 20.8, adSovChange: -5.6 },
-    { name: 'Dabur', categoryShare: 8.6, categoryShareChange: 0.2, osa: 90.6, osaChange: -1.2, sov: 7.2, sovChange: 0.3, adSov: 7.4, adSovChange: 2.9 },
-    { name: 'Listerine', categoryShare: 4.3, categoryShareChange: 0.6, osa: 91.8, osaChange: 6.5, sov: 2.8, sovChange: 0.8, adSov: 3.1, adSovChange: 1.2 },
-    { name: 'Closeup', categoryShare: 3.6, categoryShareChange: 0.2, osa: 90.9, osaChange: 9.8, sov: 6.5, sovChange: 3.0, adSov: 13.8, adSovChange: 4.9 },
-    { name: 'Perfora', categoryShare: 3.6, categoryShareChange: -0.7, osa: 89.8, osaChange: 2.5, sov: 3.6, sovChange: -0.1, adSov: 4.7, adSovChange: -1.4 }
+    { name: 'Colgate', categoryShare: 32.9, categoryShareChange: -4.5, osa: 74.6, osaChange: -18.3, Sos: 20.0, SosChange: -6.6, adSos: 18.8, adSosChange: 0.4 },
+    { name: 'Sensodyne', categoryShare: 19.6, categoryShareChange: 2.2, osa: 94.2, osaChange: 3.9, Sos: 19.3, SosChange: 2.7, adSos: 18.5, adSosChange: -3.1 },
+    { name: 'Oral-B', categoryShare: 11.7, categoryShareChange: -0.9, osa: 86.7, osaChange: -4.2, Sos: 16.2, SosChange: -2.8, adSos: 20.8, adSosChange: -5.6 },
+    { name: 'Dabur', categoryShare: 8.6, categoryShareChange: 0.2, osa: 90.6, osaChange: -1.2, Sos: 7.2, SosChange: 0.3, adSos: 7.4, adSosChange: 2.9 },
+    { name: 'Listerine', categoryShare: 4.3, categoryShareChange: 0.6, osa: 91.8, osaChange: 6.5, Sos: 2.8, SosChange: 0.8, adSos: 3.1, adSosChange: 1.2 },
+    { name: 'Closeup', categoryShare: 3.6, categoryShareChange: 0.2, osa: 90.9, osaChange: 9.8, Sos: 6.5, SosChange: 3.0, adSos: 13.8, adSosChange: 4.9 },
+    { name: 'Perfora', categoryShare: 3.6, categoryShareChange: -0.7, osa: 89.8, osaChange: 2.5, Sos: 3.6, SosChange: -0.1, adSos: 4.7, adSosChange: -1.4 }
   ];
 
   // SKU data extended with pricing & rating fields for the unified table
@@ -152,10 +152,10 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       categoryShareChange: -1.4,
       wtOsa: 79.3,
       osaChange: -20.1,
-      overallSov: 5.5,
-      sovChange: -4.4,
-      adSov: 0.0,
-      adSovChange: 0.0,
+      overallSos: 5.5,
+      SosChange: -4.4,
+      adSos: 0.0,
+      adSosChange: 0.0,
       wtDiscount: 24.0,
       conversion: 0.95,
       cvr: 0.012,
@@ -174,10 +174,10 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       categoryShareChange: -0.4,
       wtOsa: 96.9,
       osaChange: 4.6,
-      overallSov: 7.0,
-      sovChange: 2.5,
-      adSov: 11.7,
-      adSovChange: 5.2,
+      overallSos: 7.0,
+      SosChange: 2.5,
+      adSos: 11.7,
+      adSosChange: 5.2,
       wtDiscount: 27.2,
       conversion: 1.2,
       cvr: 0.015,
@@ -196,10 +196,10 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       categoryShareChange: 1.0,
       wtOsa: 91.8,
       osaChange: 4.6,
-      overallSov: 1.7,
-      sovChange: -1.4,
-      adSov: 2.6,
-      adSovChange: -5.3,
+      overallSos: 1.7,
+      SosChange: -1.4,
+      adSos: 2.6,
+      adSosChange: -5.3,
       wtDiscount: 29.9,
       conversion: 0.85,
       cvr: 0.01,
@@ -218,10 +218,10 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       categoryShareChange: -0.4,
       wtOsa: 95.8,
       osaChange: -1.9,
-      overallSov: 1.3,
-      sovChange: -0.3,
-      adSov: 0.2,
-      adSovChange: -0.7,
+      overallSos: 1.3,
+      SosChange: -0.3,
+      adSos: 0.2,
+      adSosChange: -0.7,
       wtDiscount: 24.0,
       conversion: 1.05,
       cvr: 0.02,
@@ -240,10 +240,10 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       categoryShareChange: 0.8,
       wtOsa: 94.3,
       osaChange: 4.8,
-      overallSov: 2.5,
-      sovChange: 0.5,
-      adSov: 0.0,
-      adSovChange: 0.0,
+      overallSos: 2.5,
+      SosChange: 0.5,
+      adSos: 0.0,
+      adSosChange: 0.0,
       wtDiscount: 22.0,
       conversion: 1.02,
       cvr: 0.011,
@@ -263,8 +263,8 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       osaChange: '-15.5% (-13.8%)',
       wtDiscount: '24.0%',
       discountChange: '73.3% (10.2%)',
-      sov: 36.5,
-      sovChange: '-7.3% (-2.9%)'
+      Sos: 36.5,
+      SosChange: '-7.3% (-2.9%)'
     },
     instamart: {
       offtake: '₹1.3 Cr',
@@ -275,8 +275,8 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       osaChange: '-2.7% (-2.4%)',
       wtDiscount: '27.2%',
       discountChange: '43.5% (8.3%)',
-      sov: 39.7,
-      sovChange: '-11.3% (-5.0%)'
+      Sos: 39.7,
+      SosChange: '-11.3% (-5.0%)'
     },
     zepto: {
       offtake: '₹1.5 Cr',
@@ -287,8 +287,8 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
       osaChange: '-4.7% (-3.9%)',
       wtDiscount: '29.9%',
       discountChange: '63.1% (11.6%)',
-      sov: 36.6,
-      sovChange: '-3.6% (-1.4%)'
+      Sos: 36.6,
+      SosChange: '-3.6% (-1.4%)'
     }
   };
 
@@ -387,7 +387,7 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
               {selectedMetrics.estCategoryShare && <Line yAxisId="right" type="monotone" dataKey="categoryShare" stroke="#a855f7" strokeWidth={2.5} dot={{ r: 3.5, fill: '#a855f7' }} activeDot={{ r: 5, fill: '#a855f7', strokeWidth: 2, stroke: '#fff' }} />}
               {selectedMetrics.osa && <Line yAxisId="right" type="monotone" dataKey="osa" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3.5, fill: '#10b981' }} activeDot={{ r: 5, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} />}
               {selectedMetrics.discount && <Line yAxisId="right" type="monotone" dataKey="discount" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3.5, fill: '#3b82f6' }} activeDot={{ r: 5, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }} />}
-              {selectedMetrics.overallSOV && <Line yAxisId="right" type="monotone" dataKey="sov" stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3.5, fill: '#ec4899' }} activeDot={{ r: 5, fill: '#ec4899', strokeWidth: 2, stroke: '#fff' }} />}
+              {selectedMetrics.overallSos && <Line yAxisId="right" type="monotone" dataKey="Sos" stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3.5, fill: '#ec4899' }} activeDot={{ r: 5, fill: '#ec4899', strokeWidth: 2, stroke: '#fff' }} />}
             </LineChart>
           </ResponsiveContainer>
         </Box>
@@ -489,8 +489,8 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
                   <TableCell sx={{ borderBottom: '2px solid #e5e7eb', py: 0 }}></TableCell>
                   <TableCell sx={{ borderBottom: '2px solid #e5e7eb', py: 0 }}></TableCell>
                   <TableCell align="center" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280', py: 1, borderBottom: '2px solid #e5e7eb', width: '120px' }}>Wt. OSA %</TableCell>
-                  <TableCell align="center" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280', py: 1, borderBottom: '2px solid #e5e7eb', width: '120px' }}>Overall SOV</TableCell>
-                  <TableCell align="center" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280', py: 1, borderBottom: '2px solid #e5e7eb', width: '120px' }}>Ad SOV</TableCell>
+                  <TableCell align="center" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280', py: 1, borderBottom: '2px solid #e5e7eb', width: '120px' }}>Overall SOS</TableCell>
+                  <TableCell align="center" sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280', py: 1, borderBottom: '2px solid #e5e7eb', width: '120px' }}>Ad SOS</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -524,15 +524,15 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
 
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{row.sov}%</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: row.sovChange < 0 ? '#ef4444' : '#10b981', mt: 0.5 }}>{row.sovChange}%</Typography>
+                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{row.Sos}%</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: row.SosChange < 0 ? '#ef4444' : '#10b981', mt: 0.5 }}>{row.SosChange}%</Typography>
                       </Box>
                     </TableCell>
 
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{row.adSov}%</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: row.adSovChange < 0 ? '#ef4444' : '#10b981', mt: 0.5 }}>{row.adSovChange}%</Typography>
+                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{row.adSos}%</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: row.adSosChange < 0 ? '#ef4444' : '#10b981', mt: 0.5 }}>{row.adSosChange}%</Typography>
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -550,15 +550,15 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Est. Category Share</TableCell>
 
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Wt. PPU (x100)</TableCell>
-                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb', px:5 }}>MRP</TableCell>
+                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb', px: 5 }}>MRP</TableCell>
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Price</TableCell>
 
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Avg Rating</TableCell>
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Rating Count</TableCell>
 
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Wt. OSA %</TableCell>
-                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Overall SOV</TableCell>
-                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Ad SOV</TableCell>
+                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Overall SOS</TableCell>
+                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Ad SOS</TableCell>
 
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Wt. Discount</TableCell>
                   <TableCell sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Conversion</TableCell>
@@ -589,32 +589,32 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
                     {/* Est Category Share */}
                     <TableCell align="right" sx={{ py: 2, borderBottom: '1px solid #f3f4f6', minWidth: 110 }}>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, px:5 }}>{s.categoryShare}%</Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: s.categoryShareChange < 0 ? '#ef4444' : '#10b981', mt: 0.5,px:5 }}>{s.categoryShareChange}%</Typography>
+                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, px: 5 }}>{s.categoryShare}%</Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: s.categoryShareChange < 0 ? '#ef4444' : '#10b981', mt: 0.5, px: 5 }}>{s.categoryShareChange}%</Typography>
                       </Box>
                     </TableCell>
 
                     {/* PPU / MRP / Price */}
                     <TableCell align="center" sx={{ py: 2, px: 5, borderBottom: '1px solid #f3f4f6' }}>₹{s.ppu}</TableCell>
-                    <TableCell align="center" sx={{ py: 7,px: 5, borderBottom: '1px solid #f3f4f6', whitespace: 'nowrap' }}>₹{s.mrp}</TableCell>
-                    <TableCell align="center" sx={{ py: 2,px: 5, borderBottom: '1px solid #f3f4f6' }}>₹{s.price}</TableCell>
+                    <TableCell align="center" sx={{ py: 7, px: 5, borderBottom: '1px solid #f3f4f6', whitespace: 'nowrap' }}>₹{s.mrp}</TableCell>
+                    <TableCell align="center" sx={{ py: 2, px: 5, borderBottom: '1px solid #f3f4f6' }}>₹{s.price}</TableCell>
 
                     {/* Rating */}
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>{s.avgRating.toFixed(2)}</TableCell>
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>{s.ratingCount}</TableCell>
 
-                    {/* Wt. OSA / Overall SOV / Ad SOV */}
+                    {/* Wt. OSA / Overall Sos / Ad Sos */}
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>
                       <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{s.wtOsa}%</Typography>
                       <Typography sx={{ fontSize: '0.75rem', color: s.osaChange < 0 ? '#ef4444' : '#10b981', mt: 0.25 }}>{s.osaChange}%</Typography>
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>
-                      <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{s.overallSov}%</Typography>
-                      <Typography sx={{ fontSize: '0.75rem', color: s.sovChange < 0 ? '#ef4444' : '#10b981', mt: 0.25 }}>{s.sovChange}%</Typography>
+                      <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{s.overallSos}%</Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: s.SosChange < 0 ? '#ef4444' : '#10b981', mt: 0.25 }}>{s.SosChange}%</Typography>
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2, borderBottom: '1px solid #f3f4f6' }}>
-                      <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{s.adSov}%</Typography>
-                      <Typography sx={{ fontSize: '0.75rem', color: s.adSovChange < 0 ? '#ef4444' : '#10b981', mt: 0.25 }}>{s.adSovChange}%</Typography>
+                      <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>{s.adSos}%</Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: s.adSosChange < 0 ? '#ef4444' : '#10b981', mt: 0.25 }}>{s.adSosChange}%</Typography>
                     </TableCell>
 
                     {/* Wt. Discount */}
@@ -667,8 +667,8 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
                   <Typography sx={{ fontSize: '0.85rem', color: data.discountChange.includes('-') ? '#ef4444' : '#10b981' }}>{data.wtDiscount} • {data.discountChange}</Typography>
                 </Box>
                 <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>Overall SOV</Typography>
-                  <Typography sx={{ fontSize: '0.85rem', color: data.sovChange.includes('-') ? '#ef4444' : '#10b981' }}>{data.sov} • {data.sovChange}</Typography>
+                  <Typography sx={{ fontSize: '0.95rem', fontWeight: 700 }}>Overall SOS</Typography>
+                  <Typography sx={{ fontSize: '0.85rem', color: data.SosChange.includes('-') ? '#ef4444' : '#10b981' }}>{data.Sos} • {data.SosChange}</Typography>
                 </Box>
               </Box>
             </Box>
@@ -687,7 +687,7 @@ const CategoryTrendsDrawer = ({ open = false, onClose = () => {} }) => {
           <Button onClick={() => setActiveTab('crossPlatform')} sx={{ px: 2, py: 0.75, fontSize: '0.9rem', fontWeight: 700, textTransform: 'none', color: activeTab === 'crossPlatform' ? '#0f172a' : '#6b7280', bgcolor: activeTab === 'crossPlatform' ? '#eff6ff' : 'transparent', borderRadius: '999px' }}>Cross Platform</Button>
         </Box>
 
-          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography sx={{ fontSize: '0.875rem', color: '#6b7280' }}>MTD</Typography>
           <Typography sx={{ fontSize: '0.875rem', fontWeight: 700 }}>vs</Typography>
           <Typography sx={{ fontSize: '0.875rem', color: '#6b7280' }}>Previous Month</Typography>

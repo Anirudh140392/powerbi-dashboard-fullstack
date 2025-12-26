@@ -6,9 +6,9 @@ import CityDetailedTable from "./CityDetailedTable";
 /* -------------------------------------------------------------------------- */
 
 const VISIBILITY_KEYWORD_KPIS = [
-  "adSov",
-  "organicSov",
-  "overallSov",
+  "adSos",
+  "organicSos",
+  "overallSos",
   "volumeShare",
 ];
 const VISIBILITY_DATA = [
@@ -22,15 +22,15 @@ const VISIBILITY_DATA = [
   //   impact: "-6.4%",
   //   offtake: "₹ 3.1 lac",
   //   kpis: {
-  //     adSov: "12%",
-  //     organicSov: "8%",
-  //     overallSov: "9.4%",
+  //     adSos: "12%",
+  //     organicSos: "8%",
+  //     overallSos: "9.4%",
   //     volumeShare: "6.1%",
   //     demandClicks: "41k",
   //     adCtr: "0.9%",
   //   },
   //   cities: [
-  //     { city: "Delhi", metric: "SOV 7.2%", change: "-3.1%" },
+  //     { city: "Delhi", metric: "SOS 7.2%", change: "-3.1%" },
   //     { city: "Gurgaon", metric: "Vol 5.1%", change: "-1.7%" },
   //   ],
   // },
@@ -43,9 +43,9 @@ const VISIBILITY_DATA = [
     impact: "-5.8%",
     offtake: "₹ 2.7 lac",
     kpis: {
-      adSov: "10%",
-      organicSov: "7%",
-      overallSov: "8.3%",
+      adSos: "10%",
+      organicSos: "7%",
+      overallSos: "8.3%",
       volumeShare: "5.4%",
       demandClicks: "33k",
       adCtr: "0.8%",
@@ -53,10 +53,10 @@ const VISIBILITY_DATA = [
       organicPosition: "12",
     },
     cities: [
-      { city: "Mumbai", metric: "SOV 6.4%", change: "-2.6%" },
+      { city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" },
       { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" },
       { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
-      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
+      { city: "Nashik", metric: "Sos 2.9%", change: "-0.8%" } // NEW
     ],
 
   },
@@ -69,9 +69,9 @@ const VISIBILITY_DATA = [
     impact: "-4.9%",
     offtake: "₹ 2.3 lac",
     kpis: {
-      adSov: "9%",
-      organicSov: "6%",
-      overallSov: "7.5%",
+      adSos: "9%",
+      organicSos: "6%",
+      overallSos: "7.5%",
       volumeShare: "4.7%",
       demandClicks: "29k",
       adCtr: "0.8%",
@@ -79,10 +79,10 @@ const VISIBILITY_DATA = [
       organicPosition: "15",
     },
     cities: [
-      { city: "Mumbai", metric: "SOV 6.4%", change: "-2.6%" },
+      { city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" },
       { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" },
       { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
-      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
+      { city: "Nashik", metric: "Sos 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -94,9 +94,9 @@ const VISIBILITY_DATA = [
     impact: "-3.7%",
     offtake: "₹ 1.9 lac",
     kpis: {
-      adSov: "8%",
-      organicSov: "5%",
-      overallSov: "6.2%",
+      adSos: "8%",
+      organicSos: "5%",
+      overallSos: "6.2%",
       volumeShare: "3.9%",
       demandClicks: "21k",
       adCtr: "0.7%",
@@ -104,10 +104,10 @@ const VISIBILITY_DATA = [
       organicPosition: "19",
     },
     cities: [
-      { city: "Mumbai", metric: "SOV 6.4%", change: "-2.6%" },
+      { city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" },
       { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" },
       { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
-      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
+      { city: "Nashik", metric: "Sos 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -119,9 +119,9 @@ const VISIBILITY_DATA = [
     impact: "-4.3%",
     offtake: "₹ 2.1 lac",
     kpis: {
-      adSov: "9%",
-      organicSov: "6%",
-      overallSov: "7.0%",
+      adSos: "9%",
+      organicSos: "6%",
+      overallSos: "7.0%",
       volumeShare: "4.3%",
       demandClicks: "24k",
       adCtr: "0.8%",
@@ -129,10 +129,10 @@ const VISIBILITY_DATA = [
       organicPosition: "14",
     },
     cities: [
-      { city: "Chennai", metric: "SOV 5.7%", change: "-2.0%" },
+      { city: "Chennai", metric: "Sos 5.7%", change: "-2.0%" },
       { city: "Coimbatore", metric: "Vol 3.9%", change: "-1.5%" },
       { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
-      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
+      { city: "Nashik", metric: "Sos 2.9%", change: "-0.8%" } // NEW
     ],
   },
 
@@ -146,9 +146,9 @@ const VISIBILITY_DATA = [
     impact: "+8.1%",
     offtake: "₹ 4.7 lac",
     kpis: {
-      adSov: "28%",
-      organicSov: "21%",
-      overallSov: "26%",
+      adSos: "28%",
+      organicSos: "21%",
+      overallSos: "26%",
       volumeShare: "19%",
       demandClicks: "71k",
       adCtr: "1.8%",
@@ -156,10 +156,10 @@ const VISIBILITY_DATA = [
       organicPosition: "5",
     },
     cities: [
-      { city: "Hyderabad", metric: "SOV 31%", change: "+6.2%" },
+      { city: "Hyderabad", metric: "Sos 31%", change: "+6.2%" },
       { city: "Bangalore", metric: "Vol 22%", change: "+4.4%" },
       { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
-      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
+      { city: "Nashik", metric: "Sos 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -171,9 +171,9 @@ const VISIBILITY_DATA = [
     impact: "+7.4%",
     offtake: "₹ 4.3 lac",
     kpis: {
-      adSov: "26%",
-      organicSov: "20%",
-      overallSov: "24%",
+      adSos: "26%",
+      organicSos: "20%",
+      overallSos: "24%",
       volumeShare: "17%",
       demandClicks: "64k",
       adCtr: "1.7%",
@@ -181,10 +181,10 @@ const VISIBILITY_DATA = [
       organicPosition: "4",
     },
     cities: [
-      { city: "Mumbai", metric: "SOV 29%", change: "+5.6%" },
+      { city: "Mumbai", metric: "Sos 29%", change: "+5.6%" },
       { city: "Thane", metric: "Vol 18%", change: "+3.9%" },
       { city: "Pune", metric: "Vol 3.2%", change: "-1.1%" },  // NEW
-      { city: "Nashik", metric: "SOV 2.9%", change: "-0.8%" } // NEW
+      { city: "Nashik", metric: "Sos 2.9%", change: "-0.8%" } // NEW
     ],
   },
   {
@@ -196,9 +196,9 @@ const VISIBILITY_DATA = [
     impact: "+6.2%",
     offtake: "₹ 3.8 lac",
     kpis: {
-      adSov: "23%",
-      organicSov: "18%",
-      overallSov: "21%",
+      adSos: "23%",
+      organicSos: "18%",
+      overallSos: "21%",
       volumeShare: "15%",
       demandClicks: "52k",
       adCtr: "1.6%",
@@ -206,7 +206,7 @@ const VISIBILITY_DATA = [
       organicPosition: "8",
     },
     cities: [
-      { city: "Pune", metric: "SOV 24%", change: "+4.3%" },
+      { city: "Pune", metric: "Sos 24%", change: "+4.3%" },
       { city: "Nashik", metric: "Vol 14%", change: "+3.1%" },
       { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
       { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
@@ -221,9 +221,9 @@ const VISIBILITY_DATA = [
     impact: "+5.7%",
     offtake: "₹ 3.4 lac",
     kpis: {
-      adSov: "21%",
-      organicSov: "17%",
-      overallSov: "20%",
+      adSos: "21%",
+      organicSos: "17%",
+      overallSos: "20%",
       volumeShare: "14%",
       demandClicks: "49k",
       adCtr: "1.4%",
@@ -231,7 +231,7 @@ const VISIBILITY_DATA = [
       organicPosition: "6",
     },
     cities: [
-      { city: "Delhi", metric: "SOV 22%", change: "+3.9%" },
+      { city: "Delhi", metric: "Sos 22%", change: "+3.9%" },
       { city: "Gurgaon", metric: "Vol 15%", change: "+3.0%" },
       { city: "Hyderabad", metric: "Placement 93", change: "+3.8%" },
       { city: "Bangalore", metric: "Index 95", change: "+3.1%" },
@@ -246,9 +246,9 @@ const VISIBILITY_DATA = [
     impact: "+4.9%",
     offtake: "₹ 3.0 lac",
     kpis: {
-      adSov: "19%",
-      organicSov: "15%",
-      overallSov: "18%",
+      adSos: "19%",
+      organicSos: "15%",
+      overallSos: "18%",
       volumeShare: "13%",
       demandClicks: "43k",
       adCtr: "1.3%",
@@ -256,7 +256,7 @@ const VISIBILITY_DATA = [
       organicPosition: "9",
     },
     cities: [
-      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Chennai", metric: "Sos 20%", change: "+3.3%" },
       { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
       { city: "Noida", metric: "Placement 57", change: "-2.1%" },
       { city: "Ghaziabad", metric: "Index 69", change: "-1.5%" },
@@ -302,7 +302,7 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Delhi", metric: "Index 65", change: "-2.4%" },
       { city: "Gurgaon", metric: "Placement 56", change: "-1.7%" },
-      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Chennai", metric: "Sos 20%", change: "+3.3%" },
       { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
@@ -323,7 +323,7 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Noida", metric: "Placement 57", change: "-2.1%" },
       { city: "Ghaziabad", metric: "Index 69", change: "-1.5%" },
-      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Chennai", metric: "Sos 20%", change: "+3.3%" },
       { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
@@ -344,7 +344,7 @@ const VISIBILITY_DATA = [
     cities: [
       { city: "Chennai", metric: "Placement 55", change: "-1.9%" },
       { city: "Coimbatore", metric: "Index 67", change: "-1.4%" },
-      { city: "Chennai", metric: "SOV 20%", change: "+3.3%" },
+      { city: "Chennai", metric: "Sos 20%", change: "+3.3%" },
       { city: "Coimbatore", metric: "Vol 12%", change: "+2.7%" },
     ],
   },
@@ -488,9 +488,9 @@ const VISIBILITY_SKU_KPIS = [
 ];
 
 const KPI_LABELS = {
-  adSov: "Ad SOV",
-  organicSov: "Organic SOV",
-  overallSov: "Overall SOV",
+  adSos: "Ad SOS",
+  organicSos: "Organic SOS",
+  overallSos: "Overall SOS",
   volumeShare: "Vol. Share",
   demandClicks: "Demand Clicks",
   adCtr: "Ad CTR",

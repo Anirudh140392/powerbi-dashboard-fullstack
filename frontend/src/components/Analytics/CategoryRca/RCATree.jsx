@@ -191,9 +191,8 @@ const DeltaBadge = ({ change, isPositive }) => (
       borderRadius: "24px",
       fontSize: TYPO.metaSize,
       fontWeight: TYPO.weightBold,
-      border: `1px solid ${
-        isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
-      }`,
+      border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
+        }`,
       fontFamily: "inherit",
       whiteSpace: "nowrap",
     }}
@@ -444,7 +443,7 @@ const INITIAL_TREE = {
       category: "impressions",
       importance: "primary",
       insight: "Systemic Drop",
-      meta: [{ label: "Overall SOV", value: "1.1%", change: "0.5%", isPositive: true }],
+      meta: [{ label: "Overall SOS", value: "1.1%", change: "0.5%", isPositive: true }],
       children: [
         { id: "availability", label: "Wt. OSA %", value: "84.2%", change: "6.7%", isPositive: true, category: "availability", children: [{ id: "listing", label: "DS Listing %", value: "65.6%", change: "2.1%", isPositive: true, category: "availability" }] },
         {
@@ -455,7 +454,7 @@ const INITIAL_TREE = {
           isPositive: false,
           category: "organic",
           insight: "High Decline",
-          meta: [{ label: "Organic SOV", value: "1.1%", change: "0.8%", isPositive: false }],
+          meta: [{ label: "Organic SOS", value: "1.1%", change: "0.8%", isPositive: false }],
           children: [
             { id: "org-generic", label: "Generic Keywords", value: "1.1 lac", change: "23.7%", isPositive: false, category: "organic" },
             { id: "org-branded", label: "Branded Keywords", value: "69.4 K", change: "10.6%", isPositive: false, category: "organic" },
@@ -480,7 +479,7 @@ const INITIAL_TREE = {
           change: "11.4%",
           isPositive: false,
           category: "ad",
-          meta: [{ label: "Ad SOV", value: "1.2%", change: "2.4%", isPositive: true }],
+          meta: [{ label: "Ad SOS", value: "1.2%", change: "2.4%", isPositive: true }],
           children: [
             { id: "ad-branded", label: "Branded Keywords", value: "51.6 K", change: "3.7%", isPositive: false, category: "ad" },
             { id: "ad-comp", label: "Comp Keywords", value: "30.5 K", change: "22.5%", isPositive: true, category: "ad" },
@@ -552,9 +551,9 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
       ...node,
       hasChildren: node.children?.length > 0,
       isCollapsed,
-      onToggle: () => {},
-      onClickDetail: () => {},
-      onHover: () => {},
+      onToggle: () => { },
+      onClickDetail: () => { },
+      onHover: () => { },
       isSelected: false,
       isDimmed: false,
     },
