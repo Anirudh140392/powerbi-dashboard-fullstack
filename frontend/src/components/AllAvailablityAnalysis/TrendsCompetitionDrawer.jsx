@@ -656,25 +656,11 @@ export default function TrendsCompetitionDrawer({
             default: true,
           },
           {
-            id: "Doi",
-            label: "Doi",
-            color: "#7C3AED",
-            axis: "right",
-            default: true,
-          },
-          {
-            id: "Fillrate",
-            label: "Fillrate",
-            color: "#6366F1",
-            axis: "left",
-            default: false,
-          },
-          {
             id: "Assortment",
             label: "Assortment",
             color: "#22C55E",
             axis: "left",
-            default: false,
+            default: true,
           },
         ],
 
@@ -723,18 +709,11 @@ export default function TrendsCompetitionDrawer({
 
         metrics: [
           { id: "Osa", label: "Osa", color: "#F97316", default: true },
-          { id: "Doi", label: "Doi", color: "#7C3AED", default: true },
-          {
-            id: "Fillrate",
-            label: "Fillrate",
-            color: "#6366F1",
-            default: false,
-          },
           {
             id: "Assortment",
             label: "Assortment",
             color: "#22C55E",
-            default: false,
+            default: true,
           },
         ],
 
@@ -769,8 +748,6 @@ export default function TrendsCompetitionDrawer({
         columns: [
           { id: "brand", label: "Brand", type: "text" },
           { id: "Osa", label: "Osa", type: "metric" },
-          { id: "Doi", label: "Doi", type: "metric" },
-          { id: "Fillrate", label: "Fillrate", type: "metric" },
           { id: "Assortment", label: "Assortment", type: "metric" },
         ],
 
