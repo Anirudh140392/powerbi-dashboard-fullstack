@@ -48,6 +48,7 @@ export default function SalesMainPage() {
             dynamicKey='sales_category_table'
             title="By Category"
             data={SALES_MATRIX_DATA}
+            firstColLabel="CATEGORY"
           />
 
           {/* ---------------- Drill Down Sales Table ---------------- */}

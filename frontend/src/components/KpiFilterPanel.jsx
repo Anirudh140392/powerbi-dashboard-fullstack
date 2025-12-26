@@ -43,6 +43,7 @@ export function KpiFilterPanel({
   onCityChange,
   onPlatformChange,
   onRulesChange,
+  onSectionChange, // Generic handler: (sectionId, values) => void
   pageSize = 50,
   sectionConfig = SECTION_LABELS,
 }) {
@@ -211,11 +212,14 @@ export function KpiFilterPanel({
                 description={`Filter by ${section.label.toLowerCase()}.`}
                 options={section.options}
                 pageSize={pageSize}
-                onChange={(vals) => console.log(section.id, vals)} // Placeholder handler
+                onChange={(vals) => {
+                  console.log(section.id, vals);
+                  if (onRulesChange) onRulesChange(prev => ({ ...prev, [section.id]: vals }));
+                  if (onSectionChange) onSectionChange(section.id, vals);
+                }}
               />
             );
           }
-
           return <div key={section.id} className="p-4 text-slate-400">Section content not configured.</div>;
         })}
       </div>
@@ -313,81 +317,86 @@ function MultiSelectSection({ title, description, options, onChange, pageSize })
         </div>
       </header>
 
-      {/* Mode toggle (All / Top N / Bottom N) */}
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-slate-500">Mode:</span>
-        <button
-          type="button"
-          onClick={() => {
-            setFilterMode("list");
-            setPage(1);
-          }}
-          className={`rounded-full border px-3 py-1 ${filterMode === "list"
-            ? "border-sky-500 bg-sky-50 text-sky-700"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-        >
-          All
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setFilterMode("top");
-            setPage(1);
-          }}
-          className={`rounded-full border px-3 py-1 ${filterMode === "top"
-            ? "border-sky-500 bg-sky-50 text-sky-700"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-        >
-          Top
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setFilterMode("bottom");
-            setPage(1);
-          }}
-          className={`rounded-full border px-3 py-1 ${filterMode === "bottom"
-            ? "border-sky-500 bg-sky-50 text-sky-700"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-        >
-          Bottom
-        </button>
+      {/* Mode toggle (All / Top N / Bottom N) - Only show for large lists */}
+      {options.length >= 15 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-slate-500">Mode:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterMode("list");
+              setPage(1);
+            }}
+            className={`rounded-full border px-3 py-1 ${filterMode === "list"
+              ? "border-sky-500 bg-sky-50 text-sky-700"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterMode("top");
+              setPage(1);
+            }}
+            className={`rounded-full border px-3 py-1 ${filterMode === "top"
+              ? "border-sky-500 bg-sky-50 text-sky-700"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+          >
+            Top
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterMode("bottom");
+              setPage(1);
+            }}
+            className={`rounded-full border px-3 py-1 ${filterMode === "bottom"
+              ? "border-sky-500 bg-sky-50 text-sky-700"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+          >
+            Bottom
+          </button>
 
-        {(filterMode === "top" || filterMode === "bottom") && (
-          <div className="flex items-center gap-1">
-            <span className="text-slate-500">N =</span>
-            <input
-              type="number"
-              min={1}
-              max={999}
-              value={topN}
-              onChange={(e) => setTopN(Number(e.target.value) || 10)}
-              className="h-7 w-16 rounded-md border border-slate-200 px-2 text-xs"
-            />
-            <span className="text-slate-400">(by value)</span>
-          </div>
-        )}
-      </div>
+          {(filterMode === "top" || filterMode === "bottom") && (
+            <div className="flex items-center gap-1">
+              <span className="text-slate-500">N =</span>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={topN}
+                onChange={(e) => setTopN(Number(e.target.value) || 10)}
+                className="h-7 w-16 rounded-md border border-slate-200 px-2 text-xs"
+              />
+              <span className="text-slate-400">(by value)</span>
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* Search & Actions - Simplify for small lists */}
       <div className="mb-2 flex items-center gap-2">
-        <input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Search..."
-          className="h-8 flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-        />
+        {options.length >= 15 && (
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search..."
+            className="h-8 flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        )}
         <button
           type="button"
           onClick={selectAllFiltered}
-          className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-100"
+          className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-100 ml-auto"
         >
-          Select all (view)
+          Select all
         </button>
         <button
           type="button"
@@ -398,20 +407,22 @@ function MultiSelectSection({ title, description, options, onChange, pageSize })
         </button>
       </div>
 
-      <div className="mb-1 flex items-center justify-between border-b border-slate-100 pb-2 text-xs">
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5 accent-sky-600"
-            checked={pageItems.length > 0 && pageItems.every((opt) => selected.has(opt.id))}
-            onChange={toggleSelectAllOnPage}
-          />
-          <span>Select all on page</span>
-        </label>
-        <span className="text-slate-400">
-          Page {page} of {totalPages}
-        </span>
-      </div>
+      {options.length >= 15 && (
+        <div className="mb-1 flex items-center justify-between border-b border-slate-100 pb-2 text-xs">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-sky-600"
+              checked={pageItems.length > 0 && pageItems.every((opt) => selected.has(opt.id))}
+              onChange={toggleSelectAllOnPage}
+            />
+            <span>Select all on page</span>
+          </label>
+          <span className="text-slate-400">
+            Page {page} of {totalPages}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 rounded-lg border border-slate-100 bg-slate-50/60 overflow-y-auto min-h-[400px]">
         {pageItems.map((opt) => (
@@ -448,29 +459,31 @@ function MultiSelectSection({ title, description, options, onChange, pageSize })
         )}
       </div>
 
-      <footer className="mt-2 flex items-center justify-between text-xs text-slate-500">
-        <div>
-          {filtered.length} of {options.length} options
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
-          >
-            Prev
-          </button>
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-      </footer>
+      {options.length >= 15 && (
+        <footer className="mt-2 flex items-center justify-between text-xs text-slate-500">
+          <div>
+            {filtered.length} of {options.length} options
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
