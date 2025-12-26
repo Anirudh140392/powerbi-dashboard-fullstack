@@ -1517,12 +1517,12 @@ export const VisibilityKpiTrendShowcase = () => {
             <TabsTrigger value="brand" className="px-4">
               Brands
             </TabsTrigger>
-            <TabsTrigger value="sku" className="px-4">
+            {/* <TabsTrigger value="sku" className="px-4">
               SKUs
             </TabsTrigger>
             <TabsTrigger value="keyword" className="px-4">
               Keywords
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
