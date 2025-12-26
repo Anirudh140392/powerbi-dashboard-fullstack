@@ -29,7 +29,7 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             <Chip label="All" size="small" variant="outlined" />
           </Box>
 
-          <Chip label="MTD vs Previous Month" variant="filled" />
+          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
         {/* Cards Row */}

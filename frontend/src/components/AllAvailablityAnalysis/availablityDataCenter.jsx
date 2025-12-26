@@ -301,7 +301,9 @@ const FORMAT_MATRIX_ABSOLUTE = {
 
   CityColumns: [
     "Ajmer", "Amritsar", "Bathinda", "Bhopal",
-    "Chandigarh", "Gwalior", "Indore", "Jaipur"
+    "Chandigarh", "Gwalior", "Indore", "Jaipur",
+    "Lucknow", "Patna", "Ranchi", "Varanasi",
+    "Kanpur", "Meerut", "Agra", "Noida"
   ],
 
   // ------------------------------------------------------------
@@ -399,7 +401,9 @@ const FORMAT_MATRIX_ABSOLUTE = {
       kpi: "Osa",
       values: {
         Ajmer: 72, Amritsar: 85, Bathinda: 79, Bhopal: 88,
-        Chandigarh: 81, Gwalior: 75, Indore: 92, Jaipur: 69
+        Chandigarh: 81, Gwalior: 75, Indore: 92, Jaipur: 69,
+        Lucknow: 78, Patna: 72, Ranchi: 75, Varanasi: 70,
+        Kanpur: 82, Meerut: 74, Agra: 77, Noida: 85
       },
       trend: generateTrendMulti(80)
     },
@@ -407,7 +411,9 @@ const FORMAT_MATRIX_ABSOLUTE = {
       kpi: "Doi",
       values: {
         Ajmer: 42, Amritsar: 55, Bathinda: 49, Bhopal: 60,
-        Chandigarh: 53, Gwalior: 44, Indore: 67, Jaipur: 51
+        Chandigarh: 53, Gwalior: 44, Indore: 67, Jaipur: 51,
+        Lucknow: 48, Patna: 45, Ranchi: 47, Varanasi: 42,
+        Kanpur: 50, Meerut: 46, Agra: 48, Noida: 55
       },
       trend: generateTrendMulti(52)
     },
@@ -415,7 +421,9 @@ const FORMAT_MATRIX_ABSOLUTE = {
       kpi: "Fillrate",
       values: {
         Ajmer: 91, Amritsar: 88, Bathinda: 84, Bhopal: 94,
-        Chandigarh: 92, Gwalior: 76, Indore: 90, Jaipur: 82
+        Chandigarh: 92, Gwalior: 76, Indore: 90, Jaipur: 82,
+        Lucknow: 85, Patna: 80, Ranchi: 82, Varanasi: 78,
+        Kanpur: 88, Meerut: 84, Agra: 86, Noida: 90
       },
       trend: generateTrendMulti(88)
     },
@@ -423,7 +431,9 @@ const FORMAT_MATRIX_ABSOLUTE = {
       kpi: "Assortment",
       values: {
         Ajmer: 73, Amritsar: 69, Bathinda: 71, Bhopal: 82,
-        Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78
+        Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78,
+        Lucknow: 75, Patna: 70, Ranchi: 72, Varanasi: 68,
+        Kanpur: 77, Meerut: 73, Agra: 76, Noida: 80
       },
       trend: generateTrendMulti(76)
     },
@@ -431,7 +441,9 @@ const FORMAT_MATRIX_ABSOLUTE = {
       kpi: "PSL",
       values: {
         Ajmer: 27, Amritsar: 15, Bathinda: 21, Bhopal: 12,
-        Chandigarh: 19, Gwalior: 37, Indore: 8, Jaipur: 22
+        Chandigarh: 19, Gwalior: 37, Indore: 8, Jaipur: 22,
+        Lucknow: 18, Patna: 25, Ranchi: 20, Varanasi: 30,
+        Kanpur: 15, Meerut: 22, Agra: 19, Noida: 10
       },
       trend: generateTrendMulti(25)
     }
@@ -454,7 +466,9 @@ const FORMAT_MATRIX_Visibility = {
 
   CityColumns: [
     "Mumbai", "Delhi", "Bangalore", "Hyderabad",
-    "Chennai", "Kolkata", "Pune", "Ahmedabad"
+    "Chennai", "Kolkata", "Pune", "Ahmedabad",
+    "Lucknow", "Patna", "Ranchi", "Varanasi",
+    "Kanpur", "Meerut", "Agra", "Noida"
   ],
 
   // -----------------------------------------
@@ -515,22 +529,22 @@ const FORMAT_MATRIX_Visibility = {
   CityData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Mumbai: 88, Delhi: 90, Bangalore: 85, Hyderabad: 83, Chennai: 82, Kolkata: 86, Pune: 89, Ahmedabad: 84 },
+      values: { Mumbai: 88, Delhi: 90, Bangalore: 85, Hyderabad: 83, Chennai: 82, Kolkata: 86, Pune: 89, Ahmedabad: 84, Lucknow: 81, Patna: 78, Ranchi: 80, Varanasi: 75, Kanpur: 85, Meerut: 82, Agra: 83, Noida: 88 },
       trend: generateTrendMulti(86)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Mumbai: 14, Delhi: 12, Bangalore: 15, Hyderabad: 11, Chennai: 16, Kolkata: 13, Pune: 14, Ahmedabad: 18 },
+      values: { Mumbai: 14, Delhi: 12, Bangalore: 15, Hyderabad: 11, Chennai: 16, Kolkata: 13, Pune: 14, Ahmedabad: 18, Lucknow: 15, Patna: 12, Ranchi: 14, Varanasi: 13, Kanpur: 16, Meerut: 15, Agra: 14, Noida: 11 },
       trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Mumbai: 95, Delhi: 94, Bangalore: 93, Hyderabad: 90, Chennai: 92, Kolkata: 91, Pune: 96, Ahmedabad: 89 },
+      values: { Mumbai: 95, Delhi: 94, Bangalore: 93, Hyderabad: 90, Chennai: 92, Kolkata: 91, Pune: 96, Ahmedabad: 89, Lucknow: 91, Patna: 88, Ranchi: 90, Varanasi: 85, Kanpur: 92, Meerut: 90, Agra: 91, Noida: 94 },
       trend: generateTrendMulti(93)
     },
     {
       kpi: "Display SOS",
-      values: { Mumbai: 90, Delhi: 92, Bangalore: 88, Hyderabad: 87, Chennai: 85, Kolkata: 86, Pune: 91, Ahmedabad: 84 },
+      values: { Mumbai: 90, Delhi: 92, Bangalore: 88, Hyderabad: 87, Chennai: 85, Kolkata: 86, Pune: 91, Ahmedabad: 84, Lucknow: 88, Patna: 85, Ranchi: 87, Varanasi: 82, Kanpur: 89, Meerut: 87, Agra: 88, Noida: 91 },
       trend: generateTrendMulti(88)
     }
   ]

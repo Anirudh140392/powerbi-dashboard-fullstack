@@ -65,7 +65,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
                 : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
-            Absolute OSA
+            Absolute
           </button>
 
           <button
@@ -76,7 +76,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
                 : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
           >
-            Weighted OSA
+            Weighted
           </button>
 
           <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
@@ -1117,8 +1117,8 @@ export const AvailablityAnalysisData = () => {
               />
 
               {[
-                { key: "absolute", label: "Absolute OSA" },
-                { key: "weighted", label: "Weighted OSA" },
+                { key: "absolute", label: "Absolute" },
+                { key: "weighted", label: "Weighted" },
               ].map((option) => (
                 <button
                   key={option.key}

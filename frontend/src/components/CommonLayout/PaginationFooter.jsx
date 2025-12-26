@@ -9,6 +9,7 @@ const PaginationFooter = ({
     pageSize,
     onPageSizeChange,
     pageSizeOptions = [5, 10, 20, 50],
+    itemsLabel = "Rows/page",
 }) => {
     if (isVisible === false) return null;
 
@@ -35,7 +36,7 @@ const PaginationFooter = ({
             </div>
 
             <div className="flex items-center gap-2">
-                <span className="text-[10px] font-medium text-slate-400">Rows/page</span>
+                <span className="text-[10px] font-medium text-slate-400">{itemsLabel}</span>
                 <select
                     className="h-6 rounded border border-slate-200 bg-white text-xs text-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     value={pageSize}
