@@ -289,7 +289,7 @@ export default function DateRangeComparePicker({
         <Box>
             <button
                 type="button"
-                className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:bg-slate-50"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-sm shadow-sm hover:border-slate-300"
                 style={{ cursor: 'pointer', textAlign: 'left', minHeight: '38px', minWidth: '190px' }}
                 onClick={handleOpen}
             >
