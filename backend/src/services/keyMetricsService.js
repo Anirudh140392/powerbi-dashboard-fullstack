@@ -1,5 +1,5 @@
 import KeyMetrics from '../models/KeyMetrics.js';
-import { getCachedOrCompute } from '../utils/cacheHelper.js';
+import { getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 
 /**
  * Get a specific metric value by key
@@ -7,33 +7,37 @@ import { getCachedOrCompute } from '../utils/cacheHelper.js';
  * @returns {Promise<string|null>} The metric value or null if not found
  */
 export async function getMetric(key) {
-    try {
-        const metric = await KeyMetrics.findOne({
-            where: { key }
-        });
-        return metric ? metric.value : null;
-    } catch (error) {
-        console.error(`Error fetching metric ${key}:`, error);
-        return null;
-    }
+    const cacheKey = `metric:${key}`;
+    return getCachedOrCompute(cacheKey, async () => {
+        try {
+            const metric = await KeyMetrics.findOne({
+                where: { key }
+            });
+            return metric ? metric.value : null;
+        } catch (error) {
+            console.error(`Error fetching metric ${key}:`, error);
+            return null;
+        }
+    }, CACHE_TTL.STATIC); // 24 hours - individual metrics rarely change
 }
 
 /**
  * Get all metrics as a key-value object
- * @returns {Promise<Object>} Object with all metrics
  */
 export async function getAllMetrics() {
-    try {
-        const metrics = await KeyMetrics.findAll();
-        const result = {};
-        metrics.forEach(metric => {
-            result[metric.key] = metric.value;
-        });
-        return result;
-    } catch (error) {
-        console.error('Error fetching all metrics:', error);
-        return {};
-    }
+    return getCachedOrCompute('all_metrics', async () => {
+        try {
+            const metrics = await KeyMetrics.findAll();
+            const result = {};
+            metrics.forEach(metric => {
+                result[metric.key] = metric.value;
+            });
+            return result;
+        } catch (error) {
+            console.error('Error fetching all metrics:', error);
+            return {};
+        }
+    }, CACHE_TTL.STATIC); // 24 hours - metrics rarely change
 }
 
 /**
@@ -88,7 +92,7 @@ export async function getAllMetricKeys() {
             console.error('Error fetching metric keys:', error);
             return []; // Return empty array instead of throwing
         }
-    }, 3600); // Cache for 1 hour
+    }, CACHE_TTL.STATIC); // Cache for 24 hours - metric keys rarely change
 }
 
 export default {

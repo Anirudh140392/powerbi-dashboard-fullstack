@@ -1863,7 +1863,7 @@ const SkuTable = ({ rows }) => (
           <tbody className="divide-y divide-slate-100 bg-white">
             {rows.map((row, idx) => (
               <tr
-                key={row.id}
+                key={row.id || row.name || `sku-${idx}`}
                 className={cn(
                   "hover:bg-slate-50",
                   idx % 2 === 1 && "bg-slate-50/60"

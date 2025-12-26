@@ -17,170 +17,10 @@ dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
 
 // Import cache helpers
-import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
-
-// Import Redis data layer for indexed platform data caching
-import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, getCachedSOSData, cacheSOSData, getCachedMonthlyKPIs, cacheMonthlyKPIs, coalesceRequest, getCachedPlatformMetrics, cachePlatformMetrics, getBrandMonthlyData } from './redisDataService.js';
-
-// =====================================================
-// IN-MEMORY CACHE FOR DISTINCT VALUES
-// Reduces redundant database queries for lookup data
-// =====================================================
-const DISTINCT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-const distinctValuesCache = {
-    platforms: { data: null, timestamp: 0 },
-    brands: new Map(), // key: platform, value: { data, timestamp }
-    categories: new Map(), // key: platform, value: { data, timestamp }
-    locations: new Map(), // key: platform, value: { data, timestamp }
-};
-
-/**
- * Get cached distinct platforms or fetch from DB
- */
-const getCachedDistinctPlatforms = async () => {
-    const cache = distinctValuesCache.platforms;
-    if (cache.data && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log('⚡ [Cache Hit] Distinct platforms from memory');
-        return cache.data;
-    }
-    return null; // Cache miss
-};
-
-/**
- * Cache distinct platforms
- */
-const cacheDistinctPlatforms = (data) => {
-    distinctValuesCache.platforms = { data, timestamp: Date.now() };
-    console.log(`📦 [Cache Set] Distinct platforms (${data.length} items)`);
-};
-
-/**
- * Get cached distinct brands for a platform
- */
-const getCachedDistinctBrands = (platform) => {
-    const key = (platform || 'all').toLowerCase();
-    const cache = distinctValuesCache.brands.get(key);
-    if (cache && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log(`⚡ [Cache Hit] Distinct brands for ${platform}`);
-        return cache.data;
-    }
-    return null;
-};
-
-/**
- * Cache distinct brands for a platform
- */
-const cacheDistinctBrands = (platform, data) => {
-    const key = (platform || 'all').toLowerCase();
-    distinctValuesCache.brands.set(key, { data, timestamp: Date.now() });
-    console.log(`📦 [Cache Set] Distinct brands for ${platform} (${data.length} items)`);
-};
-
-/**
- * Get cached distinct categories for a platform
- */
-const getCachedDistinctCategories = (platform) => {
-    const key = (platform || 'all').toLowerCase();
-    const cache = distinctValuesCache.categories.get(key);
-    if (cache && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log(`⚡ [Cache Hit] Distinct categories for ${platform}`);
-        return cache.data;
-    }
-    return null;
-};
-
-/**
- * Cache distinct categories for a platform
- */
-const cacheDistinctCategories = (platform, data) => {
-    const key = (platform || 'all').toLowerCase();
-    distinctValuesCache.categories.set(key, { data, timestamp: Date.now() });
-    console.log(`📦 [Cache Set] Distinct categories for ${platform} (${data.length} items)`);
-};
-
-/**
- * Get cached distinct locations for a platform
- */
-const getCachedDistinctLocations = (platform) => {
-    const key = (platform || 'all').toLowerCase();
-    const cache = distinctValuesCache.locations.get(key);
-    if (cache && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log(`⚡ [Cache Hit] Distinct locations for ${platform}`);
-        return cache.data;
-    }
-    return null;
-};
-
-/**
- * Cache distinct locations for a platform
- */
-const cacheDistinctLocations = (platform, data) => {
-    const key = (platform || 'all').toLowerCase();
-    distinctValuesCache.locations.set(key, { data, timestamp: Date.now() });
-    console.log(`📦 [Cache Set] Distinct locations for ${platform} (${data.length} items)`);
-};
-
-/**
- * Redis-First Query Helper
- * Checks Redis for cached data first, returns null if not available (caller should fallback to DB)
- * 
- * @param {string} platform - Platform name (e.g., 'Zepto', 'Blinkit')
- * @param {Object} filters - {brand, location, startDate, endDate, category}
- * @returns {Object} - { source: 'redis'|'db', rows: Array|null }
- */
-const getRowsFromRedisOrDb = async (platform, filters = {}) => {
-    // Only try Redis for specific platforms (not 'All')
-    if (platform && platform !== 'All') {
-        try {
-            const isLoaded = await isPlatformDataLoaded(platform);
-            if (isLoaded) {
-                const rows = await queryByFilters(platform, filters);
-                if (rows && rows.length >= 0) {
-                    console.log(`📊 [Redis Hit] ${platform}: ${rows.length} rows from cache`);
-                    return { source: 'redis', rows };
-                }
-            }
-        } catch (error) {
-            console.warn(`⚠️ Redis query failed, falling back to DB:`, error.message);
-        }
-    }
-
-    // Return null rows to signal caller should use DB
-    console.log(`📊 [DB Fallback] ${platform || 'All'}: Using database query`);
-    return { source: 'db', rows: null };
-};
-
-/**
- * Aggregate Redis rows in-memory (replacement for Sequelize SUM/AVG)
- * @param {Array} rows - Array of row objects from Redis
- * @param {string} column - Column name to aggregate
- * @param {string} operation - 'sum', 'avg', 'count'
- * @returns {number} - Aggregated value
- */
-const aggregateFromRows = (rows, column, operation = 'sum') => {
-    if (!rows || rows.length === 0) return 0;
-
-    const values = rows
-        .map(row => parseFloat(row[column]) || 0)
-        .filter(v => !isNaN(v));
-
-    switch (operation) {
-        case 'sum':
-            return values.reduce((acc, val) => acc + val, 0);
-        case 'avg':
-            return values.length > 0 ? values.reduce((acc, val) => acc + val, 0) / values.length : 0;
-        case 'count':
-            return values.length;
-        default:
-            return 0;
-    }
-};
+import { getCachedOrCompute, generateCacheKey } from '../utils/cacheHelper.js';
 
 // Internal implementation with all the compute logic
-const computeSummaryMetrics = async (filters, options = {}) => {
-    const { onlyOverview = false, skipPerformanceKpis = false } = options;
-
+const computeSummaryMetrics = async (filters) => {
     try {
         console.log("Processing Watch Tower request with filters:", filters);
 
@@ -199,20 +39,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
 
         console.log(`Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
-
-        // ===== REDIS DATA LAYER: Pre-load platform data =====
-        // This ensures all data for the selected platform is cached in Redis
-        // with indexed structures for fast filtering
-        const platformToLoad = filters.platform;
-        if (platformToLoad && platformToLoad !== 'All') {
-            const platformLoadStart = Date.now();
-            const loaded = await ensurePlatformData(platformToLoad);
-            if (loaded) {
-                const stats = await getPlatformStats(platformToLoad);
-                console.log(`✅ Redis: ${platformToLoad} data ready (${stats?.rowCount} rows, ${Date.now() - platformLoadStart}ms)`);
-            }
-        }
-        // ===== END REDIS DATA LAYER =====
 
         // Helper to generate month buckets
         const generateMonthBuckets = (start, end) => {
@@ -310,22 +136,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Formula: (All Rows with Brand (spons_flag=1 AND spons_flag=0) / Total Rows for all brands) × 100
         const getShareOfSearch = async (start, end, brandFilter, platformFilter, locationFilter, categoryFilter) => {
             try {
-                // ===== CHECK CACHE FIRST =====
-                const cachedResult = await getCachedSOSData(
-                    platformFilter,
-                    start.format('YYYY-MM-DD'),
-                    end.format('YYYY-MM-DD'),
-                    categoryFilter,
-                    locationFilter
-                );
-                if (cachedResult && cachedResult.brandCounts) {
-                    const brandKey = (brandFilter || 'all').toLowerCase();
-                    const brandCount = cachedResult.brandCounts[brandKey] || 0;
-                    const sos = cachedResult.totalCount > 0 ? (brandCount / cachedResult.totalCount) * 100 : 0;
-                    return sos;
-                }
-                // ===== END CACHE CHECK =====
-
                 // Common where clause (applies to all queries)
                 const baseWhere = {
                     kw_crawl_date: {
@@ -395,51 +205,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             platformFilter, locationFilter, categoryFilter
         ) => {
             try {
-                const timerLabel = `[Bulk SOS] Total Time ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                console.time(timerLabel);
-
-                // ===== CHECK REDIS CACHE FIRST =====
-                const currCacheKey = {
-                    platform: platformFilter,
-                    dateStart: currStart.format('YYYY-MM-DD'),
-                    dateEnd: currEnd.format('YYYY-MM-DD'),
-                    category: categoryFilter,
-                    location: locationFilter
-                };
-                const prevCacheKey = {
-                    platform: platformFilter,
-                    dateStart: prevStart.format('YYYY-MM-DD'),
-                    dateEnd: prevEnd.format('YYYY-MM-DD'),
-                    category: categoryFilter,
-                    location: locationFilter
-                };
-
-                const [cachedCurr, cachedPrev] = await Promise.all([
-                    getCachedSOSData(currCacheKey.platform, currCacheKey.dateStart, currCacheKey.dateEnd, currCacheKey.category, currCacheKey.location),
-                    getCachedSOSData(prevCacheKey.platform, prevCacheKey.dateStart, prevCacheKey.dateEnd, prevCacheKey.category, prevCacheKey.location)
-                ]);
-
-                // If both periods are cached, calculate SOS from cache
-                if (cachedCurr && cachedPrev) {
-                    console.log(`📊 [SOS Cache Hit] Using cached data for both periods`);
-                    const validBrands = brands.filter(b => b && b.trim());
-                    const sosMap = new Map();
-
-                    validBrands.forEach(brand => {
-                        const brandKey = brand.toLowerCase();
-                        const currCount = cachedCurr.brandCounts[brandKey] || 0;
-                        const prevCount = cachedPrev.brandCounts[brandKey] || 0;
-
-                        const currSos = cachedCurr.totalCount > 0 ? (currCount / cachedCurr.totalCount) * 100 : 0;
-                        const prevSos = cachedPrev.totalCount > 0 ? (prevCount / cachedPrev.totalCount) * 100 : 0;
-
-                        sosMap.set(brand, { current: currSos, previous: prevSos });
-                    });
-
-                    console.timeEnd(timerLabel);
-                    return sosMap;
-                }
-                // ===== END REDIS CACHE CHECK =====
+                console.time('[Bulk SOS] Total Time');
 
                 // Base where clause (common filters)
                 const baseWhere = {};
@@ -468,7 +234,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Filter out empty/null brands
                 const validBrands = brands.filter(b => b && b.trim());
                 if (validBrands.length === 0) {
-                    console.timeEnd(timerLabel);
+                    console.timeEnd('[Bulk SOS] Total Time');
                     return new Map();
                 }
 
@@ -560,35 +326,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     });
                 });
 
-                // ===== CACHE THE RESULTS FOR FUTURE REQUESTS =====
-                // Cache current period data
-                cacheSOSData(
-                    currCacheKey.platform,
-                    currCacheKey.dateStart,
-                    currCacheKey.dateEnd,
-                    currCacheKey.category,
-                    currCacheKey.location,
-                    {
-                        brandCounts: Object.fromEntries(currCountMap),
-                        totalCount: currTotalCount
-                    }
-                ).catch(err => console.warn('Failed to cache curr SOS:', err.message));
-
-                // Cache previous period data
-                cacheSOSData(
-                    prevCacheKey.platform,
-                    prevCacheKey.dateStart,
-                    prevCacheKey.dateEnd,
-                    prevCacheKey.category,
-                    prevCacheKey.location,
-                    {
-                        brandCounts: Object.fromEntries(prevCountMap),
-                        totalCount: prevTotalCount
-                    }
-                ).catch(err => console.warn('Failed to cache prev SOS:', err.message));
-                // ===== END CACHE STORAGE =====
-
-                console.timeEnd(timerLabel);
+                console.timeEnd('[Bulk SOS] Total Time');
                 return sosMap;
 
             } catch (error) {
@@ -604,24 +342,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
          */
         const getBulkPlatformMetrics = async (platforms, currStart, currEnd, prevStart, prevEnd, filters) => {
             try {
-                const timerLabel = `[Bulk Platform] Total ${Date.now()}`;
-                console.time(timerLabel);
+                console.time('[Bulk Platform] Total');
                 const { brand, location, category } = filters;
-
-                // ===== CHECK CACHE FIRST =====
-                const cachedData = await getCachedPlatformMetrics(
-                    currStart.format('YYYY-MM-DD'),
-                    currEnd.format('YYYY-MM-DD'),
-                    prevStart.format('YYYY-MM-DD'),
-                    prevEnd.format('YYYY-MM-DD'),
-                    brand, location, category
-                );
-                if (cachedData) {
-                    console.log(`📊 [Platform Metrics Cache Hit] Returning cached data`);
-                    console.timeEnd(timerLabel);
-                    return cachedData;
-                }
-                // ===== END CACHE CHECK =====
 
                 // Current period where clause
                 const currWhere = {
@@ -760,17 +482,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     });
                 });
 
-                // ===== CACHE THE RESULTS =====
-                cachePlatformMetrics(
-                    currStart.format('YYYY-MM-DD'),
-                    currEnd.format('YYYY-MM-DD'),
-                    prevStart.format('YYYY-MM-DD'),
-                    prevEnd.format('YYYY-MM-DD'),
-                    brand, location, category, map
-                ).catch(err => console.warn('Failed to cache platform metrics:', err.message));
-                // ===== END CACHE STORAGE =====
-
-                console.timeEnd(timerLabel);
+                console.timeEnd('[Bulk Platform] Total');
                 return map;
             } catch (err) {
                 console.error('[Bulk Platform] Error:', err);
@@ -941,96 +653,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
                 raw: true
             }),
-            // 9. Share of Search Trend Data (Monthly) - OPTIMIZED: Single bulk query instead of N sequential queries
+            // 9. Share of Search Trend Data (Monthly)
+            // Note: This might be heavy, but required.
             (async () => {
-                try {
-                    // Build base where clause
-                    const baseWhere = {};
-
-                    if (category) {
-                        baseWhere.keyword_category = sequelize.where(
-                            sequelize.fn('LOWER', sequelize.col('keyword_category')),
-                            category.toLowerCase()
-                        );
-                    }
-
-                    if (location && location !== 'All') {
-                        baseWhere.location_name = sequelize.where(
-                            sequelize.fn('LOWER', sequelize.col('location_name')),
-                            location.toLowerCase()
-                        );
-                    }
-
-                    if (selectedPlatform && selectedPlatform !== 'All') {
-                        baseWhere.platform_name = sequelize.where(
-                            sequelize.fn('LOWER', sequelize.col('platform_name')),
-                            selectedPlatform.toLowerCase()
-                        );
-                    }
-
-                    // Query 1: Get brand counts grouped by month (numerator)
-                    const brandWhere = {
-                        ...baseWhere,
-                        kw_crawl_date: {
-                            [Op.between]: [startDate.toDate(), endDate.toDate()]
-                        }
-                    };
-                    if (brand && brand !== 'All') {
-                        brandWhere.brand_name = sequelize.where(
-                            sequelize.fn('LOWER', sequelize.col('brand_name')),
-                            brand.toLowerCase()
-                        );
-                    }
-
-                    const [brandMonthCounts, totalMonthCounts] = await Promise.all([
-                        RbKw.findAll({
-                            attributes: [
-                                [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01'), 'month'],
-                                [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']
-                            ],
-                            where: brandWhere,
-                            group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01')],
-                            raw: true
-                        }),
-                        // Query 2: Get total counts grouped by month (denominator)
-                        RbKw.findAll({
-                            attributes: [
-                                [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01'), 'month'],
-                                [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']
-                            ],
-                            where: {
-                                ...baseWhere,
-                                kw_crawl_date: {
-                                    [Op.between]: [startDate.toDate(), endDate.toDate()]
-                                }
-                            },
-                            group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01')],
-                            raw: true
-                        })
-                    ]);
-
-                    // Build lookup maps for O(1) access
-                    const brandCountMap = new Map(
-                        brandMonthCounts.map(r => [r.month, parseInt(r.count)])
-                    );
-                    const totalCountMap = new Map(
-                        totalMonthCounts.map(r => [r.month, parseInt(r.count)])
-                    );
-
-                    // Calculate SOS for each month bucket
-                    return monthBuckets.map(bucket => {
-                        const monthKey = dayjs(bucket.date).format('YYYY-MM-01');
-                        const brandCount = brandCountMap.get(monthKey) || 0;
-                        const totalCount = totalCountMap.get(monthKey) || 0;
-                        const sosValue = totalCount > 0 ? (brandCount / totalCount) * 100 : 0;
-
-                        return { month_date: bucket.date, value: sosValue };
-                    });
-                } catch (error) {
-                    console.error('Error calculating bulk SOS trend:', error);
-                    // Return zero values for all months on error
-                    return monthBuckets.map(bucket => ({ month_date: bucket.date, value: 0 }));
-                }
+                const trendPromises = monthBuckets.map(async (bucket) => {
+                    const mStart = dayjs(bucket.date).startOf('month');
+                    const mEnd = dayjs(bucket.date).endOf('month');
+                    const val = await getShareOfSearch(mStart, mEnd, brand, selectedPlatform, location, category);
+                    return { month_date: bucket.date, value: val };
+                });
+                return Promise.all(trendPromises);
             })(),
             // 10. Previous Offtake (Total Sales) - Always use rb_pdp_olap Sales column
             (filters.compareStartDate && filters.compareEndDate)
@@ -1217,340 +849,247 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             },
         ];
 
-        // Performance Metrics KPIs (6 KPI Cards) - OPTIMIZED WITH GROUP BY
-        // Skip this expensive computation if only topMetrics are needed
+        // Performance Metrics KPIs (6 KPI Cards)
         const performanceMetricsKpis = [];
 
-        if (!skipPerformanceKpis) {
-            try {
-                const momStartDate = startDate.clone().subtract(1, 'month');
-                const momEndDate = endDate.clone().subtract(1, 'month');
+        try {
+            const momStartDate = startDate.clone().subtract(1, 'month');
+            const momEndDate = endDate.clone().subtract(1, 'month');
 
-                // Helper to generate last 7 months
-                const last7Months = [];
-                for (let i = 6; i >= 0; i--) {
-                    const mStart = endDate.clone().subtract(i, 'month').startOf('month');
-                    const mEnd = endDate.clone().subtract(i, 'month').endOf('month');
-                    last7Months.push({ start: mStart, end: mEnd, label: `P${7 - i}`, key: mStart.format('YYYY-MM-01') });
-                }
-
-                // ⚡ MEGA OPTIMIZATION: Pre-computed monthly KPI cache with Redis fallback
-                const getBulkPerformanceMetrics = async (startRange, endRange, filters) => {
-                    const { brand, selectedPlatform, location } = filters;
-
-                    // Generate list of months in range
-                    const months = [];
-                    let current = startRange.clone().startOf('month');
-                    while (current.isBefore(endRange) || current.isSame(endRange, 'month')) {
-                        months.push(current.format('YYYY-MM'));
-                        current = current.add(1, 'month');
-                    }
-
-                    // ===== CHECK PRE-COMPUTED MONTHLY KPI CACHE FIRST =====
-                    const cachedData = await getCachedMonthlyKPIs(selectedPlatform, months, brand, location);
-                    if (cachedData) {
-                        console.log(`📊 [KPI Cache Hit] Returning cached data for ${months.length} months`);
-                        // Convert to expected format (month key with -01 suffix)
-                        const dataByMonth = new Map();
-                        for (const [month, data] of cachedData) {
-                            dataByMonth.set(month + '-01', data);
-                        }
-                        return dataByMonth;
-                    }
-                    // ===== END CACHE CHECK =====
-
-                    // ===== TRY BRAND PRE-AGGREGATED DATA (INSTANT LOOKUP) =====
-                    // This uses data pre-computed during Redis load - no row fetching needed!
-                    if (brand && brand !== 'All' && selectedPlatform && selectedPlatform !== 'All') {
-                        const brandPreAggData = await getBrandMonthlyData(selectedPlatform, brand, months);
-                        if (brandPreAggData && brandPreAggData.size > 0) {
-                            // Cache this result for future requests
-                            const monthDataMap = new Map();
-                            for (const [monthKey, data] of brandPreAggData) {
-                                const month = monthKey.substring(0, 7); // YYYY-MM-01 -> YYYY-MM
-                                monthDataMap.set(month, data);
-                            }
-                            cacheMonthlyKPIs(selectedPlatform, monthDataMap, brand, location)
-                                .catch(err => console.warn('Failed to cache monthly KPIs:', err.message));
-                            return brandPreAggData;
-                        }
-                    }
-                    // ===== END BRAND PRE-AGGREGATION CHECK =====
-
-                    // Cache miss - compute aggregations (FALLBACK)
-                    let dataByMonth = new Map();
-
-                    // Try Redis raw data first
-                    const redisResult = await getRowsFromRedisOrDb(selectedPlatform, {
-                        brand: brand,
-                        location: location,
-                        startDate: startRange.format('YYYY-MM-DD'),
-                        endDate: endRange.format('YYYY-MM-DD')
-                    });
-
-                    if (redisResult.source === 'redis' && redisResult.rows) {
-                        // Aggregate in-memory by month
-                        redisResult.rows.forEach(row => {
-                            const monthKey = dayjs(row.DATE).format('YYYY-MM-01');
-
-                            if (!dataByMonth.has(monthKey)) {
-                                dataByMonth.set(monthKey, {
-                                    sales: 0, adSales: 0, orders: 0, clicks: 0, impressions: 0, spend: 0
-                                });
-                            }
-
-                            const data = dataByMonth.get(monthKey);
-                            data.sales += parseFloat(row.Sales || 0);
-                            data.adSales += parseFloat(row.Ad_sales || 0);
-                            data.orders += parseFloat(row.Ad_Orders || 0);
-                            data.clicks += parseFloat(row.Ad_Clicks || 0);
-                            data.impressions += parseFloat(row.Ad_Impressions || 0);
-                            data.spend += parseFloat(row.Ad_Spend || 0);
-                        });
-
-                        console.log(`📊 [Redis] Aggregated ${redisResult.rows.length} rows into ${dataByMonth.size} months`);
-                    } else {
-                        // Fallback to database query
-                        const where = {
-                            DATE: { [Op.between]: [startRange.toDate(), endRange.toDate()] },
-                            ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                            ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
-                        };
-
-                        const results = await RbPdpOlap.findAll({
-                            attributes: [
-                                [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month'],
-                                [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                                [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                                [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_orders'],
-                                [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
-                                [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
-                                [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend']
-                            ],
-                            where,
-                            group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
-                            order: [[Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'ASC']],
-                            raw: true
-                        });
-
-                        results.forEach(row => {
-                            dataByMonth.set(row.month, {
-                                sales: parseFloat(row.total_sales || 0),
-                                adSales: parseFloat(row.total_ad_sales || 0),
-                                orders: parseFloat(row.total_orders || 0),
-                                clicks: parseFloat(row.total_clicks || 0),
-                                impressions: parseFloat(row.total_impressions || 0),
-                                spend: parseFloat(row.total_spend || 0)
-                            });
-                        });
-                    }
-
-                    // ===== CACHE THE COMPUTED AGGREGATIONS =====
-                    // Convert to month format without -01 for caching
-                    const monthDataMap = new Map();
-                    for (const [monthKey, data] of dataByMonth) {
-                        const month = monthKey.substring(0, 7); // YYYY-MM-01 -> YYYY-MM
-                        monthDataMap.set(month, data);
-                    }
-                    cacheMonthlyKPIs(selectedPlatform, monthDataMap, brand, location)
-                        .catch(err => console.warn('Failed to cache monthly KPIs:', err.message));
-                    // ===== END CACHE STORAGE =====
-
-                    return dataByMonth;
-                };
-
-                // Fetch ALL months data in ONE query (current + MoM + last 7 months)
-                const timerLabel = `[Performance KPIs] Bulk GROUP BY Fetch ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                console.time(timerLabel);
-
-                const earliestDate = last7Months[0].start;
-
-                // Generate unique key for this specific computation
-                const coalesceKey = `perf-kpi:${selectedPlatform}:${earliestDate.format('YYYY-MM')}:${endDate.format('YYYY-MM')}:${brand}:${location}`;
-
-                // Use coalesceRequest to prevent cache stampede
-                const bulkData = await coalesceRequest(coalesceKey, () =>
-                    getBulkPerformanceMetrics(earliestDate, endDate, { brand, selectedPlatform, location })
-                ).catch(err => {
-                    console.error('[Bulk Performance KPIs] Error:', err.message);
-                    return new Map(); // Empty map on error
-                });
-
-                console.timeEnd(timerLabel);
-                console.log(`[Performance KPIs] Fetched ${bulkData.size} months of data in single query`);
-
-                // Helper functions to extract data from bulk results
-                const getDataForRange = (start, end) => {
-                    const monthKey = start.format('YYYY-MM-01');
-                    return bulkData.get(monthKey) || {
-                        sales: 0, adSales: 0, orders: 0, clicks: 0, impressions: 0, spend: 0
-                    };
-                };
-
-                const calculateInorganicSales = (data) => {
-                    return data.sales > 0 ? (data.adSales / data.sales) * 100 : 0;
-                };
-
-                const calculateConversion = (data) => {
-                    return data.clicks > 0 ? (data.orders / data.clicks) * 100 : 0;
-                };
-
-                const calculateRoas = (data) => {
-                    return data.spend > 0 ? data.adSales / data.spend : 0;
-                };
-
-                const calculateBmi = (data) => {
-                    return data.sales > 0 ? (data.spend / data.sales) * 100 : 0;
-                };
-
-                // Extract data for current and MoM periods
-                const currentData = getDataForRange(startDate, endDate);
-                const momData = getDataForRange(momStartDate, momEndDate);
-
-                // Calculate trend data for all KPIs from bulk results
-                const inorgTrendData = last7Months.map(m => calculateInorganicSales(getDataForRange(m.start, m.end)));
-                const convTrendData = last7Months.map(m => calculateConversion(getDataForRange(m.start, m.end)));
-                const roasTrendData = last7Months.map(m => calculateRoas(getDataForRange(m.start, m.end)));
-                const bmiTrendData = last7Months.map(m => calculateBmi(getDataForRange(m.start, m.end)));
-
-                // Calculate current and MoM values for each KPI
-                const currentInorg = calculateInorganicSales(currentData);
-                const momInorg = calculateInorganicSales(momData);
-                const inorgChange = momInorg > 0 ? ((currentInorg - momInorg) / momInorg) * 100 : (currentInorg > 0 ? 100 : 0);
-
-                const currentConv = calculateConversion(currentData);
-                const momConv = calculateConversion(momData);
-                const convChange = momConv > 0 ? ((currentConv - momConv) / momConv) * 100 : (currentConv > 0 ? 100 : 0);
-
-                const currentRoas = calculateRoas(currentData);
-                const momRoas = calculateRoas(momData);
-                const roasChange = momRoas > 0 ? ((currentRoas - momRoas) / momRoas) * 100 : (currentRoas > 0 ? 100 : 0);
-
-                const currentBmi = calculateBmi(currentData);
-                const momBmi = calculateBmi(momData);
-                const bmiChange = momBmi > 0 ? ((currentBmi - momBmi) / momBmi) * 100 : (currentBmi > 0 ? 100 : 0);
-
-                // SOS KPI (still needs separate queries for now - different table)
-                const currentSosKpi = currentShareOfSearch;
-                const momSosKpi = await getShareOfSearch(momStartDate, momEndDate, brand, selectedPlatform, location, category);
-                const sosKpiChange = momSosKpi > 0 ? ((currentSosKpi - momSosKpi) / momSosKpi) * 100 : (currentSosKpi > 0 ? 100 : 0);
-
-                const sosTrendKpiData = await Promise.all(last7Months.map(async (m) => {
-                    const val = await getShareOfSearch(m.start, m.end, brand, selectedPlatform, location, category);
-                    return val;
-                })).catch(err => {
-                    console.error('[SOS Trend] Error:', err.message);
-                    return Array(7).fill(0);
-                });
-
-                // OSA KPI (uses availability data already computed)
-                const currentOsa = currentAvailability;
-                const momOsa = prevAvailability;
-                const osaAbsChange = currentOsa - momOsa;
-
-                const osaTrendData = await Promise.all(last7Months.map(async (m) => {
-                    const val = await getAvailability(m.start, m.end, brand, selectedPlatform, location, category);
-                    return val;
-                })).catch(err => {
-                    console.error('[OSA Trend] Error:', err.message);
-                    return Array(7).fill(0);
-                });
-
-                let osaStatus = "stable";
-                if (osaAbsChange > 1) osaStatus = "improving";
-                else if (osaAbsChange < -1) osaStatus = "declining";
-
-                // Build KPI cards
-                // 1. Share of Search
-                performanceMetricsKpis.push({
-                    id: "sos_new",
-                    label: "SHARE OF SEARCH",
-                    value: `${currentSosKpi.toFixed(1)}%`,
-                    unit: "",
-                    tag: `${sosKpiChange >= 0 ? '+' : ''}${sosKpiChange.toFixed(1)}% MoM`,
-                    tagTone: sosKpiChange >= 0 ? "positive" : "warning",
-                    footer: "Organic + Paid view",
-                    trendTitle: "Share of Search Trend",
-                    trendSubtitle: "Last 7 periods",
-                    trendData: sosTrendKpiData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
-                });
-
-                // 2. Inorganic Sales
-                performanceMetricsKpis.push({
-                    id: "inorganic",
-                    label: "INORGANIC SALES",
-                    value: `${currentInorg.toFixed(1)}%`,
-                    unit: "",
-                    tag: `${inorgChange >= 0 ? '+' : ''}${inorgChange.toFixed(1)}% MoM`,
-                    tagTone: inorgChange >= 0 ? "positive" : "warning",
-                    footer: "Non-brand contribution",
-                    trendTitle: "Inorganic Sales Trend",
-                    trendSubtitle: "Last 7 periods",
-                    trendData: inorgTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
-                });
-
-                // 3. Conversion
-                performanceMetricsKpis.push({
-                    id: "conversion",
-                    label: "CONVERSION",
-                    value: `${currentConv.toFixed(1)}%`,
-                    unit: "",
-                    tag: `${convChange >= 0 ? '+' : ''}${convChange.toFixed(1)}% MoM`,
-                    tagTone: convChange >= 0 ? "positive" : "warning",
-                    footer: "Orders / Clicks",
-                    trendTitle: "Conversion Trend",
-                    trendSubtitle: "Last 7 periods",
-                    trendData: convTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
-                });
-
-                // 4. ROAS
-                performanceMetricsKpis.push({
-                    id: "roas_new",
-                    label: "ROAS",
-                    value: currentRoas.toFixed(1),
-                    unit: "",
-                    tag: `${roasChange >= 0 ? '+' : ''}${roasChange.toFixed(1)}% MoM`,
-                    tagTone: roasChange >= 0 ? "positive" : "warning",
-                    footer: "Return on Ad Spend",
-                    trendTitle: "ROAS Trend",
-                    trendSubtitle: "Last 7 periods",
-                    trendData: roasTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
-                });
-
-                // 5. BMI/Sales Ratio
-                performanceMetricsKpis.push({
-                    id: "bmi",
-                    label: "BMI / SALES RATIO",
-                    value: `${currentBmi.toFixed(1)}%`,
-                    unit: "",
-                    tag: `${bmiChange >= 0 ? '+' : ''}${bmiChange.toFixed(1)}% MoM`,
-                    tagTone: bmiChange < 0 ? "positive" : "warning", // Lower is better for BMI
-                    footer: "Efficiency index",
-                    trendTitle: "BMI / Sales Ratio Trend",
-                    trendSubtitle: "Last 7 periods",
-                    trendData: bmiTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
-                });
-
-                // 6. Avg OSA (On-Shelf Availability)
-                performanceMetricsKpis.push({
-                    id: "osa",
-                    label: "AVG OSA",
-                    value: `${currentOsa.toFixed(1)}%`,
-                    unit: "",
-                    tag: osaStatus,
-                    tagTone: osaStatus === "stable" ? "neutral" : (osaStatus === "improving" ? "positive" : "warning"),
-                    footer: "Availability weighted",
-                    trendTitle: "OSA – Weighted",
-                    trendSubtitle: "Last 4 periods",
-                    trendData: osaTrendData.slice(-4).map((val, idx) => ({ period: last7Months[idx + 3].label, value: val })) // Only last 4 periods for OSA
-                });
-
-            } catch (err) {
-                console.error("Error calculating Performance Metrics KPIs:", err);
+            // Helper to generate last 7 months
+            const last7Months = [];
+            for (let i = 6; i >= 0; i--) {
+                const mStart = endDate.clone().subtract(i, 'month').startOf('month');
+                const mEnd = endDate.clone().subtract(i, 'month').endOf('month');
+                last7Months.push({ start: mStart, end: mEnd, label: `P${7 - i}` });
             }
-        } // End of if (!skipPerformanceKpis)
 
+            // 1. Share of Search
+            const currentSosKpi = currentShareOfSearch;
+            const momSosKpi = await getShareOfSearch(momStartDate, momEndDate, brand, selectedPlatform, location, category);
+            const sosKpiChange = momSosKpi > 0 ? ((currentSosKpi - momSosKpi) / momSosKpi) * 100 : (currentSosKpi > 0 ? 100 : 0);
+
+            const sosTrendKpiData = await Promise.all(last7Months.map(async (m) => {
+                const val = await getShareOfSearch(m.start, m.end, brand, selectedPlatform, location, category);
+                return { period: m.label, value: val };
+            }));
+
+            performanceMetricsKpis.push({
+                id: "sos_new",
+                label: "SHARE OF SEARCH",
+                value: `${currentSosKpi.toFixed(1)}%`,
+                unit: "",
+                tag: `${sosKpiChange >= 0 ? '+' : ''}${sosKpiChange.toFixed(1)}% MoM`,
+                tagTone: sosKpiChange >= 0 ? "positive" : "warning",
+                footer: "Organic + Paid view",
+                trendTitle: "Share of Search Trend",
+                trendSubtitle: "Last 7 periods",
+                trendData: sosTrendKpiData
+            });
+
+            // 2. Inorganic Sales %
+            const getInorganicSales = async (start, end) => {
+                const where = {
+                    DATE: { [Op.between]: [start.toDate(), end.toDate()] },
+                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                };
+                const result = await RbPdpOlap.findOne({
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales']
+                    ],
+                    where,
+                    raw: true
+                });
+                const totalSales = parseFloat(result?.total_sales || 0);
+                const totalAdSales = parseFloat(result?.total_ad_sales || 0);
+                return totalSales > 0 ? (totalAdSales / totalSales) * 100 : 0;
+            };
+
+            const currentInorg = await getInorganicSales(startDate, endDate);
+            const momInorg = await getInorganicSales(momStartDate, momEndDate);
+            const inorgChange = momInorg > 0 ? ((currentInorg - momInorg) / momInorg) * 100 : (currentInorg > 0 ? 100 : 0);
+
+            const inorgTrendData = await Promise.all(last7Months.map(async (m) => {
+                const val = await getInorganicSales(m.start, m.end);
+                return { period: m.label, value: val };
+            }));
+
+            performanceMetricsKpis.push({
+                id: "inorganic",
+                label: "INORGANIC SALES",
+                value: `${currentInorg.toFixed(1)}%`,
+                unit: "",
+                tag: `${inorgChange >= 0 ? '+' : ''}${inorgChange.toFixed(1)}% MoM`,
+                tagTone: inorgChange >= 0 ? "positive" : "warning",
+                footer: "Non-brand contribution",
+                trendTitle: "Inorganic Sales Trend",
+                trendSubtitle: "Last 7 periods",
+                trendData: inorgTrendData
+            });
+
+            // 3. Conversion (CTR)
+            const getConversion = async (start, end) => {
+                const where = {
+                    DATE: { [Op.between]: [start.toDate(), end.toDate()] },
+                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                };
+                const result = await RbPdpOlap.findOne({
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_orders'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks']
+                    ],
+                    where,
+                    raw: true
+                });
+                const orders = parseFloat(result?.total_orders || 0);
+                const clicks = parseFloat(result?.total_clicks || 0);
+                return clicks > 0 ? (orders / clicks) * 100 : 0;
+            };
+
+            const currentConv = await getConversion(startDate, endDate);
+            const momConv = await getConversion(momStartDate, momEndDate);
+            const convChange = momConv > 0 ? ((currentConv - momConv) / momConv) * 100 : (currentConv > 0 ? 100 : 0);
+
+            const convTrendData = await Promise.all(last7Months.map(async (m) => {
+                const val = await getConversion(m.start, m.end);
+                return { period: m.label, value: val };
+            }));
+
+            performanceMetricsKpis.push({
+                id: "conversion",
+                label: "CONVERSION",
+                value: `${currentConv.toFixed(1)}%`,
+                unit: "",
+                tag: `${convChange >= 0 ? '+' : ''}${convChange.toFixed(1)}% MoM`,
+                tagTone: convChange >= 0 ? "positive" : "warning",
+                footer: "Orders / Clicks",
+                trendTitle: "Conversion Trend",
+                trendSubtitle: "Last 7 periods",
+                trendData: convTrendData
+            });
+
+            // 4. ROAS
+            const getRoas = async (start, end) => {
+                const where = {
+                    DATE: { [Op.between]: [start.toDate(), end.toDate()] },
+                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                };
+                const result = await RbPdpOlap.findOne({
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend']
+                    ],
+                    where,
+                    raw: true
+                });
+                const adSales = parseFloat(result?.total_ad_sales || 0);
+                const spend = parseFloat(result?.total_spend || 0);
+                return spend > 0 ? adSales / spend : 0;
+            };
+
+            const currentRoas = await getRoas(startDate, endDate);
+            const momRoas = await getRoas(momStartDate, momEndDate);
+            const roasChange = momRoas > 0 ? ((currentRoas - momRoas) / momRoas) * 100 : (currentRoas > 0 ? 100 : 0);
+
+            const roasTrendData = await Promise.all(last7Months.map(async (m) => {
+                const val = await getRoas(m.start, m.end);
+                return { period: m.label, value: val };
+            }));
+
+            performanceMetricsKpis.push({
+                id: "roas_new",
+                label: "ROAS",
+                value: currentRoas.toFixed(1),
+                unit: "",
+                tag: `${roasChange >= 0 ? '+' : ''}${roasChange.toFixed(1)}% MoM`,
+                tagTone: roasChange >= 0 ? "positive" : "warning",
+                footer: "Return on Ad Spend",
+                trendTitle: "ROAS Trend",
+                trendSubtitle: "Last 7 periods",
+                trendData: roasTrendData
+            });
+
+            // 5. BMI/Sales Ratio
+            const getBmiSales = async (start, end) => {
+                const where = {
+                    DATE: { [Op.between]: [start.toDate(), end.toDate()] },
+                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
+                    ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                };
+                const result = await RbPdpOlap.findOne({
+                    attributes: [
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
+                    ],
+                    where,
+                    raw: true
+                });
+                const totalSpend = parseFloat(result?.total_spend || 0);
+                const totalSales = parseFloat(result?.total_sales || 0);
+                return totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
+            };
+
+            const currentBmi = await getBmiSales(startDate, endDate);
+            const momBmi = await getBmiSales(momStartDate, momEndDate);
+            const bmiChange = momBmi > 0 ? ((currentBmi - momBmi) / momBmi) * 100 : (currentBmi > 0 ? 100 : 0);
+
+            const bmiTrendData = await Promise.all(last7Months.map(async (m) => {
+                const val = await getBmiSales(m.start, m.end);
+                return { period: m.label, value: val };
+            }));
+
+            performanceMetricsKpis.push({
+                id: "bmi",
+                label: "BMI / SALES RATIO",
+                value: `${currentBmi.toFixed(1)}%`,
+                unit: "",
+                tag: `${bmiChange >= 0 ? '+' : ''}${bmiChange.toFixed(1)}% MoM`,
+                tagTone: bmiChange < 0 ? "positive" : "warning", // Lower is better for BMI
+                footer: "Efficiency index",
+                trendTitle: "BMI / Sales Ratio Trend",
+                trendSubtitle: "Last 7 periods",
+                trendData: bmiTrendData
+            });
+
+            // 6. Avg OSA (On-Shelf Availability)
+            const currentOsa = currentAvailability;
+            const momOsa = prevAvailability;
+            const osaAbsChange = currentOsa - momOsa;
+
+            const osaTrendData = await Promise.all(last7Months.map(async (m) => {
+                const val = await getAvailability(m.start, m.end, brand, selectedPlatform, location, category);
+                return { period: m.label, value: val };
+            }));
+
+            // Determine status based on trend
+            let osaStatus = "stable";
+            if (osaAbsChange > 1) osaStatus = "improving";
+            else if (osaAbsChange < -1) osaStatus = "declining";
+
+            performanceMetricsKpis.push({
+                id: "osa",
+                label: "AVG OSA",
+                value: `${currentOsa.toFixed(1)}%`,
+                unit: "",
+                tag: osaStatus,
+                tagTone: osaStatus === "stable" ? "neutral" : (osaStatus === "improving" ? "positive" : "warning"),
+                footer: "Availability weighted",
+                trendTitle: "OSA – Weighted",
+                trendSubtitle: "Last 4 periods",
+                trendData: osaTrendData.slice(-4) // Only last 4 periods for OSA
+            });
+
+        } catch (err) {
+            console.error("Error calculating Performance Metrics KPIs:", err);
+        }
 
         // 4. Platform Overview Calculation
         // Helper function to map platform names to logos
@@ -1581,34 +1120,26 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Fetch all distinct platforms from database (from actual transaction table rb_pdp_olap)
         let platformDefinitions = [];
         try {
-            // Check cache first
-            const cachedPlatforms = await getCachedDistinctPlatforms();
-            if (cachedPlatforms) {
-                platformDefinitions = cachedPlatforms;
-            } else {
-                const platformsFromDb = await RbPdpOlap.findAll({
-                    attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Platform')), 'platform']],
-                    where: {
-                        Platform: { [Op.ne]: null }  // Exclude null platforms
-                    },
-                    raw: true
-                });
+            const platformsFromDb = await RbPdpOlap.findAll({
+                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Platform')), 'platform']],
+                where: {
+                    Platform: { [Op.ne]: null }  // Exclude null platforms
+                },
+                raw: true
+            });
 
-                // Build platform definitions from database results
-                platformDefinitions = platformsFromDb
-                    .map(p => p.platform)
-                    .filter(p => p && p.trim())  // Filter out empty/null values
-                    .map(platformName => ({
-                        key: platformName.toLowerCase().replace(/\s+/g, '_'),
-                        label: platformName.charAt(0).toUpperCase() + platformName.slice(1),  // Capitalize first letter
-                        type: getPlatformType(platformName),
-                        logo: getPlatformLogo(platformName)
-                    }));
+            // Build platform definitions from database results
+            platformDefinitions = platformsFromDb
+                .map(p => p.platform)
+                .filter(p => p && p.trim())  // Filter out empty/null values
+                .map(platformName => ({
+                    key: platformName.toLowerCase().replace(/\s+/g, '_'),
+                    label: platformName.charAt(0).toUpperCase() + platformName.slice(1),  // Capitalize first letter
+                    type: getPlatformType(platformName),
+                    logo: getPlatformLogo(platformName)
+                }));
 
-                // Cache the result
-                cacheDistinctPlatforms(platformDefinitions);
-                console.log(`[Platform Overview] Fetched ${platformDefinitions.length} platforms from rb_pdp_olap:`, platformDefinitions.map(p => p.label));
-            }
+            console.log(`[Platform Overview] Fetched ${platformDefinitions.length} platforms from rb_pdp_olap:`, platformDefinitions.map(p => p.label));
         } catch (err) {
             console.error("Error fetching platforms from database:", err);
             // Fallback to hardcoded platforms if database query fails
@@ -1845,21 +1376,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // ⚡ PHASE 2 OPTIMIZATION: Bulk Platform Metrics
         // Fetch ALL platform metrics at once (4 queries instead of 90)
         console.log(`[Platform Overview] Starting bulk fetch for ${platformDefinitions.length} platforms...`);
-        const platformBulkTimerLabel = `[Platform Overview] Bulk Fetch Total ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-        console.time(platformBulkTimerLabel);
+        console.time('[Platform Overview] Bulk Fetch Total');
 
         const momStart = startDate.clone().subtract(1, 'month');
         const momEnd = endDate.clone().subtract(1, 'month');
 
-        // Use coalesceRequest to prevent cache stampede
-        const platformCoalesceKey = `platform:${startDate.format('YYYY-MM-DD')}:${endDate.format('YYYY-MM-DD')}:${brand}:${location}:${category}`;
-        const bulkPlatformMap = await coalesceRequest(platformCoalesceKey, () =>
-            getBulkPlatformMetrics(
-                platformDefinitions.map(p => p.label),
-                startDate, endDate,
-                momStart, momEnd,
-                { brand, location, category }
-            )
+        const bulkPlatformMap = await getBulkPlatformMetrics(
+            platformDefinitions.map(p => p.label),
+            startDate, endDate,
+            momStart, momEnd,
+            { brand, location, category }
         );
 
         // Bulk SOS for all platforms (current + previous)
@@ -1870,7 +1396,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             null, location, category  // null platform = aggregate across that filter
         );
 
-        console.timeEnd(platformBulkTimerLabel);
+        console.timeEnd('[Platform Overview] Bulk Fetch Total');
         console.log(`[Platform Overview] Bulk fetch complete. Now processing ${platformDefinitions.length} platforms in-memory...`);
 
         const platformOverviewPromises = platformDefinitions.map(async (p) => {
@@ -1905,7 +1431,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Calculate CPC: Total Ad Spend / Total Ad Clicks
                 const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
 
-
                 // ===== PROMO METRICS =====
                 // Note: Promo metrics still require individual queries as they use Comp_flag filtering
                 // which is not included in bulk aggregation
@@ -1917,36 +1442,47 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (location && location !== 'All') platformOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
                 if (category && category !== 'All') platformOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
 
-                // ⚡ Fetch both promo metrics concurrently
-                const [promoMyBrandResult, promoCompeteResult] = await Promise.all([
-                    // Promo My Brand: Own brand promo depth (Comp_flag = 0)
-                    (brand && brand !== 'All') ? RbPdpOlap.findOne({
+                // Calculate Promo My Brand: Own brand promo depth (Comp_flag = 0)
+                let promoMyBrand = 0;
+                if (brand && brand !== 'All') {
+                    const promoMyBrandWhere = {
+                        ...platformOfftakeWhere,
+                        Comp_flag: 0
+                    };
+                    const promoMyBrandResult = await RbPdpOlap.findOne({
                         attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
-                        where: {
-                            ...platformOfftakeWhere,
-                            Comp_flag: 0
-                        },
+                        where: promoMyBrandWhere,
                         raw: true
-                    }) : Promise.resolve(null),
+                    });
+                    promoMyBrand = parseFloat(promoMyBrandResult?.avg_promo_depth || 0) * 100;
+                    console.log(`[${p.label}] Promo My Brand - Brand: ${brand}, Promo Depth Result:`, promoMyBrandResult, `Value: ${promoMyBrand}`);
+                }
 
-                    // Promo Compete: Competitor promo depth (Comp_flag = 1)
-                    RbPdpOlap.findOne({
-                        attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
-                        where: {
-                            DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                            Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase()),
-                            Comp_flag: 1,
-                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                            ...(category && category !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase()) }),
-                            ...(brand && brand !== 'All' && { Brand: { [Op.notLike]: `%${brand}%` } })
-                        },
-                        raw: true
-                    })
-                ]);
+                // Calculate Promo Compete: Competitor promo depth (Comp_flag = 1)
+                let promoCompete = 0;
+                const promoCompeteWhere = {
+                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                    Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase()),
+                    Comp_flag: 1
+                };
+                if (location && location !== 'All') {
+                    promoCompeteWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                }
+                if (category && category !== 'All') {
+                    promoCompeteWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                }
+                // Optionally exclude the selected brand for competition
+                if (brand && brand !== 'All') {
+                    promoCompeteWhere.Brand = { [Op.notLike]: `%${brand}%` };
+                }
 
-                const promoMyBrand = parseFloat(promoMyBrandResult?.avg_promo_depth || 0) * 100;
-                const promoCompete = parseFloat(promoCompeteResult?.avg_promo_depth || 0) * 100;
-                console.log(`[${p.label}] Promo My Brand: ${promoMyBrand}, Promo Compete: ${promoCompete}`);
+                const promoCompeteResult = await RbPdpOlap.findOne({
+                    attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
+                    where: promoCompeteWhere,
+                    raw: true
+                });
+                promoCompete = parseFloat(promoCompeteResult?.avg_promo_depth || 0) * 100;
+                console.log(`[${p.label}] Promo Compete - Promo Depth Result:`, promoCompeteResult, `Value: ${promoCompete}`);
 
                 // ===== PREVIOUS PERIOD (MoM) CALCULATIONS =====
                 // Get from pre-computed bulk maps (NO DATABASE QUERIES!)
@@ -2219,6 +1755,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const catCpc = catClicks > 0 ? catSpend / catClicks : 0;
 
 
+                console.log(`[Category Debug] ${catName}:`, {
+                    catOfftake,
+                    formatted: formatCurrency(catOfftake),
+                    catSpend,
+                    catAdSales,
+                    catRoas
+                });
 
                 return {
                     key: catName,
@@ -2552,8 +2095,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // ⚡ PERFORMANCE OPTIMIZATION: Bulk SOS Calculation
         // Calculate SOS for ALL brands at once (4 queries total) instead of per-brand (2N queries)
         console.log(`[Brands Overview] Calculating SOS for ${boBrands.length} brands using bulk method...`);
-        const brandsSosTimerLabel = `[Brands Overview] Bulk SOS Calculation ${Date.now()}`;
-        console.time(brandsSosTimerLabel);
+        console.time('[Brands Overview] Bulk SOS Calculation');
 
         const bulkSosMap = await getBulkShareOfSearch(
             boBrands,
@@ -2562,7 +2104,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             selectedPlatform, location, category
         );
 
-        console.timeEnd(brandsSosTimerLabel);
+        console.timeEnd('[Brands Overview] Bulk SOS Calculation');
         console.log(`[Brands Overview] SOS calculated for ${bulkSosMap.size} brands`);
 
         const brandsOverview = await Promise.all(boBrands.map(async brandName => {
@@ -2704,7 +2246,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 };
 
 const getPlatforms = async () => {
-    return getCachedOrCompute('watchtower:platforms:all', async () => {
+    return getCachedOrCompute('platforms', async () => {
         try {
             const platforms = await RcaSkuDim.findAll({
                 attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('platform')), 'platform']],
@@ -2715,7 +2257,7 @@ const getPlatforms = async () => {
             console.error("Error fetching platforms:", error);
             return []; // Return empty array instead of throwing
         }
-    }, CACHE_TTL.VERY_STATIC); // Cache for 7 days - platforms almost never change
+    }, 3600); // Cache for 1 hour
 };
 
 // Exported function with caching layer
@@ -2726,82 +2268,79 @@ const getSummaryMetrics = async (filters) => {
     // Get from cache or compute
     return await getCachedOrCompute(cacheKey, async () => {
         return await computeSummaryMetrics(filters);
-    }, CACHE_TTL.METRICS); // Cache for 1 hour - aggregated metrics
+    }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800')); // 30 minutes default TTL
 };
 
 const getBrands = async (platform) => {
-    const cacheKey = `watchtower:brands:${platform || 'all'}`;
+    const cacheKey = `brands:${platform || 'all'}`;
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const whereClause = {};
+            const where = {
+                Comp_flag: 0  // Only show own brands (not competitors)
+            };
+
             if (platform && platform !== 'All') {
-                whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase());
+                where.Platform = sequelize.where(
+                    sequelize.fn('LOWER', sequelize.col('Platform')),
+                    platform.toLowerCase()
+                );
             }
 
             const result = await RbPdpOlap.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Brand')), 'Brand']],
-                where: {
-                    ...whereClause,
-                    Brand: { [Op.ne]: null },
-                    Comp_flag: 0  // Only show non-competitor brands
-                },
+                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Brand')), 'brand']],
+                where: where,
+                order: [['Brand', 'ASC']],
                 raw: true
             });
 
-            return result.map(r => r.Brand).filter(Boolean);
+            return result.map(b => b.brand).filter(Boolean);
         } catch (error) {
-            console.error('Error fetching brands:', error);
-            return [];
+            console.error("Error fetching brands:", error);
+            return []; // Return empty array instead of throwing
         }
-    }, CACHE_TTL.VERY_STATIC); // 7 days - brands rarely change
+    }, 3600); // Cache for 1 hour
 };
 
 const getKeywords = async (brand) => {
-    const cacheKey = `watchtower:keywords:${brand || 'all'}`;
-    return getCachedOrCompute(cacheKey, async () => {
-        try {
-            const where = {};
-            if (brand) {
-                where.brand_name = brand;
-            }
-
-            const keywords = await RbKw.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('keyword')), 'keyword']],
-                where: where,
-                raw: true
-            });
-            return keywords.map(k => k.keyword).filter(Boolean).sort();
-        } catch (error) {
-            console.error("Error fetching keywords:", error);
-            return [];
+    try {
+        const where = {};
+        if (brand) {
+            where.brand_name = brand;
         }
-    }, CACHE_TTL.VERY_STATIC); // 7 days - keywords rarely change
+
+        const keywords = await RbKw.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('keyword')), 'keyword']],
+            where: where,
+            raw: true
+        });
+        return keywords.map(k => k.keyword).filter(Boolean).sort();
+    } catch (error) {
+        console.error("Error fetching keywords:", error);
+        throw error;
+    }
 };
 
 const getLocations = async (platform, brand) => {
-    const cacheKey = `watchtower:locations:${platform || 'all'}:${brand || 'all'}`;
-    return getCachedOrCompute(cacheKey, async () => {
-        try {
-            const where = {};
-            if (platform && platform !== 'All') {
-                where.platform = platform;
-            }
-            if (brand && brand !== 'All') {
-                where.brand_name = brand;
-            }
-
-            const result = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('location')), 'location']],
-                where: where,
-                order: [['location', 'ASC']],
-                raw: true
-            });
-            return result.map(l => l.location).filter(Boolean);
-        } catch (error) {
-            console.error("Error fetching locations:", error);
-            return [];
+    try {
+        const where = {};
+        if (platform && platform !== 'All') {
+            where.platform = platform;
         }
-    }, CACHE_TTL.VERY_STATIC); // 7 days - locations rarely change
+        if (brand && brand !== 'All') {
+            where.brand_name = brand;
+        }
+
+        const result = await RcaSkuDim.findAll({
+            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('location')), 'location']],
+            where: where,
+            order: [['location', 'ASC']],
+            raw: true
+        });
+        return result.map(l => l.location).filter(Boolean);
+    } catch (error) {
+        console.error("Error fetching locations:", error);
+        throw error;
+    }
 };
 
 /**
@@ -3136,42 +2675,151 @@ const getBrandCategories = async (platform) => {
     }
 };
 
-// ==================== Progressive Loading Section Endpoints ====================
+/**
+ * Optimized Summary Metrics with parallel section-wise cachi ng
+ * Fetches all sections (platformOverview, monthOverview, categoryOverview, brandsOverview) in parallel
+ * Each section is cached independently for better performance
+ */
+const getSummaryMetricsOptimized = async (filters) => {
+    const startTime = Date.now();
+    try {
+        console.log('\n🚀 [WATCHTOWER] Starting optimized fetch...');
+        console.log('📋 [WATCHTOWER] Filters:', JSON.stringify(filters, null, 2));
+
+        // Prepare all filter combinations for different sections
+        const baseFilters = { ...filters };
+
+        // Create specific filter sets for each section
+        const monthFilters = { ...baseFilters, monthOverviewPlatform: filters.monthOverviewPlatform || filters.platform || 'Blinkit' };
+        const categoryFilters = { ...baseFilters, categoryOverviewPlatform: filters.categoryOverviewPlatform || filters.platform || 'Zepto' };
+        const brandsFilters = {
+            ...baseFilters,
+            brandsOverviewPlatform: filters.brandsOverviewPlatform || filters.platform || 'Zepto',
+            brandsOverviewCategory: filters.brandsOverviewCategory || 'All'
+        };
+
+        // Generate cache keys for each section
+        const mainCacheKey = generateCacheKey('main', baseFilters);
+        const monthCacheKey = generateCacheKey('month_overview', monthFilters);
+        const categoryCacheKey = generateCacheKey('category_overview', categoryFilters);
+        const brandsCacheKey = generateCacheKey('brands_overview', brandsFilters);
+
+        console.log('🔑 [WATCHTOWER] Cache keys:', {
+            main: mainCacheKey.substring(0, 50) + '...',
+            month: monthCacheKey.substring(0, 50) + '...',
+            category: categoryCacheKey.substring(0, 50) + '...',
+            brands: brandsCacheKey.substring(0, 50) + '...'
+        });
+
+        // Fetch all sections in parallel with individual caching
+        console.log('⏳ [WATCHTOWER] Fetching 4 sections in parallel...');
+        const parallelStart = Date.now();
+
+        const [mainData, monthOverviewExtra, categoryOverviewExtra, brandsOverviewExtra] = await Promise.all([
+            // Main data (topMetrics, platformOverview, performanceMarketing, skuTable)
+            (async () => {
+                const sectionStart = Date.now();
+                console.log('  📊 [SECTION 1/4] Main data - Starting...');
+                const data = await getCachedOrCompute(mainCacheKey, async () => {
+                    console.log('      ⚠️  Cache MISS - Computing main data...');
+                    const result = await computeSummaryMetrics(baseFilters);
+                    return {
+                        topMetrics: result.topMetrics,
+                        summaryMetrics: result.summaryMetrics,
+                        skuTable: result.skuTable,
+                        platformOverview: result.platformOverview,
+                        performanceMarketing: result.performanceMarketing
+                    };
+                }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+                console.log(`  ✅ [SECTION 1/4] Main data - Complete (${Date.now() - sectionStart}ms)`);
+                return data;
+            })(),
+
+            // Month Overview (conditional on monthOverviewPlatform)
+            (async () => {
+                const sectionStart = Date.now();
+                console.log('  📊 [SECTION 2/4] Month overview - Starting...');
+                const data = await getCachedOrCompute(monthCacheKey, async () => {
+                    console.log('      ⚠️  Cache MISS - Computing month overview...');
+                    const result = await computeSummaryMetrics(monthFilters);
+                    return result.monthOverview;
+                }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+                console.log(`  ✅ [SECTION 2/4] Month overview - Complete (${Date.now() - sectionStart}ms)`);
+                return data;
+            })(),
+
+            // Category Overview (conditional on categoryOverviewPlatform)
+            (async () => {
+                const sectionStart = Date.now();
+                console.log('  📊 [SECTION 3/4] Category overview - Starting...');
+                const data = await getCachedOrCompute(categoryCacheKey, async () => {
+                    console.log('      ⚠️  Cache MISS - Computing category overview...');
+                    const result = await computeSummaryMetrics(categoryFilters);
+                    return result.categoryOverview;
+                }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+                console.log(`  ✅ [SECTION 3/4] Category overview - Complete (${Date.now() - sectionStart}ms)`);
+                return data;
+            })(),
+
+            // Brands Overview (conditional on brandsOverviewPlatform and brandsOverviewCategory)
+            (async () => {
+                const sectionStart = Date.now();
+                console.log('  📊 [SECTION 4/4] Brands overview - Starting...');
+                const data = await getCachedOrCompute(brandsCacheKey, async () => {
+                    console.log('      ⚠️  Cache MISS - Computing brands overview...');
+                    const result = await computeSummaryMetrics(brandsFilters);
+                    return result.brandsOverview;
+                }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+                console.log(`  ✅ [SECTION 4/4] Brands overview - Complete (${Date.now() - sectionStart}ms)`);
+                return data;
+            })()
+        ]);
+
+        const parallelTime = Date.now() - parallelStart;
+        console.log(`\n⚡ [WATCHTOWER] All 4 sections fetched in ${parallelTime}ms`);
+        console.log('📦 [WATCHTOWER] Data available:', {
+            topMetrics: `${mainData.topMetrics?.length || 0} items`,
+            platformOverview: `${mainData.platformOverview?.length || 0} items`,
+            performanceMarketing: `${mainData.performanceMarketing?.length || 0} items`,
+            monthOverview: `${monthOverviewExtra?.length || 0} items`,
+            categoryOverview: `${categoryOverviewExtra?.length || 0} items`,
+            brandsOverview: `${brandsOverviewExtra?.length || 0} items`
+        });
+
+        // Combine all data
+        const totalTime = Date.now() - startTime;
+        console.log(`\n🎉 [WATCHTOWER] TOTAL TIME: ${totalTime}ms (${(totalTime / 1000).toFixed(2)}s)\n`);
+
+        return {
+            ...mainData,
+            monthOverview: monthOverviewExtra,
+            categoryOverview: categoryOverviewExtra,
+            brandsOverview: brandsOverviewExtra
+        };
+    } catch (error) {
+        const totalTime = Date.now() - startTime;
+        console.error(`\n❌ [WATCHTOWER] ERROR after ${totalTime}ms:`, error.message);
+        console.error('Stack:', error.stack);
+        throw error;
+    }
+};
+
+// ==================== NEW: Dedicated Section Endpoints ====================
 // These methods split getSummaryMetrics into focused endpoints for better performance
 
 /**
  * Get Overview Data (topMetrics, summaryMetrics, performanceMetricsKpis)
- * OPTIMIZED: Only computes overview data without platform/month/category/brand sections
+ * Used for initial critical data display
  */
 const getOverview = async (filters) => {
     const cacheKey = generateCacheKey('overview', filters);
     return await getCachedOrCompute(cacheKey, async () => {
-        console.log('[getOverview] Computing OPTIMIZED overview data (SKIPPING performance KPIs)...');
-
-        // Skip performance KPIs computation - they are loaded separately via /performance-metrics
-        const result = await computeSummaryMetrics(filters, { onlyOverview: true, skipPerformanceKpis: true });
-
+        console.log('[getOverview] Computing overview data...');
+        const result = await computeSummaryMetrics(filters);
         return {
             topMetrics: result.topMetrics,
-            summaryMetrics: result.summaryMetrics
-        };
-    }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
-};
-
-/**
- * Get Performance Metrics KPIs Data (Share of Search, ROAS, Conversion, etc.)
- * OPTIMIZED: Separate endpoint for Performance Matrix section
- */
-const getPerformanceMetrics = async (filters) => {
-    const cacheKey = generateCacheKey('performance_metrics', filters);
-    return await getCachedOrCompute(cacheKey, async () => {
-        console.log('[getPerformanceMetrics] Computing performance metrics KPIs...');
-
-        // Call the FULL function but it will only compute overview data
-        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
-
-        return {
-            performanceMetricsKpis: result.performanceMetricsKpis || []
+            summaryMetrics: result.summaryMetrics,
+            performanceMetricsKpis: result.performanceMetricsKpis
         };
     }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
 };
@@ -3383,6 +3031,27 @@ const getKpiTrends = async (filters) => {
             const denCount = parseInt(sosDen?.count || 0, 10);
             const shareOfSearch = denCount > 0 ? (numCount / denCount) * 100 : 0;
 
+            // Debug logging for first bucket
+            if (bucket === buckets[0]) {
+                console.log('[getKpiTrends] First Bucket Debug:', {
+                    timeStep,
+                    period,
+                    bucketGroupKey: bucket.groupKey,
+                    bucketLabel: bucket.label,
+                    sosNumeratorTotal: sosNumerator.length,
+                    sosDenominatorTotal: sosDenominator.length,
+                    sosNumMatched: !!sosNum,
+                    sosDenMatched: !!sosDen,
+                    numCount,
+                    denCount,
+                    shareOfSearch: shareOfSearch.toFixed(2) + '%',
+                    sampleNumKeys: sosNumerator.slice(0, 2).map(s => s.date_group),
+                    sampleDenKeys: sosDenominator.slice(0, 2).map(s => s.date_group),
+                    kpiRowMatched: !!row.date_group,
+                    hasOsaData: !!(row.total_neno_osa && row.total_deno_osa)
+                });
+            }
+
             // 2. Inorganic Sales (Ad Sales / Total Sales * 100)
             const inorganicSales = totalSales > 0 ? (adSales / totalSales) * 100 : 0;
 
@@ -3431,12 +3100,28 @@ const getKpiTrends = async (filters) => {
                 BmiSalesRatio: parseFloat(bmiSalesRatio.toFixed(2))
             };
 
-            return dataPoint;
+            // Debug logging for first 3 buckets
+            if (bucketIndex < 3) {
+                console.log(`[getKpiTrends] Bucket ${bucketIndex + 1}:`, {
+                    date: bucket.label,
+                    groupKey: bucket.groupKey,
+                    rawAdSpend: adSpend,
+                    rawTotalSales: totalSales,
+                    calculatedSpend: spend,
+                    hasKpiRow: !!row.date_group,
+                    adSpendFromRow: row.total_ad_spend
+                });
+            }
 
+            return dataPoint;
         });
 
-        return {
+        console.log('[getKpiTrends] Sample data point (first):', timeSeries[0]);
+        console.log('[getKpiTrends] Total data points:', timeSeries.length);
 
+        console.log(`[getKpiTrends] Generated ${timeSeries.length} time series data points`);
+
+        return {
             timeSeries,
             metrics: {
                 ShareOfSearch: { enabled: true },
@@ -3601,6 +3286,22 @@ const getCompetitionData = async (filters = {}) => {
             whereClause.Product = sequelize.where(sequelize.fn('LOWER', sequelize.col('Product')), sku.toLowerCase());
         }
 
+        console.log('[getCompetitionData] WHERE clause:', JSON.stringify({
+            dateRange: `${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`,
+            platform: platform !== 'All' ? platform.toLowerCase() : 'All',
+            location: location !== 'All' ? location.toLowerCase() : 'All',
+            category: category !== 'All' ? category.toLowerCase() : 'All',
+            brand: brand !== 'All' ? brand.toLowerCase() : 'All',
+            sku: sku !== 'All' ? sku.toLowerCase() : 'All'
+        }, null, 2));
+
+        console.log('[getCompetitionData] 🔍 FILTER SUMMARY:');
+        console.log(`  📅 Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
+        console.log(`  🌐 Platform: ${platform !== 'All' ? platform : 'All (no filter)'}`);
+        console.log(`  📍 Location: ${location !== 'All' ? location : 'All (no filter)'}`);
+        console.log(`  🏷️  Category: ${category !== 'All' ? category : 'All (no filter)'}`);
+        console.log(`  🏢 Brand: ${brand !== 'All' ? brand + ' (filtering to these brands)' : 'All (no filter)'}`);
+        console.log(`  📦 SKU: ${sku !== 'All' ? sku : 'All (no filter)'}`);
 
         // 1. Get all brands with aggregated metrics for current period
         const currentBrands = await RbPdpOlap.findAll({
@@ -4133,8 +3834,8 @@ export default {
     getKeywords,
     getLocations,
     getBrandCategories,
+    getSummaryMetricsOptimized,
     getOverview,
-    getPerformanceMetrics,
     getPlatformOverview,
     getMonthOverview,
     getCategoryOverview,

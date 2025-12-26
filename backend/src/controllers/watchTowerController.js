@@ -105,50 +105,6 @@ export const getMetrics = async (req, res) => {
     }
 };
 
-export const getWatchTowerData = async (req, res) => {
-    try {
-        const {
-            platform,
-            months,
-            timeStep,
-            brand,
-            location,
-            keyword,
-            startDate,
-            endDate,
-            compareStartDate,
-            compareEndDate,
-            monthOverviewPlatform, // Extract it
-            categoryOverviewPlatform,
-            brandsOverviewPlatform,
-            brandsOverviewCategory
-        } = req.query;
-
-        console.log("Processing Watch Tower request with filters:", req.query);
-
-        // Use optimized function for parallel fetching with section-wise caching
-        const data = await watchTowerService.getSummaryMetricsOptimized({
-            platform,
-            months,
-            timeStep,
-            brand,
-            location,
-            keyword,
-            startDate,
-            endDate,
-            compareStartDate,
-            compareEndDate,
-            monthOverviewPlatform,
-            categoryOverviewPlatform,
-            brandsOverviewPlatform,
-            brandsOverviewCategory
-        });
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching watch tower data:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-};
 
 export const debugAvailability = async (req, res) => {
     try {
@@ -245,6 +201,21 @@ export const getOverview = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching overview:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get Performance Metrics KPIs (Share of Search, ROAS, Conversion, etc.)
+ */
+export const getPerformanceMetrics = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getPerformanceMetrics] API call received with filters:', filters);
+        const data = await watchTowerService.getPerformanceMetrics(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching performance metrics:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };

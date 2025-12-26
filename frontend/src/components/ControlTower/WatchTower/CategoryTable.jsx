@@ -15,6 +15,7 @@ import {
   useTheme,
   TextField,
   Button,
+  Skeleton,
 } from "@mui/material";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
@@ -443,76 +444,105 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
             </TableHead>
 
             <TableBody>
-              {paginatedRows.map((cat, i) => (
-                <TableRow key={i} hover>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      background: theme.palette.background.paper,
-                      fontSize: "0.95rem",
-                      fontWeight: 700,
-                      lineHeight: 1.4,
-                      fontFamily: "Roboto, sans-serif",
-                      textAlign: "center",
-                    }}
-                  >
-                    <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
-                      {cat.category && (
-                        <Typography
-                          fontSize="0.7rem"
-                          fontWeight={500}
-                          fontFamily="Roboto, sans-serif"
-                          sx={{
-                            color: theme.palette.text.secondary,
-                            backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
-                            px: 1.5,
-                            py: 0.3,
-                            borderRadius: "12px",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px"
-                          }}
-                        >
-                          {cat.category}
-                        </Typography>
-                      )}
-                      <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
-                    </Box>
-                  </TableCell>
-                  {platforms.map((p) => {
-                    if (!selectedMetric) return null;
-
-                    // Convert metric key to lowercase to match backend response format
-                    const metricKeyLower = selectedMetric.key.toLowerCase();
-
-                    // Safely access nested properties with fallbacks
-                    const platformData = cat[p] || {};
-                    const main = platformData[metricKeyLower] || "-";
-                    const change = platformData[metricKeyLower + "_change"] || "-";
-
-                    return (
-                      <TableCell key={p + i} align="center">
-                        <Box
-                          display="flex"
-                          flexDirection="column"
-                          alignItems="center"
-                        >
-                          <Typography
-                            fontSize="0.95rem"
-                            fontWeight={700}
-                            fontFamily="Roboto, sans-serif"
-                          >
-                            {main}
-                          </Typography>
-                          <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
-                            {renderChange(change)}
-                          </Typography>
+              {loading ? (
+                // Skeleton loading rows
+                [1, 2, 3, 4, 5].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell
+                      sx={{
+                        position: "sticky",
+                        left: 0,
+                        background: theme.palette.background.paper,
+                        textAlign: "center",
+                      }}
+                    >
+                      <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                        <Skeleton variant="rounded" width={60} height={18} animation="wave" sx={{ borderRadius: 2 }} />
+                        <Skeleton variant="text" width={120} height={22} animation="wave" sx={{ borderRadius: 1 }} />
+                      </Box>
+                    </TableCell>
+                    {platforms.map((p, j) => (
+                      <TableCell key={p + j} align="center">
+                        <Box display="flex" flexDirection="column" alignItems="center">
+                          <Skeleton variant="text" width={60} height={22} animation="wave" sx={{ borderRadius: 1 }} />
+                          <Skeleton variant="text" width={40} height={16} animation="wave" sx={{ borderRadius: 1 }} />
                         </Box>
                       </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                paginatedRows.map((cat, i) => (
+                  <TableRow key={i} hover>
+                    <TableCell
+                      sx={{
+                        position: "sticky",
+                        left: 0,
+                        background: theme.palette.background.paper,
+                        fontSize: "0.95rem",
+                        fontWeight: 700,
+                        lineHeight: 1.4,
+                        fontFamily: "Roboto, sans-serif",
+                        textAlign: "center",
+                      }}
+                    >
+                      <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                        {cat.category && (
+                          <Typography
+                            fontSize="0.7rem"
+                            fontWeight={500}
+                            fontFamily="Roboto, sans-serif"
+                            sx={{
+                              color: theme.palette.text.secondary,
+                              backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
+                              px: 1.5,
+                              py: 0.3,
+                              borderRadius: "12px",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px"
+                            }}
+                          >
+                            {cat.category}
+                          </Typography>
+                        )}
+                        <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
+                      </Box>
+                    </TableCell>
+                    {platforms.map((p) => {
+                      if (!selectedMetric) return null;
+
+                      // Convert metric key to lowercase to match backend response format
+                      const metricKeyLower = selectedMetric.key.toLowerCase();
+
+                      // Safely access nested properties with fallbacks
+                      const platformData = cat[p] || {};
+                      const main = platformData[metricKeyLower] || "-";
+                      const change = platformData[metricKeyLower + "_change"] || "-";
+
+                      return (
+                        <TableCell key={p + i} align="center">
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                            alignItems="center"
+                          >
+                            <Typography
+                              fontSize="0.95rem"
+                              fontWeight={700}
+                              fontFamily="Roboto, sans-serif"
+                            >
+                              {main}
+                            </Typography>
+                            <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
+                              {renderChange(change)}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>

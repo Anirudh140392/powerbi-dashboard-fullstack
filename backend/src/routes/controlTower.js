@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 
 export default (app) => {
@@ -133,9 +133,10 @@ export default (app) => {
     app.get('/api/watchtower/metrics', getMetrics);
     app.get('/api/watchtower/sku-metrics', getSkuMetricsData);
 
-    // ==================== NEW: Dedicated Section Endpoints ====================
-    // These endpoints enable concurrent fetching of individual sections
+    // ==================== Progressive Loading Endpoints ====================
+    // These endpoints enable progressive data loading for better UX
     app.get('/api/watchtower/overview', getOverview);
+    app.get('/api/watchtower/performance-metrics', getPerformanceMetrics);
     app.get('/api/watchtower/platform-overview', getPlatformOverview);
     app.get('/api/watchtower/month-overview', getMonthOverview);
     app.get('/api/watchtower/category-overview', getCategoryOverview);

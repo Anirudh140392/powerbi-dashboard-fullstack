@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
-import { Typography } from "@mui/material";
+import { Typography, Skeleton, Box } from "@mui/material";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -120,24 +120,6 @@ const KPI_CARDS = [
       { period: "P7", value: 3 },
     ],
   },
-
-  // {
-  //   id: "osa",
-  //   label: "AVG OSA",
-  //   value: "95.6%",
-  //   unit: "",
-  //   tag: "stable",
-  //   tagTone: "neutral",
-  //   footer: "Availability weighted",
-  //   trendTitle: "OSA – Weighted",
-  //   trendSubtitle: "Last 4 periods",
-  //   trendData: [
-  //     { period: "P1", value: 95.2 },
-  //     { period: "P2", value: 95.4 },
-  //     { period: "P3", value: 95.7 },
-  //     { period: "P4", value: 95.6 },
-  //   ],
-  // },
 ];
 
 /* ------------------------------------------------------
@@ -161,25 +143,21 @@ export default function PerformanceMatric({
   cardWidth = 240,
   cardHeight = 120,
   data,
-  filters, // NEW: Receive filters from parent
+  filters,
 }) {
-  // Debug: Check if data is being received
-  console.log("PerformanceMetric received data:", data);
-  console.log("PerformanceMetric received filters:", filters);
+  // Check if data is loading
+  const isLoading = !data || data.length === 0;
 
   // Use backend data if available, otherwise fall back to static KPI_CARDS
-  const KPI_CARDS_DATA = data && data.length > 0 ? data : KPI_CARDS;
-
-  console.log("Using KPI_CARDS_DATA:", KPI_CARDS_DATA);
+  const KPI_CARDS_DATA = isLoading ? KPI_CARDS : data;
 
   const [activeTrendId, setActiveTrendId] = useState(null);
   const [showTrends, setShowTrends] = useState(false);
-  const [selectedKpiId, setSelectedKpiId] = useState(null); // NEW: Track which KPI was clicked
+  const [selectedKpiId, setSelectedKpiId] = useState(null);
 
   const activeCard = KPI_CARDS_DATA.find((c) => c.id === activeTrendId) || null;
 
   const handleKpiTrendClick = (kpiId) => {
-    console.log("KPI Trend clicked:", kpiId);
     setSelectedKpiId(kpiId);
     setShowTrends(true);
   };
@@ -205,16 +183,19 @@ export default function PerformanceMatric({
           paddingRight: 12,
         }}
       >
-        {KPI_CARDS_DATA.map((card) => (
-          <KpiCard
-            key={card.id}
-            card={card}
-            cardWidth={cardWidth}
-            cardHeight={cardHeight}
-            onOpenTrend={() => setActiveTrendId(card.id)}
-            onTrendClick={() => handleKpiTrendClick(card.id)} // NEW: Pass KPI ID
-          />
-        ))}
+        {isLoading
+          ? // Show skeleton cards while loading
+          [1, 2, 3, 4, 5].map((i) => <SkeletonKpiCard key={i} />)
+          : KPI_CARDS_DATA.map((card) => (
+            <KpiCard
+              key={card.id}
+              card={card}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
+              onOpenTrend={() => setActiveTrendId(card.id)}
+              onTrendClick={() => handleKpiTrendClick(card.id)}
+            />
+          ))}
       </div>
 
       {activeCard && (
@@ -223,15 +204,51 @@ export default function PerformanceMatric({
       <TrendsCompetitionDrawer
         open={showTrends}
         onClose={() => {
-          console.log("[PerformanceMetric] Closing trends drawer");
           setShowTrends(false);
-          setSelectedKpiId(null); // Reset KPI ID when closing
+          setSelectedKpiId(null);
         }}
         selectedColumn="Blinkit"
         dynamicKey="performance_dashboard_tower"
-        kpiId={selectedKpiId} // NEW: Pass KPI ID
-        filters={filters} // NEW: Pass filters
+        kpiId={selectedKpiId}
+        filters={filters}
       />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------
+   SKELETON KPI CARD - Fancy Shimmer Loading
+-------------------------------------------------------*/
+function SkeletonKpiCard() {
+  return (
+    <div
+      style={{
+        width: 260,
+        height: 150,
+        background: "#FFFFFF",
+        borderRadius: 18,
+        padding: "16px 18px",
+        boxSizing: "border-box",
+        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15), -3px 0 6px rgba(0, 0, 0, 0.12), 3px 0 6px rgba(0, 0, 0, 0.12)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+      }}
+    >
+      {/* Row 1 - Label + Icon */}
+      <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+        <Skeleton variant="circular" width={30} height={30} animation="wave" />
+      </Box>
+
+      {/* Row 2 - Value + Tag */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={0.5}>
+        <Skeleton variant="text" width={80} height={40} animation="wave" sx={{ borderRadius: 1 }} />
+        <Skeleton variant="rounded" width={70} height={24} animation="wave" sx={{ borderRadius: 3 }} />
+      </Box>
+
+      {/* Row 3 - Footer */}
+      <Skeleton variant="text" width={140} height={16} animation="wave" sx={{ borderRadius: 1 }} />
     </div>
   );
 }
