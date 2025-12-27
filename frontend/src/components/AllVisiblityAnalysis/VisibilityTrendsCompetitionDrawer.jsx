@@ -613,7 +613,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       if (firstSku) {
         setSelectedCompareSkus([firstSku]);
       }
-      setActiveMetrics(["Osa"]);
+      setActiveMetrics(["overall_sos"]);
       setCompareInitialized(true);
     }
   }, [view, compareInitialized]);
