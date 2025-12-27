@@ -221,6 +221,7 @@ const kpiFields = [
 ]
 
 const formatMetric = (kpi, value) => {
+    if (value === null) return "-" // Explicitly dash for null
     if (value === undefined || Number.isNaN(value)) return '–'
     if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}`
     return value.toFixed(1)
@@ -403,7 +404,13 @@ export default function VisibilityDrilldownTable() {
                                     label: sku.label,
                                     subtitle: sku.subtitle,
                                     level: 'sku',
-                                    metrics: sku.metrics,
+                                    metrics: {
+                                        ...sku.metrics,
+                                        catImpShare: null,
+                                        adSos: null,
+                                        orgSos: null,
+                                        overallSos: null,
+                                    },
                                     platforms: sku.platforms,
                                     children: []
                                 })
