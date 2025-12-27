@@ -365,14 +365,30 @@ const PlatformOverview = ({
             </Box>
           </Box>
 
-          {/* PLATFORM CARDS - HORIZONTAL SCROLL WITH PAGINATION */}
           <Box
             sx={{
               display: "flex",
               gap: 2,
-              overflowX: "auto",
+              overflow: "auto",
               pb: 2,
-              height: "800px",
+              height: "650px",
+              /* Custom Scrollbar for Premium Feel */
+              "&::-webkit-scrollbar": {
+                width: "6px",
+                height: "6px",
+              },
+              "&::-webkit-scrollbar-track": {
+                background: "rgba(0,0,0,0.02)",
+                borderRadius: "10px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                background: "rgba(0,0,0,0.1)",
+                borderRadius: "10px",
+                transition: "all 0.3s ease",
+              },
+              "&::-webkit-scrollbar-thumb:hover": {
+                background: "rgba(0,0,0,0.2)",
+              },
             }}
           >
             {paginatedPlatforms.map((platform) => (
@@ -383,7 +399,8 @@ const PlatformOverview = ({
                     borderRadius: 3,
                     background: theme.palette.background.default,
                     boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
-                    height: "100%",
+                    height: "fit-content",
+                    minHeight: "100%", // Stretch to container height if short
                   }}
                 >
                   {/* PREMIUM INLINE HEADER */}
