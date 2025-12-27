@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useContext, createContext } from "react";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -418,6 +419,7 @@ const buildDataModel = () => {
 
         // NEW REQUIRED KPI FIELDS
         Osa: 80 + brandIdx * 1.2 + cityIdx * 0.5,
+        Listing: 60 + Math.random() * 35,
         Doi: 40 + brandIdx * 1.3 + cityIdx * 0.6,
         Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
         Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
@@ -443,6 +445,7 @@ const buildDataModel = () => {
 
         // NEW REQUIRED KPI FIELDS
         Osa: 78 + skuIdx * 1.1 + cityIdx * 0.5,
+        Listing: 60 + Math.random() * 35,
         Doi: 42 + skuIdx * 1.0 + cityIdx * 0.4,
         Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
         Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
@@ -466,6 +469,7 @@ const buildDataModel = () => {
 
         // NEW KPI TREND LINES
         Osa: 78 + brandIdx * 1.2 + Math.sin(idx / 3) * 2,
+        Listing: 85 + brandIdx * 0.5 + Math.cos(idx / 4) * 1.5,
         Doi: 40 + brandIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
         Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
@@ -489,6 +493,7 @@ const buildDataModel = () => {
 
         // NEW KPI trend lines
         Osa: 76 + skuIdx * 1.1 + Math.sin(idx / 3) * 2,
+        Listing: 82 + skuIdx * 0.6 + Math.sin(idx / 4) * 1.5,
         Doi: 41 + skuIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
         Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
@@ -904,6 +909,12 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
+    key: "Listing",
+    label: "Listing %",
+    color: "#8B5CF6", // violet
+    unit: "%",
+  },
+  {
     key: "Assortment",
     label: "Assortment",
     color: "#22C55E", // green
@@ -1070,127 +1081,167 @@ const ProgressBar = ({ value, color }) => (
   </div>
 );
 
-const BrandTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        Brands (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">Brand</th>
-              <th className="px-3 py-2 text-right">Osa</th>
-              <th className="px-3 py-2 text-right">Assortment</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.name}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  <div className="flex flex-col items-end gap-1">
-                    <span>{row.Osa.toFixed(1)}%</span>
-                    <ProgressBar value={row.Osa} />
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
-                    {row.Assortment.toFixed(1)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={3}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
-                >
-                  No brands matching current filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+const BrandTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
-const SkuTable = ({ rows }) => (
-  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        SKUs (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">SKU</th>
-              <th className="px-3 py-2 text-left">Brand</th>
-              <th className="px-3 py-2 text-right">Osa</th>
-              <th className="px-3 py-2 text-right">Assortment</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.name}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
-                  {row.brandName}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  <div className="flex flex-col items-end gap-1">
-                    <span>{row.Osa.toFixed(1)}%</span>
-                    <ProgressBar value={row.Osa} />
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
-                    {row.Assortment.toFixed(0)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          Brands (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={4}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
-                >
-                  No SKUs matching current filters.
-                </td>
+                <th className="w-[40%] px-3 py-2 text-left">Brand</th>
+                <th className="w-[20%] px-3 py-2 text-center">Osa</th>
+                <th className="w-[20%] px-3 py-2 text-center">Listing %</th>
+                <th className="w-[20%] px-3 py-2 text-center">Assortment</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.name}
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {row.Osa.toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {row.Listing.toFixed(0)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                      {row.Assortment.toFixed(1)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No brands matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        isVisible={rows.length > pageSize}
+      />
+    </Card>
+  );
+};
+
+const SkuTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
+
+  return (
+    <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          SKUs (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="w-[30%] px-3 py-2 text-left">SKU</th>
+                <th className="w-[25%] px-3 py-2 text-left">Brand</th>
+                <th className="w-[15%] px-3 py-2 text-center">Osa</th>
+                <th className="w-[15%] px-3 py-2 text-center">Listing %</th>
+                <th className="w-[15%] px-3 py-2 text-center">Assortment</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.name}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                    {row.brandName}
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {row.Osa.toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {row.Listing.toFixed(0)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                      {row.Assortment.toFixed(0)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No SKUs matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        isVisible={rows.length > pageSize}
+      />
+    </Card>
+  );
+};
 
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
