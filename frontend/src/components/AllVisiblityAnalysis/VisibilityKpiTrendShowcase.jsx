@@ -1196,8 +1196,11 @@ const BrandTable = ({ rows }) => {
         totalPages={totalPages}
         pageSize={pageSize}
         onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        isVisible={rows.length > pageSize}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
       />
     </Card>
   );
@@ -1280,8 +1283,11 @@ const SkuTable = ({ rows }) => {
         totalPages={totalPages}
         pageSize={pageSize}
         onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        isVisible={rows.length > pageSize}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
       />
     </Card>
   );
@@ -1365,8 +1371,11 @@ const KeywordTable = ({ rows }) => {
         totalPages={totalPages}
         pageSize={pageSize}
         onPageChange={setPage}
-        onPageSizeChange={setPageSize}
-        isVisible={rows.length > pageSize}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
       />
     </Card>
   );

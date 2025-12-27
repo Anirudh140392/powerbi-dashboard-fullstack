@@ -16,6 +16,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Box } from "@mui/material";
+import PaginationFooter from "../../CommonLayout/PaginationFooter";
+
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -1466,143 +1468,191 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        Brands (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
+const BrandTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-              <th className="px-3 py-2 text-right w-[16%]">OSA</th>
-              <th className="px-3 py-2 text-right w-[16%]">SOS</th>
-              <th className="px-3 py-2 text-right w-[16%]">Price</th>
-              <th className="px-3 py-2 text-right w-[16%]">Category Share</th>
-              <th className="px-3 py-2 text-right w-[16%]">Market Share</th>
-            </tr>
-          </thead>
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = useMemo(() => {
+    return rows.slice((page - 1) * pageSize, page * pageSize);
+  }, [rows, page, pageSize]);
 
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="px-3 py-2 font-medium text-slate-900">
-                  {row.name}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  {row.osa.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  ₹{row.price.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.categoryShare.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.marketShare.toFixed(1)}%
-                </td>
-              </tr>
-            ))}
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          Brands (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
 
-            {rows.length === 0 && (
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
+          <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-slate-400"
+                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
+                <th className="px-3 py-2 text-right w-[16%]">OSA</th>
+                <th className="px-3 py-2 text-right w-[16%]">SOS</th>
+                <th className="px-3 py-2 text-right w-[16%]">Price</th>
+                <th className="px-3 py-2 text-right w-[16%]">Category Share</th>
+                <th className="px-3 py-2 text-right w-[16%]">Market Share</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
                 >
-                  No brands matching current filters
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                    {row.name}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    {row.osa.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    ₹{row.price.toFixed(1)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.categoryShare.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.marketShare.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
 
-const SkuTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        SKUs (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-slate-400"
+                  >
+                    No brands matching current filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        isVisible={rows.length > 0}
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+      />
+    </Card>
+  );
+};
 
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left w-[20%]">SKU</th>
-              <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-              <th className="px-3 py-2 text-right w-[12%]">OSA</th>
-              <th className="px-3 py-2 text-right w-[12%]">SOS</th>
-              <th className="px-3 py-2 text-right w-[12%]">Price</th>
-              <th className="px-3 py-2 text-right w-[12%]">Cat Share</th>
-              <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
-            </tr>
-          </thead>
 
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="px-3 py-2 font-medium text-slate-900">{row.name}</td>
-                <td className="px-3 py-2 text-slate-900">{row.brandName}</td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  {row.osa.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  ₹{row.price.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.categoryShare.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.marketShare.toFixed(1)}%
-                </td>
-              </tr>
-            ))}
+const SkuTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
-            {rows.length === 0 && (
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = useMemo(() => {
+    return rows.slice((page - 1) * pageSize, page * pageSize);
+  }, [rows, page, pageSize]);
+
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          SKUs (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
+          <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-slate-400"
-                >
-                  No SKUs matching current filters
-                </td>
+                <th className="px-3 py-2 text-left w-[20%]">SKU</th>
+                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
+                <th className="px-3 py-2 text-right w-[12%]">OSA</th>
+                <th className="px-3 py-2 text-right w-[12%]">SOS</th>
+                <th className="px-3 py-2 text-right w-[12%]">Price</th>
+                <th className="px-3 py-2 text-right w-[12%]">Cat Share</th>
+                <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                    {row.name}
+                  </td>
+                  <td className="px-3 py-2 text-slate-900 border-r border-slate-100">
+                    {row.brandName}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    {row.osa.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    ₹{row.price.toFixed(1)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.categoryShare.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.marketShare.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-slate-400"
+                  >
+                    No SKUs matching current filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        isVisible={rows.length > 0}
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+      />
+    </Card>
+  );
+};
+
 
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
