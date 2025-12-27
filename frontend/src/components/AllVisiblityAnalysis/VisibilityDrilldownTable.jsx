@@ -563,13 +563,15 @@ export default function VisibilityDrilldownTable() {
 
 
 
-    // Filter KPIs based on row levels - only show Ad Pos and Org Pos if SKU/City rows are present
-    const allKpis = Object.keys(KPI_LABELS).filter(kpi => {
-        if (kpi === 'adPos' || kpi === 'orgPos') {
-            return hasSkuOrCityRows
-        }
-        return true
-    })
+    // Dynamic KPIs based on data availability in visible rows
+    const allKpis = useMemo(() => {
+        return Object.keys(KPI_LABELS).filter(kpi => {
+            return pageRows.some(row => {
+                const val = row.metrics?.[kpi];
+                return val !== null && val !== undefined && !Number.isNaN(val);
+            });
+        });
+    }, [pageRows]);
 
     // Heatmap color function for Keywords/SKUs views
     const getHeatmapColor = (kpi, value) => {
@@ -590,14 +592,23 @@ export default function VisibilityDrilldownTable() {
     }
 
     const renderValueCell = (metrics, kpi) => {
-        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' }
+        const value = metrics[kpi];
+        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, value) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' };
+
         return (
-            <span
-                className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-medium"
-                style={style}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex items-center justify-center h-full w-full"
             >
-                {formatMetric(kpi, metrics[kpi])}
-            </span>
+                <span
+                    className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-semibold transition-all duration-300"
+                    style={style}
+                >
+                    {formatMetric(kpi, value)}
+                </span>
+            </motion.div>
         )
     }
 
@@ -749,21 +760,31 @@ export default function VisibilityDrilldownTable() {
                                         >
                                             {/* spacer */}
                                         </th>
-                                        {allKpis.map((kpi) => (
-                                            <th key={kpi} colSpan={activeView === 'platforms' && expandedKpis.has(kpi) ? visiblePlatforms.length : 1} className="px-2 py-2 text-center border-l border-slate-200">
-                                                <div className="flex items-center justify-center gap-1">
-                                                    {activeView === 'platforms' && (
-                                                        <button
-                                                            onClick={() => toggleKpiExpand(kpi)}
-                                                            className="flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-white text-[10px] hover:bg-slate-100"
-                                                        >
-                                                            {expandedKpis.has(kpi) ? '−' : '+'}
-                                                        </button>
-                                                    )}
-                                                    <span>{KPI_LABELS[kpi]}</span>
-                                                </div>
-                                            </th>
-                                        ))}
+                                        <AnimatePresence>
+                                            {allKpis.map((kpi) => (
+                                                <motion.th
+                                                    key={kpi}
+                                                    layout
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -10 }}
+                                                    colSpan={activeView === 'platforms' && expandedKpis.has(kpi) ? visiblePlatforms.length : 1}
+                                                    className="px-4 py-3 text-center border-l border-slate-200 overflow-hidden"
+                                                >
+                                                    <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                        {activeView === 'platforms' && (
+                                                            <button
+                                                                onClick={() => toggleKpiExpand(kpi)}
+                                                                className="flex h-5 w-5 items-center justify-center rounded-lg border border-slate-300 bg-white text-[10px] hover:bg-slate-100 transition-colors shadow-sm"
+                                                            >
+                                                                {expandedKpis.has(kpi) ? '−' : '+'}
+                                                            </button>
+                                                        )}
+                                                        <span className="tracking-tight">{KPI_LABELS[kpi]}</span>
+                                                    </div>
+                                                </motion.th>
+                                            ))}
+                                        </AnimatePresence>
                                     </tr>
                                     <tr className="bg-slate-50 text-center text-[11px] font-medium text-slate-500">
                                         <th
@@ -820,20 +841,46 @@ export default function VisibilityDrilldownTable() {
                                                 minWidth: FROZEN_WIDTHS.spacer
                                             }}
                                         />
-                                        {allKpis.flatMap((kpi) =>
-                                            activeView === 'platforms' && expandedKpis.has(kpi)
-                                                ? visiblePlatforms.map((p) => (
-                                                    <th key={`${kpi}-${p}`} className="px-2 py-2 text-center border-l border-slate-200">
-                                                        {PLATFORM_LABELS[p]}
-                                                    </th>
-                                                ))
-                                                : <th key={kpi} className="px-2 py-2 text-center border-l border-slate-200">All</th>
-                                        )}
+                                        <AnimatePresence>
+                                            {allKpis.flatMap((kpi) =>
+                                                activeView === 'platforms' && expandedKpis.has(kpi)
+                                                    ? visiblePlatforms.map((p) => (
+                                                        <motion.th
+                                                            key={`${kpi}-${p}`}
+                                                            layout
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            className="px-2 py-2 text-center border-l border-slate-200 overflow-hidden whitespace-nowrap text-[10px] font-bold text-slate-400 uppercase tracking-tighter"
+                                                        >
+                                                            {PLATFORM_LABELS[p]}
+                                                        </motion.th>
+                                                    ))
+                                                    : (
+                                                        <motion.th
+                                                            key={kpi}
+                                                            layout
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            className="px-2 py-2 text-center border-l border-slate-200 overflow-hidden whitespace-nowrap text-[10px] uppercase font-bold text-slate-400"
+                                                        >
+                                                            All
+                                                        </motion.th>
+                                                    )
+                                            )}
+                                        </AnimatePresence>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {pageRows.map((row) => (
-                                        <tr key={row.id} className="border-b border-slate-100">
+                                        <motion.tr
+                                            key={row.id}
+                                            layout
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
+                                        >
                                             <td
                                                 className="px-3 py-2"
                                                 style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
@@ -947,20 +994,36 @@ export default function VisibilityDrilldownTable() {
                                                 }}
                                             />
 
-                                            {allKpis.flatMap((kpi) =>
-                                                activeView === 'platforms' && expandedKpis.has(kpi)
-                                                    ? visiblePlatforms.map((p) => (
-                                                        <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
-                                                            {renderValueCell(row.platforms[p] ?? {}, kpi)}
-                                                        </td>
-                                                    ))
-                                                    : (
-                                                        <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
-                                                            {renderValueCell(row.metrics, kpi)}
-                                                        </td>
-                                                    )
-                                            )}
-                                        </tr>
+                                            <AnimatePresence>
+                                                {allKpis.flatMap((kpi) =>
+                                                    activeView === 'platforms' && expandedKpis.has(kpi)
+                                                        ? visiblePlatforms.map((p) => (
+                                                            <motion.td
+                                                                key={`${row.id}-${kpi}-${p}`}
+                                                                layout
+                                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                                className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
+                                                            >
+                                                                {renderValueCell(row.platforms[p] ?? {}, kpi)}
+                                                            </motion.td>
+                                                        ))
+                                                        : (
+                                                            <motion.td
+                                                                key={`${row.id}-${kpi}`}
+                                                                layout
+                                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                                className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
+                                                            >
+                                                                {renderValueCell(row.metrics, kpi)}
+                                                            </motion.td>
+                                                        )
+                                                )}
+                                            </AnimatePresence>
+                                        </motion.tr>
                                     ))}
                                 </tbody>
                             </table>
