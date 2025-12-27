@@ -68,14 +68,16 @@ const BASE_COMPARE_TRENDS = {
   Doi: [80, 81, 79, 80, 79, 78, 78, 77, 76, 77],
   Fillrate: [92, 92, 91, 91, 90, 90, 89, 89, 88, 88],
   Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51],
+  Listing: [85, 86, 84, 85, 83, 84, 82, 83, 81, 82],
 };
 
-function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
+function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset, listingOffset = 0) {
   return {
     Osa: BASE_COMPARE_TRENDS.Osa.map((v) => v + osaOffset),
     Doi: BASE_COMPARE_TRENDS.Doi.map((v) => v + doiOffset),
     Fillrate: BASE_COMPARE_TRENDS.Fillrate.map((v) => v + fillOffset),
     Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset),
+    Listing: BASE_COMPARE_TRENDS.Listing.map((v) => v + listingOffset),
   };
 }
 
@@ -656,44 +658,51 @@ export default function TrendsCompetitionDrawer({
             default: true,
           },
           {
+            id: "Listing",
+            label: "Listing %",
+            color: "#0EA5E9",
+            axis: "left",
+            default: true,
+          },
+          {
             id: "Assortment",
             label: "Assortment",
             color: "#22C55E",
             axis: "left",
-            default: true,
+            default: false,
           },
         ],
 
         points: [
-          { date: "06 Sep'25", Osa: 57, Doi: 41, Fillrate: 72, Assortment: 65 },
-          { date: "07 Sep'25", Osa: 54, Doi: 42, Fillrate: 70, Assortment: 66 },
-          { date: "08 Sep'25", Osa: 53, Doi: 40, Fillrate: 69, Assortment: 64 },
-          { date: "09 Sep'25", Osa: 53, Doi: 39, Fillrate: 68, Assortment: 63 },
-          { date: "10 Sep'25", Osa: 52, Doi: 37, Fillrate: 66, Assortment: 62 },
-          { date: "11 Sep'25", Osa: 52, Doi: 36, Fillrate: 67, Assortment: 62 },
-          { date: "12 Sep'25", Osa: 52, Doi: 35, Fillrate: 68, Assortment: 61 },
-          { date: "13 Sep'25", Osa: 52, Doi: 34, Fillrate: 69, Assortment: 60 },
-          { date: "14 Sep'25", Osa: 52, Doi: 33, Fillrate: 70, Assortment: 60 },
-          { date: "15 Sep'25", Osa: 52, Doi: 32, Fillrate: 70, Assortment: 59 },
-          { date: "16 Sep'25", Osa: 52, Doi: 32, Fillrate: 69, Assortment: 59 },
-          { date: "17 Sep'25", Osa: 51, Doi: 31, Fillrate: 68, Assortment: 58 },
-          { date: "18 Sep'25", Osa: 51, Doi: 31, Fillrate: 67, Assortment: 58 },
-          { date: "19 Sep'25", Osa: 51, Doi: 32, Fillrate: 66, Assortment: 57 },
-          { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68 },
-          { date: "21 Sep'25", Osa: 50, Doi: 34, Fillrate: 67, Assortment: 55 },
-          { date: "22 Sep'25", Osa: 49, Doi: 33, Fillrate: 66, Assortment: 54 },
-          { date: "23 Sep'25", Osa: 48, Doi: 32, Fillrate: 65, Assortment: 54 },
-          { date: "24 Sep'25", Osa: 47, Doi: 31, Fillrate: 64, Assortment: 53 },
-          { date: "25 Sep'25", Osa: 46, Doi: 30, Fillrate: 63, Assortment: 52 },
-          { date: "26 Sep'25", Osa: 45, Doi: 30, Fillrate: 62, Assortment: 52 },
-          { date: "27 Sep'25", Osa: 44, Doi: 31, Fillrate: 63, Assortment: 51 },
-          { date: "28 Sep'25", Osa: 44, Doi: 31, Fillrate: 62, Assortment: 51 },
-          { date: "29 Sep'25", Osa: 43, Doi: 32, Fillrate: 61, Assortment: 50 },
-          { date: "30 Sep'25", Osa: 43, Doi: 34, Fillrate: 60, Assortment: 49 },
-          { date: "01 Oct'25", Osa: 44, Doi: 36, Fillrate: 61, Assortment: 50 },
-          { date: "02 Oct'25", Osa: 45, Doi: 37, Fillrate: 62, Assortment: 51 },
-          { date: "03 Oct'25", Osa: 46, Doi: 39, Fillrate: 63, Assortment: 52 },
-          { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53 },
+          { date: "06 Sep'25", Osa: 57, Doi: 41, Fillrate: 72, Assortment: 65, Listing: 88 },
+          { date: "07 Sep'25", Osa: 54, Doi: 42, Fillrate: 70, Assortment: 66, Listing: 87 },
+          { date: "08 Sep'25", Osa: 53, Doi: 40, Fillrate: 69, Assortment: 64, Listing: 86 },
+          { date: "09 Sep'25", Osa: 53, Doi: 39, Fillrate: 68, Assortment: 63, Listing: 85 },
+          { date: "10 Sep'25", Osa: 52, Doi: 37, Fillrate: 66, Assortment: 62, Listing: 84 },
+          { date: "11 Sep'25", Osa: 52, Doi: 36, Fillrate: 67, Assortment: 62, Listing: 84 },
+          { date: "12 Sep'25", Osa: 52, Doi: 35, Fillrate: 68, Assortment: 61, Listing: 83 },
+          { date: "13 Sep'25", Osa: 52, Doi: 34, Fillrate: 69, Assortment: 60, Listing: 82 },
+          { date: "14 Sep'25", Osa: 52, Doi: 33, Fillrate: 70, Assortment: 60, Listing: 81 },
+          { date: "15 Sep'25", Osa: 52, Doi: 32, Fillrate: 70, Assortment: 59, Listing: 80 },
+          { date: "16 Sep'25", Osa: 52, Doi: 32, Fillrate: 69, Assortment: 59, Listing: 79 },
+          { date: "17 Sep'25", Osa: 51, Doi: 31, Fillrate: 68, Assortment: 58, Listing: 78 },
+          { date: "18 Sep'25", Osa: 51, Doi: 31, Fillrate: 67, Assortment: 58, Listing: 77 },
+          { date: "19 Sep'25", Osa: 51, Doi: 32, Fillrate: 66, Assortment: 57, Listing: 76 },
+          { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68, Listing: 85 },
+          { date: "21 Sep'25", Osa: 50, Doi: 34, Fillrate: 67, Assortment: 55, Listing: 75 },
+          { date: "22 Sep'25", Osa: 49, Doi: 33, Fillrate: 66, Assortment: 54, Listing: 74 },
+          { date: "23 Sep'25", Osa: 48, Doi: 32, Fillrate: 65, Assortment: 54, Listing: 73 },
+          { date: "24 Sep'25", Osa: 47, Doi: 31, Fillrate: 64, Assortment: 53, Listing: 72 },
+          { date: "25 Sep'25", Osa: 46, Doi: 30, Fillrate: 63, Assortment: 52, Listing: 71 },
+          { date: "26 Sep'25", Osa: 45, Doi: 30, Fillrate: 62, Assortment: 52, Listing: 70 },
+          { date: "27 Sep'25", Osa: 44, Doi: 31, Fillrate: 63, Assortment: 51, Listing: 69 },
+          { date: "28 Sep'25", Osa: 44, Doi: 31, Fillrate: 62, Assortment: 51, Listing: 68 },
+          { date: "29 Sep'25", Osa: 43, Doi: 32, Fillrate: 61, Assortment: 50, Listing: 67 },
+          { date: "30 Sep'25", Osa: 43, Doi: 34, Fillrate: 60, Assortment: 49, Listing: 66 },
+          { date: "01 Oct'25", Osa: 44, Doi: 36, Fillrate: 61, Assortment: 50, Listing: 68 },
+          { date: "02 Oct'25", Osa: 45, Doi: 37, Fillrate: 62, Assortment: 51, Listing: 69 },
+          { date: "03 Oct'25", Osa: 46, Doi: 39, Fillrate: 63, Assortment: 52, Listing: 70 },
+          { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53, Listing: 71 },
         ],
       },
 
@@ -708,12 +717,17 @@ export default function TrendsCompetitionDrawer({
         defaultTimeStep: "Daily",
 
         metrics: [
-          { id: "Osa", label: "Osa", color: "#F97316", default: true },
+          {
+            id: "Listing",
+            label: "Listing %",
+            color: "#0EA5E9",
+            default: true,
+          },
           {
             id: "Assortment",
             label: "Assortment",
             color: "#22C55E",
-            default: true,
+            default: false,
           },
         ],
 
@@ -721,14 +735,14 @@ export default function TrendsCompetitionDrawer({
 
         // keyed by SKU_DATA IDs (1..8)
         trendsBySku: {
-          1: makeSkuTrend(0, 0, 0, 0),
-          2: makeSkuTrend(-2, -1, -1, 0),
-          3: makeSkuTrend(-3, -2, -2, -1),
-          4: makeSkuTrend(-4, -3, -3, -1),
-          5: makeSkuTrend(+2, +3, +2, +2),
-          6: makeSkuTrend(+1, +2, +1, +1),
-          7: makeSkuTrend(-1, -2, -1, -1),
-          8: makeSkuTrend(+3, +1, +2, +1),
+          1: makeSkuTrend(0, 0, 0, 0, 0),
+          2: makeSkuTrend(-2, -1, -1, 0, 1),
+          3: makeSkuTrend(-3, -2, -2, -1, 2),
+          4: makeSkuTrend(-4, -3, -3, -1, 3),
+          5: makeSkuTrend(+2, +3, +2, +2, 4),
+          6: makeSkuTrend(+1, +2, +1, +1, 5),
+          7: makeSkuTrend(-1, -2, -1, -1, 6),
+          8: makeSkuTrend(+3, +1, +2, +1, 7),
         },
       },
 
@@ -748,6 +762,7 @@ export default function TrendsCompetitionDrawer({
         columns: [
           { id: "brand", label: "Brand", type: "text" },
           { id: "Osa", label: "Osa", type: "metric" },
+          { id: "Listing", label: "Listing %", type: "metric" },
           { id: "Assortment", label: "Assortment", type: "metric" },
         ],
 
@@ -757,6 +772,7 @@ export default function TrendsCompetitionDrawer({
             Osa: { value: 32.9, delta: -4.5 },
             Doi: { value: 74.6, delta: -16.3 },
             Fillrate: { value: 20.0, delta: -8.5 },
+            Listing: { value: 85.4, delta: 1.2 },
             Assortment: { value: 18.8, delta: 0.4 },
           },
           {
@@ -764,6 +780,7 @@ export default function TrendsCompetitionDrawer({
             Osa: { value: 19.6, delta: 2.2 },
             Doi: { value: 94.2, delta: 3.9 },
             Fillrate: { value: 19.3, delta: 2.7 },
+            Listing: { value: 91.2, delta: -0.5 },
             Assortment: { value: 18.5, delta: -3.1 },
           },
           {
@@ -788,6 +805,7 @@ export default function TrendsCompetitionDrawer({
             Osa: { value: 8.2, delta: -1.0 },
             Doi: { value: 76.1, delta: -8.0 },
             Fillrate: { value: 4.5, delta: -0.9 },
+            Listing: { value: 88.0, delta: 0.5 },
             Assortment: { value: 3.2, delta: 0.2 },
           },
           {
