@@ -683,7 +683,7 @@ export default function VisibilityDrilldownTable() {
 
                     <div className="flex-1 overflow-auto p-4">
                         <div className="mb-2 text-xs text-slate-500">
-                            {activeView === 'keywords' && 'Keyword Type → Brand → Keyword → SKU → City'}
+                            {activeView === 'keywords' && 'Keyword Type → Keyword → Brand  → SKU → City'}
                             {activeView === 'skus' && 'SKU → Keyword → City'}
                             {activeView === 'platforms' && 'Category drilldown → Keywords with expandable KPI columns'}
                         </div>

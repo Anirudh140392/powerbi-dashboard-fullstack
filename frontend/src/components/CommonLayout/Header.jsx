@@ -132,75 +132,77 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               }}
             >
               {/* DARK STORE / MARKET PLACE COUNT */}
-              <Box sx={{ flexShrink: 0 }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {platform === "All"
-                    ? "All"
-                    : ["Flipkart", "Amazon"].includes(platform)
-                    ? "MARKET PLACE"
-                    : "DARK STORE"}
-                </Typography>
-
-                <Box
-                  sx={{
-                    width: 120,
-                    height: "38px",
-                    bgcolor: "#F8FAFC",
-                    borderRadius: "8px",
-                    border: "1px solid #E2E8F0",
-                    display: "flex",
-                    alignItems: "center",
-                    px: 2,
-                    gap: 1,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: "#22C55E",
-                      flexShrink: 0,
-                    }}
-                  />
-
+              {title !== "Performance Marketing" && (
+                <Box sx={{ flexShrink: 0 }}>
                   <Typography
                     sx={{
-                      fontSize: "0.85rem",
+                      fontSize: "0.7rem",
                       fontWeight: 600,
-                      color: "#334155",
-                      lineHeight: 1,
+                      mb: 0.5,
+                      opacity: 0.7,
+                      textTransform: "uppercase",
                     }}
                   >
                     {platform === "All"
-                      ? 5
-                      : ["Blinkit", "Zepto", "Instamart"].includes(platform)
-                      ? 3
+                      ? "All"
                       : ["Flipkart", "Amazon"].includes(platform)
-                      ? 2
-                      : 0}
+                        ? "MARKET PLACE"
+                        : "DARK STORE"}
                   </Typography>
 
-                  <Typography
+                  <Box
                     sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 500,
-                      color: "#64748b",
-                      lineHeight: 1,
+                      width: 120,
+                      height: "38px",
+                      bgcolor: "#F8FAFC",
+                      borderRadius: "8px",
+                      border: "1px solid #E2E8F0",
+                      display: "flex",
+                      alignItems: "center",
+                      px: 2,
+                      gap: 1,
                     }}
                   >
-                    Active
-                  </Typography>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        bgcolor: "#22C55E",
+                        flexShrink: 0,
+                      }}
+                    />
+
+                    <Typography
+                      sx={{
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {platform === "All"
+                        ? 5
+                        : ["Blinkit", "Zepto", "Instamart"].includes(platform)
+                          ? 3
+                          : ["Flipkart", "Amazon"].includes(platform)
+                            ? 2
+                            : 0}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        color: "#64748b",
+                        lineHeight: 1,
+                      }}
+                    >
+                      Active
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
+              )}
 
               {/* PLATFORM SELECTION */}
               <Box sx={{ flexShrink: 0 }}>
