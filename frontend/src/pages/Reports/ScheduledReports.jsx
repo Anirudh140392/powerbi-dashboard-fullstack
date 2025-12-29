@@ -25,6 +25,52 @@ export default function ScheduledReports() {
     const [showSuccess, setShowSuccess] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
 
+    // Scheduled reports state (persist in localStorage)
+    const [scheduledReports, setScheduledReports] = useState(() => {
+        try {
+            const raw = localStorage.getItem("scheduledReports");
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    const [scheduleSuccess, setScheduleSuccess] = useState(false);
+
+    const persistSchedules = (arr) => {
+        try {
+            localStorage.setItem("scheduledReports", JSON.stringify(arr));
+        } catch (e) {
+            // ignore
+        }
+    };
+
+    const onScheduleAdd = (schedule) => {
+        // ensure id and required fields
+        const sched = {
+            id: schedule.id || Date.now().toString(),
+            email: schedule.email,
+            frequency: schedule.frequency || "Daily",
+            time: schedule.time || (dayjs().hour(9).minute(0).format("hh:mm A")),
+            reportConfig: schedule.reportConfig || { reportType: selectedFilters.reportType, platform: selectedFilters.platform },
+        };
+        setScheduledReports((prev) => {
+            const next = [sched, ...prev];
+            persistSchedules(next);
+            return next;
+        });
+        setScheduleSuccess(true);
+        setTimeout(() => setScheduleSuccess(false), 3000);
+    };
+
+    const onScheduleDelete = (id) => {
+        setScheduledReports((prev) => {
+            const next = prev.filter((s) => s.id !== id);
+            persistSchedules(next);
+            return next;
+        });
+    };
+
     // Data mapping for dependent dropdowns
     const dataMapping = {
         "Blinkit": {
@@ -147,6 +193,11 @@ export default function ScheduledReports() {
                 reportTypeOptions={reportTypeOptions}
                 customDateRange={customDateRange}
                 setCustomDateRange={setCustomDateRange}
+                scheduledReports={scheduledReports}
+                onScheduleAdd={onScheduleAdd}
+                onScheduleDelete={onScheduleDelete}
+                scheduleSuccess={scheduleSuccess}
+                setScheduleSuccess={setScheduleSuccess}
             />
         </CommonContainer>
     );
