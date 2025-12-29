@@ -646,19 +646,21 @@ const PlatformOverview = ({
                           borderRadius: "50%",
                           fontSize: "0.75rem",
                           fontWeight: active ? 700 : 500,
-                          color: active ? "#fff" : theme.palette.text.primary,
+                          color: active ? "#1f2937" : theme.palette.text.primary,
                           background: active
-                            ? "linear-gradient(135deg, #6366F1, #3B82F6)"
+                            ? "linear-gradient(135deg, #f8fafc, #e2e8f0)"
                             : "rgba(255,255,255,0.35)",
                           backdropFilter: "blur(10px)",
-                          border: "1px solid rgba(255,255,255,0.4)",
+                          border: active
+                            ? "1.5px solid #cbd5e1"
+                            : "1px solid rgba(255,255,255,0.4)",
                           boxShadow: active
-                            ? "0 6px 18px rgba(99,102,241,0.45)"
+                            ? "0 6px 18px rgba(148, 163, 184, 0.35), inset 0 1px 1px rgba(255,255,255,0.8)"
                             : "none",
                           transition: "all .25s ease",
                           "&:hover": {
                             background: active
-                              ? "linear-gradient(135deg, #4F46E5, #2563EB)"
+                              ? "linear-gradient(135deg, #f1f5f9, #cbd5e1)"
                               : "rgba(255,255,255,0.6)",
                             transform: "translateY(-1px)",
                           },
