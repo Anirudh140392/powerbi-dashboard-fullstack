@@ -552,7 +552,7 @@ const VisiblityAnalysisData = () => {
       change: "▼8.6 pts (from 26.2%)",
       changeColor: "red",
       prevText: "vs Previous Period",
-      extra: "Low performing keywords: 5",
+      extra: "High risk keywords: 5",
       extraChange: "",
       extraChangeColor: "red",
     },
