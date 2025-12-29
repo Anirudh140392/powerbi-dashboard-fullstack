@@ -49,7 +49,7 @@ const momKeywordData = {
   title: "Keyword Analysis",
   keywords: [
     {
-      keyword: "Sandwich, Cakes & Others",
+      keyword: "Branded",
       category: "Cakes & Desserts",
       months: MONTHS.map((m, idx) => ({
         month: m,
@@ -61,7 +61,7 @@ const momKeywordData = {
       })),
       children: [
         {
-          keyword: "Cakes",
+          keyword: "Magnum",
           category: "Cakes & Desserts",
           months: MONTHS.map((m, idx) => ({
             month: m,
@@ -71,26 +71,12 @@ const momKeywordData = {
             cpm: 360 + idx * 9,
             roas: 1 + (idx % 3),
           })),
-          children: [
-            {
-              keyword: "Birthday Cakes",
-              category: "Cakes & Desserts",
-              months: MONTHS.map((m, idx) => ({
-                month: m,
-                impressions: 6 + idx * 2,
-                conversion: `${1 + (idx % 3)}%`,
-                spend: 3 + idx,
-                cpm: 340 + idx * 7,
-                roas: 1 + (idx % 4),
-              })),
-            },
-          ],
         },
       ],
     },
 
     {
-      keyword: "ice cream",
+      keyword: "Browse",
       category: "Cones & Sticks",
       months: MONTHS.map((m, idx) => ({
         month: m,
@@ -102,7 +88,7 @@ const momKeywordData = {
       })),
       children: [
         {
-          keyword: "ice cream cake",
+          keyword: "Core Tub",
           category: "Cakes & Desserts",
           months: MONTHS.map((m, idx) => ({
             month: m,
@@ -112,26 +98,12 @@ const momKeywordData = {
             cpm: 350 + idx * 12,
             roas: 1 + (idx % 3),
           })),
-          children: [
-            {
-              keyword: "Premium Ice Cream Cakes",
-              category: "Premium",
-              months: MONTHS.map((m, idx) => ({
-                month: m,
-                impressions: 9 + idx * 2,
-                conversion: `${2 + (idx % 3)}%`,
-                spend: 5 + idx,
-                cpm: 370 + idx * 10,
-                roas: 1 + (idx % 4),
-              })),
-            },
-          ],
         },
       ]
     },
 
     {
-      keyword: "Gourmet",
+      keyword: "Competition",
       category: "Premium",
       months: MONTHS.map((m, idx) => ({
         month: m,
@@ -140,6 +112,19 @@ const momKeywordData = {
         spend: 3 + idx,
         cpm: 310 + idx * 9,
         roas: 1 + (idx % 4),
+      })),
+    },
+
+    {
+      keyword: "Generic",
+      category: "Family Packs",
+      months: MONTHS.map((m, idx) => ({
+        month: m,
+        impressions: 12 + idx * 2,
+        conversion: `${1 + (idx % 2)}%`,
+        spend: 5 + idx,
+        cpm: 320 + idx * 8,
+        roas: 1 + (idx % 3),
       })),
     },
   ],

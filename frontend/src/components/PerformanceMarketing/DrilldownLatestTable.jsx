@@ -44,7 +44,7 @@ const kpiModes = {
     label: 'Spend',
     description: 'Ad spend for the period.',
     formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
-    heat: () => 'bg-slate-50 text-slate-700',
+    heat: () => 'bg-white text-slate-700',
   },
   cpm: {
     label: 'CPM',
@@ -83,7 +83,7 @@ const kpiModes = {
     label: 'Inorganic',
     description: 'Inorganic / promoted sales.',
     formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
-    heat: () => 'bg-slate-50 text-slate-700',
+    heat: () => 'bg-white text-slate-700',
   },
 }
 
@@ -93,58 +93,112 @@ const sampleData = [
     format: 'Cassata',
     days: [
       {
-        day: null,
-        weekendFlag: 'Weekend',
+        day: 1,
+        weekendFlag: 'Weekday',
         tdp: 'TDP1',
-        month: 'Jul',
+        month: 'Oct',
         year: 2025,
         quarters: {
-          Q3: { impressions: 1.23, conversion: 0.01, spend: 0.29, cpm: 474.84, roas: 2.48, sales: 5.93, inorganic: 0.21 },
-          Q4: { impressions: 1.0, conversion: 0.01, spend: 0, cpm: 440.33, roas: 1.67, sales: 4.33, inorganic: 0.17 },
+          Q3: { impressions: 0.9, conversion: 0.01, spend: 0.2, cpm: 460, roas: 1.5, sales: 4.0, inorganic: 0.19 },
+          Q4: { impressions: 0.8, conversion: 0.01, spend: 0, cpm: 440, roas: 1.67, sales: 4.33, inorganic: 0.17 },
+        },
+      },
+      {
+        day: 2,
+        weekendFlag: 'Weekday',
+        tdp: 'TDP1',
+        month: 'Oct',
+        year: 2025,
+        quarters: {
+          Q3: { impressions: 1.0, conversion: 0.02, spend: 0.3, cpm: 450, roas: 1.6, sales: 4.2, inorganic: 0.2 },
+          Q4: { impressions: 1.1, conversion: 0.01, spend: 0, cpm: 435, roas: 1.7, sales: 4.1, inorganic: 0.18 },
+        },
+      },
+      {
+        day: 3,
+        weekendFlag: 'Weekday',
+        tdp: 'TDP1',
+        month: 'Oct',
+        year: 2025,
+        quarters: {
+          Q3: { impressions: 1.3, conversion: 0.03, spend: 0.4, cpm: 480, roas: 1.8, sales: 4.8, inorganic: 0.22 },
+          Q4: { impressions: 1.2, conversion: 0.02, spend: 0.1, cpm: 450, roas: 1.9, sales: 5.0, inorganic: 0.20 },
+        },
+      },
+      {
+        day: 4,
+        weekendFlag: 'Weekend',
+        tdp: 'TDP1',
+        month: 'Oct',
+        year: 2025,
+        quarters: {
+          Q3: { impressions: 1.6, conversion: 0.04, spend: 0.5, cpm: 490, roas: 2.2, sales: 5.8, inorganic: 0.26 },
+          Q4: { impressions: 1.4, conversion: 0.03, spend: 0.15, cpm: 455, roas: 2.0, sales: 5.5, inorganic: 0.22 },
         },
       },
     ],
   },
   {
-    format: 'Core Tub',
     format: 'Core Tub',
     days: [
       {
-        day: null,
-        weekendFlag: 'Weekend',
+        day: 1,
+        weekendFlag: 'Weekday',
         tdp: 'TDP1',
-        month: 'Jul',
+        month: 'Oct',
         year: 2025,
         quarters: {
-          Q3: { impressions: 1.29, conversion: 0.02, spend: 0.58, cpm: 420.1, roas: 3.23, sales: 6.69, inorganic: 0.28 },
-          Q4: { impressions: 1.0, conversion: 0.04, spend: 0, cpm: 417.0, roas: 5.0, sales: 7.67, inorganic: 0.23 },
+          Q3: { impressions: 1.1, conversion: 0.02, spend: 0.5, cpm: 410, roas: 3.1, sales: 6.5, inorganic: 0.25 },
+          Q4: { impressions: 1.0, conversion: 0.04, spend: 0, cpm: 417, roas: 5.0, sales: 7.6, inorganic: 0.23 },
+        },
+      },
+      {
+        day: 2,
+        weekendFlag: 'Weekday',
+        tdp: 'TDP1',
+        month: 'Oct',
+        year: 2025,
+        quarters: {
+          Q3: { impressions: 1.3, conversion: 0.03, spend: 0.6, cpm: 425, roas: 3.3, sales: 7.0, inorganic: 0.3 },
+          Q4: { impressions: 1.2, conversion: 0.05, spend: 0.1, cpm: 420, roas: 5.2, sales: 8.0, inorganic: 0.25 },
+        },
+      },
+      {
+        day: 3,
+        weekendFlag: 'Weekend',
+        tdp: 'TDP1',
+        month: 'Oct',
+        year: 2025,
+        quarters: {
+          Q3: { impressions: 1.5, conversion: 0.04, spend: 0.7, cpm: 430, roas: 3.5, sales: 7.5, inorganic: 0.35 },
+          Q4: { impressions: 1.4, conversion: 0.06, spend: 0.2, cpm: 425, roas: 5.5, sales: 8.5, inorganic: 0.28 },
         },
       },
     ],
   },
   {
-    format: 'KW Sticks',
+    format: 'Kw Sticks',
     days: [
       {
         day: 1,
         weekendFlag: 'Weekday',
         tdp: 'TDP2',
-        month: 'Jul',
+        month: 'Oct',
         year: 2025,
         quarters: {
-          Q3: { impressions: 0, conversion: 0.03, spend: 0, cpm: 393.16, roas: 7.74, sales: 1.34, inorganic: 0.07 },
-          Q4: {},
+          Q3: { impressions: 0.5, conversion: 0.02, spend: 0.2, cpm: 380, roas: 6.0, sales: 2.0, inorganic: 0.1 },
+          Q4: { impressions: 1.8, conversion: 0.02, spend: 0.8, cpm: 350, roas: 4.5, sales: 9.0, inorganic: 0.25 },
         },
       },
       {
         day: 2,
         weekendFlag: 'Weekday',
         tdp: 'TDP2',
-        month: 'Jul',
+        month: 'Oct',
         year: 2025,
         quarters: {
-          Q3: { impressions: 2, conversion: 0.01, spend: 0.5, cpm: 329.5, roas: 3, sales: 10, inorganic: 0.24 },
-          Q4: { impressions: 2, conversion: 0.01, spend: 1, cpm: 341, roas: 4, sales: 10, inorganic: 0.29 },
+          Q3: { impressions: 1.5, conversion: 0.01, spend: 0.4, cpm: 350, roas: 4.0, sales: 8.0, inorganic: 0.2 },
+          Q4: { impressions: 2.0, conversion: 0.01, spend: 1.0, cpm: 340, roas: 4.0, sales: 10.0, inorganic: 0.29 },
         },
       },
     ],
@@ -156,11 +210,22 @@ const sampleData = [
         day: 1,
         weekendFlag: 'Weekday',
         tdp: 'TDP3',
-        month: 'Jul',
+        month: 'Oct',
         year: 2025,
         quarters: {
-          Q3: { impressions: 1, conversion: 0.01, spend: 0.5, cpm: 292, roas: 3.5, sales: 9.5, inorganic: 0.22 },
-          Q4: { impressions: 2, conversion: 0.01, spend: 1, cpm: 340, roas: 3, sales: 9, inorganic: 0.28 },
+          Q3: { impressions: 1.5, conversion: 0.01, spend: 0.6, cpm: 300, roas: 3.2, sales: 9.0, inorganic: 0.2 },
+          Q4: { impressions: 2.2, conversion: 0.02, spend: 1.1, cpm: 350, roas: 3.1, sales: 9.2, inorganic: 0.29 },
+        },
+      },
+      {
+        day: 2,
+        weekendFlag: 'Weekend',
+        tdp: 'TDP3',
+        month: 'Oct',
+        year: 2025,
+        quarters: {
+          Q3: { impressions: 2.0, conversion: 0.02, spend: 0.8, cpm: 310, roas: 3.8, sales: 10.0, inorganic: 0.25 },
+          Q4: { impressions: 2.5, conversion: 0.02, spend: 1.2, cpm: 360, roas: 3.5, sales: 9.8, inorganic: 0.35 },
         },
       },
     ],
@@ -281,6 +346,7 @@ function aggregateMonthKpis(rows) {
 // ---------------------- MAIN COMPONENT ------------------------
 // -------------------------------------------------------------
 export default function DrilldownLatestTable() {
+  console.log("DrilldownLatestTable loaded - Version 2 (Branded/Browse)")
   const [activeKpi, setActiveKpi] = useState('roas')
   const [visibleKpis, setVisibleKpis] = useState({
     impressions: true,
@@ -313,7 +379,7 @@ export default function DrilldownLatestTable() {
   const [sortField, setSortField] = useState('format')
   const [sortDir, setSortDir] = useState('asc')
   const quarters = useMemo(() => ['Q3', 'Q4'], [])
-  const [expandedQuarters, setExpandedQuarters] = useState(new Set(['Q3', 'Q4']))
+  const [expandedQuarters, setExpandedQuarters] = useState(new Set(['Q4']))
   const showHierarchyColumn = true
 
   // --------------- FLATTEN RAW DATA ---------------
@@ -509,7 +575,7 @@ export default function DrilldownLatestTable() {
                   Format Performance (Heatmap)
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-                  Format → Day
+                  Keyword Type → Day
                 </Typography>
               </Box>
             </Box>
@@ -562,7 +628,7 @@ export default function DrilldownLatestTable() {
             {/* PATH LEGEND */}
             <div className="mb-4 flex items-center gap-2 text-[11px] text-slate-500">
               <span className="px-2 py-1 rounded-full bg-slate-50 border">Path</span>
-              Format → Day
+              Keyword Type → Day
             </div>
 
             {/* TABLE WRAPPER WITH FULL BORDER */}
@@ -694,7 +760,7 @@ export default function DrilldownLatestTable() {
                           style={{
                             position: 'sticky',
                             left: 0,
-                            background: row.depth % 2 ? '#f8fafc' : '#fff',
+                            background: '#fff',
                             width: FROZEN_WIDTHS.format,
                             zIndex: 10
                           }}
@@ -730,7 +796,7 @@ export default function DrilldownLatestTable() {
                             style={{
                               position: 'sticky',
                               left: LEFT_DAY,
-                              background: row.depth % 2 ? '#f8fafc' : '#fff',
+                              background: '#fff',
                               zIndex: 10
                             }}
                           >
@@ -754,7 +820,7 @@ export default function DrilldownLatestTable() {
                                 return (
                                   <td
                                     key={`${row.id}-${m}-${k}`}
-                                    className={`px-1.5 py-1 text-center border-r border-slate-100 last:border-r-0 ${mi % 2 ? 'bg-white' : 'bg-slate-50/30'}`}
+                                    className={`px-1.5 py-2 text-center border-r border-slate-100 last:border-r-0 ${mi % 2 ? 'bg-white' : 'bg-slate-50/30'}`}
                                   >
                                     <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
                                       {display}
@@ -773,7 +839,7 @@ export default function DrilldownLatestTable() {
                             return (
                               <td
                                 key={`${row.id}-${q}-${k}`}
-                                className="px-1.5 py-1 text-center bg-slate-50 border-r border-slate-100 last:border-r-0"
+                                className="px-1.5 py-2 text-center bg-slate-50 border-r border-slate-100 last:border-r-0"
                               >
                                 <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
                                   {display}
