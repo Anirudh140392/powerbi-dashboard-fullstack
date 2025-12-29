@@ -143,11 +143,11 @@ const mockKeywords = [
 // --- Helpers ---------------------------------------------------------------
 
 function getCellClasses(value) {
-  if (value >= 90) return "bg-emerald-50 text-emerald-800 border-emerald-100";
+  if (value >= 90) return "bg-green-100 text-green-900 border-green-200";
   if (value >= 80) return "bg-green-50 text-green-800 border-green-100";
-  if (value >= 70) return "bg-amber-50 text-amber-800 border-amber-100";
-  if (value >= 60) return "bg-orange-50 text-orange-800 border-orange-100";
-  return "bg-rose-50 text-rose-800 border-rose-100";
+  if (value >= 70) return "bg-yellow-100 text-yellow-900 border-yellow-200";
+  if (value >= 60) return "bg-orange-100 text-orange-900 border-orange-200";
+  return "bg-red-100 text-red-900 border-red-200";
 }
 
 function getTrendMeta(trend) {

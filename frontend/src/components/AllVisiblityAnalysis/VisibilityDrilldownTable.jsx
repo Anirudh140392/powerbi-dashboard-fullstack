@@ -593,7 +593,7 @@ export default function VisibilityDrilldownTable() {
 
     const renderValueCell = (metrics, kpi) => {
         const value = metrics[kpi];
-        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, value) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' };
+        const style = getHeatmapColor(kpi, value);
 
         return (
             <motion.div
