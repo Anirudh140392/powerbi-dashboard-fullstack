@@ -778,52 +778,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 {collectedData?.title}
               </Typography>
 
-              {/* QUICK CATEGORY FILTER */}
-              <Select
-                value={activeFilters.brands.length === 1 ? activeFilters.brands[0] : "all"}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setActiveFilters((prev) => ({
-                    ...prev,
-                    brands: val === "all" ? [] : [val],
-                  }));
-                }}
-                displayEmpty
-                variant="standard"
-                disableUnderline
-                parseError={false}
-                sx={{
-                  fontSize: 12,
-                  borderRadius: 999,
-                  px: 2,
-                  height: 28,
-                  backgroundColor: "#f1f5f9",
-                  color: "#334155",
-                  border: "1px solid #e2e8f0",
-                  "&:hover": { backgroundColor: "#e2e8f0" },
-                  "& .MuiSelect-select": {
-                    paddingRight: "16px !important",
-                    py: 0.5,
-                    display: "flex",
-                    alignItems: "center",
-                  },
-                  minWidth: 120,
-                }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: { borderRadius: 2, mt: 1 },
-                  },
-                }}
-              >
-                <MenuItem value="all" sx={{ fontSize: 12, fontWeight: 500 }}>
-                  All Categories
-                </MenuItem>
-                {filterOptions.brands.map((b) => (
-                  <MenuItem key={b.label} value={b.label} sx={{ fontSize: 12 }}>
-                    {b.label}
-                  </MenuItem>
-                ))}
-              </Select>
+              {/* QUICK CATEGORY FILTER REMOVED */}
             </Box>
 
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
