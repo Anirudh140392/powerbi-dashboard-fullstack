@@ -155,19 +155,29 @@ export const ScheduledReport = ({
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(5);
   const pageSizeOptions = [5, 10, 20, 50];
-  const totalPages = Math.max(1, Math.ceil((scheduledReports || []).length / pageSize));
+  const totalPages = Math.max(
+    1,
+    Math.ceil((scheduledReports || []).length / pageSize)
+  );
 
   // Keep footer visible when dataset is larger than smallest page-size option
   // so the user can change Rows/page even if current pageSize collapses pages to 1.
   const minPageOption = Math.min(...pageSizeOptions);
-  const showPagination = (scheduledReports || []).length > minPageOption || totalPages > 1;
+  const showPagination =
+    (scheduledReports || []).length > minPageOption || totalPages > 1;
 
   React.useEffect(() => {
-    const tp = Math.max(1, Math.ceil((scheduledReports || []).length / pageSize));
+    const tp = Math.max(
+      1,
+      Math.ceil((scheduledReports || []).length / pageSize)
+    );
     if (page > tp) setPage(tp);
   }, [scheduledReports, pageSize]);
 
-  const paginatedSchedules = (scheduledReports || []).slice((page - 1) * pageSize, page * pageSize);
+  const paginatedSchedules = (scheduledReports || []).slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
   return (
     <>
       <style>
@@ -307,7 +317,7 @@ export const ScheduledReport = ({
                 <CloudDownloadIcon sx={{ fontSize: 32, color: "#fff" }} />
               </Box>
             </Box>
-            <Typography
+            {/* <Typography
               variant="h4"
               sx={{
                 fontWeight: 700,
@@ -317,6 +327,9 @@ export const ScheduledReport = ({
                 mb: 1,
               }}
             >
+              Download Custom Reports
+            </Typography> */}
+            <Typography variant="h4" fontWeight={600}>
               Download Custom Reports
             </Typography>
             <Typography
@@ -831,8 +844,7 @@ export const ScheduledReport = ({
               sx={{
                 p: 3,
                 borderRadius: "16px",
-                background:
-                  "linear-gradient(135deg, #34d39930 0%, #10b98150 100%)",
+                background: "white",
                 backdropFilter: "blur(10px)",
                 border: "2px solid rgba(16, 185, 129, 0.35)",
                 transition: "all 0.3s ease",
@@ -918,8 +930,7 @@ export const ScheduledReport = ({
               sx={{
                 p: 3,
                 borderRadius: "16px",
-                background:
-                  "linear-gradient(135deg, #a78bfa30 0%, #8b5cf650 100%)",
+                background: "white",
                 backdropFilter: "blur(10px)",
                 border: "2px solid rgba(168, 85, 247, 0.3)",
                 transition: "all 0.3s ease",
@@ -1110,18 +1121,23 @@ export const ScheduledReport = ({
                     ))}
                   </TableBody>
                 </Table>
-              { showPagination && (
-                <PaginationFooter
-                  isVisible={true}
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={(p) => setPage(Math.min(Math.max(1, p), totalPages))}
-                  pageSize={pageSize}
-                  onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-                  pageSizeOptions={pageSizeOptions}
-                  itemsLabel="Rows/page"
-                />
-              )}
+                {showPagination && (
+                  <PaginationFooter
+                    isVisible={true}
+                    currentPage={page}
+                    totalPages={totalPages}
+                    onPageChange={(p) =>
+                      setPage(Math.min(Math.max(1, p), totalPages))
+                    }
+                    pageSize={pageSize}
+                    onPageSizeChange={(s) => {
+                      setPageSize(s);
+                      setPage(1);
+                    }}
+                    pageSizeOptions={pageSizeOptions}
+                    itemsLabel="Rows/page"
+                  />
+                )}
               </TableContainer>
             </Box>
           </motion.div>
