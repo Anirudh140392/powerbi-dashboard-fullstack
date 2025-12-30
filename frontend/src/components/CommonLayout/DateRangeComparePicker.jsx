@@ -237,6 +237,18 @@ export default function DateRangeComparePicker({
         const [ns, ne] = computeCompareRange(cs, ce, compareMode);
         setCustomCompareStart(ns);
         setCustomCompareEnd(ne);
+
+        // Auto-apply and close
+        if (onApply) {
+            onApply(
+                dayjs(cs),
+                dayjs(ce),
+                dayjs(ns),
+                dayjs(ne),
+                compareOn
+            );
+        }
+        handleClose();
     }
 
     function onPrimaryStartChange(v) {
@@ -351,19 +363,7 @@ export default function DateRangeComparePicker({
                             </Box>
                         </Box>
 
-                        <Box sx={{ mt: 3 }}>
-                            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', mb: 1.5 }}>Quick Ranges</Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                                {quickRanges.map((q) => (
-                                    <CustomChip
-                                        key={q.key}
-                                        active={activeQuick === q.key}
-                                        onClick={() => applyQuick(q.key)}
-                                        title={q.label}
-                                    />
-                                ))}
-                            </Box>
-                        </Box>
+
                     </Box>
 
                     <Box sx={{ p: 2.5 }}>
@@ -423,6 +423,20 @@ export default function DateRangeComparePicker({
                                 </Box>
                             </Box>
                         )}
+
+                        <Box sx={{ mt: 3, mb: 3 }}>
+                            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', mb: 1.5 }}>Quick Ranges</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                                {quickRanges.map((q) => (
+                                    <CustomChip
+                                        key={q.key}
+                                        active={activeQuick === q.key}
+                                        onClick={() => applyQuick(q.key)}
+                                        title={q.label}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
 
                         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Button onClick={handleClose} sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}>Cancel</Button>

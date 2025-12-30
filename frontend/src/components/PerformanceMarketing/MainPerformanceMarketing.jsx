@@ -6,56 +6,39 @@ import axiosInstance from "../../api/axiosInstance";
 import performanceData from "../../utils/PerformanceMarketingData";
 import HeatMapDrillTable from "./HeatMapDrillTable";
 import InsightHorizontalKpis from "./InsightHorizontalKpis";
-import KeywordAnalysisTable from "./KeywordAnalysisTable";
-import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 import DrilldownLatestTable from "./DrilldownLatestTable";
-
-const cards = [
-  {
-    title: "Impressions",
-    value: "65.2%",
-    sub: "MTD on-shelf coverage",
-    change: "▲3.1 pts (from 82.1%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "High risk stores: 12",
-    extraChange: "▼4 stores",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Direct Conv",
-    value: "52.4",
-    sub: "Network average days of cover",
-    change: "▼5.3% (from 65.9)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Target band: 55–65 days",
-    extraChange: "Within target range",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Spend",
-    value: "43.7%",
-    sub: "Supplier fulfillment rate",
-    change: "▲1.8 pts (from 91.9%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 6%",
-    extraChange: "▼1.2 pts",
-    extraChangeColor: "green",
-  },
-  {
-    title: "New Users",
-    value: "60.5%",
-    sub: "MTD availability across metro cities",
-    change: "▼2.0 pts (from 80.5%)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Top 10 stores: 84.2%",
-    extraChange: "▲0.6 pts",
-    extraChangeColor: "green",
-  },
+import KeywordAnalysisTable from "./KeywordAnalysisTable";
+const kpiStats = [
+  { label: "Impressions", value: "91", trend: "10.4%", trendColor: "bg-emerald-400", trendShape: "rounded-full" },
+  { label: "Conversion", value: "1%", trend: "0.1%", trendColor: "bg-emerald-400", trendShape: "rounded-full" },
+  { label: "Spend", value: "65", trend: "18.0%", trendColor: "bg-rose-500", trendShape: "rounded-full" },
+  { label: "ROAS", value: "3", trend: "0.0", trendColor: "bg-rose-500", trendShape: "rounded-full" },
 ];
+
+function KpiStats() {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-6xl mx-auto">
+      {kpiStats.map((stat, index) => (
+        <div key={index} className="flex flex-col justify-start gap-4 rounded-3xl bg-white p-6 shadow-sm border border-slate-100 min-h-[180px]">
+          <div className="text-sm font-bold text-slate-700">
+            {stat.label}
+          </div>
+
+          <div className="text-6xl font-bold text-slate-900">
+            {stat.value}
+          </div>
+
+          <div className="flex items-center gap-2 mt-auto">
+            <div className={`h-3 w-3 ${stat.trendColor} rounded-full`}></div>
+            <div className="text-sm font-medium text-slate-600">
+              {stat.trend}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function MainPerformanceMarketings() {
   const calledOnce = useRef(false);
@@ -82,10 +65,7 @@ export default function MainPerformanceMarketings() {
     <Box>
 
       <Box sx={{ mt: 4 }}>
-        <MetricCardContainer
-          title="Performance Marketing Overview"
-          cards={cards}
-        />
+        <KpiStats />
       </Box>
       <Box sx={{ mt: 4 }}>
         <InsightHorizontalKpis
