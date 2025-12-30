@@ -51,6 +51,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     setCompareStart,
     compareEnd,
     setCompareEnd,
+    setComparisonLabel,
   } = React.useContext(FilterContext);
 
   const location = useLocation();
@@ -224,9 +225,22 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   timeEnd={timeEnd}
                   compareStart={compareStart}
                   compareEnd={compareEnd}
-                  onApply={(start, end, cStart, cEnd, compareOn) => {
+                  onApply={(start, end, cStart, cEnd, compareOn, label) => {
                     setTimeStart(start);
                     setTimeEnd(end);
+
+                    // Format label for KPI cards
+                    let formattedLabel = "VS PREV. PERIOD";
+                    if (label) {
+                      const up = label.toUpperCase();
+                      if (up === "TODAY") formattedLabel = "VS YESTERDAY"; // Usually compares to yesterday
+                      else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
+                      else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
+                      else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
+                      else formattedLabel = `VS ${up}`;
+                    }
+                    setComparisonLabel(formattedLabel);
+
                     if (compareOn) {
                       setCompareStart(cStart);
                       setCompareEnd(cEnd);

@@ -49,8 +49,8 @@ const momKeywordData = {
   title: "Keyword Analysis",
   keywords: [
     {
-      keyword: "Branded",
-      category: "Cakes & Desserts",
+      keyword: "Family Pack",
+      category: "Family Packs",
       months: MONTHS.map((m, idx) => ({
         month: m,
         impressions: 20 + idx * 2,
@@ -71,12 +71,26 @@ const momKeywordData = {
             cpm: 360 + idx * 9,
             roas: 1 + (idx % 3),
           })),
+          children: [
+            {
+              keyword: "Cakes & Desserts",
+              category: "Cakes & Desserts",
+              months: MONTHS.map((m, idx) => ({
+                month: m,
+                impressions: 10 + idx * 3,
+                conversion: `${2 + (idx % 4)}%`,
+                spend: 4 + idx,
+                cpm: 360 + idx * 9,
+                roas: 1 + (idx % 3),
+              })),
+            }
+          ]
         },
       ],
     },
 
     {
-      keyword: "Browse",
+      keyword: "Ice cream",
       category: "Cones & Sticks",
       months: MONTHS.map((m, idx) => ({
         month: m,
@@ -98,12 +112,26 @@ const momKeywordData = {
             cpm: 350 + idx * 12,
             roas: 1 + (idx % 3),
           })),
+          children: [
+            {
+              keyword: "Cakes & Desserts",
+              category: "Cakes & Desserts",
+              months: MONTHS.map((m, idx) => ({
+                month: m,
+                impressions: 14 + idx,
+                conversion: `${1 + (idx % 2)}%`,
+                spend: 6 + idx,
+                cpm: 350 + idx * 12,
+                roas: 1 + (idx % 3),
+              })),
+            }
+          ]
         },
       ]
     },
 
     {
-      keyword: "Competition",
+      keyword: "Double Chocolate",
       category: "Premium",
       months: MONTHS.map((m, idx) => ({
         month: m,
@@ -116,7 +144,7 @@ const momKeywordData = {
     },
 
     {
-      keyword: "Generic",
+      keyword: "Gourmet",
       category: "Family Packs",
       months: MONTHS.map((m, idx) => ({
         month: m,
@@ -560,9 +588,49 @@ export default function KeywordAnalysisTable() {
       {/* HEADER & CONTROLS */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
         <Box>
-          <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
-            {momKeywordData.title}
-          </Typography>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+              {momKeywordData.title}
+            </Typography>
+            <Select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              displayEmpty
+              variant="standard"
+              disableUnderline
+              sx={{
+                fontSize: 12,
+                borderRadius: 999,
+                px: 1.5,
+                height: 32, // Smaller height
+                backgroundColor: "#f1f5f9",
+                color: "#334155",
+                border: "1px solid #e2e8f0",
+                "&:hover": { backgroundColor: "#e2e8f0" },
+                "& .MuiSelect-select": {
+                  paddingRight: "24px !important",
+                  py: 0.5, // Tighter vertical padding
+                  display: "flex",
+                  alignItems: "center",
+                },
+                minWidth: 120, // Smaller width
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: { borderRadius: 2, mt: 1 },
+                },
+              }}
+            >
+              <MenuItem value="All" sx={{ fontSize: 12, fontWeight: 500 }}>
+                All Categories
+              </MenuItem>
+              {filterOptions.categories.map((c) => (
+                <MenuItem key={c.label} value={c.label} sx={{ fontSize: 12 }}>
+                  {c.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </Box>
           <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
             Keyword → Sub-keyword → Category
           </Typography>
@@ -617,12 +685,13 @@ export default function KeywordAnalysisTable() {
             }}
           />
         </Box>
-      </Box>
+      </Box >
 
       {/* TABLE */}
-      <TableContainer
+      < TableContainer
         component={Paper}
-        sx={{ mt: 2, maxHeight: 520, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: 'none' }}
+        sx={{ mt: 2, maxHeight: 520, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: 'none' }
+        }
       >
         <Table size="small" stickyHeader>
           <TableHead>
@@ -670,10 +739,10 @@ export default function KeywordAnalysisTable() {
             </AnimatePresence>
           </TableBody>
         </Table>
-      </TableContainer>
+      </TableContainer >
 
       {/* PAGINATION FOOTER */}
-      <div className="border-t border-slate-100">
+      < div className="border-t border-slate-100" >
         <PaginationFooter
           isVisible={true}
           currentPage={page}
@@ -685,7 +754,7 @@ export default function KeywordAnalysisTable() {
             setPage(1);
           }}
         />
-      </div>
-    </Card>
+      </div >
+    </Card >
   );
 }
