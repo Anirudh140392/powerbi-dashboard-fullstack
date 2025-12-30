@@ -93,7 +93,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
             <MenuIcon />
           </IconButton>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2.5 }}>
             <IconButton
               size="small"
               onClick={() => setIsExpanded(!isExpanded)}
@@ -116,13 +116,14 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 {title}
               </Typography>
               {title !== "Performance Marketing" && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Box
                     sx={{
                       width: 6,
                       height: 6,
                       borderRadius: "50%",
                       bgcolor: "#22C55E",
+                      mt: 0.25,
                     }}
                   />
                   <Typography
@@ -130,6 +131,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       fontSize: "0.75rem",
                       fontWeight: 600,
                       color: "#64748b",
+                      mt: 0.25,
                     }}
                   >
                     {(() => {
