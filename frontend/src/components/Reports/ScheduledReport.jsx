@@ -23,17 +23,26 @@ import {
   TableRow,
   Snackbar,
   InputAdornment,
+  Grid,
+  Divider,
+  Stack,
+  useTheme,
 } from "@mui/material";
 import {
   Download as DownloadIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
   CloudDownload as CloudDownloadIcon,
-  TrendingUp as TrendingUpIcon,
   Email as EmailIcon,
   Delete as DeleteIcon,
   AddCircle as AddCircleIcon,
   Close as CloseIcon,
+  FilterList as FilterListIcon,
+  CalendarMonth as CalendarIcon,
+  Place as PlaceIcon,
+  Store as StoreIcon,
+  Category as CategoryIcon,
+  Assessment as AssessmentIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { TimePicker } from "@mui/x-date-pickers/TimePicker";
@@ -79,53 +88,35 @@ export const ScheduledReport = ({
     return emailRegex.test(email);
   };
 
+  const theme = useTheme();
+
   const SuccessToast = ({ open, message, onClose, color = "success" }) => {
     return (
-      <AnimatePresence>
-        {open && (
-          <Snackbar
-            open={open}
-            autoHideDuration={4000}
-            onClose={onClose}
-            anchorOrigin={{ vertical: "top", horizontal: "right" }}
-            sx={{ zIndex: 2000 }}
-          >
-            <motion.div
-              initial={{ opacity: 0, x: 50, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 50, scale: 0.9 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-            >
-              <Alert
-                severity={color}
-                icon={<CheckCircleIcon />}
-                action={
-                  <IconButton size="small" onClick={onClose}>
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                }
-                sx={{
-                  minWidth: 360,
-                  borderRadius: "14px",
-                  fontWeight: 600,
-                  boxShadow:
-                    color === "success"
-                      ? "0 12px 30px rgba(34,197,94,0.35)"
-                      : "0 12px 30px rgba(139,92,246,0.35)",
-                }}
-              >
-                {message}
-              </Alert>
-            </motion.div>
-          </Snackbar>
-        )}
-      </AnimatePresence>
+      <Snackbar
+        open={open}
+        autoHideDuration={4000}
+        onClose={onClose}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        sx={{ zIndex: 2000 }}
+      >
+        <Alert
+          severity={color}
+          onClose={onClose}
+          sx={{
+            width: "100%",
+            borderRadius: "8px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            fontWeight: 500,
+          }}
+        >
+          {message}
+        </Alert>
+      </Snackbar>
     );
   };
 
   // Handle schedule save
   const handleScheduleSave = () => {
-    console.log('scheduleForm:');
     if (!scheduleForm.email) {
       setEmailError("Email is required");
       return;
@@ -151,17 +142,15 @@ export const ScheduledReport = ({
     setScheduleModalOpen(false);
   };
 
-  // Pagination for Active Schedules (uses project PaginationFooter)
+  // Pagination for Active Schedules
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(5);
-  const pageSizeOptions = [5, 10, 20, 50];
+  const [pageSize, setPageSize] = React.useState(4);
+  const pageSizeOptions = [4, 10, 20, 50];
   const totalPages = Math.max(
     1,
     Math.ceil((scheduledReports || []).length / pageSize)
   );
 
-  // Keep footer visible when dataset is larger than smallest page-size option
-  // so the user can change Rows/page even if current pageSize collapses pages to 1.
   const minPageOption = Math.min(...pageSizeOptions);
   const showPagination =
     (scheduledReports || []).length > minPageOption || totalPages > 1;
@@ -178,970 +167,847 @@ export const ScheduledReport = ({
     (page - 1) * pageSize,
     page * pageSize
   );
-  return (
-    <>
-      <style>
-        {`
-          @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
 
-          @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-          }
-
-          @keyframes pulse-glow {
-            0%, 100% { 
-              box-shadow: 0 0 20px rgba(59, 130, 246, 0.3),
-                          0 0 40px rgba(59, 130, 246, 0.2),
-                          0 0 60px rgba(59, 130, 246, 0.1);
-            }
-            50% { 
-              box-shadow: 0 0 30px rgba(59, 130, 246, 0.5),
-                          0 0 60px rgba(59, 130, 246, 0.3),
-                          0 0 80px rgba(59, 130, 246, 0.2);
-            }
-          }
-
-          @keyframes shimmer {
-            0% { background-position: -1000px 0; }
-            100% { background-position: 1000px 0; }
-          }
-
-          .gradient-border {
-            position: relative;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            background-size: 200% 200%;
-            animation: gradient-shift 3s ease infinite;
-            padding: 2px;
-            border-radius: 16px;
-          }
-
-          .dropdown-container {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          }
-
-          .dropdown-container:hover {
-            transform: translateY(-4px);
-          }
-
-          .download-button-glow {
-            animation: pulse-glow 2s ease-in-out infinite;
-          }
-
-          .shimmer-effect {
-            background: linear-gradient(
-              90deg,
-              transparent 0%,
-              rgba(255, 255, 255, 0.3) 50%,
-              transparent 100%
-            );
-            background-size: 1000px 100%;
-            animation: shimmer 2s infinite;
-          }
-        `}
-      </style>
-
-      <Box
-        sx={{
-          minHeight: "calc(100vh - 200px)",
-          background: "linear-gradient(135deg, #667eea15 0%, #764ba215 100%)",
-          borderRadius: "20px",
-          p: 4,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Animated Background Elements */}
+  const FilterCard = ({ title, icon: Icon, color, children }) => (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        borderRadius: "12px",
+        height: "100%",
+        border: "1px solid #E2E8F0",
+        transition: "all 0.2s ease-in-out",
+        "&:hover": {
+          borderColor: color,
+          boxShadow: `0 4px 12px ${color}15`,
+          transform: "translateY(-2px)",
+        },
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
         <Box
           sx={{
-            position: "absolute",
-            top: "-50%",
-            right: "-10%",
-            width: "500px",
-            height: "500px",
-            background:
-              "radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)",
-            borderRadius: "50%",
-            animation: "float 6s ease-in-out infinite",
-            pointerEvents: "none",
+            width: 32,
+            height: 32,
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: `${color}15`,
+            color: color,
           }}
-        />
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: "-30%",
-            left: "-5%",
-            width: "400px",
-            height: "400px",
-            background:
-              "radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, transparent 70%)",
-            borderRadius: "50%",
-            animation: "float 8s ease-in-out infinite",
-            animationDelay: "1s",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Header Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
         >
+          <Icon fontSize="small" />
+        </Box>
+        <Typography
+          variant="subtitle2"
+          sx={{ fontWeight: 600, color: "#475569" }}
+        >
+          {title}
+        </Typography>
+      </Box>
+      {children}
+    </Paper>
+  );
+
+  return (
+    <Box
+      sx={{
+        minHeight: "calc(100vh - 140px)",
+        background: "#F8FAFC", // Slate-50
+        borderRadius: "16px",
+        p: { xs: 2, md: 4 },
+        fontFamily: "'Roboto', sans-serif",
+      }}
+    >
+      {/* Header Section */}
+      <Box sx={{ maxWidth: "1200px", mx: "auto", mb: 5 }}>
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 3, mb: 4 }}>
           <Box
-            sx={{ textAlign: "center", mb: 5, position: "relative", zIndex: 1 }}
+            sx={{
+              p: 2,
+              borderRadius: "16px",
+              background: "linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)",
+              color: "white",
+              boxShadow: "0 8px 16px rgba(79, 70, 229, 0.2)",
+            }}
           >
-            <Box
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 2,
-                mb: 2,
-              }}
-            >
-              <Box
-                sx={{
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  padding: "12px",
-                  borderRadius: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  animation: "float 3s ease-in-out infinite",
-                }}
-              >
-                <CloudDownloadIcon sx={{ fontSize: 32, color: "#fff" }} />
-              </Box>
-            </Box>
-            {/* <Typography
-              variant="h4"
+            <CloudDownloadIcon sx={{ fontSize: 32 }} />
+          </Box>
+          <Box>
+            <Typography
+              variant="h5"
               sx={{
                 fontWeight: 700,
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                color: "#1E293B",
                 mb: 1,
               }}
             >
-              Download Custom Reports
-            </Typography> */}
-            <Typography variant="h4" fontWeight={600}>
-              Download Custom Reports
+              Scheduled Reports
             </Typography>
-            <Typography
-              variant="body1"
-              sx={{ color: "rgba(0,0,0,0.6)", maxWidth: "600px", mx: "auto" }}
-            >
-              Select your preferred filters and generate comprehensive reports
-              instantly
+            <Typography variant="body2" sx={{ color: "#64748B" }}>
+              Generate, download, and schedule automated reports for your
+              business metrics.
             </Typography>
           </Box>
-        </motion.div>
+        </Box>
 
-        {/* Success Alert */}
-        <AnimatePresence>
-          <SuccessToast
-            open={showSuccess}
-            onClose={() => setShowSuccess(false)}
-            message="Report downloaded successfully! Check your downloads folder."
-          />
-        </AnimatePresence>
-
-        {/* Dropdown Filters Grid */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1fr 1fr",
-              md: "1fr 1fr 1fr",
-              lg: "1fr 1fr 1fr 1fr 1fr",
-            },
-            gap: 3,
-            mb: 4,
-            position: "relative",
-            zIndex: 1,
-          }}
-        >
-          {/* Platform Dropdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="dropdown-container"
+        {/* Filters Section */}
+        <Box sx={{ mb: 4 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              mb: 2,
+              color: "#334155",
+            }}
           >
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: "16px",
-                background: "rgba(255, 255, 255, 0.9)",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(102, 126, 234, 0.2)",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  border: "2px solid rgba(102, 126, 234, 0.5)",
-                  boxShadow: "0 8px 30px rgba(102, 126, 234, 0.15)",
-                },
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "#667eea",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  mb: 1,
-                  display: "block",
-                  textTransform: "uppercase",
-                  fontSize: "0.7rem",
-                }}
+            <FilterListIcon fontSize="small" />
+            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+              Configuration
+            </Typography>
+          </Box>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <FilterCard
+                title="Platform"
+                icon={CategoryIcon}
+                color="#4F46E5" // Indigo
               >
-                Platform
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={selectedFilters.platform}
-                  onChange={(e) =>
-                    handleFilterChange("platform", e.target.value)
-                  }
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 48 * 5 + 8,
-                        borderRadius: "12px",
-                      },
-                    },
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      border: "none",
-                    },
-                    "& .MuiSelect-select": {
-                      fontWeight: 600,
-                      color: "#1e293b",
-                      fontSize: "0.95rem",
-                      padding: "8px 0",
-                    },
-                  }}
-                >
-                  {platformOptions.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Paper>
-          </motion.div>
-
-          {/* Brand Dropdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="dropdown-container"
-          >
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: "16px",
-                background: "rgba(255, 255, 255, 0.9)",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(236, 72, 153, 0.2)",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  border: "2px solid rgba(236, 72, 153, 0.5)",
-                  boxShadow: "0 8px 30px rgba(236, 72, 153, 0.15)",
-                },
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "#ec4899",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  mb: 1,
-                  display: "block",
-                  textTransform: "uppercase",
-                  fontSize: "0.7rem",
-                }}
-              >
-                Brand
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={selectedFilters.brand}
-                  onChange={(e) => handleFilterChange("brand", e.target.value)}
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 48 * 5 + 8,
-                        borderRadius: "12px",
-                      },
-                    },
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      border: "none",
-                    },
-                    "& .MuiSelect-select": {
-                      fontWeight: 600,
-                      color: "#1e293b",
-                      fontSize: "0.95rem",
-                      padding: "8px 0",
-                    },
-                  }}
-                >
-                  {getBrandOptions().map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Paper>
-          </motion.div>
-
-          {/* Location Dropdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="dropdown-container"
-          >
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: "16px",
-                background: "rgba(255, 255, 255, 0.9)",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(34, 197, 94, 0.2)",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  border: "2px solid rgba(34, 197, 94, 0.5)",
-                  boxShadow: "0 8px 30px rgba(34, 197, 94, 0.15)",
-                },
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "#22c55e",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  mb: 1,
-                  display: "block",
-                  textTransform: "uppercase",
-                  fontSize: "0.7rem",
-                }}
-              >
-                Location
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={selectedFilters.location}
-                  onChange={(e) =>
-                    handleFilterChange("location", e.target.value)
-                  }
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 48 * 5 + 8,
-                        borderRadius: "12px",
-                      },
-                    },
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      border: "none",
-                    },
-                    "& .MuiSelect-select": {
-                      fontWeight: 600,
-                      color: "#1e293b",
-                      fontSize: "0.95rem",
-                      padding: "8px 0",
-                    },
-                  }}
-                >
-                  {getLocationOptions().map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Paper>
-          </motion.div>
-
-          {/* Time Period Dropdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="dropdown-container"
-          >
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: "16px",
-                background: "rgba(255, 255, 255, 0.9)",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(249, 115, 22, 0.2)",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  border: "2px solid rgba(249, 115, 22, 0.5)",
-                  boxShadow: "0 8px 30px rgba(249, 115, 22, 0.15)",
-                },
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "#f97316",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  mb: 1,
-                  display: "block",
-                  textTransform: "uppercase",
-                  fontSize: "0.7rem",
-                }}
-              >
-                Time Period
-              </Typography>
-
-              {selectedFilters.timePeriod === "Custom Range" ? (
-                // Show Date Pickers when Custom Range is selected
-                <Box
-                  sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
-                >
-                  <DatePicker
-                    label="Start Date"
-                    value={customDateRange.startDate}
-                    onChange={(newValue) =>
-                      setCustomDateRange((prev) => ({
-                        ...prev,
-                        startDate: newValue,
-                      }))
-                    }
-                    slotProps={{
-                      textField: {
-                        size: "small",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            fontSize: "0.85rem",
-                            "& fieldset": {
-                              borderColor: "rgba(249, 115, 22, 0.3)",
-                            },
-                            "&:hover fieldset": {
-                              borderColor: "rgba(249, 115, 22, 0.5)",
-                            },
-                            "&.Mui-focused fieldset": {
-                              borderColor: "#f97316",
-                            },
-                          },
-                          "& .MuiInputLabel-root": {
-                            fontSize: "0.85rem",
-                          },
-                        },
-                      },
-                    }}
-                  />
-                  <DatePicker
-                    label="End Date"
-                    value={customDateRange.endDate}
-                    onChange={(newValue) =>
-                      setCustomDateRange((prev) => ({
-                        ...prev,
-                        endDate: newValue,
-                      }))
-                    }
-                    minDate={customDateRange.startDate}
-                    slotProps={{
-                      textField: {
-                        size: "small",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            fontSize: "0.85rem",
-                            "& fieldset": {
-                              borderColor: "rgba(249, 115, 22, 0.3)",
-                            },
-                            "&:hover fieldset": {
-                              borderColor: "rgba(249, 115, 22, 0.5)",
-                            },
-                            "&.Mui-focused fieldset": {
-                              borderColor: "#f97316",
-                            },
-                          },
-                          "& .MuiInputLabel-root": {
-                            fontSize: "0.85rem",
-                          },
-                        },
-                      },
-                    }}
-                  />
-                  <Button
-                    size="small"
-                    onClick={() =>
-                      handleFilterChange("timePeriod", "Last 30 Days")
-                    }
-                    sx={{
-                      textTransform: "none",
-                      color: "#f97316",
-                      fontSize: "0.75rem",
-                      "&:hover": {
-                        background: "rgba(249, 115, 22, 0.1)",
-                      },
-                    }}
-                  >
-                    ← Back to presets
-                  </Button>
-                </Box>
-              ) : (
-                // Show regular dropdown for preset periods
-                <FormControl fullWidth>
+                <FormControl fullWidth size="small">
                   <Select
-                    value={selectedFilters.timePeriod}
+                    value={selectedFilters.platform}
                     onChange={(e) =>
-                      handleFilterChange("timePeriod", e.target.value)
+                      handleFilterChange("platform", e.target.value)
                     }
+                    displayEmpty
                     MenuProps={{
                       PaperProps: {
                         style: {
-                          maxHeight: 48 * 5 + 8,
+                          maxHeight: 200,
                           borderRadius: "12px",
                         },
                       },
                     }}
                     sx={{
+                      borderRadius: "8px",
                       "& .MuiOutlinedInput-notchedOutline": {
-                        border: "none",
+                        borderColor: "#E2E8F0",
                       },
-                      "& .MuiSelect-select": {
-                        fontWeight: 600,
-                        color: "#1e293b",
-                        fontSize: "0.95rem",
-                        padding: "8px 0",
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#4F46E5",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#4F46E5",
                       },
                     }}
                   >
-                    {timePeriodOptions.map((option) => (
+                    {platformOptions.map((option) => (
                       <MenuItem key={option} value={option}>
                         {option}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
-              )}
-            </Paper>
-          </motion.div>
+              </FilterCard>
+            </Grid>
 
-          {/* Report Type Dropdown */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="dropdown-container"
-          >
-            <Paper
-              elevation={0}
-              sx={{
-                p: 2.5,
-                borderRadius: "16px",
-                background: "rgba(255, 255, 255, 0.9)",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(168, 85, 247, 0.2)",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  border: "2px solid rgba(168, 85, 247, 0.5)",
-                  boxShadow: "0 8px 30px rgba(168, 85, 247, 0.15)",
-                },
-              }}
-            >
-              <Typography
-                variant="caption"
-                sx={{
-                  color: "#a855f7",
-                  fontWeight: 700,
-                  letterSpacing: "0.5px",
-                  mb: 1,
-                  display: "block",
-                  textTransform: "uppercase",
-                  fontSize: "0.7rem",
-                }}
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <FilterCard
+                title="Brand"
+                icon={StoreIcon}
+                color="#EC4899" // Pink
               >
-                Report Type
-              </Typography>
-              <FormControl fullWidth>
-                <Select
-                  value={selectedFilters.reportType}
-                  onChange={(e) =>
-                    handleFilterChange("reportType", e.target.value)
-                  }
-                  MenuProps={{
-                    PaperProps: {
-                      style: {
-                        maxHeight: 48 * 5 + 8,
-                        borderRadius: "12px",
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedFilters.brand}
+                    onChange={(e) =>
+                      handleFilterChange("brand", e.target.value)
+                    }
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 200,
+                          borderRadius: "12px",
+                        },
                       },
-                    },
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      border: "none",
-                    },
-                    "& .MuiSelect-select": {
-                      fontWeight: 600,
-                      color: "#1e293b",
-                      fontSize: "0.95rem",
-                      padding: "8px 0",
-                    },
-                  }}
-                >
-                  {reportTypeOptions.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Paper>
-          </motion.div>
-        </Box>
+                    }}
+                    sx={{
+                      borderRadius: "8px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#E2E8F0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#EC4899",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#EC4899",
+                      },
+                    }}
+                  >
+                    {getBrandOptions().map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </FilterCard>
+            </Grid>
 
-        {/* Info Cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.7 }}
-        >
-          <Box
-            sx={{
-              mt: 6,
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "1fr 1fr",
-              },
-              gap: 3,
-              maxWidth: "900px",
-              mx: "auto",
-              position: "relative",
-              zIndex: 1,
-            }}
-          >
-            <Paper
-              elevation={0}
-              onClick={handleDownload}
-              sx={{
-                p: 3,
-                borderRadius: "16px",
-                background: "white",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(16, 185, 129, 0.35)",
-                transition: "all 0.3s ease",
-                cursor: isDownloading ? "not-allowed" : "pointer",
-                "&:hover": {
-                  transform: "translateY(-4px)",
-                  boxShadow: "0 12px 30px rgba(16, 185, 129, 0.35)",
-                  border: "2px solid rgba(16, 185, 129, 0.6)",
-                },
-              }}
-              className={!isDownloading ? "download-button-glow" : ""}
-            >
-              {/* Header */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  mb: 1.5,
-                }}
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <FilterCard
+                title="Location"
+                icon={PlaceIcon}
+                color="#10B981" // Emerald
               >
-                <Box
-                  sx={{
-                    p: 1.5,
-                    borderRadius: "12px",
-                    background:
-                      "linear-gradient(135deg, #34d399 0%, #10b981 100%)",
-                    display: "flex",
-                  }}
-                >
-                  {isDownloading ? (
-                    <ScheduleIcon
-                      sx={{
-                        color: "#fff",
-                        fontSize: 24,
-                        animation: "spin 1s linear infinite",
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedFilters.location}
+                    onChange={(e) =>
+                      handleFilterChange("location", e.target.value)
+                    }
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 200,
+                          borderRadius: "12px",
+                        },
+                      },
+                    }}
+                    sx={{
+                      borderRadius: "8px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#E2E8F0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#10B981",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#10B981",
+                      },
+                    }}
+                  >
+                    {getLocationOptions().map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </FilterCard>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <FilterCard
+                title="Time Period"
+                icon={CalendarIcon}
+                color="#F59E0B" // Amber
+              >
+                {selectedFilters.timePeriod === "Custom Range" ? (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <DatePicker
+                      label="Start"
+                      value={customDateRange.startDate}
+                      onChange={(newValue) =>
+                        setCustomDateRange((prev) => ({
+                          ...prev,
+                          startDate: newValue,
+                        }))
+                      }
+                      slotProps={{
+                        textField: {
+                          size: "small",
+                          fullWidth: true,
+                          sx: {
+                            "& .MuiOutlinedInput-root": { borderRadius: "8px" },
+                          },
+                        },
                       }}
                     />
-                  ) : (
-                    <DownloadIcon sx={{ color: "#fff", fontSize: 24 }} />
-                  )}
-                </Box>
+                    <DatePicker
+                      label="End"
+                      value={customDateRange.endDate}
+                      onChange={(newValue) =>
+                        setCustomDateRange((prev) => ({
+                          ...prev,
+                          endDate: newValue,
+                        }))
+                      }
+                      minDate={customDateRange.startDate}
+                      slotProps={{
+                        textField: {
+                          size: "small",
+                          fullWidth: true,
+                          sx: {
+                            "& .MuiOutlinedInput-root": { borderRadius: "8px" },
+                          },
+                        },
+                      }}
+                    />
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        handleFilterChange("timePeriod", "Last 30 Days")
+                      }
+                      sx={{
+                        textTransform: "none",
+                        color: "#F59E0B",
+                        fontSize: "0.75rem",
+                        justifyContent: "flex-start",
+                        p: 0,
+                      }}
+                    >
+                      ← Back
+                    </Button>
+                  </Box>
+                ) : (
+                  <FormControl fullWidth size="small">
+                    <Select
+                      value={selectedFilters.timePeriod}
+                      onChange={(e) =>
+                        handleFilterChange("timePeriod", e.target.value)
+                      }
+                      displayEmpty
+                      sx={{
+                        borderRadius: "8px",
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "#E2E8F0",
+                        },
+                        "&:hover .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "#F59E0B",
+                        },
+                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "#F59E0B",
+                        },
+                      }}
+                    >
+                      {timePeriodOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+              </FilterCard>
+            </Grid>
 
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 700, color: "#064e3b" }}
-                >
-                  Download Report
-                </Typography>
-              </Box>
-
-              {/* Description */}
-              <Typography
-                variant="body2"
-                sx={{ color: "rgba(0,0,0,0.65)", mb: 2 }}
+            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+              <FilterCard
+                title="Report Type"
+                icon={AssessmentIcon}
+                color="#8B5CF6" // Violet
               >
-                Export this report in PDF, Excel, or CSV format for offline use
-                and sharing.
-              </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedFilters.reportType}
+                    onChange={(e) =>
+                      handleFilterChange("reportType", e.target.value)
+                    }
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 200,
+                          borderRadius: "12px",
+                        },
+                      },
+                    }}
+                    sx={{
+                      borderRadius: "8px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#E2E8F0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#8B5CF6",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#8B5CF6",
+                      },
+                    }}
+                  >
+                    {reportTypeOptions.map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </FilterCard>
+            </Grid>
+          </Grid>
+        </Box>
 
-              {/* CTA */}
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                fullWidth
-                disabled={isDownloading}
+        {/* Actions & Active Schedules Grid */}
+        <Grid container spacing={4} sx={{ alignItems: "stretch" }}>
+          {/* Actions Column */}
+          <Grid item xs={12} md={4} sx={{ display: "flex", flexDirection: "column" }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+                height: "100%",
+              }}
+            >
+              {/* Download Card */}
+              <Paper
+                elevation={0}
                 sx={{
-                  borderColor: "#10b981",
-                  color: "#10b981",
-                  fontWeight: 600,
+                  p: 3,
+                  borderRadius: "16px",
+                  border: "1px solid #E2E8F0",
+                  background: "white",
+                  transition: "all 0.2s",
+                  flex: 1, // Stretch to fill available space
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
                   "&:hover": {
-                    borderColor: "#059669",
-                    background: "rgba(16, 185, 129, 0.12)",
+                    boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)",
+                    transform: "translateY(-2px)",
                   },
                 }}
               >
-                {isDownloading ? "Preparing Download..." : "Download Now"}
-              </Button>
-            </Paper>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                  Export Data
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#64748B", mb: 3, lineHeight: 1.6 }}
+                >
+                  Download the current report view as a PDF, Excel, or CSV file.
+                </Typography>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  startIcon={
+                    isDownloading ? null : <DownloadIcon />
+                  }
+                  sx={{
+                    borderRadius: "10px",
+                    py: 1.5,
+                    textTransform: "none",
+                    fontWeight: 600,
+                    background: "#0F172A", // Slate-900
+                    "&:hover": { background: "#1E293B" }, // Slate-800
+                  }}
+                >
+                  {isDownloading ? "Generating Report..." : "Download Report"}
+                </Button>
+              </Paper>
 
-            <Paper
-              elevation={0}
-              sx={{
-                p: 3,
-                borderRadius: "16px",
-                background: "white",
-                backdropFilter: "blur(10px)",
-                border: "2px solid rgba(168, 85, 247, 0.3)",
-                transition: "all 0.3s ease",
-                cursor: "pointer",
-                "&:hover": {
-                  transform: "translateY(-4px)",
-                  boxShadow: "0 12px 30px rgba(168, 85, 247, 0.3)",
-                  border: "2px solid rgba(168, 85, 247, 0.6)",
-                },
-              }}
-              onClick={() => setScheduleModalOpen(true)}
-            >
-              <Box
+              {/* Schedule Card */}
+              <Paper
+                elevation={0}
                 sx={{
+                  p: 3,
+                  borderRadius: "16px",
+                  border: "1px solid #E2E8F0",
+                  background: "white",
+                  position: "relative",
+                  overflow: "hidden",
+                  flex: 1, // Stretch to fill available space
                   display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  mb: 1.5,
+                  flexDirection: "column",
+                  justifyContent: "center",
                 }}
               >
                 <Box
                   sx={{
-                    p: 1.5,
-                    borderRadius: "12px",
-                    background:
-                      "linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)",
-                    display: "flex",
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    p: 2,
+                    opacity: 0.1,
                   }}
                 >
-                  <ScheduleIcon sx={{ color: "#fff", fontSize: 24 }} />
+                  <ScheduleIcon sx={{ fontSize: 80, color: "#4F46E5" }} />
                 </Box>
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 700, color: "#1e293b" }}
-                >
-                  Scheduled Delivery
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+                  Schedule Delivery
                 </Typography>
-                <AddCircleIcon sx={{ color: "#8b5cf6", ml: "auto" }} />
-              </Box>
-              <Typography
-                variant="body2"
-                sx={{ color: "rgba(0,0,0,0.6)", mb: 2 }}
-              >
-                Set up automatic reports delivered to your inbox
-              </Typography>
-              <Button
-                variant="outlined"
-                startIcon={<EmailIcon />}
-                fullWidth
-                sx={{
-                  borderColor: "#8b5cf6",
-                  color: "#8b5cf6",
-                  fontWeight: 600,
-                  "&:hover": {
-                    borderColor: "#7c3aed",
-                    background: "rgba(139, 92, 246, 0.1)",
-                  },
-                }}
-              >
-                Set Up Schedule
-              </Button>
-            </Paper>
-          </Box>
-        </motion.div>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "#64748B",
+                    mb: 3,
+                    lineHeight: 1.6,
+                    position: "relative",
+                  }}
+                >
+                  Automate your reporting. Receive this report in your inbox
+                  daily, weekly, or monthly.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={() => setScheduleModalOpen(true)}
+                  startIcon={<AddCircleIcon />}
+                  sx={{
+                    borderRadius: "10px",
+                    py: 1.5,
+                    textTransform: "none",
+                    fontWeight: 600,
+                    borderColor: "#4F46E5",
+                    color: "#4F46E5",
+                    "&:hover": {
+                      borderColor: "#4338CA",
+                      background: "#EEF2FF",
+                    },
+                  }}
+                >
+                  Create Schedule
+                </Button>
+              </Paper>
+            </Box>
+          </Grid>
 
-        {/* Schedule Success Alert */}
-        <AnimatePresence>
-          <SuccessToast
-            open={scheduleSuccess}
-            onClose={() => setScheduleSuccess(false)}
-            message="Schedule created successfully! Reports will be delivered automatically."
-            color="info"
-          />
-        </AnimatePresence>
-
-        {/* Active Schedules Section */}
-        {scheduledReports.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-          >
-            <Box sx={{ mt: 6, position: "relative", zIndex: 1 }}>
-              <Typography
-                variant="h5"
+          {/* Active Schedules Table Column */}
+          <Grid item xs={12} md={8}>
+            <Paper
+              elevation={0}
+              sx={{
+                borderRadius: "16px",
+                border: "1px solid #E2E8F0",
+                overflow: "hidden",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <Box
                 sx={{
-                  fontWeight: 700,
-                  color: "#1e293b",
-                  mb: 3,
+                  p: 2.5,
+                  borderBottom: "1px solid #E2E8F0",
                   display: "flex",
                   alignItems: "center",
-                  gap: 1,
+                  justifyContent: "space-between",
+                  background: "white",
                 }}
               >
-                <ScheduleIcon sx={{ color: "#8b5cf6" }} />
-                Active Schedules ({scheduledReports.length})
-              </Typography>
-              <TableContainer
-                component={Paper}
-                elevation={0}
-                sx={{
-                  borderRadius: "16px",
-                  border: "1px solid rgba(0,0,0,0.1)",
-                }}
-              >
-                <Table>
-                  <TableHead>
-                    <TableRow sx={{ background: "rgba(139, 92, 246, 0.05)" }}>
-                      <TableCell sx={{ fontWeight: 700, color: "#8b5cf6" }}>
-                        Email
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700, color: "#8b5cf6" }}>
-                        Frequency
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700, color: "#8b5cf6" }}>
-                        Time
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700, color: "#8b5cf6" }}>
-                        Report Type
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700, color: "#8b5cf6" }}>
-                        Platform
-                      </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={{ fontWeight: 700, color: "#8b5cf6" }}
-                      >
-                        Actions
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {paginatedSchedules.map((schedule) => (
-                      <TableRow
-                        key={schedule.id}
-                        sx={{
-                          "&:hover": {
-                            background: "rgba(139, 92, 246, 0.02)",
-                          },
-                        }}
-                      >
-                        <TableCell>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                            }}
-                          >
-                            <EmailIcon
-                              sx={{ color: "#8b5cf6", fontSize: 18 }}
-                            />
-                            {schedule.email}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={schedule.frequency}
-                            size="small"
-                            sx={{
-                              background:
-                                "linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)",
-                              color: "#fff",
-                              fontWeight: 600,
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>{schedule.time}</TableCell>
-                        <TableCell>
-                          {schedule.reportConfig.reportType}
-                        </TableCell>
-                        <TableCell>{schedule.reportConfig.platform}</TableCell>
-                        <TableCell align="right">
-                          <IconButton
-                            size="small"
-                            onClick={() => onScheduleDelete(schedule.id)}
-                            sx={{
-                              color: "#ef4444",
-                              "&:hover": {
-                                background: "rgba(239, 68, 68, 0.1)",
-                              },
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {showPagination && (
-                  <PaginationFooter
-                    isVisible={true}
-                    currentPage={page}
-                    totalPages={totalPages}
-                    onPageChange={(p) =>
-                      setPage(Math.min(Math.max(1, p), totalPages))
-                    }
-                    pageSize={pageSize}
-                    onPageSizeChange={(s) => {
-                      setPageSize(s);
-                      setPage(1);
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <ScheduleIcon sx={{ color: "#4F46E5" }} />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Active Schedules
+                  </Typography>
+                  <Chip
+                    label={scheduledReports.length}
+                    size="small"
+                    sx={{
+                      background: "#EEF2FF",
+                      color: "#4F46E5",
+                      fontWeight: 700,
+                      borderRadius: "6px",
                     }}
-                    pageSizeOptions={pageSizeOptions}
-                    itemsLabel="Rows/page"
                   />
-                )}
-              </TableContainer>
-            </Box>
-          </motion.div>
-        )}
+                </Box>
+              </Box>
+
+              {scheduledReports.length > 0 ? (
+                <>
+                  <TableContainer sx={{ flex: 1 }}>
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ background: "#F8FAFC" }}>
+                          <TableCell
+                            sx={{
+                              fontWeight: 600,
+                              color: "#64748B",
+                              borderBottom: "1px solid #E2E8F0",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            RECIPIENT
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 600,
+                              color: "#64748B",
+                              borderBottom: "1px solid #E2E8F0",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            FREQUENCY
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 600,
+                              color: "#64748B",
+                              borderBottom: "1px solid #E2E8F0",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            TIME
+                          </TableCell>
+                          <TableCell
+                            sx={{
+                              fontWeight: 600,
+                              color: "#64748B",
+                              borderBottom: "1px solid #E2E8F0",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            CONFIG
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{
+                              fontWeight: 600,
+                              color: "#64748B",
+                              borderBottom: "1px solid #E2E8F0",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            ACTIONS
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {paginatedSchedules.map((schedule) => (
+                          <TableRow
+                            key={schedule.id}
+                            hover
+                            sx={{
+                              "&:hover": { background: "#F8FAFC" },
+                            }}
+                          >
+                            <TableCell sx={{ borderBottom: "1px solid #F1F5F9" }}>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <Box
+                                  sx={{
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: "50%",
+                                    background: "#EEF2FF",
+                                    color: "#4F46E5",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: "0.75rem",
+                                  }}
+                                >
+                                  {schedule.email.charAt(0).toUpperCase()}
+                                </Box>
+                                <Typography variant="body2" fontWeight={500}>
+                                  {schedule.email}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={{ borderBottom: "1px solid #F1F5F9" }}>
+                              <Chip
+                                label={schedule.frequency}
+                                size="small"
+                                sx={{
+                                  borderRadius: "6px",
+                                  height: "24px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  background:
+                                    schedule.frequency === "Daily"
+                                      ? "#DCFCE7"
+                                      : schedule.frequency === "Weekly"
+                                        ? "#DBEAFE"
+                                        : "#F3E8FF",
+                                  color:
+                                    schedule.frequency === "Daily"
+                                      ? "#166534"
+                                      : schedule.frequency === "Weekly"
+                                        ? "#1E40AF"
+                                        : "#6B21A8",
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell sx={{ borderBottom: "1px solid #F1F5F9" }}>
+                              <Typography variant="body2" color="text.secondary">
+                                {schedule.time}
+                              </Typography>
+                            </TableCell>
+                            <TableCell sx={{ borderBottom: "1px solid #F1F5F9" }}>
+                              <Stack direction="column" spacing={0.5}>
+                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                  {schedule.reportConfig.reportType}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {schedule.reportConfig.platform}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{ borderBottom: "1px solid #F1F5F9" }}
+                            >
+                              <IconButton
+                                size="small"
+                                onClick={() => onScheduleDelete(schedule.id)}
+                                sx={{
+                                  color: "#EF4444",
+                                  "&:hover": { background: "#FEE2E2" },
+                                }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  {showPagination && (
+                    <Box sx={{ borderTop: "1px solid #E2E8F0", p: 1 }}>
+                      <PaginationFooter
+                        isVisible={true}
+                        currentPage={page}
+                        totalPages={totalPages}
+                        onPageChange={(p) =>
+                          setPage(Math.min(Math.max(1, p), totalPages))
+                        }
+                        pageSize={pageSize}
+                        onPageSizeChange={(s) => {
+                          setPageSize(s);
+                          setPage(1);
+                        }}
+                        pageSizeOptions={pageSizeOptions}
+                        itemsLabel="Rows/page"
+                      />
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <Box
+                  component={motion.div}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5 }}
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    p: 6,
+                    color: "#94A3B8",
+                    textAlign: "center",
+                    position: "relative",
+                  }}
+                >
+                  <Box
+                    component={motion.div}
+                    animate={{
+                      y: [0, -10, 0],
+                    }}
+                    transition={{
+                      duration: 4,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    sx={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      mb: 3,
+                      position: "relative",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: "50%",
+                        border: "1px dashed #C7D2FE",
+                        animation: "spin 10s linear infinite",
+                      }}
+                    />
+                    <style>
+                      {`
+                        @keyframes spin {
+                          from { transform: rotate(0deg); }
+                          to { transform: rotate(360deg); }
+                        }
+                      `}
+                    </style>
+                    <ScheduleIcon
+                      sx={{
+                        fontSize: 48,
+                        color: "#6366F1",
+                        filter: "drop-shadow(0 4px 6px rgba(99, 102, 241, 0.2))",
+                      }}
+                    />
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      color: "#1E293B",
+                      mb: 1,
+                    }}
+                  >
+                    No Active Schedules
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      maxWidth: "280px",
+                      color: "#64748B",
+                      lineHeight: 1.6,
+                      mb: 3,
+                    }}
+                  >
+                    You haven't set up any automated reports yet. Create a schedule to get started.
+                  </Typography>
+                  <Button
+                    component={motion.button}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    variant="outlined"
+                    onClick={() => setScheduleModalOpen(true)}
+                    startIcon={<AddCircleIcon />}
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: "10px",
+                      fontWeight: 600,
+                      borderColor: "#6366F1",
+                      color: "#6366F1",
+                      borderWidth: "1.5px",
+                      "&:hover": {
+                        borderWidth: "1.5px",
+                        background: "#EEF2FF",
+                        borderColor: "#4F46E5",
+                      },
+                    }}
+                  >
+                    Create First Schedule
+                  </Button>
+                </Box>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Success Alert */}
+        <SuccessToast
+          open={showSuccess}
+          onClose={() => setShowSuccess(false)}
+          message="Report downloaded successfully!"
+        />
+
+        {/* Schedule Success Alert */}
+        <SuccessToast
+          open={scheduleSuccess}
+          onClose={() => setScheduleSuccess(false)}
+          message="Schedule created successfully!"
+          color="info"
+        />
 
         {/* Schedule Configuration Modal */}
         <Dialog
@@ -1151,12 +1017,12 @@ export const ScheduledReport = ({
           fullWidth
           PaperProps={{
             sx: {
-              borderRadius: "20px",
-              p: 1,
+              borderRadius: "16px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
             },
           }}
         >
-          <DialogTitle>
+          <DialogTitle sx={{ p: 3, borderBottom: "1px solid #E2E8F0" }}>
             <Box
               sx={{
                 display: "flex",
@@ -1164,211 +1030,176 @@ export const ScheduledReport = ({
                 justifyContent: "space-between",
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <Box
                   sx={{
                     p: 1,
-                    borderRadius: "12px",
-                    background:
-                      "linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)",
+                    borderRadius: "8px",
+                    background: "#EEF2FF",
+                    color: "#4F46E5",
                     display: "flex",
                   }}
                 >
-                  <ScheduleIcon sx={{ color: "#fff" }} />
+                  <ScheduleIcon />
                 </Box>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  Schedule Report Delivery
+                  New Schedule
                 </Typography>
               </Box>
-              <IconButton
-                onClick={() => setScheduleModalOpen(false)}
-                size="small"
-              >
+              <IconButton onClick={() => setScheduleModalOpen(false)} size="small">
                 <CloseIcon />
               </IconButton>
             </Box>
           </DialogTitle>
-          <DialogContent sx={{ pt: 3 }}>
+
+          <DialogContent sx={{ p: 3, pt: 3 }}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {/* Email Input */}
-              <TextField
-                label="Email Address"
-                type="email"
-                fullWidth
-                value={scheduleForm.email}
-                onChange={(e) => {
-                  setScheduleForm({ ...scheduleForm, email: e.target.value });
-                  setEmailError("");
-                }}
-                error={Boolean(emailError)}
-                helperText={emailError}
-                placeholder="your.email@example.com"
-                InputLabelProps={{
-                  shrink: true,
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <EmailIcon sx={{ color: "#8b5cf6", fontSize: 20 }} />
-                  ),
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "12px",
-                    "& fieldset": {
-                      borderColor: "rgba(139,92,246,0.4)",
-                    },
-                    "&:hover fieldset": {
-                      borderColor: "#8b5cf6",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "#8b5cf6",
-                    },
-                  },
-
-                  "& .MuiInputLabel-root": {
-                    transform: "translate(14px, -4px) scale(0.85)",
-                    background: "#fff",
-                    padding: "0 8px",
-                  },
-
-                  "& .MuiInputLabel-root.Mui-focused": {
-                    color: "#8b5cf6",
-                  },
-                }}
-              />
-
-              {/* Frequency Selector */}
-              <FormControl fullWidth>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "#64748b",
-                    fontWeight: 600,
-                    mb: 1,
-                    display: "block",
-                  }}
-                >
-                  Delivery Frequency
-                </Typography>
-                <Select
-                  value={scheduleForm.frequency}
-                  onChange={(e) =>
-                    setScheduleForm({
-                      ...scheduleForm,
-                      frequency: e.target.value,
-                    })
-                  }
-                  sx={{
-                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#8b5cf6",
-                    },
-                  }}
-                >
-                  <MenuItem value="Daily">Daily</MenuItem>
-                  <MenuItem value="Weekly">Weekly (Monday)</MenuItem>
-                  <MenuItem value="Monthly">Monthly (1st of month)</MenuItem>
-                </Select>
-              </FormControl>
-
-              {/* Time Picker */}
               <Box>
                 <Typography
                   variant="caption"
-                  sx={{
-                    color: "#64748b",
-                    fontWeight: 600,
-                    mb: 1,
-                    display: "block",
-                  }}
+                  sx={{ color: "#64748B", fontWeight: 600, mb: 0.5, display: "block" }}
                 >
-                  Delivery Time
+                  Recipient Email
                 </Typography>
-                <TimePicker
-                  value={scheduleForm.time}
-                  onChange={(newTime) =>
-                    setScheduleForm({ ...scheduleForm, time: newTime })
-                  }
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      sx: {
-                        "& .MuiOutlinedInput-root": {
-                          "&.Mui-focused fieldset": {
-                            borderColor: "#8b5cf6",
-                          },
-                        },
-                      },
+                <TextField
+                  type="email"
+                  fullWidth
+                  value={scheduleForm.email}
+                  onChange={(e) => {
+                    setScheduleForm({ ...scheduleForm, email: e.target.value });
+                    setEmailError("");
+                  }}
+                  error={Boolean(emailError)}
+                  helperText={emailError}
+                  placeholder="name@company.com"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EmailIcon sx={{ color: "#94A3B8" }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "8px",
                     },
                   }}
                 />
               </Box>
 
-              {/* Preview Box */}
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <FormControl fullWidth>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "#64748B", fontWeight: 600, mb: 0.5 }}
+                    >
+                      Frequency
+                    </Typography>
+                    <Select
+                      value={scheduleForm.frequency}
+                      onChange={(e) =>
+                        setScheduleForm({
+                          ...scheduleForm,
+                          frequency: e.target.value,
+                        })
+                      }
+                      MenuProps={{
+                        PaperProps: {
+                          style: {
+                            maxHeight: 200,
+                            borderRadius: "12px",
+                          },
+                        },
+                      }}
+                      sx={{ borderRadius: "8px" }}
+                    >
+                      <MenuItem value="Daily">Daily</MenuItem>
+                      <MenuItem value="Weekly">Weekly (Mon)</MenuItem>
+                      <MenuItem value="Monthly">Monthly (1st)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "#64748B", fontWeight: 600, mb: 0.5 }}
+                    >
+                      Delivery Time
+                    </Typography>
+                    <TimePicker
+                      value={scheduleForm.time}
+                      onChange={(newTime) =>
+                        setScheduleForm({ ...scheduleForm, time: newTime })
+                      }
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          sx: { "& .MuiOutlinedInput-root": { borderRadius: "8px" } },
+                        },
+                      }}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Summary */}
               <Paper
+                elevation={0}
                 sx={{
                   p: 2,
-                  background:
-                    "linear-gradient(135deg, #a78bfa10 0%, #8b5cf610 100%)",
-                  border: "1px solid rgba(139, 92, 246, 0.2)",
-                  borderRadius: "12px",
+                  background: "#F8FAFC",
+                  border: "1px dashed #CBD5E1",
+                  borderRadius: "8px",
                 }}
               >
-                <Typography
-                  variant="caption"
-                  sx={{ color: "#64748b", fontWeight: 600 }}
-                >
-                  PREVIEW
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1, color: "#1e293b" }}>
-                  📧{" "}
-                  <strong>
-                    {scheduleForm.email || "your.email@example.com"}
-                  </strong>{" "}
-                  will receive <strong>{selectedFilters.reportType}</strong>{" "}
-                  reports{" "}
-                  <strong>{scheduleForm.frequency.toLowerCase()}</strong> at{" "}
-                  <strong>{scheduleForm.time.format("hh:mm A")}</strong>
-                </Typography>
+                <Box sx={{ display: "flex", gap: 1.5 }}>
+                  <CheckCircleIcon
+                    fontSize="small"
+                    sx={{ color: "#4F46E5", mt: 0.3 }}
+                  />
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Summary
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#64748B", mt: 0.5 }}>
+                      Send <strong>{selectedFilters.reportType}</strong> report to{" "}
+                      <strong>
+                        {scheduleForm.email || "..."}
+                      </strong>{" "}
+                      <strong>{scheduleForm.frequency.toLowerCase()}</strong> at{" "}
+                      <strong>{scheduleForm.time.format("hh:mm A")}</strong>.
+                    </Typography>
+                  </Box>
+                </Box>
               </Paper>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 3, pt: 2 }}>
+
+          <DialogActions sx={{ p: 3, pt: 2, borderTop: "1px solid #E2E8F0" }}>
             <Button
               onClick={() => setScheduleModalOpen(false)}
-              sx={{ color: "#64748b" }}
+              sx={{ color: "#64748B", fontWeight: 600 }}
             >
               Cancel
             </Button>
             <Button
               onClick={handleScheduleSave}
               variant="contained"
-              startIcon={<CheckCircleIcon />}
+              disableElevation
               sx={{
-                background: "linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)",
-                color: "#fff",
+                background: "#4F46E5",
                 fontWeight: 600,
                 px: 3,
-                "&:hover": {
-                  background:
-                    "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-                },
+                "&:hover": { background: "#4338CA" },
               }}
             >
-              Save Schedule
+              Confirm Schedule
             </Button>
           </DialogActions>
         </Dialog>
-
-        {/* Spin animation for loading icon */}
-        <style>
-          {`
-            @keyframes spin {
-              from { transform: rotate(0deg); }
-              to { transform: rotate(360deg); }
-            }
-          `}
-        </style>
       </Box>
-    </>
+    </Box>
   );
 };
