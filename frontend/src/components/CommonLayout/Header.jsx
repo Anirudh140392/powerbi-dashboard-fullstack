@@ -22,8 +22,9 @@ import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeComparePicker from "./DateRangeComparePicker";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import CustomHeaderDropdown from "./CustomHeaderDropdown";
 
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
@@ -106,13 +107,52 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <ChevronDown size={18} />
             </IconButton>
 
-            <Typography
-              variant="h6"
-              fontWeight="700"
-              sx={{ whiteSpace: "nowrap" }}
-            >
-              {title}
-            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column" }}>
+              <Typography
+                variant="h6"
+                fontWeight="700"
+                sx={{ whiteSpace: "nowrap", lineHeight: 1.2 }}
+              >
+                {title}
+              </Typography>
+              {title !== "Performance Marketing" && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      bgcolor: "#22C55E",
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#64748b",
+                    }}
+                  >
+                    {(() => {
+                      const darkStorePlatforms = ["Blinkit", "Zepto", "Instamart"];
+                      const marketplacePlatforms = ["Flipkart", "Amazon"];
+
+                      const selectedList = platform === "All"
+                        ? [...darkStorePlatforms, ...marketplacePlatforms]
+                        : (Array.isArray(platform) ? platform : [platform]);
+
+                      const dCount = selectedList.filter(p => darkStorePlatforms.includes(p)).length;
+                      const mCount = selectedList.filter(p => marketplacePlatforms.includes(p)).length;
+
+                      const parts = [];
+                      if (dCount > 0) parts.push(`${dCount} Active Dark Store${dCount > 1 ? 's' : ''}`);
+                      if (mCount > 0) parts.push(`${mCount} Active Marketplace${mCount > 1 ? 's' : ''}`);
+
+                      return parts.length > 0 ? parts.join(" & ") : "0 Active Platforms";
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
         </Box>
 
@@ -131,286 +171,40 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 overflow: "visible",
               }}
             >
-              {/* DARK STORE / MARKET PLACE COUNT */}
-              {title !== "Performance Marketing" && (
-                <Box sx={{ flexShrink: 0 }}>
-                  <Typography
-                    sx={{
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      mb: 0.5,
-                      opacity: 0.7,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {platform === "All"
-                      ? "All"
-                      : ["Flipkart", "Amazon"].includes(platform)
-                        ? "MARKET PLACE"
-                        : "DARK STORE"}
-                  </Typography>
-
-                  <Box
-                    sx={{
-                      width: 120,
-                      height: "38px",
-                      bgcolor: "#F8FAFC",
-                      borderRadius: "8px",
-                      border: "1px solid #E2E8F0",
-                      display: "flex",
-                      alignItems: "center",
-                      px: 2,
-                      gap: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        bgcolor: "#22C55E",
-                        flexShrink: 0,
-                      }}
-                    />
-
-                    <Typography
-                      sx={{
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        color: "#334155",
-                        lineHeight: 1,
-                      }}
-                    >
-                      {platform === "All"
-                        ? 5
-                        : ["Blinkit", "Zepto", "Instamart"].includes(platform)
-                          ? 3
-                          : ["Flipkart", "Amazon"].includes(platform)
-                            ? 2
-                            : 0}
-                    </Typography>
-
-                    <Typography
-                      sx={{
-                        fontSize: "0.75rem",
-                        fontWeight: 500,
-                        color: "#64748b",
-                        lineHeight: 1,
-                      }}
-                    >
-                      Active
-                    </Typography>
-                  </Box>
-                </Box>
-              )}
 
               {/* PLATFORM SELECTION */}
-              <Box sx={{ flexShrink: 0 }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  PLATFORM
-                </Typography>
-                <Autocomplete
-                  disableClearable
-                  options={["All", ...platforms]}
-                  value={platform}
-                  onChange={(event, newValue) => setPlatform(newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      hiddenLabel
-                      sx={{
-                        width: 120,
-                        "& .MuiOutlinedInput-root": {
-                          height: "38px",
-                          bgcolor: "#F8FAFC",
-                          borderRadius: "8px",
-                          fontSize: "0.85rem",
-                          fontWeight: 500,
-                          "& fieldset": { borderColor: "#E2E8F0" },
-                          "&:hover fieldset": { borderColor: "#CBD5E1" },
-                          "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
-                        },
-                      }}
-                    />
-                  )}
-                  ListboxProps={{
-                    sx: {
-                      "& .MuiAutocomplete-option": {
-                        padding: "4px 8px !important",
-                        minHeight: "28px",
-                        fontSize: "0.75rem",
-                      },
-                    },
-                  }}
-                />
-              </Box>
+              <CustomHeaderDropdown
+                label="PLATFORM"
+                options={platforms}
+                value={platform}
+                onChange={(newValue) => setPlatform(newValue)}
+                width={150}
+              />
 
-              {/* BRAND SELECTION */}
-              <Box sx={{ flexShrink: 0 }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  BRAND
-                </Typography>
-                <Autocomplete
-                  options={["All", ...brands]}
-                  value={selectedBrand}
-                  onChange={(event, newValue) => setSelectedBrand(newValue)}
-                  disableClearable
-                  ListboxProps={{
-                    style: {
-                      maxHeight: "120px",
-                    },
-                    sx: {
-                      "& .MuiAutocomplete-option": {
-                        padding: "4px 8px !important",
-                        minHeight: "28px",
-                        fontSize: "0.75rem",
-                      },
-                    },
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      hiddenLabel
-                      sx={{
-                        width: 120,
-                        "& .MuiOutlinedInput-root": {
-                          height: "38px",
-                          bgcolor: "#F8FAFC",
-                          borderRadius: "8px",
-                          fontSize: "0.85rem",
-                          fontWeight: 500,
-                          "& fieldset": { borderColor: "#E2E8F0" },
-                          "&:hover fieldset": { borderColor: "#CBD5E1" },
-                          "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
-                        },
-                      }}
-                    />
-                  )}
-                />
-              </Box>
+              <CustomHeaderDropdown
+                label="BRAND"
+                options={brands}
+                value={selectedBrand}
+                onChange={(newValue) => setSelectedBrand(newValue)}
+                width={150}
+              />
 
-              {/* LOCATION SELECTION */}
-              <Box sx={{ flexShrink: 0 }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  LOCATION
-                </Typography>
-                <Autocomplete
-                  disableClearable
-                  options={["All", ...locations]}
-                  value={selectedLocation}
-                  onChange={(event, newValue) => setSelectedLocation(newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      hiddenLabel
-                      sx={{
-                        width: 120,
-                        "& .MuiOutlinedInput-root": {
-                          height: "38px",
-                          bgcolor: "#F8FAFC",
-                          borderRadius: "8px",
-                          fontSize: "0.85rem",
-                          fontWeight: 500,
-                          "& fieldset": { borderColor: "#E2E8F0" },
-                          "&:hover fieldset": { borderColor: "#CBD5E1" },
-                          "&.Mui-focused fieldset": { borderColor: "#3B82F6" },
-                        },
-                      }}
-                    />
-                  )}
-                  ListboxProps={{
-                    style: {
-                      maxHeight: "120px",
-                    },
-                    sx: {
-                      "& .MuiAutocomplete-option": {
-                        padding: "4px 8px !important",
-                        minHeight: "28px",
-                        fontSize: "0.75rem",
-                      },
-                    },
-                  }}
-                />
-              </Box>
+              <CustomHeaderDropdown
+                label="LOCATION"
+                options={locations}
+                value={selectedLocation}
+                onChange={(newValue) => setSelectedLocation(newValue)}
+                width={150}
+              />
 
-              {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
               {location.pathname === "/visibility-anlysis" && (
-                <Box sx={{ flexShrink: 0 }}>
-                  <Typography
-                    sx={{
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      mb: 0.5,
-                      opacity: 0.7,
-                    }}
-                  >
-                    KEYWORD
-                  </Typography>
-                  <Autocomplete
-                    disableClearable
-                    options={keywords}
-                    value={selectedKeyword}
-                    onChange={(event, newValue) => setSelectedKeyword(newValue)}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        size="small"
-                        hiddenLabel
-                        sx={{
-                          width: 120,
-                          "& .MuiOutlinedInput-root": {
-                            height: "38px",
-                            bgcolor: "#F8FAFC",
-                            borderRadius: "8px",
-                            fontSize: "0.85rem",
-                            fontWeight: 500,
-                            "& fieldset": { borderColor: "#E2E8F0" },
-                            "&:hover fieldset": { borderColor: "#CBD5E1" },
-                            "&.Mui-focused fieldset": {
-                              borderColor: "#3B82F6",
-                            },
-                          },
-                        }}
-                      />
-                    )}
-                    ListboxProps={{
-                      style: {
-                        maxHeight: "160px",
-                      },
-                      sx: {
-                        "& .MuiAutocomplete-option": {
-                          padding: "4px 8px !important",
-                          minHeight: "28px",
-                          fontSize: "0.75rem",
-                        },
-                      },
-                    }}
-                  />
-                </Box>
+                <CustomHeaderDropdown
+                  label="KEYWORD"
+                  options={keywords}
+                  value={selectedKeyword}
+                  onChange={(newValue) => setSelectedKeyword(newValue)}
+                  width={150}
+                />
               )}
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
