@@ -14,6 +14,7 @@ export function generateCacheKey(section, filters) {
         startDate = '',
         endDate = '',
         category = 'all',
+        viewMode = '',  // Added for Platform KPI Matrix
         monthOverviewPlatform = '',
         categoryOverviewPlatform = '',
         brandsOverviewPlatform = '',
@@ -27,6 +28,11 @@ export function generateCacheKey(section, filters) {
 
     // Build key based on section
     let key = `watchtower:${normalize(section)}`;
+
+    // Add viewMode if present (for Platform KPI Matrix)
+    if (viewMode) {
+        key += `:vm_${normalize(viewMode)}`;
+    }
 
     // Add common filters
     key += `:${normalize(platform)}:${normalize(brand)}:${normalize(location)}`;

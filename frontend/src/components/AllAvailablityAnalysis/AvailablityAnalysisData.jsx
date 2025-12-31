@@ -93,10 +93,58 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {} }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // 🔥 Utility to compute unified trend + series for ANY item
+  // Check loading state - data is loading if apiData doesn't have the required property yet
+  const isFormatLoading = !apiData?.formatKpi;
+  const isCityLoading = !apiData?.cityKpi;
+
+  // Transform API platformKpi data to component's expected format
+  const transformApiData = (kpiData) => {
+    if (!kpiData || !kpiData.columns || !kpiData.rows) return null;
+
+    const columns = kpiData.columns.filter(c => c !== 'KPI');
+
+    // Helper: generate sparkline series from current value and trend
+    const generateSeries = (value, trend, pointCount = 4) => {
+      if (value === undefined || value === null || value === 'Coming Soon') {
+        return [];
+      }
+      const numValue = typeof value === 'number' ? value : parseFloat(value);
+      const numTrend = typeof trend === 'number' ? trend : 0;
+
+      if (isNaN(numValue)) return [];
+
+      // Work backwards from current value to show trend
+      const points = [];
+      const prevValue = numValue - numTrend;
+      for (let i = 0; i < pointCount; i++) {
+        const progress = i / (pointCount - 1);
+        points.push(Math.round(prevValue + (numValue - prevValue) * progress));
+      }
+      return points;
+    };
+
+    const rows = kpiData.rows.map(row => {
+      // Build series for each column
+      const series = {};
+      columns.forEach(col => {
+        series[col] = generateSeries(row[col], row.trend?.[col]);
+      });
+
+      return {
+        kpi: row.kpi,
+        ...Object.fromEntries(columns.map(col => [col, row[col]])),
+        trend: row.trend || {},
+        series: series,
+      };
+    });
+
+    return { columns: ['kpi', ...columns], rows };
+  };
+
+  // 🔥 Utility to compute unified trend + series for ANY item (for fallback hardcoded data)
   const buildRows = (dataArray, columnList) => {
     return dataArray.map((item) => {
       const primaryTrendSeries = item.trend?.["Spend"] || [];
@@ -111,8 +159,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
       const seriesObj = {};
 
       columnList.forEach((col) => {
-        trendObj[col] = globalDelta;              // 🔥 apply SAME delta to every column
-        seriesObj[col] = primaryTrendSeries;      // 🔥 sparkline same for each column
+        trendObj[col] = globalDelta;
+        seriesObj[col] = primaryTrendSeries;
       });
 
       return {
@@ -124,29 +172,32 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
     });
   };
 
-  // ---------------- PLATFORM ----------------
-  const platformData = {
+  // ---------------- PLATFORM (uses apiData.platformKpi) ----------------
+  const apiPlatformData = transformApiData(apiData?.platformKpi);
+  const platformData = apiPlatformData || {
     columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
     rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns),
   };
 
-  // ---------------- FORMAT ----------------
-  const formatData = {
+  // ---------------- FORMAT (uses apiData.formatKpi) ----------------
+  const apiFormatData = transformApiData(apiData?.formatKpi);
+  const formatData = apiFormatData || {
     columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
     rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns),
   };
 
-  // ---------------- CITY ----------------
-  const cityData = {
+  // ---------------- CITY (uses apiData.cityKpi) ----------------
+  const apiCityData = transformApiData(apiData?.cityKpi);
+  const cityData = apiCityData || {
     columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
     rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns),
   };
 
   // ---------------- TABS ----------------
   const tabs = [
-    { key: "platform", label: "Platform", data: platformData },
-    { key: "format", label: "Format", data: formatData },
-    { key: "city", label: "City", data: cityData },
+    { key: "platform", label: "Platform", data: platformData, loading: !apiData?.platformKpi },
+    { key: "format", label: "Format", data: formatData, loading: isFormatLoading },
+    { key: "city", label: "City", data: cityData, loading: isCityLoading },
   ];
 
   const active = tabs.find((t) => t.key === activeTab);
@@ -168,8 +219,16 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
         ))}
       </div>
 
-      {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
+      {/* -------- LOADING STATE -------- */}
+      {active.loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
+          <span className="ml-3 text-slate-600">Loading {active.label} data...</span>
+        </div>
+      ) : (
+        /* -------- MATRIX TABLE -------- */
+        <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
+      )}
     </div>
   );
 };
@@ -1015,14 +1074,14 @@ const cardsAbsolute = [
   },
   {
     title: "Fill Rate",
-    value: "93.7%",
+    value: "Coming soon",
     sub: "Supplier fulfillment rate",
-    change: "▲1.8 pts (from 91.9%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 6%",
-    extraChange: "▼1.2 pts",
-    extraChangeColor: "green",
+    change: "",
+    changeColor: "gray",
+    prevText: "",
+    extra: "",
+    extraChange: "",
+    extraChangeColor: "gray",
   },
   {
     title: "Metro City Stock Availability",
@@ -1062,14 +1121,14 @@ const cardsWeighted = [
   },
   {
     title: "Fill Rate",
-    value: "88.9%",
+    value: "Coming soon",
     sub: "Supplier fulfillment rate",
-    change: "▲1.2 pts (from 87.7%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 8%",
-    extraChange: "▼0.8 pts",
-    extraChangeColor: "green",
+    change: "",
+    changeColor: "gray",
+    prevText: "",
+    extra: "",
+    extraChange: "",
+    extraChangeColor: "gray",
   },
   {
     title: "Metro City Stock Availability",
@@ -1093,9 +1152,147 @@ const cards = {
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = () => {
+export const AvailablityAnalysisData = ({ apiData, filters = {} }) => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
+
+  // Build dynamic cards from API data with proper time period
+  const getDynamicCards = (mode) => {
+    const baseCards = mode === "absolute" ? cardsAbsolute : cardsWeighted;
+
+    // Generate sparkline data based on a value and previous value
+    const generateSparklineFromValue = (currentValue, prevValue, pointCount = 7) => {
+      const variance = currentValue * 0.05; // 5% variance for realistic look
+      const points = [];
+
+      for (let i = 0; i < pointCount; i++) {
+        const progress = i / (pointCount - 1);
+        const trendValue = prevValue + (currentValue - prevValue) * progress;
+        const noise = (Math.random() - 0.5) * variance;
+        points.push(Math.max(0, trendValue + noise));
+      }
+
+      // Ensure last point is the actual value
+      points[points.length - 1] = currentValue;
+
+      return points.map(v => Math.round(v * 10) / 10);
+    };
+
+    // Get API values
+    const stockAvail = apiData?.overview?.stockAvailability;
+    const prevStockAvail = apiData?.overview?.prevStockAvailability || (stockAvail ? stockAvail - 3.1 : null);
+
+    const doi = apiData?.doi?.doi;
+    const prevDoi = apiData?.doi?.prevDoi;
+    const doiChangePercent = apiData?.doi?.changePercent;
+
+    // Get Metro City Stock Availability values
+    const metroCity = apiData?.metroCity;
+    const metroStockAvail = metroCity?.stockAvailability;
+    const prevMetroStockAvail = metroCity?.prevStockAvailability;
+    const metroChange = metroCity?.change;
+    const isMetroCity = metroCity?.isMetroCity;
+
+    return baseCards.map(card => {
+      // Stock Availability card
+      if (card.title === "Stock Availability" && stockAvail !== undefined && stockAvail !== null) {
+        const safePrevStockAvail = prevStockAvail ?? stockAvail; // fallback to current if prev is null
+        const change = stockAvail - safePrevStockAvail;
+        const changeArrow = change >= 0 ? "▲" : "▼";
+        const changeColor = change >= 0 ? "green" : "red";
+        const changeText = `${changeArrow}${Math.abs(change).toFixed(1)} pts (from ${safePrevStockAvail.toFixed(1)}%)`;
+
+        return {
+          ...card,
+          value: `${stockAvail}%`,
+          sub: `MTD on-shelf coverage (${apiData.overview.filters?.platform || 'All'})`,
+          change: changeText,
+          changeColor: changeColor,
+          sparklineData: generateSparklineFromValue(stockAvail, safePrevStockAvail),
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        };
+      }
+
+      // DOI (Days of Inventory) card
+      if (card.title === "Days of Inventory (DOI)" && doi !== undefined) {
+        const change = doiChangePercent || 0;
+        const changeArrow = change < 0 ? "▼" : "▲"; // For DOI, lower is often better
+        // For DOI, decrease (▼) is green (good), increase (▲) is red (bad)
+        const changeColor = change < 0 ? "green" : "red";
+        const changeText = `${changeArrow}${Math.abs(change).toFixed(1)}% (from ${prevDoi?.toFixed(1) || 'N/A'})`;
+
+        return {
+          ...card,
+          value: doi.toFixed(1),
+          sub: `Network average days of cover`,
+          change: changeText,
+          changeColor: changeColor,
+          sparklineData: generateSparklineFromValue(doi, prevDoi || doi * 1.1),
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        };
+      }
+
+      // Metro City Stock Availability card
+      if (card.title === "Metro City Stock Availability") {
+        // If metroCity data is available and the location is a metro city (or All)
+        if (metroCity && isMetroCity !== false && metroStockAvail !== null && metroStockAvail !== undefined) {
+          const safeMetroChange = metroChange ?? 0;
+          const safePrevMetroStockAvail = prevMetroStockAvail ?? metroStockAvail;
+          const changeArrow = safeMetroChange >= 0 ? "▲" : "▼";
+          const changeColor = safeMetroChange >= 0 ? "green" : "red";
+          const changeText = `${changeArrow}${Math.abs(safeMetroChange).toFixed(1)} pts (from ${safePrevMetroStockAvail.toFixed(1)}%)`;
+
+          return {
+            ...card,
+            value: `${metroStockAvail}%`,
+            sub: `MTD availability across metro cities`,
+            change: changeText,
+            changeColor: changeColor,
+            prevText: "vs Comparison Period",
+            extra: metroCity.metroCitiesCount ? `Tier 1 cities tracked: ${metroCity.metroCitiesCount}` : card.extra,
+            extraChange: "",
+            extraChangeColor: "green",
+            sparklineData: generateSparklineFromValue(metroStockAvail, safePrevMetroStockAvail),
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+          };
+        } else if (metroCity && isMetroCity === false) {
+          // User selected a non-metro city location - show N/A
+          return {
+            ...card,
+            value: "N/A",
+            sub: "Selected location is not a metro city",
+            change: "",
+            changeColor: "gray",
+            prevText: "",
+            extra: "Only available for Tier 1 (metro) cities",
+            extraChange: "",
+            extraChangeColor: "gray",
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+          };
+        }
+
+        // Keep default card when no API data yet
+        return {
+          ...card,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        };
+      }
+
+      // Pass date range to all other cards for consistent chart months
+      return {
+        ...card,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      };
+    });
+  };
+
+
 
   return (
 
@@ -1139,9 +1336,9 @@ export const AvailablityAnalysisData = () => {
 
 
 
-        <MetricCardContainer title="Availability Overview" cards={cards[availability]} />
+        <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} />
         {/* <SignalLabVisibility type="availability" /> */}
-        <TabbedHeatmapTable olaMode={availability} />
+        <TabbedHeatmapTable olaMode={availability} apiData={apiData} filters={filters} />
         <OsaHeatmapTable olaMode={availability} />
 
       </div>

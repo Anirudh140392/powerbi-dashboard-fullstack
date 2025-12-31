@@ -103,27 +103,193 @@ export default function OsaDetailTableLight() {
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [filterRules, setFilterRules] = useState(null);
 
+    // State for dynamic filter options from API
+    const [platformOptions, setPlatformOptions] = useState([]);
+    const [cityOptions, setCityOptions] = useState([]);
+    const [categoryOptions, setCategoryOptions] = useState([]);
+    const [monthOptions, setMonthOptions] = useState([]);
+    const [dateOptions, setDateOptions] = useState([]);
+
+    // State for selected filter values (for cascading)
+    const [selectedPlatform, setSelectedPlatform] = useState(null);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+
+    // State for dynamic category OSA data from API
+    const [categoryData, setCategoryData] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [apiDates, setApiDates] = useState([]);
+
+    // State to persist filter selections across filter panel open/close
+    const [filterSelections, setFilterSelections] = useState({});
+
+    // State to track the applied filters (set when Apply button is clicked)
+    const [appliedFilters, setAppliedFilters] = useState({});
+
+    // Fetch category OSA data from API
+    useEffect(() => {
+        const fetchCategoryOsaData = async () => {
+            try {
+                setIsLoading(true);
+                const params = new URLSearchParams({});
+
+                // Platform filter
+                if (selectedPlatform) params.append('platform', selectedPlatform);
+
+                // Date filter - pass selected dates
+                if (appliedFilters.date && appliedFilters.date.length > 0) {
+                    // Pass dates as comma-separated string
+                    params.append('dates', appliedFilters.date.join(','));
+                }
+
+                // Month filter
+                if (appliedFilters.month && appliedFilters.month.length > 0) {
+                    params.append('months', appliedFilters.month.join(','));
+                }
+
+                // City filter
+                if (appliedFilters.city && appliedFilters.city.length > 0) {
+                    params.append('cities', appliedFilters.city.join(','));
+                }
+
+                // Category filter
+                if (appliedFilters.category && appliedFilters.category.length > 0) {
+                    params.append('categories', appliedFilters.category.join(','));
+                }
+
+                // KPI filter
+                if (appliedFilters.kpi && appliedFilters.kpi.length > 0) {
+                    params.append('kpis', appliedFilters.kpi.join(','));
+                }
+
+                const url = `/api/availability-analysis/osa-detail-by-category?${params}`;
+                console.log('[OsaDetailView] REQUEST:', url);
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                console.log('[OsaDetailView] RESPONSE:', JSON.stringify(data, null, 2));
+
+                if (data.categories && data.categories.length > 0) {
+                    // Transform API data to match expected format
+                    const transformedData = data.categories.map(cat => ({
+                        name: cat.name,
+                        sku: cat.sku,
+                        values: cat.values,
+                        avg7: cat.values.length >= 7
+                            ? Math.round(cat.values.slice(-7).reduce((a, b) => a + b, 0) / 7)
+                            : cat.avg31,
+                        avg31: cat.avg31,
+                        status: cat.status
+                    }));
+                    setCategoryData(transformedData);
+                    if (data.dates) {
+                        setApiDates(data.dates);
+                    }
+                }
+                console.log('[OsaDetailView] Loaded', data.categories?.length, 'categories');
+            } catch (error) {
+                console.error('Error fetching category OSA data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchCategoryOsaData();
+    }, [selectedPlatform, appliedFilters]);
+
+    // Fetch filter options from API
+    useEffect(() => {
+        const fetchFilterOptions = async () => {
+            try {
+                // Fetch platforms (no cascading dependency)
+                const platformRes = await fetch('/api/availability-analysis/filter-options?filterType=platforms');
+                const platformData = await platformRes.json();
+                if (platformData.options) {
+                    setPlatformOptions(platformData.options.map(p => ({ id: p.toLowerCase().replace(/\s+/g, '_'), label: p })));
+                }
+
+                // Fetch months
+                const monthRes = await fetch('/api/availability-analysis/filter-options?filterType=months');
+                const monthData = await monthRes.json();
+                if (monthData.options) {
+                    setMonthOptions(monthData.options.map(m => ({ id: m, label: m })));
+                }
+
+                // Fetch dates
+                const dateRes = await fetch('/api/availability-analysis/filter-options?filterType=dates');
+                const dateData = await dateRes.json();
+                if (dateData.options) {
+                    setDateOptions(dateData.options.map(d => ({ id: d, label: d })));
+                }
+            } catch (error) {
+                console.error('Error fetching filter options:', error);
+            }
+        };
+
+        fetchFilterOptions();
+    }, []);
+
+    // Fetch category options when platform changes
+    useEffect(() => {
+        const fetchCategoryOptions = async () => {
+            try {
+                const params = new URLSearchParams({ filterType: 'categories' });
+                if (selectedPlatform) params.append('platform', selectedPlatform);
+
+                const res = await fetch(`/api/availability-analysis/filter-options?${params}`);
+                const data = await res.json();
+                if (data.options) {
+                    setCategoryOptions(data.options.map(c => ({ id: c.toLowerCase().replace(/\s+/g, '_'), label: c })));
+                }
+            } catch (error) {
+                console.error('Error fetching category options:', error);
+            }
+        };
+
+        fetchCategoryOptions();
+    }, [selectedPlatform]);
+
+    // Fetch city options when platform or category changes
+    useEffect(() => {
+        const fetchCityOptions = async () => {
+            try {
+                const params = new URLSearchParams({ filterType: 'cities' });
+                if (selectedPlatform) params.append('platform', selectedPlatform);
+                if (selectedCategory) params.append('category', selectedCategory);
+
+                const res = await fetch(`/api/availability-analysis/filter-options?${params}`);
+                const data = await res.json();
+                if (data.options) {
+                    setCityOptions(data.options.map(c => ({ id: c.toLowerCase().replace(/\s+/g, '_'), label: c })));
+                }
+            } catch (error) {
+                console.error('Error fetching city options:', error);
+            }
+        };
+
+        fetchCityOptions();
+    }, [selectedPlatform, selectedCategory]);
+
+    // Build filter options from loaded data
     const filterOptions = useMemo(() => {
         return [
-            { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-            { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-            { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
-            { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+            { id: "date", label: "Date", options: dateOptions.length > 0 ? dateOptions : [] },
+            { id: "month", label: "Month", options: monthOptions.length > 0 ? [{ id: "all", label: "All" }, ...monthOptions] : [{ id: "all", label: "All" }] },
+            { id: "platform", label: "Platform", options: platformOptions.length > 0 ? platformOptions : [] },
+            { id: "city", label: "City", options: cityOptions.length > 0 ? cityOptions : [] },
+            { id: "category", label: "Category", options: categoryOptions.length > 0 ? categoryOptions : [] },
             { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
-            { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-            { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-            { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-            { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-            { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-            { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
         ];
-    }, []);
+    }, [platformOptions, cityOptions, categoryOptions, monthOptions, dateOptions]);
+
+    // Use API data if available, otherwise fall back to sample data
+    const dataSource = categoryData.length > 0 ? categoryData : SAMPLE_ROWS;
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q && statusFilter.length === 0) return SAMPLE_ROWS;
+        if (!q && statusFilter.length === 0) return dataSource;
 
-        let res = SAMPLE_ROWS;
+        let res = dataSource;
         if (q) {
             res = res.filter(
                 (r) => r.name.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q)
@@ -133,7 +299,7 @@ export default function OsaDetailTableLight() {
             res = res.filter((r) => statusFilter.includes(r.status));
         }
         return res;
-    }, [query, statusFilter]);
+    }, [query, statusFilter, dataSource]);
 
     const sorted = useMemo(() => {
         const dirMul = sortDir === "asc" ? 1 : -1;
@@ -421,13 +587,52 @@ export default function OsaDetailTableLight() {
                                 <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
+                                        sectionValues={filterSelections}
                                         onSectionChange={(sectionId, values) => {
+                                            console.log("Filter changed:", sectionId, values);
+
+                                            // Persist the selection to state
+                                            setFilterSelections(prev => ({
+                                                ...prev,
+                                                [sectionId]: values
+                                            }));
+
+                                            // Handle cascading filters - Platform selection affects Category and City
+                                            if (sectionId === 'platform' && values?.length > 0) {
+                                                // Get the label of the first selected platform
+                                                const selectedOption = platformOptions.find(p => values.includes(p.id));
+                                                setSelectedPlatform(selectedOption?.label || null);
+                                                // Reset dependent filters
+                                                setSelectedCategory(null);
+                                                // Clear dependent filter selections
+                                                setFilterSelections(prev => ({
+                                                    ...prev,
+                                                    [sectionId]: values,
+                                                    category: [],
+                                                    city: []
+                                                }));
+                                            } else if (sectionId === 'platform' && (!values || values.length === 0)) {
+                                                setSelectedPlatform(null);
+                                                setSelectedCategory(null);
+                                            }
+
+                                            // Handle Category selection - affects City
+                                            if (sectionId === 'category' && values?.length > 0) {
+                                                const selectedOption = categoryOptions.find(c => values.includes(c.id));
+                                                setSelectedCategory(selectedOption?.label || null);
+                                                // Clear city selection when category changes
+                                                setFilterSelections(prev => ({
+                                                    ...prev,
+                                                    [sectionId]: values,
+                                                    city: []
+                                                }));
+                                            } else if (sectionId === 'category' && (!values || values.length === 0)) {
+                                                setSelectedCategory(null);
+                                            }
+
+                                            // Handle KPI filter changes
                                             if (sectionId === 'kpi') {
-                                                // Handle KPI filter changes - Assuming 'values' is an array of selected IDs
-                                                // For now just console log, or update a state if we wanted to filter the table
                                                 console.log("Selected KPIs:", values);
-                                                // To make this functional, we would add:
-                                                // setStatusFilter(values); // if statusFilter is used for KPIs
                                             }
                                         }}
                                     />
@@ -442,7 +647,11 @@ export default function OsaDetailTableLight() {
                                         Cancel
                                     </button>
                                     <button
-                                        onClick={() => setShowFilterPanel(false)}
+                                        onClick={() => {
+                                            // Copy current selections to applied filters to trigger API call
+                                            setAppliedFilters({ ...filterSelections });
+                                            setShowFilterPanel(false);
+                                        }}
                                         className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
                                     >
                                         Apply Filters

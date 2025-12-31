@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Card,
@@ -147,9 +147,30 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
     fetchMetrics();
   }, []);
 
+  // Ref to track last fetched params and prevent duplicate API calls
+  const lastFetchedRef = useRef(null);
+
   // Fetch SKU data when metric changes
   useEffect(() => {
     if (!selectedMetric) return;
+
+    // Create a stable key for current fetch params
+    const fetchKey = JSON.stringify({
+      metric: selectedMetric?.key,
+      platform: filters.platform,
+      brand: filters.brand,
+      location: filters.location,
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    });
+
+    // Skip if we already fetched with these same params
+    if (lastFetchedRef.current === fetchKey) {
+      return;
+    }
+
+    // Mark these params as being fetched
+    lastFetchedRef.current = fetchKey;
 
     const fetchSkuData = async () => {
       setLoading(true);
@@ -187,7 +208,7 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
     };
 
     fetchSkuData();
-  }, [selectedMetric, filters]);
+  }, [selectedMetric, filters.platform, filters.brand, filters.location, filters.startDate, filters.endDate]);
 
 
   /* --------------------- FILTER --------------------- */

@@ -16,6 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Box } from "@mui/material";
+import axiosInstance from "../../api/axiosInstance";
 import { formatNumber, formatKpiValue, formatYAxisTick } from "../../utils/formatters";
 
 /* -------------------------------------------------------------------------- */
@@ -542,7 +543,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -590,7 +591,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = 
         ? "brands"
         : "skus";
 
-  // strict dependency: parent change clears children
+  // strict dependency: parent change clears children AND triggers refetch
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
     if (current.has(item)) current.delete(item);
@@ -608,6 +609,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = 
     }
 
     onChange(next);
+
+    // Trigger cascading refetch for Category or Brand changes
+    if (onSelectionChange && (type === "categories" || type === "brands")) {
+      onSelectionChange({
+        category: next.categories.length > 0 ? next.categories[0] : null,
+        brand: next.brands.length > 0 ? next.brands[0] : null
+      });
+    }
   };
 
   const handleSelectAll = (type, items) => {
@@ -624,6 +633,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = 
     }
 
     onChange(next);
+
+    // Trigger cascading refetch for Category or Brand changes
+    if (onSelectionChange && (type === "categories" || type === "brands")) {
+      onSelectionChange({
+        category: next.categories.length > 0 ? next.categories[0] : null,
+        brand: next.brands.length > 0 ? next.brands[0] : null
+      });
+    }
   };
 
   const allItemsForCurrentTab = getListForTab();
@@ -1152,10 +1169,13 @@ const BrandTable = ({ rows }) => (
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  colSpan={6}
+                  className="px-3 py-8 text-center text-slate-500"
                 >
-                  No brands matching current filters.
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-lg">No data available</span>
+                    <span className="text-sm text-slate-400">No brands found for the selected filters. Try adjusting your filter criteria.</span>
+                  </div>
                 </td>
               </tr>
             )}
@@ -1218,10 +1238,13 @@ const SkuTable = ({ rows }) => (
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  colSpan={7}
+                  className="px-3 py-8 text-center text-slate-500"
                 >
-                  No SKUs matching current filters.
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-lg">No data available</span>
+                    <span className="text-sm text-slate-400">No SKUs found for the selected filters. Try adjusting your filter criteria.</span>
+                  </div>
                 </td>
               </tr>
             )}
@@ -1274,6 +1297,60 @@ export const KpiTrendShowcase = ({
   }, [parentCity]);
 
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+
+  // Dynamic filter options from API
+  const [dynamicFilterOptions, setDynamicFilterOptions] = useState({
+    locations: ['All India'],
+    categories: ['All'],
+    brands: ['All'],
+    skus: ['All']
+  });
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+
+  // Fetch filter options from competition-filter-options API
+  const fetchFilterOptions = async (location = null, category = null, brand = null) => {
+    setFilterOptionsLoading(true);
+    try {
+      const params = {};
+      if (location && location !== 'All India') params.location = location;
+      if (category && category !== 'All') params.category = category;
+      if (brand && brand !== 'All') params.brand = brand;
+
+      console.log('[KpiTrendShowcase] Fetching filter options with params:', params);
+      const response = await axiosInstance.get('/watchtower/competition-filter-options', { params });
+
+      if (response.data) {
+        console.log('[KpiTrendShowcase] Filter options received:', {
+          locations: response.data.locations?.length,
+          categories: response.data.categories?.length,
+          brands: response.data.brands?.length,
+          skus: response.data.skus?.length
+        });
+        setDynamicFilterOptions({
+          locations: response.data.locations || ['All India'],
+          categories: response.data.categories || ['All'],
+          brands: response.data.brands || ['All'],
+          skus: response.data.skus || ['All']
+        });
+      }
+    } catch (error) {
+      console.error('[KpiTrendShowcase] Error fetching filter options:', error);
+    }
+    setFilterOptionsLoading(false);
+  };
+
+  // Fetch filter options on mount
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []);
+
+  // Refresh filter options when city/location changes (cascading)
+  useEffect(() => {
+    if (city && city !== 'All India') {
+      fetchFilterOptions(city, filters.categories?.[0], filters.brands?.[0]);
+    }
+  }, [city]);
+
   const [filters, setFilters] = useState({
     categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
     brands: parentBrand && parentBrand !== 'All' ? [parentBrand] : [],
@@ -1308,16 +1385,18 @@ export const KpiTrendShowcase = ({
 
   // Use real competition data if available, otherwise fall back to mock data
   const brandRows = useMemo(() => {
-    if (competitionData && Array.isArray(competitionData)) {
-      console.log('[KpiTrendShowcase] Using competition data:', competitionData);
+    // FIXED: Access brands array from response object (same structure as PlatformOverviewKpiShowcase)
+    if (competitionData && competitionData.brands && Array.isArray(competitionData.brands)) {
+      console.log('[KpiTrendShowcase] Using competition data:', competitionData.brands);
       // Transform backend data to match expected format
-      // Backend returns: { brand, Offtakes: {value, delta}, Spend: {value, delta}, Roas: {value, delta}, Availability: {value, delta} }
-      return competitionData.map(brand => ({
-        name: brand.brand || brand.brand_name || brand.name,
-        offtakes: brand.Offtakes?.value || brand.offtakes || 0,
-        spend: brand.Spend?.value || brand.spend || 0,
-        roas: brand.Roas?.value || brand.roas || 0,
-        availability: brand.Availability?.value || brand.availability || 0
+      // Backend returns: { brand_name, osa, sos, price, categoryShare, marketShare }
+      return competitionData.brands.map(brand => ({
+        name: brand.brand_name || brand.brand || brand.name,
+        osa: brand.osa || 0,
+        sos: brand.sos || 0,
+        price: brand.price || 0,
+        categoryShare: brand.categoryShare || 0,
+        marketShare: brand.marketShare || 0
       }));
     }
 
@@ -1382,7 +1461,7 @@ export const KpiTrendShowcase = ({
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
             <SelectContent>
-              {CITIES.map((c) => (
+              {dynamicFilterOptions.locations.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
@@ -1497,9 +1576,14 @@ export const KpiTrendShowcase = ({
         mode={tab}
         value={filters}
         onChange={setFilters}
-        categoryOptions={CATEGORY_OPTIONS}
-        brandOptions={BRAND_OPTIONS}
-        skuOptions={SKU_OPTIONS}
+        onSelectionChange={({ category, brand }) => {
+          // Refetch filter options with cascading params
+          console.log('[KpiTrendShowcase] Cascading filter change:', { category, brand });
+          fetchFilterOptions(city !== 'All India' ? city : null, category, brand);
+        }}
+        categoryOptions={dynamicFilterOptions.categories.filter(c => c !== 'All')}
+        brandOptions={dynamicFilterOptions.brands.filter(b => b !== 'All')}
+        skuOptions={dynamicFilterOptions.skus.filter(s => s !== 'All')}
         brandNameToId={BRAND_NAME_TO_ID}
         skuNameToId={SKU_NAME_TO_ID}
       />
