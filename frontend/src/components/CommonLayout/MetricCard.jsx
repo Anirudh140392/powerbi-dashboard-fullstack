@@ -1,12 +1,35 @@
 import { Card, CardContent, Typography, Box } from "@mui/material";
 import MiniSparkline from "./MiniSparkLine";
+import dayjs from "dayjs";
 
-const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+// Generate dynamic months based on a date range or default to last 7 months
+const generateMonthLabels = (startDate, endDate) => {
+  const labels = [];
+  const start = startDate ? dayjs(startDate) : dayjs().subtract(6, 'month');
+  const end = endDate ? dayjs(endDate) : dayjs();
 
-const generateValues = () => months.map(() => Math.floor(Math.random() * 60) + 20);
+  let current = start.startOf('month');
+  while (current.isBefore(end) || current.isSame(end, 'month')) {
+    labels.push(current.format('MMM'));
+    current = current.add(1, 'month');
+  }
+
+  // Ensure we have at least 2 data points
+  if (labels.length < 2) {
+    labels.unshift(start.subtract(1, 'month').format('MMM'));
+  }
+
+  return labels;
+};
+
+const generateValues = (count) => Array.from({ length: count }, () => Math.floor(Math.random() * 60) + 20);
 
 export default function MetricCard({ card, scrollNeeded, totalCards }) {
-  const values = card.sparklineData || generateValues();
+  // Use card-provided months, or generate from date range, or fallback to default
+  const months = card.months ||
+    (card.startDate && card.endDate ? generateMonthLabels(card.startDate, card.endDate) : generateMonthLabels());
+
+  const values = card.sparklineData || generateValues(months.length);
   const positive = card.change.includes("▲") || card.change.includes("+");
   const color = positive ? "#28a745" : "#dc3545";
 
@@ -55,3 +78,4 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
     </Card>
   );
 }
+

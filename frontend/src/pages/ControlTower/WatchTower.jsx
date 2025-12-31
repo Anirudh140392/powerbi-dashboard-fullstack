@@ -255,149 +255,164 @@ function WatchTower() {
     });
   }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  // ==================== SEQUENTIAL DATA LOADING ====================
-  // Load sections SEQUENTIALLY in this order:
-  // 1. Watch Overview → 2. Platform Overview → 3. Category Overview (for Category Performance) → 4. Month Overview → 5. Brand Overview
-  // All API calls run one after another (single-threaded)
+  // ==================== PARALLEL DATA LOADING ====================
+  // All 6 API calls run in parallel, whichever completes first displays first
+
+  // Ref to track last fetched filters to prevent duplicate API calls
+  const lastFetchedFiltersRef = useRef(null);
 
   useEffect(() => {
     let ignore = false;
 
-    const fetchSequentially = async () => {
+    const fetchAllInParallel = async () => {
       // Prevent fetching if critical filters are missing
       if (!filters.brand || !filters.location) {
         console.log("⏭️ Skipping fetch: Brand or Location missing");
         return;
       }
 
-      console.log("🚀 Starting sequential data loading...");
+      // Create a stable key for current filters to compare
+      const filterKey = JSON.stringify({
+        platform: filters.platform,
+        brand: filters.brand,
+        location: filters.location,
+        startDate: filters.startDate,
+        endDate: filters.endDate
+      });
+
+      // Skip if we already fetched with these same filters
+      if (lastFetchedFiltersRef.current === filterKey) {
+        console.log("⏭️ Skipping duplicate fetch: Filters unchanged");
+        return;
+      }
+
+      // Mark these filters as being fetched
+      lastFetchedFiltersRef.current = filterKey;
+
+      console.log("🚀 Starting parallel data loading for ALL 6 segments...");
       const totalStartTime = performance.now();
 
-      try {
-        // ============ STEP 1: WATCH OVERVIEW (IMMEDIATE - MUST COMPLETE FIRST) ============
-        console.log("📊 [1/6] Loading Watch Overview...");
-        setLoading(true);
-        const step1Start = performance.now();
+      // Set all loading states
+      setLoading(true);
+      setPerformanceLoading(true);
+      setPlatformOverviewLoading(true);
+      setCategoryOverviewLoading(true);
+      setMonthOverviewLoading(true);
+      setBrandsOverviewLoading(true);
 
-        const overviewRes = await axiosInstance.get("/watchtower/overview", { params: filters });
+      // ============ ALL 6 SECTIONS FIRE IN PARALLEL ============
 
-        if (!ignore) {
+      // STEP 1: WATCH OVERVIEW (PARALLEL)
+      const step1Start = performance.now();
+      console.log("📊 [1/6] Loading Watch Overview...");
+      axiosInstance.get("/watchtower/overview", { params: filters })
+        .then(overviewRes => {
+          // Removed ignore check - lastFetchedFiltersRef handles duplicate prevention
           setDashboardData(prev => ({
             ...prev,
             topMetrics: overviewRes.data.topMetrics || [],
             summaryMetrics: overviewRes.data.summaryMetrics || prev.summaryMetrics
           }));
-          setLoading(false); // ✅ Hide loader - USER SEES WATCH OVERVIEW NOW!
-          console.log(`✅ [1/6] Watch Overview loaded in ${((performance.now() - step1Start) / 1000).toFixed(2)}s`);
-        }
-
-        // ============ ALL OTHER SECTIONS FIRE IN PARALLEL - WHICHEVER COMPLETES FIRST DISPLAYS FIRST ============
-
-        // STEP 2: PERFORMANCE METRICS (PARALLEL)
-        const step2Start = performance.now();
-        setPerformanceLoading(true);
-        axiosInstance.get("/watchtower/performance-metrics", { params: filters })
-          .then(performanceRes => {
-            if (!ignore) {
-              setDashboardData(prev => ({
-                ...prev,
-                performanceMetricsKpis: performanceRes.data.performanceMetricsKpis || []
-              }));
-              setPerformanceLoading(false);
-              console.log(`✅ [2/6] Performance Metrics loaded in ${((performance.now() - step2Start) / 1000).toFixed(2)}s`);
-            }
-          })
-          .catch(err => {
-            console.error("Error loading Performance Metrics:", err);
-            if (!ignore) setPerformanceLoading(false);
-          });
-
-        // STEP 3: PLATFORM OVERVIEW (PARALLEL)
-        const step3Start = performance.now();
-        setPlatformOverviewLoading(true);
-        axiosInstance.get("/watchtower/platform-overview", { params: filters })
-          .then(platformRes => {
-            if (!ignore) {
-              setDashboardData(prev => ({
-                ...prev,
-                platformOverview: platformRes.data || []
-              }));
-              setPlatformOverviewLoading(false);
-              console.log(`✅ [3/6] Platform Overview loaded in ${((performance.now() - step3Start) / 1000).toFixed(2)}s`);
-            }
-          })
-          .catch(err => {
-            console.error("Error loading Platform Overview:", err);
-            if (!ignore) setPlatformOverviewLoading(false);
-          });
-
-        // STEP 4: CATEGORY OVERVIEW (PARALLEL)
-        const step4Start = performance.now();
-        setCategoryOverviewLoading(true);
-        axiosInstance.get("/watchtower/category-overview", { params: { ...filters, categoryOverviewPlatform } })
-          .then(categoryRes => {
-            if (!ignore) {
-              setCategoryOverviewData(categoryRes.data);
-              setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
-              setCategoryOverviewLoading(false);
-              console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
-            }
-          })
-          .catch(err => {
-            console.error("Error loading Category Overview:", err);
-            if (!ignore) setCategoryOverviewLoading(false);
-          });
-
-        // STEP 5: MONTH OVERVIEW (PARALLEL)
-        const step5Start = performance.now();
-        setMonthOverviewLoading(true);
-        axiosInstance.get("/watchtower/month-overview", { params: { ...filters, monthOverviewPlatform } })
-          .then(monthRes => {
-            if (!ignore) {
-              setMonthOverviewData(monthRes.data);
-              setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
-              setMonthOverviewLoading(false);
-              console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
-            }
-          })
-          .catch(err => {
-            console.error("Error loading Month Overview:", err);
-            if (!ignore) setMonthOverviewLoading(false);
-          });
-
-        // STEP 6: BRAND OVERVIEW (PARALLEL)
-        const step6Start = performance.now();
-        setBrandsOverviewLoading(true);
-        axiosInstance.get("/watchtower/brands-overview", { params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory } })
-          .then(brandsRes => {
-            if (!ignore) {
-              setBrandsOverviewData(brandsRes.data);
-              setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
-              setBrandsOverviewLoading(false);
-              console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
-            }
-          })
-          .catch(err => {
-            console.error("Error loading Brand Overview:", err);
-            if (!ignore) setBrandsOverviewLoading(false);
-          });
-
-        console.log(`🚀 All section requests fired in parallel! Each will display as soon as ready.`);
-
-      } catch (error) {
-        if (!ignore) {
-          console.error("❌ Error in sequential loading:", error);
           setLoading(false);
+          console.log(`✅ [1/6] Watch Overview loaded in ${((performance.now() - step1Start) / 1000).toFixed(2)}s`);
+        })
+        .catch(err => {
+          console.error("Error loading Watch Overview:", err);
+          setLoading(false);
+        });
+
+      // STEP 2: PERFORMANCE METRICS (PARALLEL)
+      const step2Start = performance.now();
+      console.log("📊 [2/6] Loading Performance Metrics...");
+      axiosInstance.get("/watchtower/performance-metrics", { params: filters })
+        .then(performanceRes => {
+          // Removed ignore check - lastFetchedFiltersRef handles duplicate prevention
+          setDashboardData(prev => ({
+            ...prev,
+            performanceMetricsKpis: performanceRes.data.performanceMetricsKpis || []
+          }));
           setPerformanceLoading(false);
-          setPlatformOverviewLoading(false);
-          setMonthOverviewLoading(false);
-          setCategoryOverviewLoading(false);
-          setBrandsOverviewLoading(false);
-        }
-      }
+          console.log(`✅ [2/6] Performance Metrics loaded in ${((performance.now() - step2Start) / 1000).toFixed(2)}s`);
+        })
+        .catch(err => {
+          console.error("Error loading Performance Metrics:", err);
+          setPerformanceLoading(false);
+        });
+
+      // STEP 3: PLATFORM OVERVIEW (PARALLEL)
+      const step3Start = performance.now();
+      console.log("📊 [3/6] Loading Platform Overview...");
+      axiosInstance.get("/watchtower/platform-overview", { params: filters })
+        .then(platformRes => {
+          if (!ignore) {
+            setDashboardData(prev => ({
+              ...prev,
+              platformOverview: platformRes.data || []
+            }));
+            setPlatformOverviewLoading(false);
+            console.log(`✅ [3/6] Platform Overview loaded in ${((performance.now() - step3Start) / 1000).toFixed(2)}s`);
+          }
+        })
+        .catch(err => {
+          console.error("Error loading Platform Overview:", err);
+          if (!ignore) setPlatformOverviewLoading(false);
+        });
+
+      // STEP 4: CATEGORY OVERVIEW (PARALLEL)
+      const step4Start = performance.now();
+      console.log("📊 [4/6] Loading Category Overview...");
+      axiosInstance.get("/watchtower/category-overview", { params: { ...filters, categoryOverviewPlatform } })
+        .then(categoryRes => {
+          if (!ignore) {
+            setCategoryOverviewData(categoryRes.data);
+            setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
+            setCategoryOverviewLoading(false);
+            console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
+          }
+        })
+        .catch(err => {
+          console.error("Error loading Category Overview:", err);
+          if (!ignore) setCategoryOverviewLoading(false);
+        });
+
+      // STEP 5: MONTH OVERVIEW (PARALLEL)
+      const step5Start = performance.now();
+      console.log("📊 [5/6] Loading Month Overview...");
+      axiosInstance.get("/watchtower/month-overview", { params: { ...filters, monthOverviewPlatform } })
+        .then(monthRes => {
+          if (!ignore) {
+            setMonthOverviewData(monthRes.data);
+            setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
+            setMonthOverviewLoading(false);
+            console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
+          }
+        })
+        .catch(err => {
+          console.error("Error loading Month Overview:", err);
+          if (!ignore) setMonthOverviewLoading(false);
+        });
+
+      // STEP 6: BRAND OVERVIEW (PARALLEL)
+      const step6Start = performance.now();
+      console.log("📊 [6/6] Loading Brand Overview...");
+      axiosInstance.get("/watchtower/brands-overview", { params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory } })
+        .then(brandsRes => {
+          if (!ignore) {
+            setBrandsOverviewData(brandsRes.data);
+            setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
+            setBrandsOverviewLoading(false);
+            console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
+          }
+        })
+        .catch(err => {
+          console.error("Error loading Brand Overview:", err);
+          if (!ignore) setBrandsOverviewLoading(false);
+        });
+
+      console.log(`🚀 All 6 section requests fired in parallel! Each will display as soon as ready.`);
     };
 
-    fetchSequentially();
+    fetchAllInParallel();
     return () => { ignore = true; };
   }, [filters]); // Only re-fetch ALL sections when filters change (brand, location, dates)
   // Platform-specific changes (monthOverviewPlatform, categoryOverviewPlatform, etc.) are handled by their own useEffects below
@@ -1226,16 +1241,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
-          <select
-            value={categoryOverviewPlatform}
-            onChange={(e) => setCategoryOverviewPlatform(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            <option value="Zepto">Zepto</option>
-            <option value="Blinkit">Blinkit</option>
-            <option value="Swiggy">Swiggy</option>
-            <option value="Amazon">Amazon</option>
-          </select>
+          {/* Platform dropdown removed per user request */}
         </div>
 
         <div className="space-y-2 max-h-150 overflow-y-auto pr-1 ">

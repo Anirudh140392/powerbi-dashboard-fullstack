@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 import { LightbulbCogRCAIcon } from "../../Analytics/CategoryRca/RcaIcons";
+import axiosInstance from "../../../api/axiosInstance";
 
 /* ---------------- SMALL KPI CARD ---------------- */
 const SmallCard = ({ item }) => {
@@ -114,6 +115,16 @@ const PlatformOverview = ({
   activeKpisTab = "Platform Overview",
   currentPage,
   setCurrentPage = () => { },
+  // Dynamic dropdown props from WatchTower
+  monthOverviewPlatform,
+  onMonthPlatformChange,
+  categoryOverviewPlatform,
+  onCategoryPlatformChange,
+  brandsOverviewPlatform,
+  onBrandsPlatformChange,
+  brandsOverviewCategory,
+  onBrandsCategoryChange,
+  filters = {},
 }) => {
   const theme = useTheme();
 
@@ -121,11 +132,60 @@ const PlatformOverview = ({
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isPagination, setIsPagination] = React.useState(true);
 
-  const [platformFilter, setPlatformFilter] = React.useState({
-    platform: "blinkit",
-    category: "Core Tub",
-    brand: "Amul",
-  });
+  // Dynamic dropdown options fetched from backend
+  const [platformOptions, setPlatformOptions] = React.useState(['All']);
+  const [categoryOptions, setCategoryOptions] = React.useState(['All']);
+  const [brandOptions, setBrandOptions] = React.useState(['All']);
+
+  // Fetch platforms from backend
+  React.useEffect(() => {
+    const fetchPlatforms = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/platforms');
+        if (response.data && response.data.length > 0) {
+          // Add 'All' option at the start
+          setPlatformOptions(['All', ...response.data]);
+        }
+      } catch (error) {
+        console.error('Error fetching platforms:', error);
+        // No hardcoded fallback - rely on dynamic API data from rca_sku_dim
+        setPlatformOptions(['All']);
+      }
+    };
+    fetchPlatforms();
+  }, []);
+
+  // Fetch categories from backend (from rca_sku_dim)
+  React.useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/categories');
+        if (response.data && response.data.length > 0) {
+          setCategoryOptions(['All', ...response.data]);
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        setCategoryOptions(['All']);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Fetch brands from backend (from rca_sku_dim where comp_flag = 0)
+  React.useEffect(() => {
+    const fetchBrands = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/brands');
+        if (response.data && response.data.length > 0) {
+          setBrandOptions(['All', ...response.data]);
+        }
+      } catch (error) {
+        console.error('Error fetching brands:', error);
+        setBrandOptions(['All']);
+      }
+    };
+    fetchBrands();
+  }, []);
 
   const CARDS_PER_PAGE = 5;
 
@@ -250,16 +310,25 @@ const PlatformOverview = ({
 
             {/* FILTERS + SEARCH + SORT */}
             <Box display="flex" alignItems="center" gap={1.2}>
-              {activeKpisTab !== "Platform Overview" && (
+              {/* Platform Dropdown for Month, Category, Brands Overview */}
+              {(activeKpisTab === "Month Overview" || activeKpisTab === "Category Overview" || activeKpisTab === "Brands Overview") && (
                 <Select
                   size="small"
-                  value={platformFilter.platform}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({
-                      ...p,
-                      platform: e.target.value,
-                    }))
+                  value={
+                    activeKpisTab === "Month Overview" ? (monthOverviewPlatform || 'All') :
+                      activeKpisTab === "Category Overview" ? (categoryOverviewPlatform || 'All') :
+                        (brandsOverviewPlatform || 'All')
                   }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (activeKpisTab === "Month Overview" && onMonthPlatformChange) {
+                      onMonthPlatformChange(value);
+                    } else if (activeKpisTab === "Category Overview" && onCategoryPlatformChange) {
+                      onCategoryPlatformChange(value);
+                    } else if (activeKpisTab === "Brands Overview" && onBrandsPlatformChange) {
+                      onBrandsPlatformChange(value);
+                    }
+                  }}
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -267,20 +336,22 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  <MenuItem value="blinkit">Blinkit</MenuItem>
+                  {platformOptions.map((p) => (
+                    <MenuItem key={p} value={p}>{p}</MenuItem>
+                  ))}
                 </Select>
               )}
 
+              {/* Category Dropdown for Brands Overview */}
               {activeKpisTab === "Brands Overview" && (
                 <Select
                   size="small"
-                  value={platformFilter.category}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({
-                      ...p,
-                      category: e.target.value,
-                    }))
-                  }
+                  value={brandsOverviewCategory || 'All'}
+                  onChange={(e) => {
+                    if (onBrandsCategoryChange) {
+                      onBrandsCategoryChange(e.target.value);
+                    }
+                  }}
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -288,50 +359,10 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  <MenuItem value="Core Tub">Core Tub</MenuItem>
+                  {categoryOptions.map((c) => (
+                    <MenuItem key={c} value={c}>{c}</MenuItem>
+                  ))}
                 </Select>
-              )}
-
-              {activeKpisTab === "Skus Overview" && (
-                <>
-                  <Select
-                    size="small"
-                    value={platformFilter.category}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        category: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "1.85rem",
-                      background: "#f3f4f6",
-                    }}
-                  >
-                    <MenuItem value="Core Tub">Core Tub</MenuItem>
-                  </Select>
-
-                  <Select
-                    size="small"
-                    value={platformFilter.brand}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        brand: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "0.85rem",
-                      background: "#f3f4f6",
-                    }}
-                  >
-                    <MenuItem value="Amul">Amul</MenuItem>
-                  </Select>
-                </>
               )}
 
               {/* SEARCH */}
@@ -365,14 +396,16 @@ const PlatformOverview = ({
             </Box>
           </Box>
 
-          {/* PLATFORM CARDS - HORIZONTAL SCROLL WITH PAGINATION */}
+          {/* PLATFORM CARDS - HORIZONTAL + VERTICAL SCROLL */}
           <Box
             sx={{
               display: "flex",
               gap: 2,
               overflowX: "auto",
+              overflowY: "auto",
               pb: 2,
-              height: "800px",
+              maxHeight: "700px",
+              alignItems: "flex-start",
             }}
           >
             {paginatedPlatforms.map((platform) => (

@@ -14,6 +14,7 @@ import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHor
 import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
 import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
 import { KpiFilterPanel } from "./KpiFilterPanel";
+import axiosInstance from "@/api/axiosInstance";
 
 // import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 // import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityCompetitionDrawer";
@@ -660,23 +661,84 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterRules, setFilterRules] = useState(null);
 
+  // Dynamic filter options state
+  const [dynamicFilterData, setDynamicFilterData] = useState({
+    platforms: [],
+    categories: [],
+    products: [],
+    cities: [],
+    months: [],
+    zones: [],
+    metroFlags: [],
+    loading: true
+  });
+
+  // Fetch dynamic filter options from API
+  React.useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const filterTypes = ['platforms', 'categories', 'products', 'cities', 'months', 'zones', 'metroFlags'];
+        const results = await Promise.all(
+          filterTypes.map(type =>
+            axiosInstance.get(`/availability-analysis/filter-options?filterType=${type}`)
+              .then(res => res.data)
+              .catch(() => ({ options: [] }))
+          )
+        );
+
+        setDynamicFilterData({
+          platforms: results[0]?.options || [],
+          categories: results[1]?.options || [],
+          products: results[2]?.options || [],
+          cities: results[3]?.options || [],
+          months: results[4]?.options || [],
+          zones: results[5]?.options || [],
+          metroFlags: results[6]?.options || [],
+          loading: false
+        });
+      } catch (error) {
+        console.error('Error fetching filter options:', error);
+        setDynamicFilterData(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    fetchFilterOptions();
+  }, []);
+
+  // Build filter options from dynamic data
   const filterOptions = React.useMemo(() => {
     if (kpiFilterOptions) return kpiFilterOptions;
+
+    // Helper to convert array of strings to filter options format
+    const toOptions = (arr) => arr.map(item => ({ id: item, label: item }));
+
+    // Format months nicely (2025-12 -> December 2025)
+    const formatMonth = (monthStr) => {
+      if (!monthStr) return monthStr;
+      const [year, month] = monthStr.split('-');
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
+    };
+
+    const monthOptions = dynamicFilterData.months.map(m => ({
+      id: m,
+      label: formatMonth(m)
+    }));
+
     return [
       { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-      { id: "keywords", label: "Keyword" },
-      { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-      { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+      { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
+      { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
       { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
-      { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-      { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-      { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-      { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-      { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-      { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-      { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+      { id: "productName", label: "Product Name", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.products)] },
+      { id: "format", label: "Format", options: [{ id: "na", label: "Not Applicable" }] },
+      { id: "zone", label: "Zone", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.zones)] },
+      { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
+      { id: "metroFlag", label: "Metro Flag", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.metroFlags)] },
+      { id: "category", label: "Category", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.categories)] },
     ];
-  }, [rows, columns, kpiFilterOptions]);
+  }, [dynamicFilterData, kpiFilterOptions]);
 
   // Value Logic Filter (Legacy - kept for reference or removal)
   const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
@@ -929,7 +991,11 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                            ${cellClasses}`}
                               >
                                 <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (isPercentageBased ? `${value}%` : `${value}`) : "–"}
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value))
+                                    ? ((isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE')
+                                      ? `${value}%`
+                                      : `${value}`)
+                                    : "–"}
                                 </span>
 
                                 <span
@@ -953,7 +1019,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{isPercentageBased ? `${value}%` : value}</span>
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{(isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE') ? `${value}%` : value}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
                                     {trend > 0 ? `+${trend}` : `${trend}`}
                                   </span>

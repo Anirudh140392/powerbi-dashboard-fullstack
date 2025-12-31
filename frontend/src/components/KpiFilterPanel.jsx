@@ -46,6 +46,7 @@ export function KpiFilterPanel({
   onSectionChange, // Generic handler: (sectionId, values) => void
   pageSize = 50,
   sectionConfig = SECTION_LABELS,
+  sectionValues = {}, // Object mapping sectionId to array of selected values
 }) {
   const [activeSection, setActiveSection] = useState(sectionConfig[0]?.id || "keywords");
 
@@ -212,6 +213,7 @@ export function KpiFilterPanel({
                 description={`Filter by ${section.label.toLowerCase()}.`}
                 options={section.options}
                 pageSize={pageSize}
+                value={sectionValues[section.id]} // Pass persisted selection values
                 onChange={(vals) => {
                   console.log(section.id, vals);
                   if (onRulesChange) onRulesChange(prev => ({ ...prev, [section.id]: vals }));
@@ -231,12 +233,20 @@ export function KpiFilterPanel({
 /* Excel-style multi-select: search + select all + pagination + top/bottom */
 /* ------------------------------------------------------------------ */
 
-function MultiSelectSection({ title, description, options, onChange, pageSize }) {
+function MultiSelectSection({ title, description, options, onChange, pageSize, value }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState(() => new Set());
+  // Initialize selected state from value prop if provided
+  const [selected, setSelected] = useState(() => new Set(value || []));
   const [filterMode, setFilterMode] = useState("list"); // list | top | bottom
   const [topN, setTopN] = useState(10);
+
+  // Sync selected state when value prop changes (e.g., when reopening filter panel)
+  React.useEffect(() => {
+    if (value !== undefined) {
+      setSelected(new Set(value));
+    }
+  }, [value]);
 
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -265,7 +275,10 @@ function MultiSelectSection({ title, description, options, onChange, pageSize })
   }, [filtered, page, pageSize]);
 
   const notify = (setValues) => {
-    if (onChange) onChange(Array.from(setValues));
+    // Defer onChange callback to avoid React setState during render warning
+    if (onChange) {
+      queueMicrotask(() => onChange(Array.from(setValues)));
+    }
   };
 
   const toggleOne = (id) => {

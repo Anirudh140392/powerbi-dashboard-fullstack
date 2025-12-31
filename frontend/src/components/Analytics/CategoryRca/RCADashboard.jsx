@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, Info, BarChart2 } from 'lucide-react';
 import { Typography, Box } from '@mui/material';
 import RCATree from './RCATree';
+import axiosInstance from '../../../api/axiosInstance';
 
 const RCADashboard = () => {
-  const [platform, setPlatform] = useState('Blinkit');
+  const [platforms, setPlatforms] = useState([]);
+  const [platform, setPlatform] = useState('');
   const [location, setLocation] = useState('All');
   const [category, setCategory] = useState('All');
   const [brand, setBrand] = useState('All');
   const [sosTopN, setSosTopN] = useState('Top 10');
+
+  // Fetch platforms from API on mount
+  useEffect(() => {
+    const fetchPlatforms = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/platforms');
+        const fetchedPlatforms = response.data;
+        if (fetchedPlatforms && fetchedPlatforms.length > 0) {
+          setPlatforms(fetchedPlatforms);
+          setPlatform(fetchedPlatforms[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching platforms:', error);
+        // Fallback to hardcoded values
+        const fallback = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket'];
+        setPlatforms(fallback);
+        setPlatform(fallback[0]);
+      }
+    };
+    fetchPlatforms();
+  }, []);
 
   const MetricCard = ({ title, value, change, isPositive, hasInfo, small }) => (
     <div style={{
@@ -39,7 +62,7 @@ const RCADashboard = () => {
     </div>
   );
 
-  const SelectBox = ({ label, value, onChange, width = '100%' }) => (
+  const SelectBox = ({ label, value, onChange, options = [], width = '100%' }) => (
     <div style={{ marginBottom: '40px' }}>
       <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '8px', letterSpacing: '0.5px' }}>
         {label}
@@ -61,7 +84,13 @@ const RCADashboard = () => {
             fontWeight: 500
           }}
         >
-          <option>{value}</option>
+          {options.length > 0 ? (
+            options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))
+          ) : (
+            <option>{value}</option>
+          )}
         </select>
         <ChevronDown size={16} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280' }} />
       </div>
@@ -143,7 +172,7 @@ const RCADashboard = () => {
         </div>
 
         {/* Filters */}
-        <SelectBox label="PLATFORM:" value={platform} onChange={setPlatform} />
+        <SelectBox label="PLATFORM:" value={platform} onChange={setPlatform} options={platforms} />
         <SelectBox label="LOCATION:" value={location} onChange={setLocation} />
         <SelectBox label="CATEGORY:" value={category} onChange={setCategory} />
         <SelectBox label="BRAND:" value={brand} onChange={setBrand} />

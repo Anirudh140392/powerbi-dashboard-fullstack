@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 
@@ -56,6 +57,10 @@ const keywordsData = {
 };
 
 export const FilterProvider = ({ children }) => {
+    // Use React Router's useLocation hook for reliable route change detection
+    const location = useLocation();
+    const currentPath = location.pathname;
+
     // Platform state
     const [platforms, setPlatforms] = useState(Object.keys(platformData));
     const [platform, setPlatform] = useState("Zepto");
@@ -81,6 +86,11 @@ export const FilterProvider = ({ children }) => {
 
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
+
+    // Log route changes for debugging
+    useEffect(() => {
+        console.log('📍 Route changed to:', currentPath);
+    }, [currentPath]);
 
     // Fetch platforms on mount (with fallback)
     useEffect(() => {
@@ -123,8 +133,14 @@ export const FilterProvider = ({ children }) => {
         const fetchBrands = async () => {
             if (backendAvailable) {
                 try {
+                    // Check if on Availability Analysis page - include competitor brands
+                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis');
+
                     const response = await axiosInstance.get("/watchtower/brands", {
-                        params: { platform: platform }
+                        params: {
+                            platform: platform,
+                            includeCompetitors: isAvailabilityPage ? 'true' : 'false'
+                        }
                     });
                     const fetchedBrands = response.data;
 
@@ -163,7 +179,7 @@ export const FilterProvider = ({ children }) => {
         };
 
         fetchBrands();
-    }, [platform, backendAvailable]);
+    }, [platform, backendAvailable, currentPath]); // Re-fetch brands when page changes
 
     // Fetch keywords and locations when brand changes (with fallback)
     useEffect(() => {
@@ -212,10 +228,14 @@ export const FilterProvider = ({ children }) => {
         const fetchLocations = async () => {
             if (backendAvailable) {
                 try {
+                    // Check if on Availability Analysis page - include all locations
+                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis');
+
                     const response = await axiosInstance.get("/watchtower/locations", {
                         params: {
                             platform: platform,
-                            brand: selectedBrand
+                            brand: selectedBrand,
+                            includeCompetitors: isAvailabilityPage ? 'true' : 'false'
                         }
                     });
                     const fetchedLocations = response.data;
@@ -255,7 +275,7 @@ export const FilterProvider = ({ children }) => {
 
         fetchKeywords();
         fetchLocations();
-    }, [selectedBrand, platform, backendAvailable]);
+    }, [selectedBrand, platform, backendAvailable, currentPath]); // Re-fetch locations when page changes
 
     return (
         <FilterContext.Provider value={{

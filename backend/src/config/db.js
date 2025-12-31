@@ -12,11 +12,11 @@ const sequelize = new Sequelize(
     port: process.env.DB_PORT || 3306,
     logging: false, // set true if you want SQL logs
     pool: {
-      max: 100,       // Increased from 50 to handle burst of concurrent SOS queries
-      min: 10,        // Minimum connections to keep available
-      acquire: 120000, // 2 minutes - wait longer for connection instead of timing out
+      max: 200,       // Increased from 200 to handle burst of concurrent SOS queries
+      min: 15,        // Minimum connections to keep available
+      acquire: 280000, // 3 minutes - wait longer for connection instead of timing out
       idle: 60000,    // 1 minute idle timeout
-      evict: 10000,   // Check for idle connections every 10s
+      evict: 10000,   // Check for idle connections every 10000ms
       maxUses: 10000  // Recycle connections to prevent memory leaks
     },
     dialectOptions: {

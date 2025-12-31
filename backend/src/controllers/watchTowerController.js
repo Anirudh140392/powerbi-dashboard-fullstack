@@ -52,8 +52,10 @@ export const getPlatforms = async (req, res) => {
 
 export const getBrands = async (req, res) => {
     try {
-        const { platform } = req.query;
-        const brands = await watchTowerService.getBrands(platform);
+        const { platform, includeCompetitors } = req.query;
+        // Convert string 'true' to boolean true
+        const shouldIncludeCompetitors = includeCompetitors === 'true';
+        const brands = await watchTowerService.getBrands(platform, shouldIncludeCompetitors);
         res.json(brands);
     } catch (error) {
         console.error('Error fetching brands:', error);
@@ -74,8 +76,10 @@ export const getKeywords = async (req, res) => {
 
 export const getLocations = async (req, res) => {
     try {
-        const { platform, brand } = req.query;
-        const locations = await watchTowerService.getLocations(platform, brand);
+        const { platform, brand, includeCompetitors } = req.query;
+        // Convert string 'true' to boolean true
+        const shouldIncludeCompetitors = includeCompetitors === 'true';
+        const locations = await watchTowerService.getLocations(platform, brand, shouldIncludeCompetitors);
         res.json(locations);
     } catch (error) {
         console.error('Error fetching locations:', error);

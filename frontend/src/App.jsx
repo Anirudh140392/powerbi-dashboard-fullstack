@@ -23,8 +23,8 @@ import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMain
 export default function App() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <FilterProvider>
-        <BrowserRouter>
+      <BrowserRouter>
+        <FilterProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
             <Route path="/watch-tower" element={<WatchTower />} />
@@ -51,8 +51,8 @@ export default function App() {
             <Route path="/piy" element={<PiyConcept />} />
             <Route path="/inventory" element={<InventeryConceptMains />} />
           </Routes>
-        </BrowserRouter>
-      </FilterProvider>
+        </FilterProvider>
+      </BrowserRouter>
     </LocalizationProvider>
   );
 }

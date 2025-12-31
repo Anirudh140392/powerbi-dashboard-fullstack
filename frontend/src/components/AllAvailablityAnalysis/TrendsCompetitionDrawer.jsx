@@ -5,7 +5,9 @@ import React, {
   useEffect,
   useRef,
   useLayoutEffect,
+  useCallback,
 } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import {
   Box,
   Typography,
@@ -393,6 +395,7 @@ export default function TrendsCompetitionDrawer({
   onClose = () => { },
   selectedColumn,
   selectedLevel,
+  filters,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -419,35 +422,35 @@ export default function TrendsCompetitionDrawer({
             id: "ShareOfSearch",
             label: "Share of Search",
             color: "#2563EB",
-            axis: "left",
+            axis: "right",  // Percentage (%)
             default: true,
           },
           {
             id: "InorganicSales",
             label: "Inorganic Sales",
             color: "#16A34A",
-            axis: "right",
+            axis: "left",  // Currency (₹)
             default: true,
           },
           {
             id: "Conversion",
             label: "Conversion",
             color: "#F97316",
-            axis: "left",
+            axis: "right",  // Percentage (%)
             default: false,
           },
           {
             id: "Roas",
             label: "ROAS",
             color: "#7C3AED",
-            axis: "right",
+            axis: "left",  // Currency multiplier
             default: false,
           },
           {
             id: "BmiSalesRatio",
             label: "BMI / Sales Ratio",
             color: "#DC2626",
-            axis: "right",
+            axis: "right",  // Ratio/Percentage
             default: false,
           },
         ],
@@ -845,74 +848,74 @@ export default function TrendsCompetitionDrawer({
             id: "Offtakes",
             label: "Offtakes",
             color: "#2563EB",
-            axis: "left",
+            axis: "left",  // Currency (₹)
             default: true,
           },
           {
             id: "Spend",
             label: "Spend",
             color: "#DC2626",
-            axis: "left",
+            axis: "left",  // Currency (₹)
             default: true,
           },
           {
             id: "ROAS",
             label: "ROAS",
             color: "#16A34A",
-            axis: "right",
+            axis: "left",  // Currency multiplier
             default: true,
           },
           {
             id: "InorgSales",
             label: "Inorg Sales",
             color: "#7C3AED",
-            axis: "right",
+            axis: "left",  // Currency (₹)
           },
           {
             id: "DspSales",
             label: "DSP Sales",
             color: "#0EA5E9",
-            axis: "right",
+            axis: "left",  // Currency (₹)
           },
           {
             id: "Conversion",
             label: "Conversion",
             color: "#F97316",
-            axis: "left",
+            axis: "right",  // Percentage (%)
           },
           {
             id: "Availability",
             label: "Availability",
             color: "#22C55E",
-            axis: "left",
+            axis: "right",  // Percentage (%)
           },
-          { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
+          { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },  // Percentage (%)
           {
             id: "CategoryShare",
             label: "Category Share",
             color: "#EC4899",
-            axis: "right",
+            axis: "right",  // Percentage (%)
           },
           {
             id: "MarketShare",
             label: "Market Share",
             color: "#9333EA",
-            axis: "right",
+            axis: "right",  // Percentage (%)
           },
           {
             id: "PromoMyBrand",
             label: "Promo – My Brand",
             color: "#F59E0B",
-            axis: "left",
+            axis: "right",  // Percentage (%)
           },
           {
             id: "PromoCompete",
             label: "Promo – Compete",
             color: "#FB7185",
-            axis: "left",
+            axis: "right",  // Percentage (%)
           },
-          { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
-          { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
+          { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },  // Currency (₹)
+          { id: "CPC", label: "CPC", color: "#475569", axis: "left" },  // Currency (₹)
         ],
 
         points: [
@@ -1209,6 +1212,154 @@ export default function TrendsCompetitionDrawer({
     };
   }
 
+  // State for API data
+  const [kpiTrendData, setKpiTrendData] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+
+  // State for dynamic filter options from API
+  const [filterOptions, setFilterOptions] = useState({
+    platforms: [],
+    formats: [],
+    brands: [],
+    cities: []
+  });
+  const [filtersLoading, setFiltersLoading] = useState(false);
+
+  // State for competition data (top 10 brands/SKUs)
+  const [competitionData, setCompetitionData] = useState(null);
+  const [competitionLoading, setCompetitionLoading] = useState(false);
+
+  // State for competition filters (controlled by PlatformOverviewKpiShowcase)
+  const [competitionFilters, setCompetitionFilters] = useState({
+    location: 'All India',
+    category: 'All',
+    brand: 'All',
+    sku: 'All'
+  });
+
+  // Refs to prevent concurrent requests and track pending timeouts
+  const competitionFetchRef = useRef(false);
+  const competitionDebounceRef = useRef(null);
+
+  // Fetch competition data from backend (with deduplication)
+  const fetchCompetitionData = useCallback(async (filterParams = {}) => {
+    // Skip if already fetching
+    if (competitionFetchRef.current) {
+      console.log('[TrendsCompetitionDrawer] Skipping duplicate competition fetch');
+      return;
+    }
+
+    competitionFetchRef.current = true;
+    setCompetitionLoading(true);
+    try {
+      const params = {
+        platform: filters?.platform || 'All',
+        location: filterParams.location || competitionFilters.location || 'All',
+        category: filterParams.category || competitionFilters.category || 'All',
+        brand: filterParams.brand || competitionFilters.brand || 'All',
+        sku: filterParams.sku || competitionFilters.sku || 'All',
+        period: '1M'
+      };
+
+      // Handle "All India" -> "All" conversion
+      if (params.location === 'All India') params.location = 'All';
+
+      console.log('[TrendsCompetitionDrawer] Fetching competition data with params:', params);
+
+      // Use different API based on dynamicKey
+      let response;
+      if (dynamicKey === 'availability') {
+        response = await axiosInstance.get('/availability-analysis/competition', { params });
+      } else {
+        response = await axiosInstance.get('/watchtower/competition', { params });
+      }
+
+      console.log('[TrendsCompetitionDrawer] Competition data received:', {
+        brands: response.data?.brands?.length,
+        skus: response.data?.skus?.length
+      });
+      setCompetitionData(response.data);
+    } catch (error) {
+      console.error('[TrendsCompetitionDrawer] Error fetching competition data:', error);
+    }
+    setCompetitionLoading(false);
+    competitionFetchRef.current = false;
+  }, [filters, dynamicKey]);
+
+  // Callback for when child component changes filters
+  const handleCompetitionFilterChange = useCallback((newFilters) => {
+    console.log('[TrendsCompetitionDrawer] Competition filter changed:', newFilters);
+
+    // Use explicit undefined checks so 'All' values are properly passed
+    const newLocation = newFilters.city !== undefined ? newFilters.city :
+      (newFilters.location !== undefined ? newFilters.location : competitionFilters.location);
+    const newCategory = newFilters.category !== undefined ? newFilters.category : competitionFilters.category;
+    const newBrand = newFilters.brand !== undefined ? newFilters.brand : competitionFilters.brand;
+    const newSku = newFilters.sku !== undefined ? newFilters.sku : competitionFilters.sku;
+
+    const updatedFilters = {
+      location: newLocation,
+      category: newCategory,
+      brand: newBrand,
+      sku: newSku
+    };
+
+    console.log('[TrendsCompetitionDrawer] Updated competition filters:', updatedFilters);
+    setCompetitionFilters(updatedFilters);
+
+    // Debounce the fetch to prevent rapid successive calls
+    if (competitionDebounceRef.current) {
+      clearTimeout(competitionDebounceRef.current);
+    }
+
+    competitionDebounceRef.current = setTimeout(() => {
+      fetchCompetitionData(updatedFilters);
+      competitionDebounceRef.current = null;
+    }, 300); // 300ms debounce
+  }, [fetchCompetitionData, competitionFilters]);
+
+  // Fetch filter options from backend when drawer opens
+  const fetchFilterOptions = useCallback(async () => {
+    setFiltersLoading(true);
+    try {
+      // Use different API based on dynamicKey
+      const baseUrl = dynamicKey === 'availability'
+        ? '/availability-analysis/filter-options'
+        : '/watchtower/trends-filter-options';
+
+      // Fetch all filter types in parallel
+      const [platformsRes, formatsRes, brandsRes, citiesRes] = await Promise.all([
+        axiosInstance.get(baseUrl, { params: { filterType: 'platforms' } }),
+        axiosInstance.get(baseUrl, { params: { filterType: 'categories' } }),
+        axiosInstance.get(baseUrl, { params: { filterType: 'brands' } }),
+        axiosInstance.get(baseUrl, { params: { filterType: 'cities' } })
+      ]);
+
+      setFilterOptions({
+        platforms: platformsRes.data?.options || [],
+        formats: formatsRes.data?.options || [],
+        brands: brandsRes.data?.options || [],
+        cities: citiesRes.data?.options || []
+      });
+      console.log('[TrendsCompetitionDrawer] Filter options loaded:', {
+        platforms: platformsRes.data?.options?.length,
+        formats: formatsRes.data?.options?.length,
+        brands: brandsRes.data?.options?.length,
+        cities: citiesRes.data?.options?.length
+      });
+    } catch (error) {
+      console.error('[TrendsCompetitionDrawer] Error fetching filter options:', error);
+    }
+    setFiltersLoading(false);
+  }, [dynamicKey]);
+
+  // Fetch filter options when drawer opens
+  useEffect(() => {
+    if (open) {
+      fetchFilterOptions();
+    }
+  }, [open, fetchFilterOptions]);
+
   useLayoutEffect(() => {
     allSetTrendMeta((prev) => ({
       ...prev,
@@ -1216,6 +1367,42 @@ export default function TrendsCompetitionDrawer({
     }));
     setShowPlatformPills(true);
   }, []);
+
+  // Fetch KPI trends from backend when drawer opens (for all pages)
+  const fetchKpiTrends = useCallback(async (period, step, platformFilter, brandFilter, cityFilter, formatFilter) => {
+    // Fetch for all dynamicKey values, not just performance_dashboard_tower
+
+    setTrendLoading(true);
+    try {
+      // Build params combining all filters (multi-filter combination)
+      const params = {
+        platform: platformFilter || 'All',
+        location: cityFilter || 'All',
+        brand: brandFilter || 'All',
+        category: formatFilter || 'All',
+        period: period,
+        timeStep: step
+      };
+
+      console.log('[TrendsCompetitionDrawer] Fetching KPI trends with params:', params);
+
+      // Use different API based on dynamicKey
+      let response;
+      if (dynamicKey === 'availability') {
+        response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
+      } else {
+        response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+      }
+
+      console.log('[TrendsCompetitionDrawer] KPI trends response:', response.data);
+      setKpiTrendData(response.data);
+    } catch (error) {
+      console.error('[TrendsCompetitionDrawer] Error fetching KPI trends:', error);
+    }
+    setTrendLoading(false);
+  }, [dynamicKey]);
+
+  // State declarations must be BEFORE the useEffect that uses them
   const [view, setView] = useState("Trends");
   const [range, setRange] = useState(DASHBOARD_DATA.trends.defaultRange);
   const [timeStep, setTimeStep] = useState(
@@ -1224,14 +1411,38 @@ export default function TrendsCompetitionDrawer({
   const [activeMetrics, setActiveMetrics] = useState(
     DASHBOARD_DATA.trends.metrics.filter((m) => m.default).map((m) => m.id)
   );
+
+  // Drawer filter state - separate states for multi-filter combination
+  const [selectedPlatformFilter, setSelectedPlatformFilter] = useState('All');
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState('All');
+  const [selectedCityFilter, setSelectedCityFilter] = useState('All');
+  const [selectedFormatFilter, setSelectedFormatFilter] = useState('All');
+  const [showPlatformPills, setShowPlatformPills] = useState(false);
+
+  // Fetch on drawer open and when range/timeStep/any filter changes
+  useEffect(() => {
+    if (open) {
+      fetchKpiTrends(range, timeStep, selectedPlatformFilter, selectedBrandFilter, selectedCityFilter, selectedFormatFilter);
+    }
+  }, [open, range, timeStep, selectedPlatformFilter, selectedBrandFilter, selectedCityFilter, selectedFormatFilter, fetchKpiTrends]);
+
+  // Fetch competition data when view changes to Competition (with delay to avoid race condition)
+  useEffect(() => {
+    if (open && view === 'Competition') {
+      // Small delay to let child component initialize filters first
+      const timer = setTimeout(() => {
+        fetchCompetitionData(competitionFilters);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [open, view]); // Intentionally not including fetchCompetitionData/competitionFilters to avoid re-triggering
+
   const [compTab, setCompTab] = useState("Brands");
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
-  const [showPlatformPills, setShowPlatformPills] = useState(false);
 
   const platformRef = useRef(null);
 
@@ -1246,7 +1457,57 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
-  const trendMeta = DASHBOARD_DATA.trends;
+  // Use API data for trends, with appropriate metrics based on dynamicKey
+  const trendMeta = useMemo(() => {
+    // Check for API data - availability API returns 'points', watchtower returns 'timeSeries'
+    const apiPoints = kpiTrendData?.points || kpiTrendData?.timeSeries;
+    const apiMetrics = kpiTrendData?.metrics;
+
+    if (apiPoints && apiPoints.length > 0) {
+      if (dynamicKey === "availability") {
+        // Availability page: Use API response directly (OSA, DOI, Fillrate, Assortment)
+        return {
+          rangeOptions: kpiTrendData.rangeOptions || ["Custom", "1M", "3M", "6M", "1Y"],
+          defaultRange: kpiTrendData.defaultRange || "1M",
+          timeSteps: kpiTrendData.timeSteps || ["Daily", "Weekly", "Monthly"],
+          defaultTimeStep: kpiTrendData.defaultTimeStep || "Daily",
+          metrics: apiMetrics || [
+            { id: "Osa", label: "OSA", color: "#F97316", axis: "left", default: true },
+            { id: "Doi", label: "DOI", color: "#7C3AED", axis: "right", default: true },
+            { id: "Fillrate", label: "Fillrate", color: "#6366F1", axis: "left", default: false },
+            { id: "Assortment", label: "Assortment", color: "#22C55E", axis: "left", default: false }
+          ],
+          points: apiPoints
+        };
+      } else if (dynamicKey === "performance_dashboard_tower") {
+        // Performance Matrix: 5 KPIs
+        return {
+          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+          defaultRange: "1M",
+          timeSteps: ["Daily", "Weekly", "Monthly"],
+          defaultTimeStep: "Daily",
+          metrics: [
+            { id: "ShareOfSearch", label: "Share of Search", color: "#2563EB", axis: "right", default: true },  // Percentage (%)
+            { id: "InorganicSales", label: "Inorganic Sales", color: "#16A34A", axis: "left", default: true },  // Currency (₹)
+            { id: "Conversion", label: "Conversion", color: "#F97316", axis: "right", default: false },  // Percentage (%)
+            { id: "Roas", label: "ROAS", color: "#7C3AED", axis: "left", default: false },  // Currency multiplier
+            { id: "BmiSalesRatio", label: "BMI / Sales Ratio", color: "#DC2626", axis: "right", default: false }  // Ratio/Percentage
+          ],
+          points: apiPoints
+        };
+      } else {
+        // Platform/Month/Category/Brand pages: Use API data with hardcoded metrics from DASHBOARD_DATA
+        return {
+          ...DASHBOARD_DATA.trends,
+          points: apiPoints
+        };
+      }
+    }
+    // Fallback to hardcoded data if API hasn't loaded yet
+    console.log('[TrendsCompetitionDrawer] Using fallback hardcoded data, API data not available');
+    return DASHBOARD_DATA.trends;
+  }, [dynamicKey, kpiTrendData, DASHBOARD_DATA.trends]);
+
   const compMeta = DASHBOARD_DATA.competition;
   const compareMeta = DASHBOARD_DATA.compareSkus;
 
@@ -1324,6 +1585,20 @@ export default function TrendsCompetitionDrawer({
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
+          axisLabel: {
+            fontSize: 11,
+            formatter: (value) => {
+              // Left axis: Inorganic Sales (%), ROAS (x)
+              // Format large numbers as K/M
+              if (value >= 1000000) return (value / 1000000).toFixed(1) + "M";
+              if (value >= 1000) return (value / 1000).toFixed(1) + "K";
+              return value.toFixed(1);
+            }
+          },
+          name: "Sales / ROAS",
+          nameLocation: "middle",
+          nameGap: 45,
+          nameTextStyle: { fontSize: 11, color: "#6B7280" }
         },
         {
           type: "value",
@@ -1333,6 +1608,14 @@ export default function TrendsCompetitionDrawer({
           splitLine: { show: false },
           min: 0,
           max: 100,
+          axisLabel: {
+            fontSize: 11,
+            formatter: "{value}%"
+          },
+          name: "Percentage",
+          nameLocation: "middle",
+          nameGap: 45,
+          nameTextStyle: { fontSize: 11, color: "#6B7280" }
         },
       ],
       legend: { show: false },
@@ -1395,19 +1678,13 @@ export default function TrendsCompetitionDrawer({
     const mapById = Object.fromEntries(SKU_DATA.map((s) => [s.id, s]));
     const finalList = ids.map((id) => mapById[id]).filter(Boolean);
     setSelectedCompareSkus(finalList);
-    setAddSkuOpen(false);
   };
 
-  const PLATFORM_OPTIONS = [
-    "Blinkit",
-    "Zepto",
-    "Instamart",
-    "Swiggy",
-    "Amazon",
-  ];
-  const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
-  const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Hatsun"];
+  // Use dynamic filter options from API, with fallback to empty arrays
+  const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : ["Loading..."];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Loading..."];
+  const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Loading..."];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : ["Loading..."];
 
   if (!open) return null;
 
@@ -1485,74 +1762,141 @@ export default function TrendsCompetitionDrawer({
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
-              {/* PLATFORM FILTER WRAPPER */}
-              {/* PLATFORM FILTER WRAPPER */}
+              {/* PLATFORM FILTER WRAPPER - Original UI with accumulating filters */}
               <Box display="flex" alignItems="center" gap={1}>
-                {/* CLICKABLE LABEL (now only toggles open/close) */}
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ cursor: "pointer", userSelect: "none" }}
+                {/* PLATFORM/FORMAT/BRAND/CITY SELECTOR */}
+                <Select
+                  size="small"
+                  value={allTrendMeta.context.audience}
+                  onChange={(e) => {
+                    allSetTrendMeta((prev) => ({
+                      ...prev,
+                      context: { ...prev.context, audience: e.target.value },
+                    }));
+                    setShowPlatformPills(true); // always show pills after changing mode
+                  }}
+                  sx={{
+                    fontSize: "0.875rem",
+                    color: "text.secondary",
+                    "& .MuiSelect-select": {
+                      cursor: "pointer",
+                      userSelect: "none",
+                    },
+                  }}
                 >
-                  <Select
-                    size="small"
-                    value={allTrendMeta.context.audience}
-                    onChange={(e) => {
-                      allSetTrendMeta((prev) => ({
-                        ...prev,
-                        context: { ...prev.context, audience: e.target.value },
-                      }));
-                      setShowPlatformPills(true); // always show pills after changing mode
+                  <MenuItem value="Platform">Platform</MenuItem>
+                  <MenuItem value="Format">Format</MenuItem>
+                  <MenuItem value="Brand">Brand</MenuItem>
+                  <MenuItem value="City">City</MenuItem>
+                </Select>
+
+                {/* DYNAMIC PILLS - Click to SET filter for current type */}
+                {showPlatformPills && (
+                  <Box
+                    display="flex"
+                    gap={0.5}
+                    flexWrap="wrap"
+                    sx={{
+                      maxWidth: "500px",
+                      maxHeight: "80px",
+                      overflowY: "auto",
+                      overflowX: "hidden",
+                      "&::-webkit-scrollbar": { width: "4px" },
+                      "&::-webkit-scrollbar-thumb": {
+                        backgroundColor: "#CBD5E1",
+                        borderRadius: "2px"
+                      }
                     }}
                   >
-                    <MenuItem value="Platform">Platform</MenuItem>
-                    <MenuItem value="Format">Format</MenuItem>
-                    <MenuItem value="Brand">Brand</MenuItem>
-                    <MenuItem value="City">City</MenuItem>
-                  </Select>
-                </Typography>
-
-                {/* DYNAMIC PILLS */}
-                {/* DYNAMIC PILLS */}
-                {showPlatformPills && (
-                  <Box display="flex" gap={0.5}>
                     {(allTrendMeta.context.audience === "Platform"
-                      ? PLATFORM_OPTIONS
+                      ? filterOptions.platforms
                       : allTrendMeta.context.audience === "Format"
-                        ? FORMAT_OPTIONS
+                        ? filterOptions.formats
                         : allTrendMeta.context.audience === "City"
-                          ? CITY_OPTIONS
+                          ? filterOptions.cities
                           : allTrendMeta.context.audience === "Brand"
-                            ? BRAND_OPTIONS
+                            ? filterOptions.brands
                             : []
-                    ).map((p) => (
-                      <Box
-                        key={p}
-                        onClick={() => {
-                          setSelectedPlatform(p); // only select the pill
-                          // ❌ DO NOT toggle or force open here
-                        }}
-                        sx={{
-                          px: 1.5,
-                          py: 0.7,
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          border: "1px solid #E5E7EB",
-                          backgroundColor:
-                            selectedPlatform === p ? "#0ea5e9" : "white",
-                          color: selectedPlatform === p ? "white" : "#0f172a",
-                        }}
-                      >
-                        {p}
-                      </Box>
-                    ))}
+                    ).map((p) => {
+                      // Determine which filter state to check for active highlighting
+                      const currentFilterValue =
+                        allTrendMeta.context.audience === "Platform" ? selectedPlatformFilter :
+                          allTrendMeta.context.audience === "Format" ? selectedFormatFilter :
+                            allTrendMeta.context.audience === "City" ? selectedCityFilter :
+                              allTrendMeta.context.audience === "Brand" ? selectedBrandFilter : null;
+
+                      return (
+                        <Box
+                          key={p}
+                          onClick={() => {
+                            // SET the appropriate filter based on current audience type
+                            if (allTrendMeta.context.audience === "Platform") {
+                              setSelectedPlatformFilter(p);
+                            } else if (allTrendMeta.context.audience === "Format") {
+                              setSelectedFormatFilter(p);
+                            } else if (allTrendMeta.context.audience === "City") {
+                              setSelectedCityFilter(p);
+                            } else if (allTrendMeta.context.audience === "Brand") {
+                              setSelectedBrandFilter(p);
+                            }
+                          }}
+                          sx={{
+                            px: 1.5,
+                            py: 0.7,
+                            borderRadius: "999px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            border: "1px solid #E5E7EB",
+                            backgroundColor:
+                              currentFilterValue === p ? "#0ea5e9" : "white",
+                            color: currentFilterValue === p ? "white" : "#0f172a",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {p}
+                        </Box>
+                      );
+                    })}
                   </Box>
                 )}
               </Box>
 
-              {/* AUDIENCE CHIP */}
+              {/* Show currently active filters as chips */}
+              <Box display="flex" gap={0.5} flexWrap="wrap">
+                {selectedPlatformFilter !== 'All' && (
+                  <Chip
+                    size="small"
+                    label={`Platform: ${selectedPlatformFilter}`}
+                    onDelete={() => setSelectedPlatformFilter('All')}
+                    sx={{ fontSize: '11px', height: '24px' }}
+                  />
+                )}
+                {selectedBrandFilter !== 'All' && (
+                  <Chip
+                    size="small"
+                    label={`Brand: ${selectedBrandFilter}`}
+                    onDelete={() => setSelectedBrandFilter('All')}
+                    sx={{ fontSize: '11px', height: '24px' }}
+                  />
+                )}
+                {selectedCityFilter !== 'All' && (
+                  <Chip
+                    size="small"
+                    label={`City: ${selectedCityFilter}`}
+                    onDelete={() => setSelectedCityFilter('All')}
+                    sx={{ fontSize: '11px', height: '24px' }}
+                  />
+                )}
+                {selectedFormatFilter !== 'All' && (
+                  <Chip
+                    size="small"
+                    label={`Category: ${selectedFormatFilter}`}
+                    onDelete={() => setSelectedFormatFilter('All')}
+                    sx={{ fontSize: '11px', height: '24px' }}
+                  />
+                )}
+              </Box>
             </Box>
 
             {/* RANGE + TIMESTEP */}
@@ -1650,9 +1994,25 @@ export default function TrendsCompetitionDrawer({
                 dynamicKey={dynamicKey}
                 selectedItem={selectedColumn}
                 selectedLevel={selectedLevel}
+                competitionData={competitionData}
+                isLoading={competitionLoading}
+                selectedCity={competitionFilters.location}
+                selectedCategory={competitionFilters.category}
+                selectedBrand={competitionFilters.brand}
+                selectedSku={competitionFilters.sku}
+                onFilterChange={handleCompetitionFilterChange}
               />
             ) : (
-              <KpiTrendShowcase dynamicKey={dynamicKey} />
+              <KpiTrendShowcase
+                dynamicKey={dynamicKey}
+                competitionData={competitionData}
+                isLoading={competitionLoading}
+                selectedCity={competitionFilters.location}
+                selectedCategory={competitionFilters.category}
+                selectedBrand={competitionFilters.brand}
+                selectedSku={competitionFilters.sku}
+                onFilterChange={handleCompetitionFilterChange}
+              />
             )}
           </>
         )}

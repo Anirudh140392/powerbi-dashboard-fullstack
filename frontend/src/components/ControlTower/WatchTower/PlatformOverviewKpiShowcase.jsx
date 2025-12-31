@@ -915,7 +915,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -963,7 +963,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = 
         ? "brands"
         : "skus";
 
-  // strict dependency: parent change clears children
+  // strict dependency: parent change clears children AND triggers refetch
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
     if (current.has(item)) current.delete(item);
@@ -981,6 +981,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = 
     }
 
     onChange(next);
+
+    // Trigger cascading refetch for Category or Brand changes
+    if (onSelectionChange && (type === "categories" || type === "brands")) {
+      onSelectionChange({
+        category: next.categories.length > 0 ? next.categories[0] : null,
+        brand: next.brands.length > 0 ? next.brands[0] : null
+      });
+    }
   };
 
   const handleSelectAll = (type, items) => {
@@ -997,6 +1005,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, categoryOptions = 
     }
 
     onChange(next);
+
+    // Trigger cascading refetch for Category or Brand changes
+    if (onSelectionChange && (type === "categories" || type === "brands")) {
+      onSelectionChange({
+        category: next.categories.length > 0 ? next.categories[0] : null,
+        brand: next.brands.length > 0 ? next.brands[0] : null
+      });
+    }
   };
 
   const allItemsForCurrentTab = getListForTab();
@@ -1288,9 +1304,8 @@ const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands
           const series = brandTrends[brandName];
           if (series) {
             const dataPoint = series.find(p => p.date === date);
-            // FIXED: Capitalize metric name to match backend response (Offtakes, Spend, Roas, Availability)
-            const metricKey = activeMetric.charAt(0).toUpperCase() + activeMetric.slice(1);
-            const value = dataPoint?.[metricKey];
+            // Use metric key directly as backend now returns lowercase keys (osa, sos, price, etc.)
+            const value = dataPoint?.[activeMetric];
             row[brandName] = value !== undefined && value !== null ? Number(value) : null;
           }
         });
@@ -1582,8 +1597,7 @@ const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTr
         parseDate(a) - parseDate(b)
       );
 
-      // Capitalize metric key to match backend response
-      const metricFieldName = metricKey.charAt(0).toUpperCase() + metricKey.slice(1);
+      // Use metric key directly as backend now returns lowercase keys (osa, sos, price, etc.)
 
       // Build chart data
       return sortedDates.map(date => {
@@ -1593,7 +1607,7 @@ const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTr
           const series = brandTrends[brandName];
           if (series) {
             const dataPoint = series.find(p => p.date === date);
-            const value = dataPoint?.[metricFieldName];
+            const value = dataPoint?.[metricKey];
             row[brandName] = value !== undefined && value !== null ? Number(value) : null;
           }
         });
@@ -1798,10 +1812,13 @@ const BrandTable = ({ rows }) => (
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-slate-400"
+                  colSpan={6}
+                  className="px-3 py-8 text-center text-slate-500"
                 >
-                  No brands matching current filters
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-lg">No data available</span>
+                    <span className="text-sm text-slate-400">No brands found for the selected filters. Try adjusting your filter criteria.</span>
+                  </div>
                 </td>
               </tr>
             )}
@@ -1848,27 +1865,24 @@ const SkuTable = ({ rows }) => (
                 <td className="px-3 py-2 text-slate-900">{row.brandName}</td>
                 <td className="px-3 py-2 text-right text-slate-900 font-medium">
                   {(() => {
-                    const val = row.offtakes || row.osa || 0;
+                    const val = row.osa || 0;
                     if (typeof val === 'number') {
-                      if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                      if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                      if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
-                      return row.osa ? `${val.toFixed(1)}%` : `₹${val.toFixed(0)}`;
+                      return `${val.toFixed(1)}%`;
                     }
                     return val;
                   })()}
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">
-                  {row.sos.toFixed(1)}%
+                  {(row.sos || 0).toFixed(1)}%
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  ₹{row.price.toFixed(1)}
+                  ₹{(row.price || 0).toFixed(0)}
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">
-                  {row.categoryShare.toFixed(1)}%
+                  {(row.categoryShare || 0).toFixed(1)}%
                 </td>
                 <td className="px-3 py-2 text-right text-slate-900">
-                  {row.marketShare.toFixed(1)}%
+                  {(row.marketShare || 0).toFixed(1)}%
                 </td>
               </tr>
             ))}
@@ -1876,10 +1890,13 @@ const SkuTable = ({ rows }) => (
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-slate-400"
+                  colSpan={7}
+                  className="px-3 py-8 text-center text-slate-500"
                 >
-                  No SKUs matching current filters
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-lg">No data available</span>
+                    <span className="text-sm text-slate-400">No SKUs found for the selected filters. Try adjusting your filter criteria.</span>
+                  </div>
                 </td>
               </tr>
             )}
@@ -1921,6 +1938,60 @@ const PlatformOverviewKpiShowcase = ({
   }, [parentCity]);
 
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+
+  // Dynamic filter options from API
+  const [dynamicFilterOptions, setDynamicFilterOptions] = useState({
+    locations: ['All India'],
+    categories: ['All'],
+    brands: ['All'],
+    skus: ['All']
+  });
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+
+  // Fetch filter options from competition-filter-options API
+  const fetchFilterOptions = async (location = null, category = null, brand = null) => {
+    setFilterOptionsLoading(true);
+    try {
+      const params = {};
+      if (location && location !== 'All India') params.location = location;
+      if (category && category !== 'All') params.category = category;
+      if (brand && brand !== 'All') params.brand = brand;
+
+      console.log('[PlatformOverviewKpiShowcase] Fetching filter options with params:', params);
+      const response = await axiosInstance.get('/watchtower/competition-filter-options', { params });
+
+      if (response.data) {
+        console.log('[PlatformOverviewKpiShowcase] Filter options received:', {
+          locations: response.data.locations?.length,
+          categories: response.data.categories?.length,
+          brands: response.data.brands?.length,
+          skus: response.data.skus?.length
+        });
+        setDynamicFilterOptions({
+          locations: response.data.locations || ['All India'],
+          categories: response.data.categories || ['All'],
+          brands: response.data.brands || ['All'],
+          skus: response.data.skus || ['All']
+        });
+      }
+    } catch (error) {
+      console.error('[PlatformOverviewKpiShowcase] Error fetching filter options:', error);
+    }
+    setFilterOptionsLoading(false);
+  };
+
+  // Fetch filter options on mount
+  useEffect(() => {
+    fetchFilterOptions();
+  }, []);
+
+  // Refresh filter options when city/location changes (cascading)
+  useEffect(() => {
+    if (city && city !== 'All India') {
+      fetchFilterOptions(city, filters.categories[0], filters.brands[0]);
+    }
+  }, [city]);
+
   const [filters, setFilters] = useState({
     categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
     // FIXED: Parse comma-separated brands back into array
@@ -1929,7 +2000,11 @@ const PlatformOverviewKpiShowcase = ({
   });
 
   // Sync filters with parent selections
+  // Ref to track if filter change was initiated by user (not parent props)
+  const userChangedFiltersRef = useRef(false);
+
   useEffect(() => {
+    // This is a prop-driven change, not user-initiated
     setFilters({
       categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
       // FIXED: Parse comma-separated brands back into array
@@ -1939,19 +2014,26 @@ const PlatformOverviewKpiShowcase = ({
   }, [parentCategory, parentBrand, parentSku]);
 
   //Notify parent when user changes filters (via Filter Dialog)
-  // FIXED: Only notify when dialog closes to avoid multiple calls while selecting
+  // FIXED: Only notify when dialog closes AND user initiated the change
   useEffect(() => {
     // Skip if dialog is still open (user is still selecting)
     if (filterDialogOpen) return;
 
+    // Only notify if user actually changed filters
+    if (!userChangedFiltersRef.current) return;
+
     if (!onFilterChange) return;
+
     const categoryValue = filters.categories.length > 0 ? filters.categories[0] : 'All';
     // FIXED: Send ALL selected brands as comma-separated string
     const brandValue = filters.brands.length > 0 ? filters.brands.join(',') : 'All';
     const skuValue = filters.skus.length > 0 ? filters.skus[0] : 'All';
-    // FIXED: Always notify when dialog closes (removed blocking comparison)
-    console.log('[PlatformOverviewKpiShowcase] Dialog closed, notifying parent:', { category: categoryValue, brand: brandValue, sku: skuValue });
+
+    console.log('[PlatformOverviewKpiShowcase] User changed filters, notifying parent:', { category: categoryValue, brand: brandValue, sku: skuValue });
     onFilterChange({ category: categoryValue, brand: brandValue, sku: skuValue });
+
+    // Reset the flag
+    userChangedFiltersRef.current = false;
   }, [filterDialogOpen, filters, onFilterChange]);
 
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
@@ -1965,13 +2047,14 @@ const PlatformOverviewKpiShowcase = ({
     if (competitionData && competitionData.brands && Array.isArray(competitionData.brands)) {
       console.log('[PlatformOverviewKpiShowcase] Using competition data:', competitionData.brands);
       // Transform backend data to match expected format
-      // Backend returns: { brand, Offtakes: {value, delta}, Spend: {value, delta}, Roas: {value, delta}, Availability: {value, delta} }
+      // Backend returns: { brand_name, osa, sos, price, categoryShare, marketShare }
       return competitionData.brands.map(brand => ({
-        name: brand.brand || brand.brand_name || brand.name,
-        offtakes: brand.Offtakes?.value || brand.offtakes || 0,
-        spend: brand.Spend?.value || brand.spend || 0,
-        roas: brand.Roas?.value || brand.roas || 0,
-        availability: brand.Availability?.value || brand.availability || 0
+        name: brand.brand_name || brand.brand || brand.name,
+        osa: brand.osa || 0,
+        sos: brand.sos || 0,
+        price: brand.price || 0,
+        categoryShare: brand.categoryShare || 0,
+        marketShare: brand.marketShare || 0
       }));
     }
 
@@ -2004,10 +2087,12 @@ const PlatformOverviewKpiShowcase = ({
       console.log('[PlatformOverviewKpiShowcase] Using competition SKU data:', competitionData.skus);
       return competitionData.skus.map(sku => ({
         name: sku.sku_name || sku.name,
-        brandName: sku.brand_name || sku.brandName,
-        offtakes: sku.offtakes || 0,
-        roas: sku.roas || 0,
-        availability: sku.availability || 0
+        brandName: sku.brand_name || sku.brandName || 'Unknown',
+        osa: sku.osa || 0,
+        sos: sku.sos || 0,
+        price: sku.price || 0,
+        categoryShare: sku.categoryShare || 0,
+        marketShare: sku.marketShare || 0
       }));
     }
 
@@ -2053,9 +2138,9 @@ const PlatformOverviewKpiShowcase = ({
             if (onFilterChange) {
               onFilterChange({
                 city: newCity,
-                category: filters.categories.length > 0 ? filters.categories[0] : parentCategory,
-                brand: filters.brands.length > 0 ? filters.brands.join(',') : parentBrand,
-                sku: filters.skus.length > 0 ? filters.skus[0] : parentSku
+                category: filters.categories.length > 0 ? filters.categories[0] : (parentCategory || 'All'),
+                brand: filters.brands.length > 0 ? filters.brands.join(',') : (parentBrand || 'All'),
+                sku: filters.skus.length > 0 ? filters.skus[0] : (parentSku || 'All')
               });
             }
           }}>
@@ -2063,7 +2148,7 @@ const PlatformOverviewKpiShowcase = ({
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
             <SelectContent>
-              {CITIES.map((c) => (
+              {dynamicFilterOptions.locations.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
@@ -2180,10 +2265,19 @@ const PlatformOverviewKpiShowcase = ({
         onClose={() => setFilterDialogOpen(false)}
         mode={tab}
         value={filters}
-        onChange={setFilters}
-        categoryOptions={CATEGORY_OPTIONS}
-        brandOptions={BRAND_OPTIONS}
-        skuOptions={SKU_OPTIONS}
+        onChange={(newFilters) => {
+          // Mark that user is changing filters
+          userChangedFiltersRef.current = true;
+          setFilters(newFilters);
+        }}
+        onSelectionChange={({ category, brand }) => {
+          // Refetch filter options with cascading params
+          console.log('[PlatformOverviewKpiShowcase] Cascading filter change:', { category, brand });
+          fetchFilterOptions(city !== 'All India' ? city : null, category, brand);
+        }}
+        categoryOptions={dynamicFilterOptions.categories.filter(c => c !== 'All')}
+        brandOptions={dynamicFilterOptions.brands.filter(b => b !== 'All')}
+        skuOptions={dynamicFilterOptions.skus.filter(s => s !== 'All')}
         brandNameToId={BRAND_NAME_TO_ID}
         skuNameToId={SKU_NAME_TO_ID}
       />
