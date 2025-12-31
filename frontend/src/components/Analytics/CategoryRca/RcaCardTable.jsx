@@ -294,8 +294,8 @@ function PremiumCard({
       onClick={!disabled ? onClick : undefined}
       style={{
         flexShrink: 0,
-        minWidth: kind === "sku" ? 360 : 320,
-        maxWidth: kind === "sku" ? 360 : 320,
+        // minWidth: kind === "sku" ? 360 : 320,
+        // maxWidth: kind === "sku" ? 360 : 320,
         borderRadius: 26,
         background: "#ffffff",
         border: selected ? `2px solid ${a}` : "1px solid rgba(15,23,42,0.10)",
