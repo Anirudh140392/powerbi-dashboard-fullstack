@@ -44,7 +44,8 @@ const SmallCard = ({ item }) => {
   const formatChange = (changeVal) => {
     if (!changeVal) return changeVal;
     const changeStr = changeVal.toString();
-    if (!changeStr.includes("%")) {
+    // Don't add % if already contains % or pp (percentage points)
+    if (!changeStr.includes("%") && !changeStr.includes("pp")) {
       return changeStr + "%";
     }
     return changeStr;

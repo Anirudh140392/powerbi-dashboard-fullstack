@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -33,6 +33,14 @@ import VisibilityDrilldownTable from './VisibilityDrilldownTable';
 import TopSearchTerms from './TopSearchTerms';
 import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
+
+// API imports for parallel fetching
+import {
+  fetchVisibilityOverview,
+  fetchVisibilityPlatformKpiMatrix,
+  fetchVisibilityKeywordsAtGlance,
+  fetchVisibilityTopSearchTerms
+} from '../../api/visibilityService';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -441,6 +449,97 @@ const VisiblityAnalysisData = () => {
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
   const [topSearchFilter, setTopSearchFilter] = useState("All");
 
+  // ==================== API DATA STATES ====================
+  // Visibility Overview (KPI cards)
+  const [overviewData, setOverviewData] = useState(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+
+  // Platform KPI Matrix
+  const [matrixData, setMatrixData] = useState(null);
+  const [matrixLoading, setMatrixLoading] = useState(true);
+
+  // Keywords at a Glance
+  const [keywordsData, setKeywordsData] = useState(null);
+  const [keywordsLoading, setKeywordsLoading] = useState(true);
+
+  // Top Search Terms
+  const [topSearchData, setTopSearchData] = useState(null);
+  const [topSearchLoading, setTopSearchLoading] = useState(true);
+
+  // ==================== PARALLEL API FETCHING ====================
+  useEffect(() => {
+    const fetchAllData = async () => {
+      // Reset loading states
+      setOverviewLoading(true);
+      setMatrixLoading(true);
+      setKeywordsLoading(true);
+      setTopSearchLoading(true);
+
+      // Fetch all 4 APIs in parallel
+      const filters = {}; // Add global filters here if needed
+
+      // Using Promise.allSettled to handle individual failures gracefully
+      const [overviewResult, matrixResult, keywordsResult, topSearchResult] = await Promise.allSettled([
+        fetchVisibilityOverview(filters),
+        fetchVisibilityPlatformKpiMatrix(filters),
+        fetchVisibilityKeywordsAtGlance(filters),
+        fetchVisibilityTopSearchTerms({ ...filters, filter: topSearchFilter })
+      ]);
+
+      // Update states based on results
+      if (overviewResult.status === 'fulfilled') {
+        setOverviewData(overviewResult.value);
+      } else {
+        console.error('Error fetching visibility overview:', overviewResult.reason);
+      }
+      setOverviewLoading(false);
+
+      if (matrixResult.status === 'fulfilled') {
+        setMatrixData(matrixResult.value);
+      } else {
+        console.error('Error fetching platform KPI matrix:', matrixResult.reason);
+      }
+      setMatrixLoading(false);
+
+      if (keywordsResult.status === 'fulfilled') {
+        setKeywordsData(keywordsResult.value);
+      } else {
+        console.error('Error fetching keywords at glance:', keywordsResult.reason);
+      }
+      setKeywordsLoading(false);
+
+      if (topSearchResult.status === 'fulfilled') {
+        setTopSearchData(topSearchResult.value);
+      } else {
+        console.error('Error fetching top search terms:', topSearchResult.reason);
+      }
+      setTopSearchLoading(false);
+    };
+
+    fetchAllData();
+  }, []); // Run once on mount
+
+  // Fetch top search terms when filter changes
+  useEffect(() => {
+    const fetchTopSearch = async () => {
+      setTopSearchLoading(true);
+      try {
+        const result = await fetchVisibilityTopSearchTerms({ filter: topSearchFilter });
+        setTopSearchData(result);
+      } catch (error) {
+        console.error('Error fetching top search terms:', error);
+      }
+      setTopSearchLoading(false);
+    };
+
+    // Only fetch if initial load is complete
+    if (!overviewLoading) {
+      fetchTopSearch();
+    }
+  }, [topSearchFilter]);
+
+  // Use API data if available, otherwise fallback to static data
+
   // const sampleData = [
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Web', UnitsSold: 410, InStock: 620, SoldAmount: 260 },
@@ -675,7 +774,6 @@ const VisiblityAnalysisData = () => {
   // ---------------- FILTER OPTIONS ----------------
   const VISIBILITY_FILTER_OPTIONS = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-    { id: "keywords", label: "Keyword" },
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
     { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
     {
@@ -817,8 +915,12 @@ const VisiblityAnalysisData = () => {
       </div>
 
       {/* MODAL SECTION */}
-      <MetricCardContainer title="Visibility Overview" cards={cards} />
-      <TabbedHeatmapTable />
+      <MetricCardContainer
+        title="Visibility Overview"
+        cards={overviewData?.cards || cards}
+        loading={overviewLoading}
+      />
+      <TabbedHeatmapTable matrixData={matrixData} loading={matrixLoading} />
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
@@ -860,7 +962,7 @@ const VisiblityAnalysisData = () => {
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <VisibilityDrilldownTable />
+        <VisibilityDrilldownTable data={keywordsData?.hierarchy} loading={keywordsLoading} />
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">
@@ -877,147 +979,153 @@ const VisiblityAnalysisData = () => {
             ))}
           </div>
         </div>
-        <TopSearchTerms filter={topSearchFilter} />
+        <TopSearchTerms
+          filter={topSearchFilter}
+          data={topSearchData?.terms}
+          loading={topSearchLoading}
+        />
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <VisibilityLayoutOne />
         </div> */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-          <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
-                <p className="text-xs text-slate-500">Interactive view</p>
-              </div>
-              <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
-                <CloseIcon fontSize="small" />
-              </button>
-            </div>
-
-            {/* COMPETITION MODAL */}
-            {modal.type === 'competition' && (
-              <div className="space-y-3">
-                {/* TAG SELECTOR */}
-                <div className="flex flex-wrap gap-2">
-                  {competitorSeries.map((c) => {
-                    const active = selectedCompetitors.includes(c.name)
-                    return (
-                      <button
-                        key={c.name}
-                        onClick={() => {
-                          const set = new Set(selectedCompetitors)
-                          if (set.has(c.name)) set.delete(c.name)
-                          else set.add(c.name)
-                          setSelectedCompetitors(Array.from(set))
-                        }}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
-                          }`}
-                      >
-                        {c.name}
-                      </button>
-                    )
-                  })}
+      {
+        modal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+            <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
+                  <p className="text-xs text-slate-500">Interactive view</p>
                 </div>
+                <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
+                  <CloseIcon fontSize="small" />
+                </button>
+              </div>
 
-                {/* COMPETITOR LINE CHART */}
+              {/* COMPETITION MODAL */}
+              {modal.type === 'competition' && (
+                <div className="space-y-3">
+                  {/* TAG SELECTOR */}
+                  <div className="flex flex-wrap gap-2">
+                    {competitorSeries.map((c) => {
+                      const active = selectedCompetitors.includes(c.name)
+                      return (
+                        <button
+                          key={c.name}
+                          onClick={() => {
+                            const set = new Set(selectedCompetitors)
+                            if (set.has(c.name)) set.delete(c.name)
+                            else set.add(c.name)
+                            setSelectedCompetitors(Array.from(set))
+                          }}
+                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
+                            }`}
+                        >
+                          {c.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* COMPETITOR LINE CHART */}
+                  <div className="h-80">
+                    <ResponsiveContainer>
+                      <LineChart
+                        data={competitorSeries[0].values.map((_, idx) => {
+                          const point = { date: competitorSeries[0].values[idx].date }
+                          competitorSeries.forEach((c) => {
+                            point[c.name] = c.values[idx]?.value ?? 0
+                          })
+                          return point
+                        })}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
+                        <Legend />
+                        {competitorSeries
+                          .filter((c) => selectedCompetitors.includes(c.name))
+                          .map((c) => (
+                            <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
+                          ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* CATEGORY TREND MODAL */}
+              {modal.type === 'trends' && (
                 <div className="h-80">
                   <ResponsiveContainer>
                     <LineChart
-                      data={competitorSeries[0].values.map((_, idx) => {
-                        const point = { date: competitorSeries[0].values[idx].date }
-                        competitorSeries.forEach((c) => {
-                          point[c.name] = c.values[idx]?.value ?? 0
-                        })
-                        return point
-                      })}
+                      data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
+                      <XAxis dataKey="idx" />
+                      <YAxis />
+                      <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
                       <Legend />
-                      {competitorSeries
-                        .filter((c) => selectedCompetitors.includes(c.name))
-                        .map((c) => (
-                          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
-                        ))}
+                      <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* CATEGORY TREND MODAL */}
-            {modal.type === 'trends' && (
-              <div className="h-80">
-                <ResponsiveContainer>
-                  <LineChart
-                    data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="idx" />
-                    <YAxis />
-                    <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
-                    <Legend />
-                    <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+              {/* INSIGHTS MODAL */}
+              {modal.type === 'insights' && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Gainers</p>
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
+                        <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
+                          <span>{b}</span>
+                          <span className="font-semibold text-emerald-600">+0.8%</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-            {/* INSIGHTS MODAL */}
-            {modal.type === 'insights' && (
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Gainers</p>
-                  <ul className="mt-2 space-y-1 text-xs">
-                    {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
-                      <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
-                        <span>{b}</span>
-                        <span className="font-semibold text-emerald-600">+0.8%</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Drainers</p>
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
+                        <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
+                          <span>{b}</span>
+                          <span className="font-semibold text-rose-600">-0.6%</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
+              )}
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Drainers</p>
-                  <ul className="mt-2 space-y-1 text-xs">
-                    {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
-                      <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
-                        <span>{b}</span>
-                        <span className="font-semibold text-rose-600">-0.6%</span>
-                      </li>
-                    ))}
-                  </ul>
+              {/* CROSS PLATFORM MODAL */}
+              {modal.type === 'cross' && (
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Date comparison</p>
+                    <p className="text-xs text-slate-500">Custom vs Previous month</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
+                    <p className="text-xs text-slate-500">Distributor · Store · Web</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Customer selection</p>
+                    <p className="text-xs text-slate-500">All customers · Custom segments</p>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {/* CROSS PLATFORM MODAL */}
-            {modal.type === 'cross' && (
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Date comparison</p>
-                  <p className="text-xs text-slate-500">Custom vs Previous month</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
-                  <p className="text-xs text-slate-500">Distributor · Store · Web</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Customer selection</p>
-                  <p className="text-xs text-slate-500">All customers · Custom segments</p>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-    </div>
+    </div >
   )
 }
 

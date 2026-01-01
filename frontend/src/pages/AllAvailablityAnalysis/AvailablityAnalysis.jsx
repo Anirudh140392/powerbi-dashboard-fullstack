@@ -120,6 +120,9 @@ export default function AvailablityAnalysis() {
     // Mark these filters as being fetched
     lastFetchedFiltersRef.current = filterKey;
 
+    // Reset all data to trigger skeleton loaders
+    setApiData({});
+
     const fetchData = async () => {
       try {
         // Build query params from current filter state (synced with FilterContext)

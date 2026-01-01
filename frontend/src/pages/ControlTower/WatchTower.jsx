@@ -300,6 +300,17 @@ function WatchTower() {
       setMonthOverviewLoading(true);
       setBrandsOverviewLoading(true);
 
+      // Reset data to trigger skeleton loaders
+      setDashboardData(prev => ({
+        ...prev,
+        topMetrics: [],
+        performanceMetricsKpis: [],
+        platformOverview: []
+      }));
+      setMonthOverviewData([]);
+      setCategoryOverviewData([]);
+      setBrandsOverviewData(null);
+
       // ============ ALL 6 SECTIONS FIRE IN PARALLEL ============
 
       // STEP 1: WATCH OVERVIEW (PARALLEL)
@@ -344,18 +355,16 @@ function WatchTower() {
       console.log("📊 [3/6] Loading Platform Overview...");
       axiosInstance.get("/watchtower/platform-overview", { params: filters })
         .then(platformRes => {
-          if (!ignore) {
-            setDashboardData(prev => ({
-              ...prev,
-              platformOverview: platformRes.data || []
-            }));
-            setPlatformOverviewLoading(false);
-            console.log(`✅ [3/6] Platform Overview loaded in ${((performance.now() - step3Start) / 1000).toFixed(2)}s`);
-          }
+          setDashboardData(prev => ({
+            ...prev,
+            platformOverview: platformRes.data || []
+          }));
+          setPlatformOverviewLoading(false);
+          console.log(`✅ [3/6] Platform Overview loaded in ${((performance.now() - step3Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Platform Overview:", err);
-          if (!ignore) setPlatformOverviewLoading(false);
+          setPlatformOverviewLoading(false);
         });
 
       // STEP 4: CATEGORY OVERVIEW (PARALLEL)
@@ -363,16 +372,14 @@ function WatchTower() {
       console.log("📊 [4/6] Loading Category Overview...");
       axiosInstance.get("/watchtower/category-overview", { params: { ...filters, categoryOverviewPlatform } })
         .then(categoryRes => {
-          if (!ignore) {
-            setCategoryOverviewData(categoryRes.data);
-            setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
-            setCategoryOverviewLoading(false);
-            console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
-          }
+          setCategoryOverviewData(categoryRes.data);
+          setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
+          setCategoryOverviewLoading(false);
+          console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Category Overview:", err);
-          if (!ignore) setCategoryOverviewLoading(false);
+          setCategoryOverviewLoading(false);
         });
 
       // STEP 5: MONTH OVERVIEW (PARALLEL)
@@ -380,16 +387,14 @@ function WatchTower() {
       console.log("📊 [5/6] Loading Month Overview...");
       axiosInstance.get("/watchtower/month-overview", { params: { ...filters, monthOverviewPlatform } })
         .then(monthRes => {
-          if (!ignore) {
-            setMonthOverviewData(monthRes.data);
-            setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
-            setMonthOverviewLoading(false);
-            console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
-          }
+          setMonthOverviewData(monthRes.data);
+          setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
+          setMonthOverviewLoading(false);
+          console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Month Overview:", err);
-          if (!ignore) setMonthOverviewLoading(false);
+          setMonthOverviewLoading(false);
         });
 
       // STEP 6: BRAND OVERVIEW (PARALLEL)
@@ -397,16 +402,14 @@ function WatchTower() {
       console.log("📊 [6/6] Loading Brand Overview...");
       axiosInstance.get("/watchtower/brands-overview", { params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory } })
         .then(brandsRes => {
-          if (!ignore) {
-            setBrandsOverviewData(brandsRes.data);
-            setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
-            setBrandsOverviewLoading(false);
-            console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
-          }
+          setBrandsOverviewData(brandsRes.data);
+          setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
+          setBrandsOverviewLoading(false);
+          console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Brand Overview:", err);
-          if (!ignore) setBrandsOverviewLoading(false);
+          setBrandsOverviewLoading(false);
         });
 
       console.log(`🚀 All 6 section requests fired in parallel! Each will display as soon as ready.`);
@@ -607,11 +610,6 @@ function WatchTower() {
                 onClick={() => { setActiveKpisTab("Brands Overview"); setCurrentPage(0); }}
               />
 
-              <TabButton
-                label="By Skus"
-                active={activeKpisTab === "Skus Overview"}
-                onClick={() => { setActiveKpisTab("Skus Overview"); setCurrentPage(0); }}
-              />
             </Box>
           </Box>
           <Box sx={{ p: 3, opacity: monthOverviewLoading && activeKpisTab === "Month Overview" ? 0.5 : 1, transition: 'opacity 0.2s' }}>

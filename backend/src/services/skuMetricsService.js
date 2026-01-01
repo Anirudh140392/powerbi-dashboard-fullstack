@@ -1,5 +1,8 @@
-import { Op } from 'sequelize';
+import { Op, Sequelize } from 'sequelize';
 import RbPdpOlap from '../models/RbPdpOlap.js';
+import RbKw from '../models/RbKw.js';
+import RbBrandMs from '../models/RbBrandMs.js';
+import RcaSkuDim from '../models/RcaSkuDim.js';
 import sequelize from '../config/db.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -245,13 +248,13 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
             // CTR (Click-Through Rate): (Ad_Clicks / Ad_Impressions) * 100
             aggregationExpr = '(SUM(olap.Ad_Clicks) / NULLIF(SUM(olap.Ad_Impressions), 0)) * 100';
         } else if (dbColumn === 'SOS_CALC') {
-            // SOS placeholder - For now, return 0 (requires keyword search data from rb_kw table)
-            // TODO: Implement proper SOS calculation when keyword data is available
-            aggregationExpr = '0';
+            // SOS (Share of Search): (keyword_is_rb_product=1 count) / (total count) * 100
+            // This requires a special query to rb_kw table
+            return await fetchSosByProduct(filters, metricKey);
         } else if (dbColumn === 'MARKET_SHARE_CALC') {
-            // Market Share placeholder - For now, return 0 (requires brand market share data)
-            // TODO: Implement proper Market Share calculation when brand data is available
-            aggregationExpr = '0';
+            // Market Share: (Sales of our brands) / (Total sales) * 100
+            // This requires a special query to rb_brand_ms with rca_sku_dim join
+            return await fetchMarketShareByProduct(filters, metricKey);
         } else if (dbColumn === 'ROAS_CALC') {
             // ROAS (Return on Ad Spend): Ad_sales / Ad_Spend
             aggregationExpr = 'SUM(olap.Ad_sales) / NULLIF(SUM(olap.Ad_Spend), 0)';
@@ -361,6 +364,224 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
     } catch (error) {
         console.error('Error fetching SKU data:', error);
         console.error('Error stack:', error.stack);
+        return [];
+    }
+}
+
+/**
+ * Fetch SOS (Share of Search) by Product/SKU
+ * Formula: (keyword_is_rb_product=1 count) / (total count) * 100
+ */
+async function fetchSosByProduct(filters, metricKey) {
+    try {
+        console.log('=== fetchSosByProduct called ===');
+
+        // Build WHERE conditions
+        const where = {};
+        if (filters.dateFrom && filters.dateTo) {
+            where.kw_crawl_date = { [Op.between]: [filters.dateFrom, filters.dateTo] };
+        }
+        if (filters.platform && filters.platform !== 'All') {
+            where.platform_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), filters.platform.toLowerCase());
+        }
+        if (filters.location && filters.location !== 'All') {
+            where.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), filters.location.toLowerCase());
+        }
+
+        // Numerator: keyword_is_rb_product = 1 counts by product
+        const numData = await RbKw.findAll({
+            attributes: [
+                'keyword_search_product',
+                'platform_name',
+                [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']
+            ],
+            where: { ...where, keyword_is_rb_product: 1 },
+            group: ['keyword_search_product', 'platform_name'],
+            raw: true
+        });
+
+        // Denominator: total counts by product
+        const denomData = await RbKw.findAll({
+            attributes: [
+                'keyword_search_product',
+                'platform_name',
+                [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']
+            ],
+            where: where,
+            group: ['keyword_search_product', 'platform_name'],
+            raw: true
+        });
+
+        // Build maps
+        const numMap = new Map(numData.map(r => [`${r.keyword_search_product}|${r.platform_name}`, parseInt(r.count) || 0]));
+        const denomMap = new Map(denomData.map(r => [`${r.keyword_search_product}|${r.platform_name}`, parseInt(r.count) || 0]));
+
+        // Group by product
+        const skuMap = {};
+        denomData.forEach(row => {
+            const sku = row.keyword_search_product || 'Unknown';
+            const platform = row.platform_name?.toLowerCase() || 'unknown';
+            const denomCount = parseInt(row.count) || 0;
+            const numCount = numMap.get(`${row.keyword_search_product}|${row.platform_name}`) || 0;
+            const sos = denomCount > 0 ? (numCount / denomCount) * 100 : 0;
+
+            if (!skuMap[sku]) {
+                skuMap[sku] = {
+                    name: sku,
+                    category: '',
+                    all: { value: 0 },
+                    blinkit: { value: 0 },
+                    zepto: { value: 0 },
+                    swiggy: { value: 0 },
+                    amazon: { value: 0 },
+                    flipkart: { value: 0 }
+                };
+            }
+
+            if (skuMap[sku][platform]) {
+                skuMap[sku][platform].value = sos;
+            }
+        });
+
+        // Calculate "all" as average across platforms
+        Object.values(skuMap).forEach(sku => {
+            const platforms = ['blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'];
+            const values = platforms.map(p => sku[p].value).filter(v => v > 0);
+            sku.all.value = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+        });
+
+        // Format results
+        return Object.values(skuMap).map(sku => {
+            const formatted = { name: sku.name, category: sku.category };
+            ['all', 'blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'].forEach(platform => {
+                formatted[platform] = {
+                    [metricKey]: formatMetricValue(sku[platform].value, metricKey),
+                    [metricKey + '_change']: '-'
+                };
+            });
+            return formatted;
+        });
+    } catch (error) {
+        console.error('Error in fetchSosByProduct:', error);
+        return [];
+    }
+}
+
+/**
+ * Fetch Market Share by Product/SKU
+ * Formula: (Sales of product with Comp_flag=0) / (Total platform sales) * 100
+ * Uses rb_pdp_olap.Product column for SKU-level data
+ */
+async function fetchMarketShareByProduct(filters, metricKey) {
+    try {
+        console.log('=== fetchMarketShareByProduct called ===');
+
+        // Build WHERE conditions for rb_pdp_olap
+        const baseWhere = { Comp_flag: 0 }; // Our products only
+        if (filters.dateFrom && filters.dateTo) {
+            baseWhere.DATE = { [Op.between]: [filters.dateFrom, filters.dateTo] };
+        }
+        if (filters.platform && filters.platform !== 'All') {
+            baseWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), filters.platform.toLowerCase());
+        }
+        if (filters.location && filters.location !== 'All') {
+            baseWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), filters.location.toLowerCase());
+        }
+        if (filters.brand && filters.brand !== 'All') {
+            baseWhere.Brand = { [Op.like]: `%${filters.brand}%` };
+        }
+
+        // Numerator: Our products sales by Product/Platform (Comp_flag = 0)
+        const numData = await RbPdpOlap.findAll({
+            attributes: [
+                'Product',
+                'Platform',
+                'Category',
+                [Sequelize.fn('SUM', Sequelize.col('Sales')), 'product_sales']
+            ],
+            where: baseWhere,
+            group: ['Product', 'Platform', 'Category'],
+            raw: true
+        });
+
+        // Build total where (all products, not just ours)
+        const totalWhere = {};
+        if (filters.dateFrom && filters.dateTo) {
+            totalWhere.DATE = { [Op.between]: [filters.dateFrom, filters.dateTo] };
+        }
+        if (filters.platform && filters.platform !== 'All') {
+            totalWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), filters.platform.toLowerCase());
+        }
+        if (filters.location && filters.location !== 'All') {
+            totalWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), filters.location.toLowerCase());
+        }
+
+        // Denominator: Total sales by platform (all products including competitors)
+        const denomData = await RbPdpOlap.findAll({
+            attributes: [
+                'Platform',
+                [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
+            ],
+            where: totalWhere,
+            group: ['Platform'],
+            raw: true
+        });
+
+        // Build denominator map (platform -> total sales)
+        const denomMap = new Map(denomData.map(r => [r.Platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
+
+        // Group by Product as SKU
+        const skuMap = {};
+        numData.forEach(row => {
+            const sku = row.Product || 'Unknown';
+            const platform = row.Platform?.toLowerCase() || 'unknown';
+            const category = row.Category || '';
+            const productSales = parseFloat(row.product_sales || 0);
+            const totalSales = denomMap.get(platform) || 0;
+            const ms = totalSales > 0 ? (productSales / totalSales) * 100 : 0;
+
+            if (!skuMap[sku]) {
+                skuMap[sku] = {
+                    name: sku,
+                    category: category,
+                    all: { value: 0 },
+                    blinkit: { value: 0 },
+                    zepto: { value: 0 },
+                    swiggy: { value: 0 },
+                    amazon: { value: 0 },
+                    flipkart: { value: 0 }
+                };
+            }
+
+            if (skuMap[sku][platform]) {
+                skuMap[sku][platform].value = ms;
+            }
+            // Update category if not set
+            if (!skuMap[sku].category && category) {
+                skuMap[sku].category = category;
+            }
+        });
+
+        // Calculate "all" as average across platforms
+        Object.values(skuMap).forEach(sku => {
+            const platforms = ['blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'];
+            const values = platforms.map(p => sku[p].value).filter(v => v > 0);
+            sku.all.value = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+        });
+
+        // Format results
+        return Object.values(skuMap).map(sku => {
+            const formatted = { name: sku.name, category: sku.category };
+            ['all', 'blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'].forEach(platform => {
+                formatted[platform] = {
+                    [metricKey]: formatMetricValue(sku[platform].value, metricKey),
+                    [metricKey + '_change']: '-'
+                };
+            });
+            return formatted;
+        });
+    } catch (error) {
+        console.error('Error in fetchMarketShareByProduct:', error);
         return [];
     }
 }
