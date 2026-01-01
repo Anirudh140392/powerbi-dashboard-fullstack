@@ -352,7 +352,7 @@ const filterOptions = [
     { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
 ]
 
-export default function VisibilityDrilldownTable() {
+export default function VisibilityDrilldownTable({ data = null, loading = false }) {
     const [popupFilters, setPopupFilters] = useState({
         keyword: null,
         sku: null,
@@ -369,6 +369,9 @@ export default function VisibilityDrilldownTable() {
     const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
     const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+
+    // Use API data if provided, otherwise fallback to sampleHierarchy
+    const sourceData = data || sampleHierarchy;
 
 
 
@@ -437,10 +440,10 @@ export default function VisibilityDrilldownTable() {
 
     const hierarchyData = useMemo(() => {
         if (activeView === 'skus') {
-            return restructureForSkus(sampleHierarchy)
+            return restructureForSkus(sourceData)
         }
-        return sampleHierarchy
-    }, [activeView])
+        return sourceData
+    }, [activeView, sourceData])
 
     const flatRows = useMemo(() => flattenHierarchy(hierarchyData, expandedRows, filters, activeView), [hierarchyData, expandedRows, filters, activeView])
 

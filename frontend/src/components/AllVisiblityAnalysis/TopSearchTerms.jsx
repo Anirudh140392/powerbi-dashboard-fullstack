@@ -178,10 +178,13 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms({ filter = "All" }) {
+export default function TopSearchTerms({ filter = "All", data = null, loading = false }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
+
+    // Use API data if provided, otherwise fallback to MOCK_DATA
+    const displayData = data || MOCK_DATA;
 
     const handleBrandClick = (keyword) => {
         setSelectedKeyword(keyword);
@@ -250,7 +253,7 @@ export default function TopSearchTerms({ filter = "All" }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {MOCK_DATA.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => (
+                        {displayData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => (
                             <motion.tr
                                 key={idx}
                                 variants={itemVariants}
@@ -295,9 +298,9 @@ export default function TopSearchTerms({ filter = "All" }) {
             {/* Footer / Pagination */}
             <div className="border-t border-slate-100 bg-slate-50/50">
                 <PaginationFooter
-                    isVisible={MOCK_DATA.length > 3}
+                    isVisible={displayData.length > 3}
                     currentPage={currentPage}
-                    totalPages={Math.ceil(MOCK_DATA.length / pageSize)}
+                    totalPages={Math.ceil(displayData.length / pageSize)}
                     onPageChange={setCurrentPage}
                     pageSize={pageSize}
                     onPageSizeChange={setPageSize}

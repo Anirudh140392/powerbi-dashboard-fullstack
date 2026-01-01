@@ -211,39 +211,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 />
               </Box>
 
-              {/* KEYWORD SELECTION - Only visible on Visibility Analysis page */}
-              {location.pathname === '/visibility-anlysis' && (
-                <Box>
-                  <Typography
-                    sx={{
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      mb: 0.5,
-                      opacity: 0.7,
-                    }}
-                  >
-                    KEYWORD
-                  </Typography>
-                  <Autocomplete
-                    disableClearable
-                    options={keywords}
-                    value={selectedKeyword}
-                    onChange={(event, newValue) => setSelectedKeyword(newValue)}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        size="small"
-                        sx={{ width: 130 }}
-                      />
-                    )}
-                    ListboxProps={{
-                      style: {
-                        maxHeight: "160px",
-                      },
-                    }}
-                  />
-                </Box>
-              )}
+
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
               <Box sx={{ width: 220 }}>

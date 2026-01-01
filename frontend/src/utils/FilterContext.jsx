@@ -133,8 +133,8 @@ export const FilterProvider = ({ children }) => {
         const fetchBrands = async () => {
             if (backendAvailable) {
                 try {
-                    // Check if on Availability Analysis page - include competitor brands
-                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis');
+                    // Check if on Availability Analysis or Visibility Analysis page - include competitor brands
+                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis') || window.location.pathname.includes('visibility-anlysis');
 
                     const response = await axiosInstance.get("/watchtower/brands", {
                         params: {
@@ -228,8 +228,8 @@ export const FilterProvider = ({ children }) => {
         const fetchLocations = async () => {
             if (backendAvailable) {
                 try {
-                    // Check if on Availability Analysis page - include all locations
-                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis');
+                    // Check if on Availability Analysis or Visibility Analysis page - include all locations
+                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis') || window.location.pathname.includes('visibility-anlysis');
 
                     const response = await axiosInstance.get("/watchtower/locations", {
                         params: {

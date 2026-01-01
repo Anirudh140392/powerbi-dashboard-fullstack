@@ -322,16 +322,16 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
         }}
       >
         {/* Value */}
-        <div style={{ fontSize: 28, fontWeight: 700 }}>{card.value}</div>
+        <div style={{ fontSize: 22, fontWeight: 700 }}>{card.value}</div>
 
         {/* MoM Tag */}
         <div
           style={{
             background: bg,
             color: text,
-            padding: "4px 10px",
+            padding: "3px 8px",
             borderRadius: 20,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 500,
             whiteSpace: "nowrap",
           }}
