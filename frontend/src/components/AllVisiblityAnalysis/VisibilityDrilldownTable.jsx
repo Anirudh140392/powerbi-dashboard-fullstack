@@ -334,9 +334,9 @@ const filterOptions = [
         id: "kpi",
         label: "KPI",
         options: [
-            { id: "overallWeightedSos", label: "OVERALL WEIGHTED SOS" },
-            { id: "sponsoredWeightedSos", label: "SPONSORED WEIGHTED SOS" },
-            { id: "organicWeightedSos", label: "ORGANIC WEIGHTED SOS" },
+            { id: "overallSos", label: "OVERALL SOS" },
+            { id: "sponsoredSos", label: "SPONSORED SOS" },
+            { id: "organicSos", label: "ORGANIC SOS" },
             { id: "displaySos", label: "DISPLAY SOS" }
         ]
     },

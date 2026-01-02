@@ -462,17 +462,17 @@ const FORMAT_MATRIX_Visibility = {
   // -----------------------------------------
   PlatformData: [
     {
-      kpi: "Overall Weighted SOS",
+      kpi: "Overall SOS",
       values: { Blinkit: 92, "Blinkit (Sub)": 88, "Blinkit (2)": 85, "Blinkit (Amz)": 87, "Blinkit (Swg)": 90 },
       trend: generateTrendMulti(88)
     },
     {
-      kpi: "Sponsored Weighted SOS",
+      kpi: "Sponsored SOS",
       values: { Blinkit: 12, "Blinkit (Sub)": 15, "Blinkit (2)": 10, "Blinkit (Amz)": 16, "Blinkit (Swg)": 14 },
       trend: generateTrendMulti(14)
     },
     {
-      kpi: "Organic Weighted SOS",
+      kpi: "Organic SOS",
       values: { Blinkit: 96, "Blinkit (Sub)": 94, "Blinkit (2)": 92, "Blinkit (Amz)": 91, "Blinkit (Swg)": 89 },
       trend: generateTrendMulti(92)
     },
@@ -488,17 +488,17 @@ const FORMAT_MATRIX_Visibility = {
   // -----------------------------------------
   FormatData: [
     {
-      kpi: "Overall Weighted SOS",
+      kpi: "Overall SOS",
       values: { Cassata: 75, "Core Tub": 82, Cornetto: 90, Magnum: 87, "KW Sticks": 95, "Premium Tub": 80, Sandwich: 76 },
       trend: generateTrendMulti(82)
     },
     {
-      kpi: "Sponsored Weighted SOS",
+      kpi: "Sponsored SOS",
       values: { Cassata: 18, "Core Tub": 12, Cornetto: 14, Magnum: 16, "KW Sticks": 10, "Premium Tub": 20, Sandwich: 22 },
       trend: generateTrendMulti(15)
     },
     {
-      kpi: "Organic Weighted SOS",
+      kpi: "Organic SOS",
       values: { Cassata: 92, "Core Tub": 95, Cornetto: 98, Magnum: 99, "KW Sticks": 100, "Premium Tub": 93, Sandwich: 91 },
       trend: generateTrendMulti(95)
     },
@@ -514,17 +514,17 @@ const FORMAT_MATRIX_Visibility = {
   // -----------------------------------------
   CityData: [
     {
-      kpi: "Overall Weighted SOS",
+      kpi: "Overall SOS",
       values: { Mumbai: 88, Delhi: 90, Bangalore: 85, Hyderabad: 83, Chennai: 82, Kolkata: 86, Pune: 89, Ahmedabad: 84 },
       trend: generateTrendMulti(86)
     },
     {
-      kpi: "Sponsored Weighted SOS",
+      kpi: "Sponsored SOS",
       values: { Mumbai: 14, Delhi: 12, Bangalore: 15, Hyderabad: 11, Chennai: 16, Kolkata: 13, Pune: 14, Ahmedabad: 18 },
       trend: generateTrendMulti(14)
     },
     {
-      kpi: "Organic Weighted SOS",
+      kpi: "Organic SOS",
       values: { Mumbai: 95, Delhi: 94, Bangalore: 93, Hyderabad: 90, Chennai: 92, Kolkata: 91, Pune: 96, Ahmedabad: 89 },
       trend: generateTrendMulti(93)
     },

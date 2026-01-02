@@ -162,3 +162,34 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', terms: [] });
     }
 };
+
+/**
+ * Get Filter Options for Advanced Filters modal (cascading filters)
+ * Returns: Dynamic options based on selected filters
+ */
+export const getVisibilityFilterOptions = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const params = {
+            filterType: req.query.filterType,
+            platform: req.query.platform || 'All',
+            format: req.query.format || 'All',
+            city: req.query.city || 'All',
+            metroFlag: req.query.metroFlag || 'All'
+        };
+        console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
+        console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
+
+        const data = await visibilityService.getVisibilityFilterOptions(params);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Options count:', data.options?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('===================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Filter Options:', error);
+        res.status(500).json({ error: 'Internal Server Error', options: [] });
+    }
+};

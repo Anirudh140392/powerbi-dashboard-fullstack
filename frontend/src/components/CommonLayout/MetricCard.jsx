@@ -30,8 +30,64 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
     (card.startDate && card.endDate ? generateMonthLabels(card.startDate, card.endDate) : generateMonthLabels());
 
   const values = card.sparklineData || generateValues(months.length);
-  const positive = card.change.includes("▲") || card.change.includes("+");
+  const positive = card.change && (card.change.includes("▲") || card.change.includes("+"));
   const color = positive ? "#28a745" : "#dc3545";
+
+  // Handle "Coming Soon" state
+  if (card.isComingSoon) {
+    return (
+      <Card
+        sx={{
+          flexShrink: 0,
+          width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+          borderRadius: 3,
+          scrollSnapAlign: "start",
+          transition: "0.25s",
+          position: "relative",
+          bgcolor: "#f8fafc",
+          border: "2px dashed #cbd5e1",
+          "&:hover": { transform: "translateY(-5px)", boxShadow: 2 },
+        }}
+      >
+        <CardContent sx={{ opacity: 0.7 }}>
+          <Typography variant="body2" color="text.secondary">
+            {card.title}
+          </Typography>
+
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              py: 3,
+            }}
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                bgcolor: "#e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                mb: 1.5,
+              }}
+            >
+              <Typography sx={{ fontSize: 24 }}>🕐</Typography>
+            </Box>
+            <Typography variant="h6" fontWeight={600} color="#64748b">
+              Coming Soon
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+              {card.sub}
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card

@@ -3,7 +3,8 @@ import {
     getVisibilityOverview,
     getVisibilityPlatformKpiMatrix,
     getVisibilityKeywordsAtGlance,
-    getVisibilityTopSearchTerms
+    getVisibilityTopSearchTerms,
+    getVisibilityFilterOptions
 } from '../controllers/visibilityAnalysisController.js';
 
 export default (app) => {
@@ -136,4 +137,44 @@ export default (app) => {
      *         description: Successful response with terms array
      */
     app.get('/api/visibility-analysis/top-search-terms', getVisibilityTopSearchTerms);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/filter-options:
+     *   get:
+     *     summary: Get dynamic filter options for Advanced Filters modal
+     *     description: Cascading filter options - selected filters narrow down options for dependent filters
+     *     parameters:
+     *       - in: query
+     *         name: filterType
+     *         required: true
+     *         schema:
+     *           type: string
+     *           enum: [platforms, months, formats, cities, pincodes, metroFlags, kpis]
+     *         description: Type of filter options to fetch
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Selected platform (for cascading)
+     *       - in: query
+     *         name: format
+     *         schema:
+     *           type: string
+     *         description: Selected format/category (for cascading)
+     *       - in: query
+     *         name: city
+     *         schema:
+     *           type: string
+     *         description: Selected city (for cascading)
+     *       - in: query
+     *         name: metroFlag
+     *         schema:
+     *           type: string
+     *         description: Selected metro flag/tier (for cascading)
+     *     responses:
+     *       200:
+     *         description: Successful response with options array
+     */
+    app.get('/api/visibility-analysis/filter-options', getVisibilityFilterOptions);
 };
