@@ -96,21 +96,21 @@ const DASHBOARD_DATA = {
     metrics: [
       {
         id: "overall_sos",
-        label: "Overall Weighted SOS",
+        label: "Overall SOS",
         color: "#F97316",
         axis: "left",
         default: true,
       },
       {
         id: "sponsored_sos",
-        label: "Sponsored Weighted SOS",
+        label: "Sponsored SOS",
         color: "#7C3AED",
         axis: "right",
         default: true,
       },
       {
         id: "organic_sos",
-        label: "Organic Weighted SOS",
+        label: "Organic SOS",
         color: "#6366F1",
         axis: "left",
         default: false,
@@ -343,19 +343,19 @@ const DASHBOARD_DATA = {
     metrics: [
       {
         id: "overall_sos",
-        label: "Overall Weighted SOS",
+        label: "Overall SOS",
         color: "#F97316",
         default: true,
       },
       {
         id: "sponsored_sos",
-        label: "Sponsored Weighted SOS",
+        label: "Sponsored SOS",
         color: "#7C3AED",
         default: true,
       },
       {
         id: "organic_sos",
-        label: "Organic Weighted SOS",
+        label: "Organic SOS",
         color: "#6366F1",
         default: false,
       },
@@ -394,9 +394,9 @@ const DASHBOARD_DATA = {
 
     columns: [
       { id: "brand", label: "Brand", type: "text" },
-      { id: "overall_sos", label: "Overall Weighted SOS", type: "metric" },
-      { id: "sponsored_sos", label: "Sponsored Weighted SOS", type: "metric" },
-      { id: "organic_sos", label: "Organic Weighted SOS", type: "metric" },
+      { id: "overall_sos", label: "Overall SOS", type: "metric" },
+      { id: "sponsored_sos", label: "Sponsored SOS", type: "metric" },
+      { id: "organic_sos", label: "Organic SOS", type: "metric" },
       { id: "display_sos", label: "Display SOS", type: "metric" },
     ],
 

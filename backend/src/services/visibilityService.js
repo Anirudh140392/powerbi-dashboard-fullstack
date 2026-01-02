@@ -3,11 +3,290 @@
  * Provides business logic for visibility analysis APIs
  */
 
-// Mock data for Visibility Overview cards (matching current frontend static data)
+import sequelize from '../config/db.js';
+import { Op } from 'sequelize';
+import dayjs from 'dayjs';
+
+/**
+ * OPTIMIZED: Calculate ALL SOS percentages in a SINGLE query
+ * Returns overall, sponsored, and organic SOS in one database call
+ * @param {string} dateFrom - Start date (YYYY-MM-DD)
+ * @param {string} dateTo - End date (YYYY-MM-DD)
+ * @param {string|null} platform - Platform filter (optional)
+ * @returns {Promise<{overall: number, sponsored: number, organic: number}>}
+ */
+async function calculateAllSOS(dateFrom, dateTo, platform = null) {
+    try {
+        let platformCondition = '';
+        if (platform && platform !== 'All') {
+            platformCondition = `AND LOWER(platform_name) = LOWER('${platform}')`;
+        }
+
+        // Single query that calculates ALL SOS types at once
+        const query = `
+            SELECT 
+                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS overall_sos,
+                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS sponsored_sos,
+                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS organic_sos
+            FROM rb_kw
+            WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+            ${platformCondition}
+        `;
+
+        const result = await sequelize.query(query, {
+            replacements: { dateFrom, dateTo },
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        return {
+            overall: Number(result[0]?.overall_sos) || 0,
+            sponsored: Number(result[0]?.sponsored_sos) || 0,
+            organic: Number(result[0]?.organic_sos) || 0
+        };
+    } catch (error) {
+        console.error('Error calculating all SOS:', error);
+        return { overall: 0, sponsored: 0, organic: 0 };
+    }
+}
+
+/**
+ * OPTIMIZED: Get ALL SOS trends in a SINGLE query
+ * Returns daily trends for overall, sponsored, and organic SOS
+ * @param {number} days - Number of days to include
+ * @param {string|null} platform - Platform filter
+ * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
+ */
+async function getAllSOSTrends(days = 7, platform = null) {
+    try {
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - (days - 1));
+
+        const dateFrom = startDate.toISOString().split('T')[0];
+        const dateTo = today.toISOString().split('T')[0];
+
+        let platformCondition = '';
+        if (platform && platform !== 'All') {
+            platformCondition = `AND LOWER(platform_name) = LOWER('${platform}')`;
+        }
+
+        // Single query to get ALL SOS types grouped by date
+        const query = `
+            SELECT 
+                DATE(kw_crawl_date) as crawl_date,
+                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS overall_sos,
+                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS sponsored_sos,
+                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS organic_sos
+            FROM rb_kw
+            WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+            ${platformCondition}
+            GROUP BY DATE(kw_crawl_date)
+            ORDER BY crawl_date ASC
+        `;
+
+        const results = await sequelize.query(query, {
+            replacements: { dateFrom, dateTo },
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        const overall = { dates: [], values: [] };
+        const sponsored = { dates: [], values: [] };
+        const organic = { dates: [], values: [] };
+
+        results.forEach(row => {
+            const date = new Date(row.crawl_date);
+            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+            overall.dates.push(dateStr);
+            overall.values.push(Number(row.overall_sos) || 0);
+
+            sponsored.dates.push(dateStr);
+            sponsored.values.push(Number(row.sponsored_sos) || 0);
+
+            organic.dates.push(dateStr);
+            organic.values.push(Number(row.organic_sos) || 0);
+        });
+
+        return { overall, sponsored, organic };
+    } catch (error) {
+        console.error('Error getting all SOS trends:', error);
+        return {
+            overall: { dates: [], values: [] },
+            sponsored: { dates: [], values: [] },
+            organic: { dates: [], values: [] }
+        };
+    }
+}
+
+/**
+ * Get date ranges for current and previous periods (MTD)
+ */
+function getDateRanges() {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    const currentDay = today.getDate();
+
+    // Current period: Start of current month to today
+    const currentStart = new Date(currentYear, currentMonth, 1);
+    const currentEnd = today;
+
+    // Previous period: Same day range in previous month
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    const prevStart = new Date(prevYear, prevMonth, 1);
+    // Get the same day in previous month, or last day if current day exceeds days in prev month
+    const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+    const prevDay = Math.min(currentDay, daysInPrevMonth);
+    const prevEnd = new Date(prevYear, prevMonth, prevDay);
+
+    return {
+        current: {
+            start: currentStart.toISOString().split('T')[0],
+            end: currentEnd.toISOString().split('T')[0]
+        },
+        previous: {
+            start: prevStart.toISOString().split('T')[0],
+            end: prevEnd.toISOString().split('T')[0]
+        }
+    };
+}
+
+/**
+ * Format PP change string
+ */
+function formatPPChange(currentValue, previousValue) {
+    // Ensure we have valid numbers
+    const current = Number(currentValue) || 0;
+    const previous = Number(previousValue) || 0;
+    const diff = current - previous;
+    const arrow = diff >= 0 ? '▲' : '▼';
+    const absVal = Math.abs(diff).toFixed(1);
+    return {
+        text: `${arrow}${absVal} pts (from ${previous.toFixed(1)}%)`,
+        color: diff >= 0 ? 'green' : 'red'
+    };
+}
+
+/**
+ * Get dynamic Visibility Overview data from database
+ */
+async function getVisibilityOverviewData(filters = {}) {
+    try {
+        const platform = filters.platform || null;
+
+        // Use dayjs like Watch Tower for consistent date handling
+        // Default to last 30 days (like Watch Tower), NOT MTD which has no data on month start
+        let endDate = dayjs();
+        let startDate = endDate.subtract(1, 'month');
+
+        // Override with filter dates if provided
+        if (filters.startDate && filters.endDate) {
+            startDate = dayjs(filters.startDate);
+            endDate = dayjs(filters.endDate);
+        }
+
+        // Previous period = same range shifted back by 1 month (same as Watch Tower)
+        const prevStart = startDate.subtract(1, 'month');
+        const prevEnd = endDate.subtract(1, 'month');
+
+        const dateRanges = {
+            current: {
+                start: startDate.format('YYYY-MM-DD'),
+                end: endDate.format('YYYY-MM-DD')
+            },
+            previous: {
+                start: prevStart.format('YYYY-MM-DD'),
+                end: prevEnd.format('YYYY-MM-DD')
+            }
+        };
+
+        console.log('[VisibilityService] Calculating SOS with date ranges:', dateRanges);
+        console.log('[VisibilityService] Using filters:', { platform: filters.platform, startDate: filters.startDate, endDate: filters.endDate });
+
+        // OPTIMIZED: Only 3 database queries instead of 9
+        // 1. Current period SOS (all 3 types in 1 query)
+        // 2. Previous period SOS (all 3 types in 1 query)
+        // 3. Sparkline trends (all 3 types in 1 query)
+        const [currentSOS, prevSOS, trends] = await Promise.all([
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform),
+            getAllSOSTrends(7, platform)
+        ]);
+
+        console.log('[VisibilityService] Optimized query results:', { currentSOS, prevSOS, trendsReceived: !!trends });
+
+        const overallChange = formatPPChange(currentSOS.overall, prevSOS.overall);
+        const sponsoredChange = formatPPChange(currentSOS.sponsored, prevSOS.sponsored);
+        const organicChange = formatPPChange(currentSOS.organic, prevSOS.organic);
+
+        return {
+            cards: [
+                {
+                    title: "Overall SOS",
+                    value: `${currentSOS.overall.toFixed(1)}%`,
+                    sub: "Share of shelf across all active SKUs",
+                    change: overallChange.text,
+                    changeColor: overallChange.color,
+                    prevText: "vs Previous Period",
+                    extra: "",
+                    extraChange: "",
+                    extraChangeColor: "green",
+                    months: trends.overall.dates,
+                    sparklineData: trends.overall.values
+                },
+                {
+                    title: "Sponsored SOS",
+                    value: `${currentSOS.sponsored.toFixed(1)}%`,
+                    sub: "Share of shelf for sponsored placements",
+                    change: sponsoredChange.text,
+                    changeColor: sponsoredChange.color,
+                    prevText: "vs Previous Period",
+                    extra: "",
+                    extraChange: "",
+                    extraChangeColor: "red",
+                    months: trends.sponsored.dates,
+                    sparklineData: trends.sponsored.values
+                },
+                {
+                    title: "Organic SOS",
+                    value: `${currentSOS.organic.toFixed(1)}%`,
+                    sub: "Natural shelf share without sponsorship",
+                    change: organicChange.text,
+                    changeColor: organicChange.color,
+                    prevText: "vs Previous Period",
+                    extra: "",
+                    extraChange: "",
+                    extraChangeColor: "green",
+                    months: trends.organic.dates,
+                    sparklineData: trends.organic.values
+                },
+                {
+                    title: "Display SOS",
+                    value: "Coming Soon...",
+                    sub: "Share of shelf from display-led visibility",
+                    change: "",
+                    changeColor: "gray",
+                    prevText: "",
+                    extra: "",
+                    extraChange: "",
+                    extraChangeColor: "gray",
+                    isComingSoon: true,
+                },
+            ]
+        };
+    } catch (error) {
+        console.error('[VisibilityService] Error getting visibility overview:', error);
+        // Return mock data as fallback
+        return getVisibilityOverviewMockData();
+    }
+}
+
+// Mock data fallback for Visibility Overview cards
 const getVisibilityOverviewMockData = () => ({
     cards: [
         {
-            title: "Overall Weighted SOS",
+            title: "Overall SOS",
             value: "19.6%",
             sub: "Share of shelf across all active SKUs",
             change: "▲4.3 pts (from 15.3%)",
@@ -18,7 +297,7 @@ const getVisibilityOverviewMockData = () => ({
             extraChangeColor: "green",
         },
         {
-            title: "Sponsored Weighted SOS",
+            title: "Sponsored SOS",
             value: "17.6%",
             sub: "Share of shelf for sponsored placements",
             change: "▼8.6 pts (from 26.2%)",
@@ -29,7 +308,7 @@ const getVisibilityOverviewMockData = () => ({
             extraChangeColor: "red",
         },
         {
-            title: "Organic Weighted SOS",
+            title: "Organic SOS",
             value: "20.7%",
             sub: "Natural shelf share without sponsorship",
             change: "▲19.5% (from 17.3%)",
@@ -41,14 +320,15 @@ const getVisibilityOverviewMockData = () => ({
         },
         {
             title: "Display SOS",
-            value: "26.9%",
+            value: "Coming Soon...",
             sub: "Share of shelf from display-led visibility",
-            change: "▲1.2 pts (from 25.7%)",
-            changeColor: "green",
-            prevText: "vs Previous Period",
-            extra: "Top 50 SKUs Display SOS: 82.3%",
-            extraChange: "▲0.9 pts",
-            extraChangeColor: "green",
+            change: "",
+            changeColor: "gray",
+            prevText: "",
+            extra: "",
+            extraChange: "",
+            extraChangeColor: "gray",
+            isComingSoon: true,
         },
     ]
 });
@@ -58,27 +338,27 @@ const getPlatformKpiMatrixMockData = () => ({
     platformData: {
         columns: ["kpi", "Blinkit", "Zepto", "Instamart", "BigBasket"],
         rows: [
-            { kpi: "Overall Weighted SOS", Blinkit: 19.6, Zepto: 18.2, Instamart: 21.1, BigBasket: 17.8, trend: { Blinkit: 0.5, Zepto: -0.3, Instamart: 1.2, BigBasket: -0.8 }, series: { Blinkit: [18.2, 18.8, 19.1, 19.6], Zepto: [18.5, 18.3, 18.4, 18.2], Instamart: [19.8, 20.2, 20.6, 21.1], BigBasket: [18.6, 18.2, 18.0, 17.8] } },
-            { kpi: "Sponsored Weighted SOS", Blinkit: 17.6, Zepto: 16.8, Instamart: 18.9, BigBasket: 15.2, trend: { Blinkit: -0.2, Zepto: 0.4, Instamart: 0.8, BigBasket: -1.1 }, series: { Blinkit: [17.8, 17.7, 17.6, 17.6], Zepto: [16.4, 16.5, 16.7, 16.8], Instamart: [18.1, 18.4, 18.6, 18.9], BigBasket: [16.3, 15.8, 15.5, 15.2] } },
-            { kpi: "Organic Weighted SOS", Blinkit: 20.7, Zepto: 19.5, Instamart: 22.3, BigBasket: 18.9, trend: { Blinkit: 1.2, Zepto: 0.8, Instamart: 1.5, BigBasket: 0.3 }, series: { Blinkit: [19.5, 20.0, 20.4, 20.7], Zepto: [18.7, 19.0, 19.2, 19.5], Instamart: [20.8, 21.4, 21.9, 22.3], BigBasket: [18.6, 18.7, 18.8, 18.9] } },
+            { kpi: "Overall SOS", Blinkit: 19.6, Zepto: 18.2, Instamart: 21.1, BigBasket: 17.8, trend: { Blinkit: 0.5, Zepto: -0.3, Instamart: 1.2, BigBasket: -0.8 }, series: { Blinkit: [18.2, 18.8, 19.1, 19.6], Zepto: [18.5, 18.3, 18.4, 18.2], Instamart: [19.8, 20.2, 20.6, 21.1], BigBasket: [18.6, 18.2, 18.0, 17.8] } },
+            { kpi: "Sponsored SOS", Blinkit: 17.6, Zepto: 16.8, Instamart: 18.9, BigBasket: 15.2, trend: { Blinkit: -0.2, Zepto: 0.4, Instamart: 0.8, BigBasket: -1.1 }, series: { Blinkit: [17.8, 17.7, 17.6, 17.6], Zepto: [16.4, 16.5, 16.7, 16.8], Instamart: [18.1, 18.4, 18.6, 18.9], BigBasket: [16.3, 15.8, 15.5, 15.2] } },
+            { kpi: "Organic SOS", Blinkit: 20.7, Zepto: 19.5, Instamart: 22.3, BigBasket: 18.9, trend: { Blinkit: 1.2, Zepto: 0.8, Instamart: 1.5, BigBasket: 0.3 }, series: { Blinkit: [19.5, 20.0, 20.4, 20.7], Zepto: [18.7, 19.0, 19.2, 19.5], Instamart: [20.8, 21.4, 21.9, 22.3], BigBasket: [18.6, 18.7, 18.8, 18.9] } },
             { kpi: "Display SOS", Blinkit: 26.9, Zepto: 25.4, Instamart: 28.2, BigBasket: 24.1, trend: { Blinkit: 0.8, Zepto: -0.5, Instamart: 1.0, BigBasket: -0.2 }, series: { Blinkit: [26.1, 26.4, 26.7, 26.9], Zepto: [25.9, 25.7, 25.5, 25.4], Instamart: [27.2, 27.6, 27.9, 28.2], BigBasket: [24.3, 24.2, 24.1, 24.1] } }
         ]
     },
     formatData: {
         columns: ["kpi", "Quick Commerce", "E-Commerce", "Hyperlocal"],
         rows: [
-            { kpi: "Overall Weighted SOS", "Quick Commerce": 20.2, "E-Commerce": 18.5, "Hyperlocal": 19.1, trend: { "Quick Commerce": 0.6, "E-Commerce": -0.2, "Hyperlocal": 0.4 }, series: { "Quick Commerce": [19.6, 19.8, 20.0, 20.2], "E-Commerce": [18.7, 18.6, 18.5, 18.5], "Hyperlocal": [18.7, 18.9, 19.0, 19.1] } },
-            { kpi: "Sponsored Weighted SOS", "Quick Commerce": 18.1, "E-Commerce": 16.5, "Hyperlocal": 17.2, trend: { "Quick Commerce": 0.3, "E-Commerce": -0.4, "Hyperlocal": 0.1 }, series: { "Quick Commerce": [17.8, 17.9, 18.0, 18.1], "E-Commerce": [16.9, 16.7, 16.6, 16.5], "Hyperlocal": [17.1, 17.1, 17.2, 17.2] } },
-            { kpi: "Organic Weighted SOS", "Quick Commerce": 21.4, "E-Commerce": 19.8, "Hyperlocal": 20.5, trend: { "Quick Commerce": 1.0, "E-Commerce": 0.5, "Hyperlocal": 0.7 }, series: { "Quick Commerce": [20.4, 20.8, 21.1, 21.4], "E-Commerce": [19.3, 19.5, 19.6, 19.8], "Hyperlocal": [19.8, 20.1, 20.3, 20.5] } },
+            { kpi: "Overall SOS", "Quick Commerce": 20.2, "E-Commerce": 18.5, "Hyperlocal": 19.1, trend: { "Quick Commerce": 0.6, "E-Commerce": -0.2, "Hyperlocal": 0.4 }, series: { "Quick Commerce": [19.6, 19.8, 20.0, 20.2], "E-Commerce": [18.7, 18.6, 18.5, 18.5], "Hyperlocal": [18.7, 18.9, 19.0, 19.1] } },
+            { kpi: "Sponsored SOS", "Quick Commerce": 18.1, "E-Commerce": 16.5, "Hyperlocal": 17.2, trend: { "Quick Commerce": 0.3, "E-Commerce": -0.4, "Hyperlocal": 0.1 }, series: { "Quick Commerce": [17.8, 17.9, 18.0, 18.1], "E-Commerce": [16.9, 16.7, 16.6, 16.5], "Hyperlocal": [17.1, 17.1, 17.2, 17.2] } },
+            { kpi: "Organic SOS", "Quick Commerce": 21.4, "E-Commerce": 19.8, "Hyperlocal": 20.5, trend: { "Quick Commerce": 1.0, "E-Commerce": 0.5, "Hyperlocal": 0.7 }, series: { "Quick Commerce": [20.4, 20.8, 21.1, 21.4], "E-Commerce": [19.3, 19.5, 19.6, 19.8], "Hyperlocal": [19.8, 20.1, 20.3, 20.5] } },
             { kpi: "Display SOS", "Quick Commerce": 27.5, "E-Commerce": 25.2, "Hyperlocal": 26.3, trend: { "Quick Commerce": 0.9, "E-Commerce": 0.2, "Hyperlocal": 0.5 }, series: { "Quick Commerce": [26.6, 26.9, 27.2, 27.5], "E-Commerce": [25.0, 25.1, 25.1, 25.2], "Hyperlocal": [25.8, 26.0, 26.1, 26.3] } }
         ]
     },
     cityData: {
         columns: ["kpi", "Delhi NCR", "Mumbai", "Bangalore", "Hyderabad", "Chennai"],
         rows: [
-            { kpi: "Overall Weighted SOS", "Delhi NCR": 21.2, "Mumbai": 19.8, "Bangalore": 20.5, "Hyderabad": 18.9, "Chennai": 18.1, trend: { "Delhi NCR": 0.8, "Mumbai": 0.4, "Bangalore": 0.6, "Hyderabad": 0.2, "Chennai": -0.1 }, series: { "Delhi NCR": [20.4, 20.7, 21.0, 21.2], "Mumbai": [19.4, 19.6, 19.7, 19.8], "Bangalore": [19.9, 20.1, 20.3, 20.5], "Hyderabad": [18.7, 18.8, 18.9, 18.9], "Chennai": [18.2, 18.2, 18.1, 18.1] } },
-            { kpi: "Sponsored Weighted SOS", "Delhi NCR": 18.5, "Mumbai": 17.2, "Bangalore": 17.9, "Hyderabad": 16.5, "Chennai": 15.8, trend: { "Delhi NCR": 0.5, "Mumbai": 0.2, "Bangalore": 0.4, "Hyderabad": -0.1, "Chennai": -0.3 }, series: { "Delhi NCR": [18.0, 18.2, 18.4, 18.5], "Mumbai": [17.0, 17.1, 17.1, 17.2], "Bangalore": [17.5, 17.7, 17.8, 17.9], "Hyderabad": [16.6, 16.5, 16.5, 16.5], "Chennai": [16.1, 16.0, 15.9, 15.8] } },
-            { kpi: "Organic Weighted SOS", "Delhi NCR": 22.6, "Mumbai": 21.2, "Bangalore": 21.9, "Hyderabad": 20.1, "Chennai": 19.5, trend: { "Delhi NCR": 1.1, "Mumbai": 0.8, "Bangalore": 0.9, "Hyderabad": 0.5, "Chennai": 0.3 }, series: { "Delhi NCR": [21.5, 21.9, 22.3, 22.6], "Mumbai": [20.4, 20.7, 20.9, 21.2], "Bangalore": [21.0, 21.3, 21.6, 21.9], "Hyderabad": [19.6, 19.8, 20.0, 20.1], "Chennai": [19.2, 19.3, 19.4, 19.5] } },
+            { kpi: "Overall SOS", "Delhi NCR": 21.2, "Mumbai": 19.8, "Bangalore": 20.5, "Hyderabad": 18.9, "Chennai": 18.1, trend: { "Delhi NCR": 0.8, "Mumbai": 0.4, "Bangalore": 0.6, "Hyderabad": 0.2, "Chennai": -0.1 }, series: { "Delhi NCR": [20.4, 20.7, 21.0, 21.2], "Mumbai": [19.4, 19.6, 19.7, 19.8], "Bangalore": [19.9, 20.1, 20.3, 20.5], "Hyderabad": [18.7, 18.8, 18.9, 18.9], "Chennai": [18.2, 18.2, 18.1, 18.1] } },
+            { kpi: "Sponsored SOS", "Delhi NCR": 18.5, "Mumbai": 17.2, "Bangalore": 17.9, "Hyderabad": 16.5, "Chennai": 15.8, trend: { "Delhi NCR": 0.5, "Mumbai": 0.2, "Bangalore": 0.4, "Hyderabad": -0.1, "Chennai": -0.3 }, series: { "Delhi NCR": [18.0, 18.2, 18.4, 18.5], "Mumbai": [17.0, 17.1, 17.1, 17.2], "Bangalore": [17.5, 17.7, 17.8, 17.9], "Hyderabad": [16.6, 16.5, 16.5, 16.5], "Chennai": [16.1, 16.0, 15.9, 15.8] } },
+            { kpi: "Organic SOS", "Delhi NCR": 22.6, "Mumbai": 21.2, "Bangalore": 21.9, "Hyderabad": 20.1, "Chennai": 19.5, trend: { "Delhi NCR": 1.1, "Mumbai": 0.8, "Bangalore": 0.9, "Hyderabad": 0.5, "Chennai": 0.3 }, series: { "Delhi NCR": [21.5, 21.9, 22.3, 22.6], "Mumbai": [20.4, 20.7, 20.9, 21.2], "Bangalore": [21.0, 21.3, 21.6, 21.9], "Hyderabad": [19.6, 19.8, 20.0, 20.1], "Chennai": [19.2, 19.3, 19.4, 19.5] } },
             { kpi: "Display SOS", "Delhi NCR": 28.4, "Mumbai": 26.8, "Bangalore": 27.5, "Hyderabad": 25.6, "Chennai": 24.9, trend: { "Delhi NCR": 1.0, "Mumbai": 0.6, "Bangalore": 0.8, "Hyderabad": 0.3, "Chennai": 0.1 }, series: { "Delhi NCR": [27.4, 27.8, 28.1, 28.4], "Mumbai": [26.2, 26.4, 26.6, 26.8], "Bangalore": [26.7, 27.0, 27.3, 27.5], "Hyderabad": [25.3, 25.4, 25.5, 25.6], "Chennai": [24.8, 24.8, 24.9, 24.9] } }
         ]
     }
@@ -432,8 +712,8 @@ class VisibilityService {
      */
     async getVisibilityOverview(filters) {
         console.log('[VisibilityService] getVisibilityOverview called with filters:', filters);
-        // TODO: Replace with actual database query when visibility data is available
-        return getVisibilityOverviewMockData();
+        // Use dynamic data from database
+        return await getVisibilityOverviewData(filters);
     }
 
     /**
@@ -461,6 +741,190 @@ class VisibilityService {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
         // TODO: Replace with actual database query when visibility data is available
         return getTopSearchTermsMockData(filters.filter || 'All');
+    }
+
+    /**
+     * Get dynamic filter options for visibility analysis cascading filters
+     * Uses rb_kw as primary source (main visibility data table)
+     * @param {Object} params - { filterType, platform, format, city, metroFlag }
+     * @returns {Object} { options: [...] }
+     */
+    async getVisibilityFilterOptions({ filterType, platform, format, city, metroFlag }) {
+        try {
+            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}, platform=${platform}, format=${format}, city=${city}, metroFlag=${metroFlag}`);
+
+            // PLATFORMS: from rca_sku_dim.platform (master data)
+            if (filterType === 'platforms') {
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT platform 
+                    FROM rca_sku_dim 
+                    WHERE platform IS NOT NULL AND platform != ''
+                    ORDER BY platform
+                `);
+                const options = results.map(r => r.platform).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} platforms from rca_sku_dim`);
+                return { options };
+            }
+
+            // MONTHS: from rb_kw.kw_crawl_date (filter by platform)
+            if (filterType === 'months') {
+                let whereClause = "WHERE kw_crawl_date IS NOT NULL";
+                if (platform && platform !== 'All') {
+                    whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
+                }
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT DATE_FORMAT(kw_crawl_date, '%Y-%m') as month
+                    FROM rb_kw
+                    ${whereClause}
+                    ORDER BY month DESC
+                    LIMIT 36
+                `);
+                const options = results.map(r => r.month).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} months from rb_kw`);
+                return { options };
+            }
+
+            // DATES: from rb_kw.kw_crawl_date (filter by platform)
+            if (filterType === 'dates') {
+                let whereClause = "WHERE kw_crawl_date IS NOT NULL";
+                if (platform && platform !== 'All') {
+                    whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
+                }
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT DATE_FORMAT(kw_crawl_date, '%Y-%m-%d') as date
+                    FROM rb_kw
+                    ${whereClause}
+                    ORDER BY date DESC
+                    LIMIT 365
+                `);
+                const options = results.map(r => r.date).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} dates from rb_kw`);
+                return { options };
+            }
+
+            // FORMATS (Categories): from rca_sku_dim.Category (master data, status=1)
+            if (filterType === 'formats') {
+                let whereClause = "WHERE Category IS NOT NULL AND Category != '' AND status = 1";
+                if (platform && platform !== 'All') {
+                    whereClause += ` AND LOWER(platform) = LOWER('${platform}')`;
+                }
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT Category as format
+                    FROM rca_sku_dim
+                    ${whereClause}
+                    ORDER BY Category
+                `);
+                const options = results.map(r => r.format).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} formats (Category) from rca_sku_dim`);
+                return { options };
+            }
+
+            // CITIES: from rca_sku_dim.location (master data, filter by platform, format, metroFlag)
+            if (filterType === 'cities') {
+                // If metroFlag is set, filter cities by tier from rb_location_darkstore
+                if (metroFlag && metroFlag !== 'All') {
+                    const [tierCities] = await sequelize.query(`
+                        SELECT DISTINCT location 
+                        FROM rb_location_darkstore 
+                        WHERE tier = '${metroFlag}' AND location IS NOT NULL
+                        ORDER BY location
+                    `);
+                    const options = tierCities.map(r => r.location).filter(Boolean);
+                    console.log(`[VisibilityService] Found ${options.length} cities for tier=${metroFlag}`);
+                    return { options };
+                }
+
+                // Otherwise get from rca_sku_dim with platform and format filters
+                let whereClause = "WHERE location IS NOT NULL AND location != ''";
+                if (platform && platform !== 'All') {
+                    whereClause += ` AND LOWER(platform) = LOWER('${platform}')`;
+                }
+                if (format && format !== 'All') {
+                    whereClause += ` AND LOWER(Category) = LOWER('${format}')`;
+                }
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT location as city
+                    FROM rca_sku_dim
+                    ${whereClause}
+                    ORDER BY location
+                `);
+                const options = results.map(r => r.city).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} cities from rca_sku_dim`);
+                return { options };
+            }
+
+            // ZONES: from rb_location_darkstore.region
+            if (filterType === 'zones') {
+                let whereClause = "WHERE region IS NOT NULL AND region != ''";
+                // Can filter by metroFlag (tier) if needed
+                if (metroFlag && metroFlag !== 'All') {
+                    whereClause += ` AND tier = '${metroFlag}'`;
+                }
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT region as zone
+                    FROM rb_location_darkstore
+                    ${whereClause}
+                    ORDER BY region
+                `);
+                const options = results.map(r => r.zone).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} zones from rb_location_darkstore`);
+                return { options };
+            }
+
+            // PINCODES: from rb_kw.pincode (filter by platform, city)
+            if (filterType === 'pincodes') {
+                let whereClause = "WHERE pincode IS NOT NULL";
+                if (platform && platform !== 'All') {
+                    whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
+                }
+                if (city && city !== 'All') {
+                    whereClause += ` AND LOWER(location_name) = LOWER('${city}')`;
+                }
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT pincode
+                    FROM rb_kw
+                    ${whereClause}
+                    ORDER BY pincode
+                    LIMIT 1000
+                `);
+                const options = results.map(r => String(r.pincode)).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} pincodes from rb_kw`);
+                return { options };
+            }
+
+            // METRO FLAGS: from rb_location_darkstore.tier (no filter)
+            if (filterType === 'metroFlags') {
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT tier 
+                    FROM rb_location_darkstore 
+                    WHERE tier IS NOT NULL AND tier != ''
+                    ORDER BY tier
+                `);
+                const options = results.map(r => r.tier).filter(Boolean);
+                console.log(`[VisibilityService] Found ${options.length} metro flags (tiers)`);
+                return { options };
+            }
+
+            // KPI: hardcoded values for SOS metrics
+            if (filterType === 'kpis') {
+                return {
+                    options: [
+                        'Overall SOS',
+                        'Sponsored SOS',
+                        'Organic SOS',
+                        'Display SOS'
+                    ]
+                };
+            }
+
+            // Unknown filter type
+            console.warn(`[VisibilityService] Unknown filterType: ${filterType}`);
+            return { options: [] };
+
+        } catch (error) {
+            console.error(`[VisibilityService] Error in getVisibilityFilterOptions:`, error);
+            return { options: [] };
+        }
     }
 }
 

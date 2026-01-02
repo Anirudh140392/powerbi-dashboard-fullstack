@@ -661,40 +661,89 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterRules, setFilterRules] = useState(null);
 
+  // Selected filters state for cascading logic
+  const [selectedFilters, setSelectedFilters] = useState({
+    platform: 'All',
+    format: 'All',
+    city: 'All',
+    metroFlag: 'All'
+  });
+
   // Dynamic filter options state
   const [dynamicFilterData, setDynamicFilterData] = useState({
     platforms: [],
-    categories: [],
-    products: [],
+    formats: [],      // Categories/keyword_category
     cities: [],
     months: [],
+    dates: [],
+    pincodes: [],
     zones: [],
     metroFlags: [],
+    kpis: [],
     loading: true
   });
 
-  // Fetch dynamic filter options from API
+  // Helper to fetch a single filter type with cascade params
+  const fetchFilterType = async (filterType, cascadeParams = {}) => {
+    try {
+      const params = new URLSearchParams({
+        filterType,
+        platform: cascadeParams.platform || 'All',
+        format: cascadeParams.format || 'All',
+        city: cascadeParams.city || 'All',
+        metroFlag: cascadeParams.metroFlag || 'All'
+      }).toString();
+
+      // Use visibility-analysis API for visibility page
+      const apiBase = dynamicKey === 'visibility'
+        ? '/visibility-analysis/filter-options'
+        : '/availability-analysis/filter-options';
+
+      const res = await axiosInstance.get(`${apiBase}?${params}`);
+      return res.data?.options || [];
+    } catch (error) {
+      console.error(`Error fetching ${filterType}:`, error);
+      return [];
+    }
+  };
+
+  // Initial fetch of all filter options
   React.useEffect(() => {
-    const fetchFilterOptions = async () => {
+    const fetchAllFilterOptions = async () => {
+      setDynamicFilterData(prev => ({ ...prev, loading: true }));
+
       try {
-        const filterTypes = ['platforms', 'categories', 'products', 'cities', 'months', 'zones', 'metroFlags'];
-        const results = await Promise.all(
-          filterTypes.map(type =>
-            axiosInstance.get(`/availability-analysis/filter-options?filterType=${type}`)
-              .then(res => res.data)
-              .catch(() => ({ options: [] }))
-          )
-        );
+        // Fetch all filter types in parallel (from rb_kw and rb_location_darkstore)
+        const [platforms, formats, cities, months, dates, pincodes, zones, metroFlags, kpis] = await Promise.all([
+          fetchFilterType('platforms'),
+          fetchFilterType('formats', selectedFilters),
+          fetchFilterType('cities', selectedFilters),
+          fetchFilterType('months', selectedFilters),
+          fetchFilterType('dates', selectedFilters),
+          fetchFilterType('pincodes', selectedFilters),
+          fetchFilterType('zones'),
+          fetchFilterType('metroFlags'),
+          fetchFilterType('kpis')
+        ]);
 
         setDynamicFilterData({
-          platforms: results[0]?.options || [],
-          categories: results[1]?.options || [],
-          products: results[2]?.options || [],
-          cities: results[3]?.options || [],
-          months: results[4]?.options || [],
-          zones: results[5]?.options || [],
-          metroFlags: results[6]?.options || [],
+          platforms,
+          formats,
+          cities,
+          months,
+          dates,
+          pincodes,
+          zones,
+          metroFlags,
+          kpis,
           loading: false
+        });
+
+        console.log('[CityKpiTrendShowcase] Filter options loaded:', {
+          platforms: platforms.length,
+          formats: formats.length,
+          cities: cities.length,
+          metroFlags: metroFlags.length
         });
       } catch (error) {
         console.error('Error fetching filter options:', error);
@@ -702,10 +751,54 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       }
     };
 
-    fetchFilterOptions();
-  }, []);
+    fetchAllFilterOptions();
+  }, []); // Initial load only
 
-  // Build filter options from dynamic data
+  // Re-fetch dependent filters when platform changes
+  React.useEffect(() => {
+    if (selectedFilters.platform === 'All') return; // Skip on initial render
+
+    const refetchDependentFilters = async () => {
+      console.log('[Cascading] Platform changed to:', selectedFilters.platform, '- refetching dependent filters');
+      const [formats, cities, months, pincodes] = await Promise.all([
+        fetchFilterType('formats', selectedFilters),
+        fetchFilterType('cities', selectedFilters),
+        fetchFilterType('months', selectedFilters),
+        fetchFilterType('pincodes', selectedFilters)
+      ]);
+      setDynamicFilterData(prev => ({ ...prev, formats, cities, months, pincodes }));
+    };
+
+    refetchDependentFilters();
+  }, [selectedFilters.platform]);
+
+  // Re-fetch cities when metroFlag changes
+  React.useEffect(() => {
+    if (selectedFilters.metroFlag === 'All') return;
+
+    const refetchCities = async () => {
+      console.log('[Cascading] MetroFlag changed to:', selectedFilters.metroFlag, '- refetching cities');
+      const cities = await fetchFilterType('cities', selectedFilters);
+      setDynamicFilterData(prev => ({ ...prev, cities }));
+    };
+
+    refetchCities();
+  }, [selectedFilters.metroFlag]);
+
+  // Re-fetch pincodes when city changes
+  React.useEffect(() => {
+    if (selectedFilters.city === 'All') return;
+
+    const refetchPincodes = async () => {
+      console.log('[Cascading] City changed to:', selectedFilters.city, '- refetching pincodes');
+      const pincodes = await fetchFilterType('pincodes', selectedFilters);
+      setDynamicFilterData(prev => ({ ...prev, pincodes }));
+    };
+
+    refetchPincodes();
+  }, [selectedFilters.city]);
+
+  // Build filter options from dynamic data (per user requirements)
   const filterOptions = React.useMemo(() => {
     if (kpiFilterOptions) return kpiFilterOptions;
 
@@ -726,19 +819,33 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       label: formatMonth(m)
     }));
 
+    // Visibility page filter config (per user requirements)
+    if (dynamicKey === 'visibility') {
+      return [
+        { id: "date", label: "Date", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.dates)] },
+        { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
+        { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
+        { id: "kpi", label: "KPI", options: toOptions(dynamicFilterData.kpis.length ? dynamicFilterData.kpis : ['Overall SOS', 'Sponsored SOS', 'Organic SOS', 'Display SOS']) },
+        { id: "format", label: "Format", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
+        { id: "zone", label: "Zone", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.zones)] },
+        { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
+        { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.pincodes)] },
+        { id: "metroFlag", label: "Metro Flag", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.metroFlags)] },
+      ];
+    }
+
+    // Availability page filter config (original)
     return [
-      { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+      { id: "date", label: "Date", options: [] },
       { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
       { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
       { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
-      { id: "productName", label: "Product Name", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.products)] },
-      { id: "format", label: "Format", options: [{ id: "na", label: "Not Applicable" }] },
+      { id: "format", label: "Format", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
       { id: "zone", label: "Zone", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.zones)] },
       { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
       { id: "metroFlag", label: "Metro Flag", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.metroFlags)] },
-      { id: "category", label: "Category", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.categories)] },
     ];
-  }, [dynamicFilterData, kpiFilterOptions]);
+  }, [dynamicFilterData, kpiFilterOptions, dynamicKey]);
 
   // Value Logic Filter (Legacy - kept for reference or removal)
   const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
@@ -892,6 +999,19 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <KpiFilterPanel
                 sectionConfig={filterOptions}
                 keywords={mockKeywords}
+                onSectionChange={(sectionId, values) => {
+                  // Update selectedFilters for cascading logic
+                  if (sectionId === 'platform' && values?.length > 0) {
+                    setSelectedFilters(prev => ({ ...prev, platform: values[0] || 'All' }));
+                  } else if (sectionId === 'format' && values?.length > 0) {
+                    setSelectedFilters(prev => ({ ...prev, format: values[0] || 'All' }));
+                  } else if (sectionId === 'city' && values?.length > 0) {
+                    setSelectedFilters(prev => ({ ...prev, city: values[0] || 'All' }));
+                  } else if (sectionId === 'metroFlag' && values?.length > 0) {
+                    setSelectedFilters(prev => ({ ...prev, metroFlag: values[0] || 'All' }));
+                  }
+                  console.log(`[Filter Selection] ${sectionId}:`, values);
+                }}
               />
 
             </div>

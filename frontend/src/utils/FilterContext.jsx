@@ -136,9 +136,11 @@ export const FilterProvider = ({ children }) => {
                     // Check if on Availability Analysis or Visibility Analysis page - include competitor brands
                     const isAvailabilityPage = window.location.pathname.includes('availability-analysis') || window.location.pathname.includes('visibility-anlysis');
 
+                    // Note: Brands in rca_sku_dim are NOT platform-specific, so we always fetch with platform='All'
+                    // The platform filter is only relevant for other dropdowns like locations
                     const response = await axiosInstance.get("/watchtower/brands", {
                         params: {
-                            platform: platform,
+                            platform: 'All',  // Always use 'All' since brands are shared across platforms
                             includeCompetitors: isAvailabilityPage ? 'true' : 'false'
                         }
                     });

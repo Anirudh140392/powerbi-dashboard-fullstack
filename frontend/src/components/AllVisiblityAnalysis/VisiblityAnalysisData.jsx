@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
+import axiosInstance from "@/api/axiosInstance";
 import {
   Area,
   AreaChart,
@@ -441,7 +442,7 @@ const cards = [
   },
 ];
 
-const VisiblityAnalysisData = () => {
+const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
@@ -450,93 +451,27 @@ const VisiblityAnalysisData = () => {
   const [topSearchFilter, setTopSearchFilter] = useState("All");
 
   // ==================== API DATA STATES ====================
+  // Use data from parent props (apiData) when available
   // Visibility Overview (KPI cards)
-  const [overviewData, setOverviewData] = useState(null);
-  const [overviewLoading, setOverviewLoading] = useState(true);
+  const overviewData = apiData.overview || null;
+  const overviewLoading = !apiData.overview;
 
   // Platform KPI Matrix
-  const [matrixData, setMatrixData] = useState(null);
-  const [matrixLoading, setMatrixLoading] = useState(true);
+  const matrixData = apiData.matrix || null;
+  const matrixLoading = !apiData.matrix;
 
   // Keywords at a Glance
-  const [keywordsData, setKeywordsData] = useState(null);
-  const [keywordsLoading, setKeywordsLoading] = useState(true);
+  const keywordsData = apiData.keywords || null;
+  const keywordsLoading = !apiData.keywords;
 
   // Top Search Terms
-  const [topSearchData, setTopSearchData] = useState(null);
-  const [topSearchLoading, setTopSearchLoading] = useState(true);
+  const topSearchData = apiData.searchTerms || null;
+  const topSearchLoading = !apiData.searchTerms;
 
-  // ==================== PARALLEL API FETCHING ====================
+  // Log when filters or apiData change (for debugging)
   useEffect(() => {
-    const fetchAllData = async () => {
-      // Reset loading states
-      setOverviewLoading(true);
-      setMatrixLoading(true);
-      setKeywordsLoading(true);
-      setTopSearchLoading(true);
-
-      // Fetch all 4 APIs in parallel
-      const filters = {}; // Add global filters here if needed
-
-      // Using Promise.allSettled to handle individual failures gracefully
-      const [overviewResult, matrixResult, keywordsResult, topSearchResult] = await Promise.allSettled([
-        fetchVisibilityOverview(filters),
-        fetchVisibilityPlatformKpiMatrix(filters),
-        fetchVisibilityKeywordsAtGlance(filters),
-        fetchVisibilityTopSearchTerms({ ...filters, filter: topSearchFilter })
-      ]);
-
-      // Update states based on results
-      if (overviewResult.status === 'fulfilled') {
-        setOverviewData(overviewResult.value);
-      } else {
-        console.error('Error fetching visibility overview:', overviewResult.reason);
-      }
-      setOverviewLoading(false);
-
-      if (matrixResult.status === 'fulfilled') {
-        setMatrixData(matrixResult.value);
-      } else {
-        console.error('Error fetching platform KPI matrix:', matrixResult.reason);
-      }
-      setMatrixLoading(false);
-
-      if (keywordsResult.status === 'fulfilled') {
-        setKeywordsData(keywordsResult.value);
-      } else {
-        console.error('Error fetching keywords at glance:', keywordsResult.reason);
-      }
-      setKeywordsLoading(false);
-
-      if (topSearchResult.status === 'fulfilled') {
-        setTopSearchData(topSearchResult.value);
-      } else {
-        console.error('Error fetching top search terms:', topSearchResult.reason);
-      }
-      setTopSearchLoading(false);
-    };
-
-    fetchAllData();
-  }, []); // Run once on mount
-
-  // Fetch top search terms when filter changes
-  useEffect(() => {
-    const fetchTopSearch = async () => {
-      setTopSearchLoading(true);
-      try {
-        const result = await fetchVisibilityTopSearchTerms({ filter: topSearchFilter });
-        setTopSearchData(result);
-      } catch (error) {
-        console.error('Error fetching top search terms:', error);
-      }
-      setTopSearchLoading(false);
-    };
-
-    // Only fetch if initial load is complete
-    if (!overviewLoading) {
-      fetchTopSearch();
-    }
-  }, [topSearchFilter]);
+    console.log('[VisiblityAnalysisData] Props received - filters:', filters, 'apiData keys:', Object.keys(apiData));
+  }, [filters, apiData]);
 
   // Use API data if available, otherwise fallback to static data
 
@@ -634,7 +569,7 @@ const VisiblityAnalysisData = () => {
 
   const cards = [
     {
-      title: "Overall Weighted SOS",
+      title: "Overall SOS",
       value: "19.6%",
       sub: "Share of shelf across all active SKUs",
       change: "▲4.3 pts (from 15.3%)",
@@ -645,7 +580,7 @@ const VisiblityAnalysisData = () => {
       extraChangeColor: "green",
     },
     {
-      title: "Sponsored Weighted SOS",
+      title: "Sponsored SOS",
       value: "17.6%",
       sub: "Share of shelf for sponsored placements",
       change: "▼8.6 pts (from 26.2%)",
@@ -656,7 +591,7 @@ const VisiblityAnalysisData = () => {
       extraChangeColor: "red",
     },
     {
-      title: "Organic Weighted SOS",
+      title: "Organic SOS",
       value: "20.7%",
       sub: "Natural shelf share without sponsorship",
       change: "▲19.5% (from 17.3%)",
@@ -668,14 +603,15 @@ const VisiblityAnalysisData = () => {
     },
     {
       title: "Display SOS",
-      value: "26.9%",
+      value: "Coming Soon...",
       sub: "Share of shelf from display-led visibility",
-      change: "▲1.2 pts (from 25.7%)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Top 50 SKUs Display SOS: 82.3%",
-      extraChange: "▲0.9 pts",
-      extraChangeColor: "green",
+      change: "",
+      changeColor: "gray",
+      prevText: "",
+      extra: "",
+      extraChange: "",
+      extraChangeColor: "gray",
+      isComingSoon: true,
     },
   ];
   const cellHeat = (value) => {
@@ -780,9 +716,9 @@ const VisiblityAnalysisData = () => {
       id: "kpi",
       label: "KPI",
       options: [
-        { id: "Overall Weighted SOS", label: "OVERALL WEIGHTED SOS" },
-        { id: "Sponsored Weighted SOS", label: "SPONSORED WEIGHTED SOS" },
-        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" },
+        { id: "Overall SOS", label: "OVERALL SOS" },
+        { id: "Sponsored SOS", label: "SPONSORED SOS" },
+        { id: "Organic SOS", label: "ORGANIC SOS" },
         { id: "Display SOS", label: "DISPLAY SOS" }
       ]
     },
@@ -797,6 +733,55 @@ const VisiblityAnalysisData = () => {
 
   const TabbedHeatmapTable = () => {
     const [activeTab, setActiveTab] = useState("platform");
+    const [dynamicColumns, setDynamicColumns] = useState({
+      platform: [],
+      format: [],
+      city: [],
+      loading: true
+    });
+
+    // Fetch dynamic columns from rca_sku_dim via API when tab changes
+    useEffect(() => {
+      const fetchDynamicColumns = async () => {
+        setDynamicColumns(prev => ({ ...prev, loading: true }));
+        try {
+          // Fetch all three column types in parallel
+          const [platformsRes, formatsRes, citiesRes] = await Promise.all([
+            axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
+            axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
+            axiosInstance.get('/visibility-analysis/filter-options?filterType=cities')
+          ]);
+
+          const platforms = platformsRes.data?.options || [];
+          const formats = formatsRes.data?.options || [];
+          const cities = citiesRes.data?.options || [];
+
+          console.log('[TabbedHeatmapTable] Dynamic columns loaded:', {
+            platforms: platforms.length,
+            formats: formats.length,
+            cities: cities.length
+          });
+
+          setDynamicColumns({
+            platform: platforms,
+            format: formats,
+            city: cities.slice(0, 10), // Limit cities to first 10 for display
+            loading: false
+          });
+        } catch (error) {
+          console.error('[TabbedHeatmapTable] Error fetching dynamic columns:', error);
+          // Fallback to static data if API fails
+          setDynamicColumns({
+            platform: FORMAT_MATRIX_Visibility.PlatformColumns,
+            format: FORMAT_MATRIX_Visibility.formatColumns,
+            city: FORMAT_MATRIX_Visibility.CityColumns,
+            loading: false
+          });
+        }
+      };
+
+      fetchDynamicColumns();
+    }, []); // Fetch once on mount
 
     // 🔥 Utility to compute unified trend + series for ANY item
     const buildRows = (dataArray = [], columnList = []) => {
@@ -826,30 +811,35 @@ const VisiblityAnalysisData = () => {
       });
     };
 
+    // Use dynamic columns from API, fallback to static if loading
+    const platformCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.PlatformColumns : dynamicColumns.platform;
+    const formatCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.formatColumns : dynamicColumns.format;
+    const cityCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.CityColumns : dynamicColumns.city;
+
     // ---------------- PLATFORM ----------------
     const platformData = {
-      columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+      columns: ["kpi", ...platformCols],
       rows: buildRows(
         FORMAT_MATRIX_Visibility.PlatformData,
-        FORMAT_MATRIX_Visibility.PlatformColumns
+        platformCols
       ),
     };
 
     // ---------------- FORMAT ----------------
     const formatData = {
-      columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+      columns: ["kpi", ...formatCols],
       rows: buildRows(
         FORMAT_MATRIX_Visibility.FormatData,
-        FORMAT_MATRIX_Visibility.formatColumns
+        formatCols
       ),
     };
 
     // ---------------- CITY ----------------
     const cityData = {
-      columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+      columns: ["kpi", ...cityCols],
       rows: buildRows(
         FORMAT_MATRIX_Visibility.CityData,
-        FORMAT_MATRIX_Visibility.CityColumns
+        cityCols
       ),
     };
 
@@ -878,6 +868,7 @@ const VisiblityAnalysisData = () => {
                 }`}
             >
               {t.label}
+              {dynamicColumns.loading ? '' : ` (${t.key === 'platform' ? platformCols.length : t.key === 'format' ? formatCols.length : cityCols.length})`}
             </button>
           ))}
         </div>

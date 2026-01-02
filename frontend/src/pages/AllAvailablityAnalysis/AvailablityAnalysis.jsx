@@ -140,7 +140,7 @@ export default function AvailablityAnalysis() {
         // This allows sections to render as soon as their data is available
 
         // Availability Overview (Stock Availability)
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`)
           .then(res => res.json())
           .then(overview => {
             console.log('✅ Overview fetched');
@@ -149,7 +149,7 @@ export default function AvailablityAnalysis() {
           .catch(err => console.error('❌ Overview fetch error:', err));
 
         // Platform KPI Matrix (viewMode=Platform)
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`)
           .then(res => res.json())
           .then(platformKpi => {
             console.log('✅ Platform KPI Matrix fetched');
@@ -158,7 +158,7 @@ export default function AvailablityAnalysis() {
           .catch(err => console.error('❌ Platform KPI Matrix fetch error:', err));
 
         // Format KPI Matrix (viewMode=Format) - fetched in parallel
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`)
           .then(res => res.json())
           .then(formatKpi => {
             console.log('✅ Format KPI Matrix fetched');
@@ -167,7 +167,7 @@ export default function AvailablityAnalysis() {
           .catch(err => console.error('❌ Format KPI Matrix fetch error:', err));
 
         // City KPI Matrix (viewMode=City) - fetched in parallel
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`)
           .then(res => res.json())
           .then(cityKpi => {
             console.log('✅ City KPI Matrix fetched');
@@ -176,7 +176,7 @@ export default function AvailablityAnalysis() {
           .catch(err => console.error('❌ City KPI Matrix fetch error:', err));
 
         // DOI (Days of Inventory)
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/doi?${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`)
           .then(res => res.json())
           .then(doi => {
             console.log('✅ DOI fetched');
@@ -185,7 +185,7 @@ export default function AvailablityAnalysis() {
           .catch(err => console.error('❌ DOI fetch error:', err));
 
         // Metro City Stock Availability
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`)
           .then(res => res.json())
           .then(metroCity => {
             console.log('✅ Metro City fetched');
@@ -194,7 +194,7 @@ export default function AvailablityAnalysis() {
           .catch(err => console.error('❌ Metro City fetch error:', err));
 
         // OSA Detail (keep for completeness)
-        fetch(`http://localhost:5000/api/availability-analysis/absolute-osa/osa-percentage-detail?${queryParams}`)
+        fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${queryParams}`)
           .then(res => res.json())
           .then(osaDetail => {
             console.log('✅ OSA Detail fetched');
