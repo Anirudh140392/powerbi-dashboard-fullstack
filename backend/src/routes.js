@@ -7,6 +7,7 @@ import portfoliosAnalysis from './routes/portfoliosAnalysis.js';
 import performanceMarketing from './routes/performanceMarketing.js';
 import contentAnalysis from './routes/contentAnalysis.js';
 import categoryRca from './routes/categoryRca.js';
+import sales from './routes/sales.js';
 
 export default (app) => {
     // Control Tower routes
@@ -35,4 +36,7 @@ export default (app) => {
 
     // Category RCA routes
     categoryRca(app);
+
+    // Sales routes
+    sales(app);
 };
