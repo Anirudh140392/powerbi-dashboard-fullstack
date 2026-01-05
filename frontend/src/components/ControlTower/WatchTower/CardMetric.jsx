@@ -65,7 +65,6 @@ const CardMetric = ({ data, onViewTrends }) => {
             </Typography>
             <Chip label="All" size="large" variant="outlined" />
           </Box>
-          <Chip label="MTD vs Previous Month" variant="filled" />
         </Box>
 
         {/* Cards Row */}
