@@ -16,6 +16,7 @@ const runCheck = async () => {
             raw: true,
             limit: 20
         });
+        
         console.log("Brands:", brands.map(b => b.brand_name));
 
         const platforms = await RbKw.findAll({
