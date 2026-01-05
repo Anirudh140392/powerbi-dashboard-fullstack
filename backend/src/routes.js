@@ -15,6 +15,7 @@ export default (app) => {
     // Availability Analysis routes
     availabilityAnalysis(app);
 
+
     // Visibility Analysis routes
     visibilityAnalysis(app);
 
