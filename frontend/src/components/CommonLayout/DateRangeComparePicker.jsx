@@ -245,7 +245,8 @@ export default function DateRangeComparePicker({
                 dayjs(ce),
                 dayjs(ns),
                 dayjs(ne),
-                compareOn
+                compareOn,
+                item.label // Pass the friendly label
             );
         }
         handleClose();
@@ -291,7 +292,8 @@ export default function DateRangeComparePicker({
                 dayjs(end),
                 dayjs(compareStartFinal),
                 dayjs(compareEndFinal),
-                compareOn
+                compareOn,
+                activeQuick === "custom" ? "Custom Range" : (quickRanges.find(q => q.key === activeQuick)?.label || "Custom Range")
             );
         }
         handleClose();
