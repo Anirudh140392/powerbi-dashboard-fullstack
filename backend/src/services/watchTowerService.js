@@ -2435,15 +2435,32 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         const categoryOverviewPromises = categories.map(async (catName) => {
             try {
-                // Filter for this specific category
+                // Build catWhere independently to avoid conflicts from offtakeWhereClause
+                // (offtakeWhereClause may have different Platform filter or other conflicting filters)
                 const catWhere = {
-                    ...offtakeWhereClause, // Reuse date/brand/location filters
-                    Category: catName // Filter by Category in RbPdpOlap
+                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                    // Case-insensitive Category match
+                    Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), catName.toLowerCase())
                 };
-                // Only add Platform filter if not "All"
+
+                // Apply brand filter
+                if (brand && brand !== 'All') {
+                    catWhere.Brand = { [Op.like]: `%${brand}%` };
+                } else {
+                    catWhere.Comp_flag = 0; // Our brands only when "All" selected
+                }
+
+                // Apply location filter
+                if (location && location !== 'All') {
+                    catWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                }
+
+                // Apply Platform filter from categoryOverviewPlatform (not selectedPlatform)
                 if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
                     catWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase());
                 }
+
+                console.log(`[Category Overview] Processing category: ${catName}, Platform: ${categoryOverviewPlatform}`);
 
                 // Calculate Metrics for this Category
                 const [
@@ -2470,18 +2487,35 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     getAvailability(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
                     // SOS
                     getShareOfSearch(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
-                    // Market Share
-                    RbBrandMs.findOne({
-                        attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
-                        where: {
-                            created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                            // Note: rb_brand_ms table does NOT have Platform column
-                            ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                            category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), catName.toLowerCase())
-                        },
-                        raw: true
-                    }),
+                    // Market Share - CALCULATED: (Our Brand Sales / Total Category Sales) × 100
+                    // Query 1: Get our brand's sales in this category (Comp_flag = 0)
+                    // Query 2: Get total sales in this category (all brands)
+                    Promise.all([
+                        // Our brand sales (Comp_flag = 0)
+                        RbPdpOlap.findOne({
+                            attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'our_sales']],
+                            where: {
+                                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                                Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), catName.toLowerCase()),
+                                Comp_flag: 0,
+                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase()) }),
+                                ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
+                                ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                            },
+                            raw: true
+                        }),
+                        // Total category sales (all brands, both Comp_flag 0 and 1)
+                        RbPdpOlap.findOne({
+                            attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
+                            where: {
+                                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
+                                Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), catName.toLowerCase()),
+                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase()) }),
+                                ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                            },
+                            raw: true
+                        })
+                    ]),
                     // Promo My Brand (Comp_flag = 0)
                     RbPdpOlap.findOne({
                         attributes: [
@@ -2510,10 +2544,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const catSpend = parseFloat(catOfftakeResult?.total_spend || 0);
                 const catAdSales = parseFloat(catOfftakeResult?.total_ad_sales || 0); // Inorg Sales
                 const catClicks = parseFloat(catOfftakeResult?.total_clicks || 0);
-                const catImpressions = parseFloat(catOfftakeResult?.total_ad_impressions || 0);
-                const catMarketShare = parseFloat(catMsResult?.avg_ms || 0);
+                const catImpressions = parseFloat(catOfftakeResult?.total_impressions || 0);
+
+                // Market Share calculation: (Our Brand Sales / Total Category Sales) × 100
+                // catMsResult is now an array: [ourSalesResult, totalSalesResult]
+                const ourBrandSales = parseFloat(catMsResult?.[0]?.our_sales || 0);
+                const totalCategorySales = parseFloat(catMsResult?.[1]?.total_sales || 0);
+                const catMarketShare = totalCategorySales > 0 ? (ourBrandSales / totalCategorySales) * 100 : 0;
+
                 const catPromoMyBrand = parseFloat(catPromoMyBrandResult?.avg_promo_depth || 0) * 100;
                 const catPromoCompete = parseFloat(catPromoCompeteResult?.avg_promo_depth || 0) * 100;
+
+                // Debug logging for troubleshooting
+                console.log(`[Category Overview] ${catName}: Offtake=${catOfftake}, Spend=${catSpend}, AdSales=${catAdSales}, Clicks=${catClicks}, Impressions=${catImpressions}`);
+                console.log(`[Category Overview] ${catName}: MarketShare=${catMarketShare.toFixed(1)}% (OurSales=${ourBrandSales}, TotalSales=${totalCategorySales})`);
+                console.log(`[Category Overview] ${catName}: PromoMyBrand=${catPromoMyBrand.toFixed(1)}%, PromoCompete=${catPromoCompete.toFixed(1)}%`);
 
                 // Calculate Metrics
                 const catRoas = catSpend > 0 ? catAdSales / catSpend : 0;
