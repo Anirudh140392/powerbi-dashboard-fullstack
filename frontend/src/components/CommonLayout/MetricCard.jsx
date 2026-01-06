@@ -114,7 +114,11 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
 
         <Typography variant="body2" sx={{ color: card.changeColor, mt: 1 }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography
+            component="span"
+            sx={card.prevTextStyle}
+            color={!card.prevTextStyle ? "text.secondary" : undefined}
+          >
             {card.prevText}
           </Typography>
         </Typography>

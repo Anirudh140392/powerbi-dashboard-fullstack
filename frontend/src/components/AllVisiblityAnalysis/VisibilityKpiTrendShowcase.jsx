@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useContext, createContext } from "react";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -1122,209 +1123,263 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        Brands (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">Brand</th>
+const BrandTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
-              {/* ONLY SOS KPIs */}
-              <th className="px-3 py-2 text-right">Overall SOS</th>
-              <th className="px-3 py-2 text-right">Sponsored</th>
-              <th className="px-3 py-2 text-right">Organic</th>
-              <th className="px-3 py-2 text-right">Display</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.name}
-                </td>
-
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.overall_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.sponsored_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.organic_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.display_sos.toFixed(1)}%
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          Brands (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
+                <th className="px-3 py-2 text-left">Brand</th>
+
+                {/* ONLY SOS KPIs */}
+                <th className="px-3 py-2 text-right">Overall SOS</th>
+                <th className="px-3 py-2 text-right">Sponsored</th>
+                <th className="px-3 py-2 text-right">Organic</th>
+                <th className="px-3 py-2 text-right">Display</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
                 >
-                  No brands matching current filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.name}
+                  </td>
 
-const SkuTable = ({ rows }) => (
-  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        SKUs (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">SKU</th>
-              <th className="px-3 py-2 text-left">Brand</th>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.overall_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.sponsored_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.organic_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.display_sos.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No brands matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
+      />
+    </Card>
+  );
+};
 
-              {/* ONLY SOS KPIs */}
-              <th className="px-3 py-2 text-right">Overall SOS</th>
-              <th className="px-3 py-2 text-right">Sponsored</th>
-              <th className="px-3 py-2 text-right">Organic</th>
-              <th className="px-3 py-2 text-right">Display</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.name}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
-                  {row.brandName}
-                </td>
+const SkuTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.overall_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.sponsored_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.organic_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.display_sos.toFixed(1)}%
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+  return (
+    <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          SKUs (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
-                >
-                  No SKUs matching current filters.
-                </td>
+                <th className="px-3 py-2 text-left">SKU</th>
+                <th className="px-3 py-2 text-left">Brand</th>
+
+                {/* ONLY SOS KPIs */}
+                <th className="px-3 py-2 text-right">Overall SOS</th>
+                <th className="px-3 py-2 text-right">Sponsored</th>
+                <th className="px-3 py-2 text-right">Organic</th>
+                <th className="px-3 py-2 text-right">Display</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.name}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                    {row.brandName}
+                  </td>
+
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.overall_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.sponsored_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.organic_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.display_sos.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No SKUs matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
+      />
+    </Card>
+  );
+};
 
 /* Keyword Table (replaces SKU table in second tab) */
-const KeywordTable = ({ rows }) => (
-  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        Keywords (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">Keyword</th>
-              <th className="px-3 py-2 text-left">Brand</th>
+const KeywordTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
-              {/* ONLY SOS KPIs */}
-              <th className="px-3 py-2 text-right">Overall SOS</th>
-              <th className="px-3 py-2 text-right">Sponsored</th>
-              <th className="px-3 py-2 text-right">Organic</th>
-              <th className="px-3 py-2 text-right">Display</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.keyword}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
-                  {row.brandName}
-                </td>
-
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.overall_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.sponsored_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.organic_sos.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.display_sos.toFixed(1)}%
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+  return (
+    <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          Keywords (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-3 py-6 text-center text-[12px] text-slate-400"
-                >
-                  No Keywords matching current filters.
-                </td>
+                <th className="px-3 py-2 text-left">Keyword</th>
+                <th className="px-3 py-2 text-left">Brand</th>
+
+                {/* ONLY SOS KPIs */}
+                <th className="px-3 py-2 text-right">Overall SOS</th>
+                <th className="px-3 py-2 text-right">Sponsored</th>
+                <th className="px-3 py-2 text-right">Organic</th>
+                <th className="px-3 py-2 text-right">Display</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.keyword}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                    {row.brandName}
+                  </td>
+
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.overall_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.sponsored_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.organic_sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-[12px]">
+                    {row.display_sos.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No Keywords matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
+      />
+    </Card>
+  );
+};
 
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
@@ -1413,9 +1468,50 @@ export const VisibilityKpiTrendShowcase = () => {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-3 text-sm text-slate-500">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-              {filters.categories[0] || "All Categories"}
-            </Badge>
+            {/* DYNAMIC PILLS */}
+            {filters.categories.length > 0 ? (
+              filters.categories.map((cat) => (
+                <Badge
+                  key={cat}
+                  className="bg-blue-50 text-blue-700 border-blue-100"
+                >
+                  {cat}
+                </Badge>
+              ))
+            ) : (
+              <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                All Categories
+              </Badge>
+            )}
+
+            {filters.brands.map((brand) => (
+              <Badge
+                key={brand}
+                className="bg-purple-50 text-purple-700 border-purple-100"
+              >
+                {brand}
+              </Badge>
+            ))}
+
+            {tab === "sku" &&
+              filters.skus.map((sku) => (
+                <Badge
+                  key={sku}
+                  className="bg-green-50 text-green-700 border-green-100"
+                >
+                  {sku}
+                </Badge>
+              ))}
+
+            {tab === "keyword" &&
+              filters.keywords.map((kw) => (
+                <Badge
+                  key={kw}
+                  className="bg-orange-50 text-orange-700 border-orange-100"
+                >
+                  {kw}
+                </Badge>
+              ))}
           </div>
           <h1 className="text-lg font-semibold text-slate-900">
             Competition List
@@ -1476,9 +1572,12 @@ export const VisibilityKpiTrendShowcase = () => {
             <TabsTrigger value="brand" className="px-4">
               Brands
             </TabsTrigger>
+            {/* <TabsTrigger value="sku" className="px-4">
+              SKUs
+            </TabsTrigger>
             <TabsTrigger value="keyword" className="px-4">
               Keywords
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -1506,6 +1605,28 @@ export const VisibilityKpiTrendShowcase = () => {
           {viewMode === "kpi" && (
             <KpiCompareView
               mode="brand"
+              filters={filters}
+              city={city}
+              onBackToTrend={() => setViewMode("trend")}
+            />
+          )}
+        </TabsContent>
+
+        {/* SKU TAB */}
+        <TabsContent value="sku" className="mt-3">
+          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "trend" && (
+            <TrendView
+              mode="sku"
+              filters={filters}
+              city={city}
+              onBackToTable={() => setViewMode("table")}
+              onSwitchToKpi={() => setViewMode("kpi")}
+            />
+          )}
+          {viewMode === "kpi" && (
+            <KpiCompareView
+              mode="sku"
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}

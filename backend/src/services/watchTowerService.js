@@ -1521,11 +1521,33 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 console.log(`[Performance KPIs] Fetched ${bulkData.size} months of data in single query`);
 
                 // Helper functions to extract data from bulk results
+                // FIXED: Sum data for ALL months in the date range
                 const getDataForRange = (start, end) => {
-                    const monthKey = start.format('YYYY-MM-01');
-                    return bulkData.get(monthKey) || {
+                    const result = {
                         sales: 0, adSales: 0, orders: 0, clicks: 0, impressions: 0, spend: 0
                     };
+
+                    // Iterate through all months in the range and sum the values
+                    let current = start.clone().startOf('month');
+                    const endMonth = end.clone().endOf('month');
+
+                    while (current.isBefore(endMonth) || current.isSame(endMonth, 'month')) {
+                        const monthKey = current.format('YYYY-MM-01');
+                        const monthData = bulkData.get(monthKey);
+
+                        if (monthData) {
+                            result.sales += monthData.sales || 0;
+                            result.adSales += monthData.adSales || 0;
+                            result.orders += monthData.orders || 0;
+                            result.clicks += monthData.clicks || 0;
+                            result.impressions += monthData.impressions || 0;
+                            result.spend += monthData.spend || 0;
+                        }
+
+                        current = current.add(1, 'month');
+                    }
+
+                    return result;
                 };
 
                 const calculateInorganicSales = (data) => {
@@ -1678,20 +1700,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     trendData: bmiTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
                 });
 
-                // 6. Avg OSA (On-Shelf Availability)
-                performanceMetricsKpis.push({
-                    id: "osa",
-                    label: "AVG OSA",
-                    value: `${currentOsa.toFixed(1)}%`,
-                    unit: "",
-                    tag: osaStatus,
-                    tagTone: osaStatus === "stable" ? "neutral" : (osaStatus === "improving" ? "positive" : "warning"),
-                    footer: "Availability weighted",
-                    trendTitle: "OSA – Weighted",
-                    trendSubtitle: "Last 4 periods",
-                    trendData: osaTrendData.slice(-4).map((val, idx) => ({ period: last7Months[idx + 3].label, value: val })) // Only last 4 periods for OSA
-                });
-
             } catch (err) {
                 console.error("Error calculating Performance Metrics KPIs:", err);
             }
@@ -1814,7 +1822,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const offtakeChange = calcChange(offtake, prevOfftake);
             const spendChange = calcChange(spend, prevSpend);
             const roasChange = calcChange(roas, prevRoas);
-            const inorgSalesChange = calcPPChange(inorgSales, prevInorgSales);
+            const inorgSalesChange = calcChange(inorgSales, prevInorgSales);
             const conversionChange = calcPPChange(conversion, prevConversion);
             const availabilityChange = calcPPChange(availability, prevAvailability);
             const sosChange = calcPPChange(sos, prevSos);
@@ -1845,9 +1853,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 },
                 {
                     title: "Inorg Sales",
-                    value: `${inorgSales.toFixed(1)}%`,
-                    change: { text: formatChange(inorgSalesChange, true), positive: inorgSalesChange >= 0 },
-                    meta: { units: "of sales", change: formatChange(inorgSalesChange, true) }
+                    value: formatCurrency(inorgSales),
+                    change: { text: formatChange(inorgSalesChange), positive: inorgSalesChange >= 0 },
+                    meta: { units: "sum(Ad_Sales)", change: formatChange(inorgSalesChange) }
                 },
                 {
                     title: "Conversion",
@@ -2253,9 +2261,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const prevPromoMyBrand = 0;
                 const prevPromoCompete = 0;
 
-                // Calculate Inorg Sales Pct for current and previous period
-                const currInorgPct = offtake > 0 ? (totalAdSales / offtake) * 100 : 0;
-                const prevInorgPct = prevOfftake > 0 ? (prevAdSales / prevOfftake) * 100 : 0;
+                // Use absolute Ad_Sales for Inorg Sales (matching Performance Matrix formula)
+                const currInorgSales = totalAdSales;
+                const prevInorgSales = prevAdSales;
 
                 return {
                     key: p.key,
@@ -2264,9 +2272,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     logo: p.logo,
                     columns: generateColumns(
                         // Current period
-                        offtake, availability, sos, marketShare, totalSpend, roas, currInorgPct, conversion, cpm, cpc, promoMyBrand, promoCompete,
+                        offtake, availability, sos, marketShare, totalSpend, roas, currInorgSales, conversion, cpm, cpc, promoMyBrand, promoCompete,
                         // Previous period
-                        prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgPct, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete
+                        prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete
                     )
                 };
             } catch (err) {
@@ -3783,6 +3791,7 @@ const getPlatformOverview = async (filters) => {
                         [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'ad_sales'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'clicks'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'impressions'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'orders'],
                         [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'neno'],
                         [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'deno']
                     ],
@@ -3799,6 +3808,7 @@ const getPlatformOverview = async (filters) => {
                         [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'ad_sales'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'clicks'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'impressions'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'orders'],
                         [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'neno'],
                         [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'deno']
                     ],
@@ -3952,6 +3962,7 @@ const getPlatformOverview = async (filters) => {
                         adSales: parseFloat(c?.ad_sales || 0),
                         clicks: parseFloat(c?.clicks || 0),
                         impressions: parseFloat(c?.impressions || 0),
+                        orders: parseFloat(c?.orders || 0),
                         neno: parseFloat(c?.neno || 0),
                         deno: parseFloat(c?.deno || 0),
                         ms: currMsValue,
@@ -3963,6 +3974,7 @@ const getPlatformOverview = async (filters) => {
                         adSales: parseFloat(pv?.ad_sales || 0),
                         clicks: parseFloat(pv?.clicks || 0),
                         impressions: parseFloat(pv?.impressions || 0),
+                        orders: parseFloat(pv?.orders || 0),
                         neno: parseFloat(pv?.neno || 0),
                         deno: parseFloat(pv?.deno || 0),
                         ms: prevMsValue,
@@ -3990,7 +4002,7 @@ const getPlatformOverview = async (filters) => {
                 const spendChange = calcChange(spend, prevSpend);
                 const roasChange = calcChange(roas, prevRoas);
                 const inorgSalesChange = calcChange(inorgSales, prevInorgSales);
-                const conversionChange = calcPPChange(conversion, prevConversion);
+                const conversionChange = calcChange(conversion, prevConversion);
                 const availabilityChange = calcPPChange(availability, prevAvailability);
                 const sosChange = calcPPChange(sos, prevSos);
                 const marketShareChange = calcPPChange(marketShare, prevMarketShare);
@@ -4004,7 +4016,7 @@ const getPlatformOverview = async (filters) => {
                     { title: "Spend", value: formatCurrency(spend), change: { text: formatChange(spendChange), positive: spendChange >= 0 }, meta: { units: "₹0", change: formatChange(spendChange) } },
                     { title: "ROAS", value: `${roas.toFixed(2)}x`, change: { text: formatChange(roasChange), positive: roasChange >= 0 }, meta: { units: "₹0 return", change: formatChange(roasChange) } },
                     { title: "Inorg Sales", value: formatCurrency(inorgSales), change: { text: formatChange(inorgSalesChange), positive: inorgSalesChange >= 0 }, meta: { units: "0 units", change: formatChange(inorgSalesChange) } },
-                    { title: "Conversion", value: `${conversion.toFixed(1)}%`, change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "0 conversions", change: formatChange(conversionChange, true) } },
+                    { title: "Conversion", value: conversion.toFixed(1), change: { text: formatChange(conversionChange), positive: conversionChange >= 0 }, meta: { units: "Clicks / Orders", change: formatChange(conversionChange) } },
                     { title: "Availability", value: `${availability.toFixed(1)}%`, change: { text: formatChange(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: formatChange(availabilityChange, true) } },
                     { title: "SOS", value: `${sos.toFixed(1)}%`, change: { text: formatChange(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: formatChange(sosChange, true) } },
                     { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: formatChange(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: formatChange(marketShareChange, true) } },
@@ -4086,12 +4098,14 @@ const getPlatformOverview = async (filters) => {
                 const totalAdSales = metrics.curr.adSales || 0;
                 const totalClicks = metrics.curr.clicks || 0;
                 const totalImpressions = metrics.curr.impressions || 0;
+                const totalOrders = metrics.curr.orders || 0;
                 const marketShare = metrics.curr.ms || 0;
                 const sos = metrics.curr.sos || 0;
 
                 const availability = metrics.curr.deno > 0 ? (metrics.curr.neno / metrics.curr.deno) * 100 : 0;
                 const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
-                const conversion = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+                // Conversion = Clicks / Orders (matching Performance Matrix formula)
+                const conversion = totalOrders > 0 ? totalClicks / totalOrders : 0;
                 const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
                 const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
 
@@ -4103,23 +4117,25 @@ const getPlatformOverview = async (filters) => {
                 const prevSos = metrics.prev.sos || 0;
                 const prevImpressions = metrics.prev.impressions || 0;
                 const prevClicks = metrics.prev.clicks || 0;
+                const prevOrders = metrics.prev.orders || 0;
                 const prevAvailability = metrics.prev.deno > 0 ? (metrics.prev.neno / metrics.prev.deno) * 100 : 0;
                 const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
-                const prevConversion = prevImpressions > 0 ? (prevClicks / prevImpressions) * 100 : 0;
+                // Conversion = Clicks / Orders (matching Performance Matrix formula)
+                const prevConversion = prevOrders > 0 ? prevClicks / prevOrders : 0;
                 const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
                 const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
-                // Calculate Inorg Sales Pct for current and previous period
-                const currInorgPct = offtake > 0 ? (totalAdSales / offtake) * 100 : 0;
-                const prevInorgPct = prevOfftake > 0 ? (prevAdSales / prevOfftake) * 100 : 0;
+                // Use absolute Ad_Sales for Inorg Sales (matching Performance Matrix formula)
+                const currInorgSales = totalAdSales;
+                const prevInorgSales = prevAdSales;
 
                 platformOverview.push({
                     key: p.key,
                     label: p.label,
                     type: p.type,
                     logo: p.logo,
-                    columns: generateColumns(offtake, availability, sos, marketShare, totalSpend, roas, currInorgPct, conversion, cpm, cpc, 0, 0,
-                        prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgPct, prevConversion, prevCpm, prevCpc, 0, 0)
+                    columns: generateColumns(offtake, availability, sos, marketShare, totalSpend, roas, currInorgSales, conversion, cpm, cpc, 0, 0,
+                        prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, 0, 0)
                 });
             }
 

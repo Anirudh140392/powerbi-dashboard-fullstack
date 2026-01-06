@@ -36,22 +36,22 @@ const sampleHierarchy = [
         },
         children: [
             {
-                id: 'generic-brand-kwality',
-                label: 'Kwality Walls',
-                level: 'brand',
-                metrics: { catImpShare: 65.6, adSos: 0.6, orgSos: 1.0, overallSos: 0.8 },
+                id: 'generic-ice-cream-delivery',
+                label: 'ice cream delivery',
+                level: 'keyword',
+                metrics: { catImpShare: 6.2, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
                 platforms: {
-                    Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
+                    Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 6.2 },
+                    Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 5.8 },
                 },
                 children: [
                     {
-                        id: 'generic-ice-cream-delivery',
-                        label: 'ice cream delivery',
-                        level: 'keyword',
-                        metrics: { catImpShare: 6.2, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
+                        id: 'generic-brand-kwality',
+                        label: 'Kwality Walls',
+                        level: 'brand',
+                        metrics: { catImpShare: 65.6, adSos: 0.6, orgSos: 1.0, overallSos: 0.8 },
                         platforms: {
-                            Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 6.2 },
-                            Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 5.8 },
+                            Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
                         },
                         children: [
                             {
@@ -84,16 +84,27 @@ const sampleHierarchy = [
                                     }
                                 ],
                             },
-                        ],
-                    },
+                        ]
+                    }
+                ],
+            },
+            {
+                id: 'generic-cone-ice-cream',
+                label: 'cone ice cream',
+                level: 'keyword',
+                metrics: { catImpShare: 5.1, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
+                platforms: {
+                    Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 5.1 },
+                    Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 4.8 },
+                },
+                children: [
                     {
-                        id: 'generic-cone-ice-cream',
-                        label: 'cone ice cream',
-                        level: 'keyword',
-                        metrics: { catImpShare: 5.1, adSos: 0.1, orgSos: 0.2, overallSos: 0.3 },
+                        id: 'generic-brand-kwality-cone',
+                        label: 'Kwality Walls',
+                        level: 'brand',
+                        metrics: { catImpShare: 65.6, adSos: 0.6, orgSos: 1.0, overallSos: 0.8 },
                         platforms: {
-                            Blinkit: { overallSos: 0.3, adSos: 0.1, orgSos: 0.2, catImpShare: 5.1 },
-                            Zepto: { overallSos: 0.2, adSos: 0.1, orgSos: 0.2, catImpShare: 4.8 },
+                            Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
                         },
                         children: [
                             {
@@ -117,9 +128,9 @@ const sampleHierarchy = [
                                     }
                                 ]
                             }
-                        ],
+                        ]
                     }
-                ]
+                ],
             }
         ],
     },
@@ -133,18 +144,18 @@ const sampleHierarchy = [
         },
         children: [
             {
-                id: 'brand-kwality-walls',
-                label: 'kwality walls ice cream',
-                level: 'brand',
+                id: 'brand-kwality-keyword-1',
+                label: 'ice cream',
+                level: 'keyword',
                 metrics: { catImpShare: 14.2, adSos: 41.2, orgSos: 36.7, overallSos: 38.4 },
                 platforms: {
                     Blinkit: { overallSos: 38.4, adSos: 41.2, orgSos: 36.7, catImpShare: 14.2 },
                 },
                 children: [
                     {
-                        id: 'brand-kwality-keyword-1',
-                        label: 'ice cream',
-                        level: 'keyword',
+                        id: 'brand-kwality-walls',
+                        label: 'kwality walls ice cream',
+                        level: 'brand',
                         metrics: { catImpShare: 14.2, adSos: 41.2, orgSos: 36.7, overallSos: 38.4 },
                         platforms: {
                             Blinkit: { overallSos: 38.4, adSos: 41.2, orgSos: 36.7, catImpShare: 14.2 },
@@ -176,23 +187,23 @@ const sampleHierarchy = [
         },
         children: [
             {
-                id: 'competition-amul',
-                label: 'Amul',
-                level: 'brand',
-                metrics: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
+                id: 'competition-amul-cone',
+                label: 'Amul Cone',
+                level: 'keyword',
+                metrics: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 9, orgPos: 18 },
                 platforms: {
-                    Blinkit: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
+                    Blinkit: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 17 },
                 },
                 children: [
                     {
-                        id: 'competition-amul-cone',
-                        label: 'Amul Cone',
-                        level: 'keyword',
-                        metrics: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 9, orgPos: 18 },
+                        id: 'competition-amul',
+                        label: 'Amul',
+                        level: 'brand',
+                        metrics: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
                         platforms: {
-                            Blinkit: { catImpShare: 0.3, adSos: 0.1, orgSos: 0.1, overallSos: 0.2, adPos: 8, orgPos: 17 },
+                            Blinkit: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
                         },
-                        children: [],
+                        children: []
                     }
                 ]
             },
@@ -210,6 +221,7 @@ const kpiFields = [
 ]
 
 const formatMetric = (kpi, value) => {
+    if (value === null) return "-" // Explicitly dash for null
     if (value === undefined || Number.isNaN(value)) return '–'
     if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}`
     return value.toFixed(1)
@@ -254,15 +266,15 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
                     hasAppropriateChildren = node.children.some(c => c.level === 'city')
                 }
             } else {
-                // Standard hierarchy
+                // Standard hierarchy: Type -> Keyword -> Brand -> SKU -> City
                 if (depth === 0) {
-                    // Keyword Type -> Brand
-                    hasAppropriateChildren = node.children.some(c => c.level === 'brand')
-                } else if (depth === 1 && node.level === 'brand') {
-                    // Brand -> Keyword
+                    // Keyword Type -> Keyword
                     hasAppropriateChildren = node.children.some(c => c.level === 'keyword')
-                } else if (node.level === 'keyword') {
-                    // Keyword -> SKU
+                } else if (depth === 1 && node.level === 'keyword') {
+                    // Keyword -> Brand
+                    hasAppropriateChildren = node.children.some(c => c.level === 'brand')
+                } else if (node.level === 'brand') {
+                    // Brand -> SKU
                     hasAppropriateChildren = node.children.some(c => c.level === 'sku')
                 } else if (node.level === 'sku') {
                     // SKU -> City
@@ -295,11 +307,12 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
                 if (depth === 0) childrenToShow = node.children.filter(c => c.level === 'keyword')
                 else if (depth === 1) childrenToShow = node.children.filter(c => c.level === 'city')
             } else {
+                // Type -> Keyword -> Brand -> SKU -> City
                 if (depth === 0) {
-                    childrenToShow = node.children.filter(c => c.level === 'brand')
-                } else if (depth === 1 && node.level === 'brand') {
                     childrenToShow = node.children.filter(c => c.level === 'keyword')
-                } else if (node.level === 'keyword') {
+                } else if (depth === 1 && node.level === 'keyword') {
+                    childrenToShow = node.children.filter(c => c.level === 'brand')
+                } else if (node.level === 'brand') {
                     childrenToShow = node.children.filter(c => c.level === 'sku')
                 } else if (node.level === 'sku') {
                     childrenToShow = node.children.filter(c => c.level === 'city')
@@ -379,11 +392,11 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     const restructureForSkus = (data) => {
         const skuMap = new Map()
 
-        // Traverse all data and collect SKUs with their keywords and cities
+        // Traverse Type -> Keyword -> Brand -> SKU -> City
         data.forEach(keywordType => {
-            keywordType.children?.forEach(brand => {
-                brand.children?.forEach(keyword => {
-                    keyword.children?.forEach(sku => {
+            keywordType.children?.forEach(keyword => {
+                keyword.children?.forEach(brand => {
+                    brand.children?.forEach(sku => {
                         if (sku.level === 'sku') {
                             const skuId = sku.id
 
@@ -394,7 +407,13 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     label: sku.label,
                                     subtitle: sku.subtitle,
                                     level: 'sku',
-                                    metrics: sku.metrics,
+                                    metrics: {
+                                        ...sku.metrics,
+                                        catImpShare: null,
+                                        adSos: null,
+                                        orgSos: null,
+                                        overallSos: null,
+                                    },
                                     platforms: sku.platforms,
                                     children: []
                                 })
@@ -458,38 +477,31 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     // Check if any keyword type (level 0) is expanded to show Brand column
     const showBrandColumn = useMemo(() => {
         if (activeView !== 'keywords') return false
-        // Check if any expanded row corresponds to a keyword type (depth 0 / level 'keyword-type')
-        // effectively, if expandedRows contains any ID that is a keyword type.
-        // Since we don't have easy O(1) access to row object by ID here, 
-        // we can iterate pageRows (visible rows) and check if any visible row is a 'brand' (level 1).
-        // If a brand row is visible, it means a keyword type was expanded.
         return pageRows.some(r => r.level === 'brand')
     }, [activeView, pageRows])
-    const brandWidth = showBrandColumn ? FROZEN_WIDTHS.brand : 0
-
-    const LEFT_BRAND = FROZEN_WIDTHS.keywordType
-    const LEFT_KEYWORD = FROZEN_WIDTHS.keywordType + brandWidth
-    const LEFT_SKU = LEFT_KEYWORD + FROZEN_WIDTHS.keyword
-    const LEFT_CITY = LEFT_SKU + FROZEN_WIDTHS.sku
-    const LEFT_SPACER = LEFT_CITY + FROZEN_WIDTHS.city
 
     // Columns detection
     const showKeywordColumn = useMemo(() => {
-        // Check if any visible row is a keyword (level='keyword')
         return pageRows.some(r => r.level === 'keyword')
     }, [pageRows])
 
     const showSkuColumn = useMemo(() => {
-        // If we are in SKUs view, we don't use the separate SKU column (it's the first column)
         if (activeView === 'skus') return false
-        // Check if any visible row is a SKU (level='sku')
         return pageRows.some(r => r.level === 'sku')
     }, [pageRows, activeView])
 
     const showCityColumn = useMemo(() => {
-        // Check if any visible row is a city (level='city')
         return pageRows.some(r => r.level === 'city')
     }, [pageRows])
+
+    const keywordWidth = showKeywordColumn ? FROZEN_WIDTHS.keyword : 0
+    const brandWidth = showBrandColumn ? FROZEN_WIDTHS.brand : 0
+
+    const LEFT_KEYWORD = FROZEN_WIDTHS.keywordType
+    const LEFT_BRAND = LEFT_KEYWORD + keywordWidth
+    const LEFT_SKU = LEFT_BRAND + brandWidth
+    const LEFT_CITY = LEFT_SKU + (showSkuColumn ? FROZEN_WIDTHS.sku : 0) // Adjusted logic for city position
+    const LEFT_SPACER = LEFT_CITY + FROZEN_WIDTHS.city
 
     const toggleExpand = (id) => {
         setExpandedRows((prev) => {
@@ -554,13 +566,15 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
 
 
 
-    // Filter KPIs based on row levels - only show Ad Pos and Org Pos if SKU/City rows are present
-    const allKpis = Object.keys(KPI_LABELS).filter(kpi => {
-        if (kpi === 'adPos' || kpi === 'orgPos') {
-            return hasSkuOrCityRows
-        }
-        return true
-    })
+    // Dynamic KPIs based on data availability in visible rows
+    const allKpis = useMemo(() => {
+        return Object.keys(KPI_LABELS).filter(kpi => {
+            return pageRows.some(row => {
+                const val = row.metrics?.[kpi];
+                return val !== null && val !== undefined && !Number.isNaN(val);
+            });
+        });
+    }, [pageRows]);
 
     // Heatmap color function for Keywords/SKUs views
     const getHeatmapColor = (kpi, value) => {
@@ -581,14 +595,23 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     }
 
     const renderValueCell = (metrics, kpi) => {
-        const style = activeView !== 'platforms' ? getHeatmapColor(kpi, metrics[kpi]) : { backgroundColor: 'rgb(243, 244, 246)', color: '#111827' }
+        const value = metrics[kpi];
+        const style = getHeatmapColor(kpi, value);
+
         return (
-            <span
-                className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-medium"
-                style={style}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex items-center justify-center h-full w-full"
             >
-                {formatMetric(kpi, metrics[kpi])}
-            </span>
+                <span
+                    className="inline-flex items-center justify-center min-w-[3rem] px-2 py-0.5 rounded text-[11px] font-semibold transition-all duration-300"
+                    style={style}
+                >
+                    {formatMetric(kpi, value)}
+                </span>
+            </motion.div>
         )
     }
 
@@ -663,7 +686,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
 
                     <div className="flex-1 overflow-auto p-4">
                         <div className="mb-2 text-xs text-slate-500">
-                            {activeView === 'keywords' && 'Keyword Type → Brand → Keyword → SKU → City'}
+                            {activeView === 'keywords' && 'Keyword Type → Keyword → Brand  → SKU → City'}
                             {activeView === 'skus' && 'SKU → Keyword → City'}
                             {activeView === 'platforms' && 'Category drilldown → Keywords with expandable KPI columns'}
                         </div>
@@ -678,6 +701,14 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                         >
                                             {activeView === 'skus' ? 'SKU' : 'Keyword Type'}
                                         </th>
+                                        {showKeywordColumn && (
+                                            <th
+                                                className="px-2 py-2"
+                                                style={{ position: 'sticky', left: LEFT_KEYWORD, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keyword, minWidth: FROZEN_WIDTHS.keyword }}
+                                            >
+                                                Keyword
+                                            </th>
+                                        )}
                                         {showBrandColumn && (
                                             <th
                                                 className="px-2 py-2"
@@ -686,14 +717,6 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 <div className="flex items-center gap-1">
                                                     <span>Brand</span>
                                                 </div>
-                                            </th>
-                                        )}
-                                        {showKeywordColumn && (
-                                            <th
-                                                className="px-2 py-2"
-                                                style={{ position: 'sticky', left: LEFT_KEYWORD, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keyword, minWidth: FROZEN_WIDTHS.keyword }}
-                                            >
-                                                Keyword
                                             </th>
                                         )}
                                         {showSkuColumn && (
@@ -740,37 +763,47 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                         >
                                             {/* spacer */}
                                         </th>
-                                        {allKpis.map((kpi) => (
-                                            <th key={kpi} colSpan={activeView === 'platforms' && expandedKpis.has(kpi) ? visiblePlatforms.length : 1} className="px-2 py-2 text-center border-l border-slate-200">
-                                                <div className="flex items-center justify-center gap-1">
-                                                    {activeView === 'platforms' && (
-                                                        <button
-                                                            onClick={() => toggleKpiExpand(kpi)}
-                                                            className="flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-white text-[10px] hover:bg-slate-100"
-                                                        >
-                                                            {expandedKpis.has(kpi) ? '−' : '+'}
-                                                        </button>
-                                                    )}
-                                                    <span>{KPI_LABELS[kpi]}</span>
-                                                </div>
-                                            </th>
-                                        ))}
+                                        <AnimatePresence>
+                                            {allKpis.map((kpi) => (
+                                                <motion.th
+                                                    key={kpi}
+                                                    layout
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: -10 }}
+                                                    colSpan={activeView === 'platforms' && expandedKpis.has(kpi) ? visiblePlatforms.length : 1}
+                                                    className="px-4 py-3 text-center border-l border-slate-200 overflow-hidden"
+                                                >
+                                                    <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                        {activeView === 'platforms' && (
+                                                            <button
+                                                                onClick={() => toggleKpiExpand(kpi)}
+                                                                className="flex h-5 w-5 items-center justify-center rounded-lg border border-slate-300 bg-white text-[10px] hover:bg-slate-100 transition-colors shadow-sm"
+                                                            >
+                                                                {expandedKpis.has(kpi) ? '−' : '+'}
+                                                            </button>
+                                                        )}
+                                                        <span className="tracking-tight">{KPI_LABELS[kpi]}</span>
+                                                    </div>
+                                                </motion.th>
+                                            ))}
+                                        </AnimatePresence>
                                     </tr>
                                     <tr className="bg-slate-50 text-center text-[11px] font-medium text-slate-500">
                                         <th
                                             className="px-3 py-2"
                                             style={{ position: 'sticky', left: 0, top: 40, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keywordType, minWidth: FROZEN_WIDTHS.keywordType }}
                                         />
-                                        {showBrandColumn && (
-                                            <th
-                                                className="px-2 py-2"
-                                                style={{ position: 'sticky', left: LEFT_BRAND, top: 40, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.brand, minWidth: FROZEN_WIDTHS.brand }}
-                                            />
-                                        )}
                                         {showKeywordColumn && (
                                             <th
                                                 className="px-2 py-2"
                                                 style={{ position: 'sticky', left: LEFT_KEYWORD, top: 40, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keyword, minWidth: FROZEN_WIDTHS.keyword }}
+                                            />
+                                        )}
+                                        {showBrandColumn && (
+                                            <th
+                                                className="px-2 py-2"
+                                                style={{ position: 'sticky', left: LEFT_BRAND, top: 40, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.brand, minWidth: FROZEN_WIDTHS.brand }}
                                             />
                                         )}
                                         {showSkuColumn && (
@@ -811,20 +844,46 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 minWidth: FROZEN_WIDTHS.spacer
                                             }}
                                         />
-                                        {allKpis.flatMap((kpi) =>
-                                            activeView === 'platforms' && expandedKpis.has(kpi)
-                                                ? visiblePlatforms.map((p) => (
-                                                    <th key={`${kpi}-${p}`} className="px-2 py-2 text-center border-l border-slate-200">
-                                                        {PLATFORM_LABELS[p]}
-                                                    </th>
-                                                ))
-                                                : <th key={kpi} className="px-2 py-2 text-center border-l border-slate-200">All</th>
-                                        )}
+                                        <AnimatePresence>
+                                            {allKpis.flatMap((kpi) =>
+                                                activeView === 'platforms' && expandedKpis.has(kpi)
+                                                    ? visiblePlatforms.map((p) => (
+                                                        <motion.th
+                                                            key={`${kpi}-${p}`}
+                                                            layout
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            className="px-2 py-2 text-center border-l border-slate-200 overflow-hidden whitespace-nowrap text-[10px] font-bold text-slate-400 uppercase tracking-tighter"
+                                                        >
+                                                            {PLATFORM_LABELS[p]}
+                                                        </motion.th>
+                                                    ))
+                                                    : (
+                                                        <motion.th
+                                                            key={kpi}
+                                                            layout
+                                                            initial={{ opacity: 0 }}
+                                                            animate={{ opacity: 1 }}
+                                                            exit={{ opacity: 0 }}
+                                                            className="px-2 py-2 text-center border-l border-slate-200 overflow-hidden whitespace-nowrap text-[10px] uppercase font-bold text-slate-400"
+                                                        >
+                                                            All
+                                                        </motion.th>
+                                                    )
+                                            )}
+                                        </AnimatePresence>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {pageRows.map((row) => (
-                                        <tr key={row.id} className="border-b border-slate-100">
+                                        <motion.tr
+                                            key={row.id}
+                                            layout
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
+                                        >
                                             <td
                                                 className="px-3 py-2"
                                                 style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
@@ -845,27 +904,6 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 </div>
                                             </td>
 
-                                            {showBrandColumn && (
-                                                <td
-                                                    className="px-2 py-2 text-left"
-                                                    style={{ position: 'sticky', left: LEFT_BRAND, background: '#ffffff', minWidth: FROZEN_WIDTHS.brand }}
-                                                >
-                                                    <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
-                                                        <div className="shrink-0 w-4 h-4 flex items-center justify-center">
-                                                            {row.level === 'brand' && (
-                                                                <button
-                                                                    onClick={() => toggleExpand(row.id)}
-                                                                    className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
-                                                                >
-                                                                    {expandedRows.has(row.id) ? '−' : '+'}
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        <span>{row.level === 'brand' ? row.label : ''}</span>
-                                                    </div>
-                                                </td>
-                                            )}
-
                                             {showKeywordColumn && (
                                                 <td
                                                     className="px-2 py-2 text-left"
@@ -883,6 +921,27 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                             )}
                                                         </div>
                                                         <span>{row.level === 'keyword' ? row.label : ''}</span>
+                                                    </div>
+                                                </td>
+                                            )}
+
+                                            {showBrandColumn && (
+                                                <td
+                                                    className="px-2 py-2 text-left"
+                                                    style={{ position: 'sticky', left: LEFT_BRAND, background: '#ffffff', minWidth: FROZEN_WIDTHS.brand }}
+                                                >
+                                                    <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
+                                                        <div className="shrink-0 w-4 h-4 flex items-center justify-center">
+                                                            {row.level === 'brand' && (
+                                                                <button
+                                                                    onClick={() => toggleExpand(row.id)}
+                                                                    className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
+                                                                >
+                                                                    {expandedRows.has(row.id) ? '−' : '+'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <span>{row.level === 'brand' ? row.label : ''}</span>
                                                     </div>
                                                 </td>
                                             )}
@@ -938,20 +997,36 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 }}
                                             />
 
-                                            {allKpis.flatMap((kpi) =>
-                                                activeView === 'platforms' && expandedKpis.has(kpi)
-                                                    ? visiblePlatforms.map((p) => (
-                                                        <td key={`${row.id}-${kpi}-${p}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
-                                                            {renderValueCell(row.platforms[p] ?? {}, kpi)}
-                                                        </td>
-                                                    ))
-                                                    : (
-                                                        <td key={`${row.id}-${kpi}`} className="px-2 py-1 text-center align-middle border-l border-slate-100">
-                                                            {renderValueCell(row.metrics, kpi)}
-                                                        </td>
-                                                    )
-                                            )}
-                                        </tr>
+                                            <AnimatePresence>
+                                                {allKpis.flatMap((kpi) =>
+                                                    activeView === 'platforms' && expandedKpis.has(kpi)
+                                                        ? visiblePlatforms.map((p) => (
+                                                            <motion.td
+                                                                key={`${row.id}-${kpi}-${p}`}
+                                                                layout
+                                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                                className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
+                                                            >
+                                                                {renderValueCell(row.platforms[p] ?? {}, kpi)}
+                                                            </motion.td>
+                                                        ))
+                                                        : (
+                                                            <motion.td
+                                                                key={`${row.id}-${kpi}`}
+                                                                layout
+                                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                                className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
+                                                            >
+                                                                {renderValueCell(row.metrics, kpi)}
+                                                            </motion.td>
+                                                        )
+                                                )}
+                                            </AnimatePresence>
+                                        </motion.tr>
                                     ))}
                                 </tbody>
                             </table>

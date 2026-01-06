@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { allProducts } from "../../../utils/DataCenter";
 import { LightbulbCogRCAIcon } from "../../Analytics/CategoryRca/RcaIcons";
-import axiosInstance from "../../../api/axiosInstance";
 
 /* ---------------- SMALL KPI CARD ---------------- */
 const SmallCard = ({ item }) => {
@@ -44,8 +43,7 @@ const SmallCard = ({ item }) => {
   const formatChange = (changeVal) => {
     if (!changeVal) return changeVal;
     const changeStr = changeVal.toString();
-    // Don't add % if already contains % or pp (percentage points)
-    if (!changeStr.includes("%") && !changeStr.includes("pp")) {
+    if (!changeStr.includes("%")) {
       return changeStr + "%";
     }
     return changeStr;
@@ -108,6 +106,46 @@ const SmallCard = ({ item }) => {
   );
 };
 
+/* ---------------- PLATFORM LOGO WITH ERROR HANDLING ---------------- */
+const PlatformLogo = ({ src, alt, theme }) => {
+  const [error, setError] = React.useState(false);
+
+  if (error || !src) {
+    return (
+      <Box
+        sx={{
+          width: 34,
+          height: 34,
+          borderRadius: "50%",
+          background: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Tag size={18} color={theme.palette.primary.main} />
+      </Box>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setError(true)}
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: "50%",
+        background: "#fff",
+        padding: 3,
+        objectFit: "contain",
+      }}
+    />
+  );
+};
+
 /* ---------------- MAIN COMPONENT ---------------- */
 const PlatformOverview = ({
   data = [],
@@ -116,16 +154,6 @@ const PlatformOverview = ({
   activeKpisTab = "Platform Overview",
   currentPage,
   setCurrentPage = () => { },
-  // Dynamic dropdown props from WatchTower
-  monthOverviewPlatform,
-  onMonthPlatformChange,
-  categoryOverviewPlatform,
-  onCategoryPlatformChange,
-  brandsOverviewPlatform,
-  onBrandsPlatformChange,
-  brandsOverviewCategory,
-  onBrandsCategoryChange,
-  filters = {},
 }) => {
   const theme = useTheme();
 
@@ -133,60 +161,11 @@ const PlatformOverview = ({
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isPagination, setIsPagination] = React.useState(true);
 
-  // Dynamic dropdown options fetched from backend
-  const [platformOptions, setPlatformOptions] = React.useState(['All']);
-  const [categoryOptions, setCategoryOptions] = React.useState(['All']);
-  const [brandOptions, setBrandOptions] = React.useState(['All']);
-
-  // Fetch platforms from backend
-  React.useEffect(() => {
-    const fetchPlatforms = async () => {
-      try {
-        const response = await axiosInstance.get('/watchtower/platforms');
-        if (response.data && response.data.length > 0) {
-          // Add 'All' option at the start
-          setPlatformOptions(['All', ...response.data]);
-        }
-      } catch (error) {
-        console.error('Error fetching platforms:', error);
-        // No hardcoded fallback - rely on dynamic API data from rca_sku_dim
-        setPlatformOptions(['All']);
-      }
-    };
-    fetchPlatforms();
-  }, []);
-
-  // Fetch categories from backend (from rca_sku_dim)
-  React.useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await axiosInstance.get('/watchtower/categories');
-        if (response.data && response.data.length > 0) {
-          setCategoryOptions(['All', ...response.data]);
-        }
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-        setCategoryOptions(['All']);
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  // Fetch brands from backend (from rca_sku_dim where comp_flag = 0)
-  React.useEffect(() => {
-    const fetchBrands = async () => {
-      try {
-        const response = await axiosInstance.get('/watchtower/brands');
-        if (response.data && response.data.length > 0) {
-          setBrandOptions(['All', ...response.data]);
-        }
-      } catch (error) {
-        console.error('Error fetching brands:', error);
-        setBrandOptions(['All']);
-      }
-    };
-    fetchBrands();
-  }, []);
+  const [platformFilter, setPlatformFilter] = React.useState({
+    platform: "blinkit",
+    category: "Core Tub",
+    brand: "Amul",
+  });
 
   const CARDS_PER_PAGE = 5;
 
@@ -311,25 +290,16 @@ const PlatformOverview = ({
 
             {/* FILTERS + SEARCH + SORT */}
             <Box display="flex" alignItems="center" gap={1.2}>
-              {/* Platform Dropdown for Month, Category, Brands Overview */}
-              {(activeKpisTab === "Month Overview" || activeKpisTab === "Category Overview" || activeKpisTab === "Brands Overview") && (
+              {activeKpisTab !== "Platform Overview" && (
                 <Select
                   size="small"
-                  value={
-                    activeKpisTab === "Month Overview" ? (monthOverviewPlatform || 'All') :
-                      activeKpisTab === "Category Overview" ? (categoryOverviewPlatform || 'All') :
-                        (brandsOverviewPlatform || 'All')
+                  value={platformFilter.platform}
+                  onChange={(e) =>
+                    setPlatformFilter((p) => ({
+                      ...p,
+                      platform: e.target.value,
+                    }))
                   }
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (activeKpisTab === "Month Overview" && onMonthPlatformChange) {
-                      onMonthPlatformChange(value);
-                    } else if (activeKpisTab === "Category Overview" && onCategoryPlatformChange) {
-                      onCategoryPlatformChange(value);
-                    } else if (activeKpisTab === "Brands Overview" && onBrandsPlatformChange) {
-                      onBrandsPlatformChange(value);
-                    }
-                  }}
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -337,22 +307,20 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  {platformOptions.map((p) => (
-                    <MenuItem key={p} value={p}>{p}</MenuItem>
-                  ))}
+                  <MenuItem value="blinkit">Blinkit</MenuItem>
                 </Select>
               )}
 
-              {/* Category Dropdown for Brands Overview */}
               {activeKpisTab === "Brands Overview" && (
                 <Select
                   size="small"
-                  value={brandsOverviewCategory || 'All'}
-                  onChange={(e) => {
-                    if (onBrandsCategoryChange) {
-                      onBrandsCategoryChange(e.target.value);
-                    }
-                  }}
+                  value={platformFilter.category}
+                  onChange={(e) =>
+                    setPlatformFilter((p) => ({
+                      ...p,
+                      category: e.target.value,
+                    }))
+                  }
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -360,10 +328,50 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  {categoryOptions.map((c) => (
-                    <MenuItem key={c} value={c}>{c}</MenuItem>
-                  ))}
+                  <MenuItem value="Core Tub">Core Tub</MenuItem>
                 </Select>
+              )}
+
+              {activeKpisTab === "Skus Overview" && (
+                <>
+                  <Select
+                    size="small"
+                    value={platformFilter.category}
+                    onChange={(e) =>
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        category: e.target.value,
+                      }))
+                    }
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "1.85rem",
+                      background: "#f3f4f6",
+                    }}
+                  >
+                    <MenuItem value="Core Tub">Core Tub</MenuItem>
+                  </Select>
+
+                  <Select
+                    size="small"
+                    value={platformFilter.brand}
+                    onChange={(e) =>
+                      setPlatformFilter((p) => ({
+                        ...p,
+                        brand: e.target.value,
+                      }))
+                    }
+                    sx={{
+                      minWidth: 130,
+                      height: 36,
+                      fontSize: "0.85rem",
+                      background: "#f3f4f6",
+                    }}
+                  >
+                    <MenuItem value="Amul">Amul</MenuItem>
+                  </Select>
+                </>
               )}
 
               {/* SEARCH */}
@@ -397,16 +405,30 @@ const PlatformOverview = ({
             </Box>
           </Box>
 
-          {/* PLATFORM CARDS - HORIZONTAL + VERTICAL SCROLL */}
           <Box
             sx={{
               display: "flex",
               gap: 2,
-              overflowX: "auto",
-              overflowY: "auto",
+              overflow: "auto",
               pb: 2,
-              maxHeight: "700px",
-              alignItems: "flex-start",
+              height: "650px",
+              /* Custom Scrollbar for Premium Feel */
+              "&::-webkit-scrollbar": {
+                width: "6px",
+                height: "6px",
+              },
+              "&::-webkit-scrollbar-track": {
+                background: "rgba(0,0,0,0.02)",
+                borderRadius: "10px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                background: "rgba(0,0,0,0.1)",
+                borderRadius: "10px",
+                transition: "all 0.3s ease",
+              },
+              "&::-webkit-scrollbar-thumb:hover": {
+                background: "rgba(0,0,0,0.2)",
+              },
             }}
           >
             {paginatedPlatforms.map((platform) => (
@@ -417,7 +439,8 @@ const PlatformOverview = ({
                     borderRadius: 3,
                     background: theme.palette.background.default,
                     boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
-                    height: "100%",
+                    height: "fit-content",
+                    minHeight: "100%", // Stretch to container height if short
                   }}
                 >
                   {/* PREMIUM INLINE HEADER */}
@@ -450,17 +473,10 @@ const PlatformOverview = ({
                             <Tag size={18} color={theme.palette.primary.main} />
                           </Box>
                         ) : (
-                          <img
+                          <PlatformLogo
                             src={platform.logo}
                             alt={platform.label}
-                            style={{
-                              width: 34,
-                              height: 34,
-                              borderRadius: "50%",
-                              background: "#fff",
-                              padding: 3,
-                              objectFit: "contain",
-                            }}
+                            theme={theme}
                           />
                         )}
 
@@ -663,19 +679,21 @@ const PlatformOverview = ({
                           borderRadius: "50%",
                           fontSize: "0.75rem",
                           fontWeight: active ? 700 : 500,
-                          color: active ? "#fff" : theme.palette.text.primary,
+                          color: active ? "#1f2937" : theme.palette.text.primary,
                           background: active
-                            ? "linear-gradient(135deg, #6366F1, #3B82F6)"
+                            ? "linear-gradient(135deg, #f8fafc, #e2e8f0)"
                             : "rgba(255,255,255,0.35)",
                           backdropFilter: "blur(10px)",
-                          border: "1px solid rgba(255,255,255,0.4)",
+                          border: active
+                            ? "1.5px solid #cbd5e1"
+                            : "1px solid rgba(255,255,255,0.4)",
                           boxShadow: active
-                            ? "0 6px 18px rgba(99,102,241,0.45)"
+                            ? "0 6px 18px rgba(148, 163, 184, 0.35), inset 0 1px 1px rgba(255,255,255,0.8)"
                             : "none",
                           transition: "all .25s ease",
                           "&:hover": {
                             background: active
-                              ? "linear-gradient(135deg, #4F46E5, #2563EB)"
+                              ? "linear-gradient(135deg, #f1f5f9, #cbd5e1)"
                               : "rgba(255,255,255,0.6)",
                             transform: "translateY(-1px)",
                           },
