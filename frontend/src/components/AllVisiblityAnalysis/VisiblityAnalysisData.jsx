@@ -586,8 +586,8 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
       change: "▼8.6 pts (from 26.2%)",
       changeColor: "red",
       prevText: "vs Previous Period",
-      extra: "High-risk stores: 18",
-      extraChange: "+5 stores",
+      extra: "High risk keywords: 5",
+      extraChange: "",
       extraChangeColor: "red",
     },
     {
@@ -708,27 +708,15 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
   // };
 
   // ---------------- FILTER OPTIONS ----------------
+  // ---------------- FILTER OPTIONS ----------------
   const VISIBILITY_FILTER_OPTIONS = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-    { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-    { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
-    {
-      id: "kpi",
-      label: "KPI",
-      options: [
-        { id: "Overall SOS", label: "OVERALL SOS" },
-        { id: "Sponsored SOS", label: "SPONSORED SOS" },
-        { id: "Organic SOS", label: "ORGANIC SOS" },
-        { id: "Display SOS", label: "DISPLAY SOS" }
-      ]
-    },
-    { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-    { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-    { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-    { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-    { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-    { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-    { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+    { id: "month", label: "Month", options: [{ id: "all", label: "All" }] },
+    { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }] },
+    { id: "productName", label: "Product Name", options: [{ id: "all", label: "All" }] },
+    { id: "format", label: "Format", options: [{ id: "all", label: "All" }] }, // Mapped to keyword_search_product
+    { id: "city", label: "City", options: [{ id: "all", label: "All" }] },
+    { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }] },
   ];
 
   const TabbedHeatmapTable = () => {

@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect, useContext, createContext, useRef } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import axiosInstance from "../../../api/axiosInstance";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -16,8 +17,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Box } from "@mui/material";
-import axiosInstance from "../../../api/axiosInstance";
-import { formatNumber, formatKpiValue, formatYAxisTick } from "../../../utils/formatters";
+import PaginationFooter from "../../CommonLayout/PaginationFooter";
+
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -524,7 +525,7 @@ const Dialog = ({ open, onOpenChange, children }) => {
 const DialogContent = ({ className, children }) => (
   <div
     className={cn(
-      "rounded-lg bg-white shadow-xl border border-slate-200",
+      "rounded-lg bg-white shadow-xl border border-slate-200 overflow-hidden",
       className
     )}
   >
@@ -674,25 +675,23 @@ const SelectItem = ({ value, children }) => {
 const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
 
 /** Raw config – you can change this and UI will adapt */
-const createRawData = (filterOptions = {}, brandOptions = []) => ({
-  cities: filterOptions.locations || ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
-  categories: filterOptions.categories || ["Body Lotion", "Face Cream", "Soap"],
-  brands: brandOptions.length > 0
-    ? brandOptions.map((name, idx) => ({
-      id: `brand-${idx}`,
-      name: name,
-      category: filterOptions.categories?.[0] || "Body Lotion"
-    }))
-    : [
-      { id: "my-brand", name: "My Brand", category: "Body Lotion" },
-      { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
-      { id: "nivea", name: "Nivea", category: "Body Lotion" },
-      { id: "parachute-adv", name: "Parachute Advanced", category: "Body Lotion" },
-      { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
-      { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
-      { id: "joy", name: "Joy", category: "Body Lotion" },
-      { id: "biotique", name: "Biotique", category: "Face Cream" },
-    ],
+const RAW_DATA = {
+  cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
+  categories: ["Body Lotion", "Face Cream", "Soap"],
+  brands: [
+    { id: "my-brand", name: "My Brand", category: "Body Lotion" },
+    { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
+    { id: "nivea", name: "Nivea", category: "Body Lotion" },
+    {
+      id: "parachute-adv",
+      name: "Parachute Advanced",
+      category: "Body Lotion",
+    },
+    { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
+    { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
+    { id: "joy", name: "Joy", category: "Body Lotion" },
+    { id: "biotique", name: "Biotique", category: "Face Cream" },
+  ],
   skus: [
     {
       id: "vas-100",
@@ -725,62 +724,35 @@ const createRawData = (filterOptions = {}, brandOptions = []) => ({
       category: "Body Lotion",
     },
   ],
-});
-
-/** Derived option lists for filters */
-const getDerivedOptions = (RAW_DATA) => {
-  const CITIES = RAW_DATA.cities;
-  const CATEGORY_OPTIONS = RAW_DATA.categories;
-  const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
-  const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
-
-  /** ID <-> Name maps */
-  const BRAND_ID_TO_NAME = {};
-  const BRAND_NAME_TO_ID = {};
-  RAW_DATA.brands.forEach((b) => {
-    BRAND_ID_TO_NAME[b.id] = b.name;
-    BRAND_NAME_TO_ID[b.name] = b.id;
-  });
-
-  const SKU_ID_TO_NAME = {};
-  const SKU_NAME_TO_ID = {};
-  RAW_DATA.skus.forEach((s) => {
-    SKU_ID_TO_NAME[s.id] = s.name;
-    SKU_NAME_TO_ID[s.name] = s.id;
-  });
-
-  /** SKU group by brand */
-  const SKUS_BY_BRAND_ID = {};
-  RAW_DATA.skus.forEach((s) => {
-    if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
-    SKUS_BY_BRAND_ID[s.brandId].push(s);
-  });
-
-  return {
-    CITIES,
-    CATEGORY_OPTIONS,
-    BRAND_OPTIONS,
-    SKU_OPTIONS,
-    BRAND_ID_TO_NAME,
-    BRAND_NAME_TO_ID,
-    SKU_ID_TO_NAME,
-    SKU_NAME_TO_ID,
-    SKUS_BY_BRAND_ID,
-  };
 };
 
-const RAW_DATA = createRawData();
-const {
-  CITIES,
-  CATEGORY_OPTIONS,
-  BRAND_OPTIONS,
-  SKU_OPTIONS,
-  BRAND_ID_TO_NAME,
-  BRAND_NAME_TO_ID,
-  SKU_ID_TO_NAME,
-  SKU_NAME_TO_ID,
-  SKUS_BY_BRAND_ID,
-} = getDerivedOptions(RAW_DATA);
+/** Derived option lists for filters */
+const CITIES = RAW_DATA.cities;
+const CATEGORY_OPTIONS = RAW_DATA.categories;
+const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
+const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
+
+/** ID <-> Name maps */
+const BRAND_ID_TO_NAME = {};
+const BRAND_NAME_TO_ID = {};
+RAW_DATA.brands.forEach((b) => {
+  BRAND_ID_TO_NAME[b.id] = b.name;
+  BRAND_NAME_TO_ID[b.name] = b.id;
+});
+
+const SKU_ID_TO_NAME = {};
+const SKU_NAME_TO_ID = {};
+RAW_DATA.skus.forEach((s) => {
+  SKU_ID_TO_NAME[s.id] = s.name;
+  SKU_NAME_TO_ID[s.name] = s.id;
+});
+
+/** SKU group by brand */
+const SKUS_BY_BRAND_ID = {};
+RAW_DATA.skus.forEach((s) => {
+  if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
+  SKUS_BY_BRAND_ID[s.brandId].push(s);
+});
 
 /** Build mock metrics and trends – all UI reads from this single data model */
 const buildDataModel = () => {
@@ -915,36 +887,85 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
   );
   const [search, setSearch] = useState("");
 
-  // strict dependency: Category -> Brand -> SKU
-  // helpers to build dependent option lists
+  // Dynamic filter options from API
+  const [filterOptions, setFilterOptions] = useState({
+    categories: [],
+    brands: [],
+    skus: [],
+    loading: false,
+    error: null
+  });
+
+  // Fetch filter options from backend API
+  useEffect(() => {
+    if (!open) return; // Only fetch when dialog is open
+
+    const fetchFilterOptions = async () => {
+      setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
+
+      try {
+        // Build query params for cascading filters
+        const params = new URLSearchParams();
+        if (value.categories.length > 0) {
+          params.append('category', value.categories[0]); // Use first selected category for cascading
+        }
+        if (value.brands.length > 0) {
+          params.append('brand', value.brands[0]); // Use first selected brand for cascading
+        }
+
+        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
+
+        if (response.data) {
+          setFilterOptions({
+            categories: (response.data.categories || []).filter(c => c && c !== 'All'),
+            brands: (response.data.brands || []).filter(b => b && b !== 'All'),
+            skus: (response.data.skus || []).filter(s => s && s !== 'All'),
+            loading: false,
+            error: null
+          });
+          console.log('[FilterDialog Platform Overview] Loaded filter options:', {
+            categories: response.data.categories?.length || 0,
+            brands: response.data.brands?.length || 0,
+            skus: response.data.skus?.length || 0
+          });
+        }
+      } catch (error) {
+        console.error('[FilterDialog Platform Overview] Error fetching filter options:', error);
+        setFilterOptions(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to load filter options'
+        }));
+      }
+    };
+
+    fetchFilterOptions();
+  }, [open, value.categories, value.brands]); // Refetch when categories or brands change (cascading filters)
+
+  // Use API-fetched options instead of hardcoded ones
+  const getCategoryOptions = () => filterOptions.categories;
 
   const getBrandOptions = () => {
-    // If no dynamic brands provided, return empty to show none
-    if (brandOptions.length === 0) return [];
-
-    // if categories selected, filter brands (if we had category-brand mapping)
-    // For now, return all available brands
-    return brandOptions;
+    // Brands are already filtered by category via the API cascading
+    return filterOptions.brands;
   };
 
   const getSkuOptions = () => {
-    // If no dynamic SKUs provided, return empty
-    if (skuOptions.length === 0) return [];
-
-    return skuOptions;
+    // SKUs are already filtered by category and brand via the API cascading
+    return filterOptions.skus;
   };
 
   const tabOptions = ["category", "brand", "sku"]; // always show all three
 
   const getListForTab = () => {
-    if (activeTab === "category") return categoryOptions;
+    if (activeTab === "category") return getCategoryOptions();
     if (activeTab === "brand") return getBrandOptions();
     return getSkuOptions();
   };
@@ -954,7 +975,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, value, categoryOptions, brandOptions, skuOptions]); // value drives dependencies
+  }, [activeTab, search, filterOptions]); // filterOptions drives dependencies
 
   const currentKey =
     activeTab === "category"
@@ -963,7 +984,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
         ? "brands"
         : "skus";
 
-  // strict dependency: parent change clears children AND triggers refetch
+  // strict dependency: parent change clears children
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
     if (current.has(item)) current.delete(item);
@@ -981,14 +1002,6 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
     }
 
     onChange(next);
-
-    // Trigger cascading refetch for Category or Brand changes
-    if (onSelectionChange && (type === "categories" || type === "brands")) {
-      onSelectionChange({
-        category: next.categories.length > 0 ? next.categories[0] : null,
-        brand: next.brands.length > 0 ? next.brands[0] : null
-      });
-    }
   };
 
   const handleSelectAll = (type, items) => {
@@ -1005,14 +1018,6 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
     }
 
     onChange(next);
-
-    // Trigger cascading refetch for Category or Brand changes
-    if (onSelectionChange && (type === "categories" || type === "brands")) {
-      onSelectionChange({
-        category: next.categories.length > 0 ? next.categories[0] : null,
-        brand: next.brands.length > 0 ? next.brands[0] : null
-      });
-    }
   };
 
   const allItemsForCurrentTab = getListForTab();
@@ -1022,7 +1027,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-5xl gap-0 p-0">
+      <DialogContent className="max-w-4xl gap-0 p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-lg font-semibold">Filters</DialogTitle>
         </DialogHeader>
@@ -1056,7 +1061,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
           </div>
 
           {/* Main pane */}
-          <div className="flex-1 px-6 py-4">
+          <div className="flex-1 px-6 py-4 min-w-0 overflow-hidden">
             <div className="flex items-center justify-between gap-4">
               <Input
                 placeholder="Search"
@@ -1074,25 +1079,34 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
               </button>
             </div>
 
-            <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
-              <div className="space-y-1 p-3">
-                {list.map((item) => (
+            <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60 overflow-x-hidden">
+              <div className="space-y-1 p-3 max-w-full">
+                {filterOptions.loading && (
+                  <div className="px-3 py-8 text-center text-xs text-slate-400">
+                    <div className="animate-pulse">Loading filter options...</div>
+                  </div>
+                )}
+
+                {filterOptions.error && (
+                  <div className="px-3 py-8 text-center text-xs text-red-400">
+                    {filterOptions.error}
+                  </div>
+                )}
+
+                {!filterOptions.loading && !filterOptions.error && list.map((item) => (
                   <label
                     key={item}
-                    className="flex cursor-pointer items-start gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100 overflow-hidden"
                   >
                     <Checkbox
                       checked={value[currentKey].includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
-                      className="mt-0.5"
                     />
-                    <span className="flex-1 break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
-                      {item}
-                    </span>
+                    <span className="truncate flex-1 min-w-0" title={item}>{item}</span>
                   </label>
                 ))}
 
-                {list.length === 0 && (
+                {!filterOptions.loading && !filterOptions.error && list.length === 0 && (
                   <div className="px-3 py-8 text-center text-xs text-slate-400">
                     No options found.
                   </div>
@@ -1125,8 +1139,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
         py: 0.6,
         borderRadius: "999px",
         cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"} `,
-        backgroundColor: active ? `${color} 20` : "white",
+        border: `1px solid ${active ? color : "#E5E7EB"}`,
+        backgroundColor: active ? `${color}20` : "white",
         color: active ? color : "#0f172a",
         fontSize: "12px",
         fontWeight: 600,
@@ -1140,7 +1154,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
           width: 14,
           height: 14,
           borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"} `,
+          border: `2px solid ${active ? color : "#CBD5E1"}`,
           backgroundColor: active ? color : "transparent",
           display: "flex",
           alignItems: "center",
@@ -1161,18 +1175,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-// Colors for multi-brand chart lines
-const BRAND_COLORS = [
-  "#3B82F6", // blue
-  "#10B981", // green  
-  "#F59E0B", // amber
-  "#EF4444", // red
-  "#8B5CF6", // purple
-  "#EC4899", // pink
-  "#06B6D4", // cyan
-];
-
-const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands = null, onBackToTable, onSwitchToKpi }) => {
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("osa");
 
@@ -1181,56 +1184,8 @@ const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands
 
   const isBrandMode = mode === "brand";
 
-  // ADDED: Competition mode with API-driven brand trends
-  const isCompetitionMode = selectedBrands && selectedBrands !== 'All';
-  const [brandTrends, setBrandTrends] = useState({});
-  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
-
-  // Parse selected brands for Competition mode
-  const competitionBrandList = useMemo(() => {
-    if (!isCompetitionMode) return [];
-    return selectedBrands.split(',').map(b => b.trim()).slice(0, 5);
-  }, [isCompetitionMode, selectedBrands]);
-
-  // Fetch trends for Competition brands
-  useEffect(() => {
-    if (!isCompetitionMode || competitionBrandList.length === 0) return;
-
-    const fetchBrandTrends = async () => {
-      setIsLoadingTrends(true);
-
-      try {
-        const response = await axiosInstance.get('/watchtower/competition-brand-trends', {
-          params: {
-            brands: competitionBrandList.join(','),
-            location: city,
-            period: '1M'
-          }
-        });
-
-        if (response.data && response.data.brands) {
-          console.log('[TrendView] Fetched brand trends:', response.data.brands);
-          setBrandTrends(response.data.brands);
-        }
-      } catch (error) {
-        console.error('[TrendView] Error fetching brand trends:', error);
-      } finally {
-        setIsLoadingTrends(false);
-      }
-    };
-
-    fetchBrandTrends();
-  }, [isCompetitionMode, competitionBrandList, city]);
-
-
   /* ---------------- SELECTED IDS ---------------- */
   const selectedIds = useMemo(() => {
-    // FIXED: Use competition brands if available
-    if (isCompetitionMode) {
-      console.log('[TrendView] Competition mode - selectedIds:', competitionBrandList);
-      return competitionBrandList;
-    }
-
     if (isBrandMode) {
       let rows = DATA_MODEL.brandSummaryByCity[city] || [];
 
@@ -1254,67 +1209,18 @@ const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands
       rows = rows.filter((r) => filters.skus.includes(r.name));
 
     return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
-  }, [isCompetitionMode, competitionBrandList, isBrandMode, filters, city]);
+  }, [isBrandMode, filters, city]);
 
   const selectedLabels = useMemo(
-    () => {
-      // FIXED: Use brand names directly for Competition mode
-      if (isCompetitionMode) return competitionBrandList;
-
-      return selectedIds.map((id) =>
+    () =>
+      selectedIds.map((id) =>
         isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      );
-    },
-    [isCompetitionMode, competitionBrandList, selectedIds, isBrandMode]
+      ),
+    [selectedIds, isBrandMode]
   );
 
   /* ---------------- CHART DATA ---------------- */
   const chartData = useMemo(() => {
-    // FIXED: Use API data for Competition mode
-    if (isCompetitionMode && Object.keys(brandTrends).length > 0) {
-      // Parse date string "DD MMM'YY" to Date object
-      const parseDate = (dateStr) => {
-        const [day, monthYear] = dateStr.split(' ');
-        const [month, year] = monthYear.replace("'", "").split("'");
-        const monthMap = {
-          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-        };
-        const monthNum = monthMap[month.trim()];
-        const yearNum = 2000 + parseInt(year || monthYear.replace("'", ""));
-        return new Date(yearNum, monthNum, parseInt(day));
-      };
-
-      // Collect all unique dates
-      const allDates = new Set();
-      Object.values(brandTrends).forEach(series => {
-        series.forEach(point => allDates.add(point.date));
-      });
-
-      // Sort dates chronologically
-      const sortedDates = Array.from(allDates).sort((a, b) =>
-        parseDate(a) - parseDate(b)
-      );
-
-      // Build chart data
-      return sortedDates.map(date => {
-        const row = { date };
-
-        competitionBrandList.forEach(brandName => {
-          const series = brandTrends[brandName];
-          if (series) {
-            const dataPoint = series.find(p => p.date === date);
-            // Use metric key directly as backend now returns lowercase keys (osa, sos, price, etc.)
-            const value = dataPoint?.[activeMetric];
-            row[brandName] = value !== undefined && value !== null ? Number(value) : null;
-          }
-        });
-
-        return row;
-      });
-    }
-
-    // Fallback to mock data
     const days = DATA_MODEL.days;
 
     return days.map((date, idx) => {
@@ -1330,19 +1236,13 @@ const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands
 
       return row;
     });
-  }, [isCompetitionMode, brandTrends, competitionBrandList, selectedIds, city, isBrandMode, activeMetric]);
+  }, [selectedIds, city, isBrandMode, activeMetric]);
 
   const formatValue = (v) => {
-    // FIXED: Handle NaN, null, undefined
-    if (v === null || v === undefined || isNaN(v)) return '-';
-
-    const numValue = Number(v);
-    if (isNaN(numValue)) return '-';
-
-    if (metricMeta.unit) return `${numValue}${metricMeta.unit}`;
-    if (metricMeta.prefix) return `${metricMeta.prefix}${numValue}`;
-    if (metricMeta.suffix) return `${numValue}${metricMeta.suffix}`;
-    return numValue.toString();
+    if (metricMeta.unit) return `${v}${metricMeta.unit}`;
+    if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
+    if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
+    return v;
   };
 
   return (
@@ -1394,26 +1294,19 @@ const TrendView = ({ mode, filters, city, competitionData = null, selectedBrands
                 fontSize={11}
                 tickFormatter={formatValue}
               />
-              <Tooltip
-                formatter={(value, name) => {
-                  if (value === null || value === undefined || isNaN(value)) return ['-', name];
-                  const numValue = Number(value);
-                  if (isNaN(numValue)) return ['-', name];
-                  return [formatValue(numValue), name];
-                }}
-              />
+              <Tooltip formatter={formatValue} />
               <Legend />
 
-              {selectedIds.map((id, idx) => (
+              {selectedIds.map((id) => (
                 <Line
                   key={id}
                   type="monotone"
                   dataKey={id}
                   name={
-                    isCompetitionMode ? id : (isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id])
+                    isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
                   }
                   dot={false}
-                  stroke={isCompetitionMode ? BRAND_COLORS[idx % BRAND_COLORS.length] : metricMeta.color}
+                  stroke={metricMeta.color}
                   strokeWidth={2}
                 />
               ))}
@@ -1478,50 +1371,8 @@ const KPI_KEYS = [
   },
 ];
 
-const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTrend }) => {
+const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
   const isBrandMode = mode === "brand";
-
-  // ADDED: Competition mode with API-driven brand trends
-  const isCompetitionMode = selectedBrands && selectedBrands !== 'All';
-  const [brandTrends, setBrandTrends] = useState({});
-  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
-
-  // Parse selected brands for Competition mode
-  const competitionBrandList = useMemo(() => {
-    if (!isCompetitionMode) return [];
-    return selectedBrands.split(',').map(b => b.trim()).slice(0, 5);
-  }, [isCompetitionMode, selectedBrands]);
-
-  // Fetch trends for Competition brands
-  useEffect(() => {
-    if (!isCompetitionMode || competitionBrandList.length === 0) return;
-
-    const fetchBrandTrends = async () => {
-      setIsLoadingTrends(true);
-
-      try {
-        const response = await axiosInstance.get('/watchtower/competition-brand-trends', {
-          params: {
-            brands: competitionBrandList.join(','),
-            location: city,
-            period: '1M'
-          }
-        });
-
-        if (response.data && response.data.brands) {
-          console.log('[TrendView] Fetched brand trends:', response.data.brands);
-          setBrandTrends(response.data.brands);
-        }
-      } catch (error) {
-        console.error('[TrendView] Error fetching brand trends:', error);
-      } finally {
-        setIsLoadingTrends(false);
-      }
-    };
-
-    fetchBrandTrends();
-  }, [isCompetitionMode, competitionBrandList, city]);
-
 
   const selectedIds = useMemo(() => {
     if (isBrandMode) {
@@ -1559,64 +1410,14 @@ const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTr
   }, [isBrandMode, filters, city]);
 
   const selectedLabels = useMemo(
-    () => {
-      // FIXED: Use brand names directly for Competition mode
-      if (isCompetitionMode) return competitionBrandList;
-
-      return selectedIds.map((id) =>
+    () =>
+      selectedIds.map((id) =>
         isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      );
-    },
-    [isCompetitionMode, competitionBrandList, selectedIds, isBrandMode]
+      ),
+    [selectedIds, isBrandMode]
   );
 
   const chartDataFor = (metricKey) => {
-    // FIXED: Use API data for Competition mode
-    if (isCompetitionMode && Object.keys(brandTrends).length > 0) {
-      // Parse date string "DD MMM'YY" to Date object for sorting
-      const parseDate = (dateStr) => {
-        const [day, monthYear] = dateStr.split(' ');
-        const [month, year] = monthYear.replace("'", "").split("'");
-        const monthMap = {
-          'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-          'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-        };
-        const monthNum = monthMap[month.trim()];
-        const yearNum = 2000 + parseInt(year || monthYear.replace("'", ""));
-        return new Date(yearNum, monthNum, parseInt(day));
-      };
-
-      // Collect all unique dates
-      const allDates = new Set();
-      Object.values(brandTrends).forEach(series => {
-        series.forEach(point => allDates.add(point.date));
-      });
-
-      // Sort dates chronologically
-      const sortedDates = Array.from(allDates).sort((a, b) =>
-        parseDate(a) - parseDate(b)
-      );
-
-      // Use metric key directly as backend now returns lowercase keys (osa, sos, price, etc.)
-
-      // Build chart data
-      return sortedDates.map(date => {
-        const row = { date };
-
-        competitionBrandList.forEach(brandName => {
-          const series = brandTrends[brandName];
-          if (series) {
-            const dataPoint = series.find(p => p.date === date);
-            const value = dataPoint?.[metricKey];
-            row[brandName] = value !== undefined && value !== null ? Number(value) : null;
-          }
-        });
-
-        return row;
-      });
-    }
-
-    // Fallback to mock data
     const days = DATA_MODEL.days;
 
     if (isBrandMode) {
@@ -1687,44 +1488,20 @@ const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTr
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis
-                    tickLine={false}
-                    fontSize={10}
-                    width={48}
-                    tickFormatter={(value) => formatYAxisTick(value, kpi.key)}
-                  />
-                  <Tooltip
-                    formatter={(value) => {
-                      if (value === null || value === undefined || isNaN(value)) return '-';
-                      return formatKpiValue(Number(value), kpi.key, 2);
-                    }}
-                  />
-                  {isCompetitionMode ? (
-                    competitionBrandList.map((brandName, idx) => (
-                      <Line
-                        key={brandName}
-                        type="monotone"
-                        dataKey={brandName}
-                        name={brandName}
-                        dot={false}
-                        stroke={BRAND_COLORS[idx % BRAND_COLORS.length]}
-                        strokeWidth={2}
-                      />
-                    ))
-                  ) : (
-                    selectedIds.map((id) => (
-                      <Line
-                        key={id}
-                        type="monotone"
-                        dataKey={id}
-                        name={
-                          isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-                        }
-                        dot={false}
-                        strokeWidth={2}
-                      />
-                    ))
-                  )}
+                  <YAxis tickLine={false} fontSize={10} width={32} />
+                  <Tooltip />
+                  {selectedIds.map((id) => (
+                    <Line
+                      key={id}
+                      type="monotone"
+                      dataKey={id}
+                      name={
+                        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+                      }
+                      dot={false}
+                      strokeWidth={2}
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
@@ -1739,327 +1516,302 @@ const KpiCompareView = ({ mode, filters, city, selectedBrands = null, onBackToTr
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        Brands (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
+const BrandTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-              <th className="px-3 py-2 text-right w-[16%]">OSA</th>
-              <th className="px-3 py-2 text-right w-[16%]">SOS</th>
-              <th className="px-3 py-2 text-right w-[16%]">Price</th>
-              <th className="px-3 py-2 text-right w-[16%]">Category Share</th>
-              <th className="px-3 py-2 text-right w-[16%]">Market Share</th>
-            </tr>
-          </thead>
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = useMemo(() => {
+    return rows.slice((page - 1) * pageSize, page * pageSize);
+  }, [rows, page, pageSize]);
 
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.name || `brand-${idx}`}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="px-3 py-2 font-medium text-slate-900">
-                  {row.name}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  {(() => {
-                    const val = row.offtakes || row.osa || 0;
-                    if (typeof val === 'number') {
-                      if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                      if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                      if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
-                      return row.osa ? `${val.toFixed(1)}%` : `₹${val.toFixed(0)}`;
-                    }
-                    return val;
-                  })()}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {(() => {
-                    const val = row.spend || row.sos || 0;
-                    if (typeof val === 'number') {
-                      if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-                      if (val >= 100000) return `₹${(val / 100000).toFixed(2)} L`;
-                      if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
-                      return row.sos ? `${val.toFixed(1)}%` : `₹${val.toFixed(0)}`;
-                    }
-                    return val;
-                  })()}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  ₹{row.price.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.categoryShare.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {row.marketShare.toFixed(1)}%
-                </td>
-              </tr>
-            ))}
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          Brands (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
 
-            {rows.length === 0 && (
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
+          <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-3 py-8 text-center text-slate-500"
+                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
+                <th className="px-3 py-2 text-right w-[16%]">OSA</th>
+                <th className="px-3 py-2 text-right w-[16%]">SOS</th>
+                <th className="px-3 py-2 text-right w-[16%]">Price</th>
+                <th className="px-3 py-2 text-right w-[16%]">Category Share</th>
+                <th className="px-3 py-2 text-right w-[16%]">Market Share</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
                 >
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-lg">No data available</span>
-                    <span className="text-sm text-slate-400">No brands found for the selected filters. Try adjusting your filter criteria.</span>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                    {row.name}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    {row.osa.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    ₹{row.price.toFixed(1)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.categoryShare.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.marketShare.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
 
-const SkuTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        SKUs (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-slate-400"
+                  >
+                    No brands matching current filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        isVisible={rows.length > 0}
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+      />
+    </Card>
+  );
+};
 
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left w-[20%]">SKU</th>
-              <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-              <th className="px-3 py-2 text-right w-[12%]">OSA</th>
-              <th className="px-3 py-2 text-right w-[12%]">SOS</th>
-              <th className="px-3 py-2 text-right w-[12%]">Price</th>
-              <th className="px-3 py-2 text-right w-[12%]">Cat Share</th>
-              <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
-            </tr>
-          </thead>
 
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id || row.name || `sku-${idx}`}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="px-3 py-2 font-medium text-slate-900">{row.name}</td>
-                <td className="px-3 py-2 text-slate-900">{row.brandName}</td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  {(() => {
-                    const val = row.osa || 0;
-                    if (typeof val === 'number') {
-                      return `${val.toFixed(1)}%`;
-                    }
-                    return val;
-                  })()}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {(row.sos || 0).toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                  ₹{(row.price || 0).toFixed(0)}
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {(row.categoryShare || 0).toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-slate-900">
-                  {(row.marketShare || 0).toFixed(1)}%
-                </td>
-              </tr>
-            ))}
+const SkuTable = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
-            {rows.length === 0 && (
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = useMemo(() => {
+    return rows.slice((page - 1) * pageSize, page * pageSize);
+  }, [rows, page, pageSize]);
+
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          SKUs (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
+          <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={7}
-                  className="px-3 py-8 text-center text-slate-500"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-lg">No data available</span>
-                    <span className="text-sm text-slate-400">No SKUs found for the selected filters. Try adjusting your filter criteria.</span>
-                  </div>
-                </td>
+                <th className="px-3 py-2 text-left w-[20%]">SKU</th>
+                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
+                <th className="px-3 py-2 text-right w-[12%]">OSA</th>
+                <th className="px-3 py-2 text-right w-[12%]">SOS</th>
+                <th className="px-3 py-2 text-right w-[12%]">Price</th>
+                <th className="px-3 py-2 text-right w-[12%]">Cat Share</th>
+                <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                    {row.name}
+                  </td>
+                  <td className="px-3 py-2 text-slate-900 border-r border-slate-100">
+                    {row.brandName}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    {row.osa.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.sos.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    ₹{row.price.toFixed(1)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.categoryShare.toFixed(1)}%
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    {row.marketShare.toFixed(1)}%
+                  </td>
+                </tr>
+              ))}
+
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-slate-400"
+                  >
+                    No SKUs matching current filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        isVisible={rows.length > 0}
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+      />
+    </Card>
+  );
+};
+
 
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({
-  filterOptions,
-  brandOptions: propBrandOptions = [],
-  skuOptions: propSkuOptions = [],
-  competitionData = null,
-  isLoading = false,
-  selectedCity: parentCity,
-  selectedCategory: parentCategory,
-  selectedBrand: parentBrand,
-  selectedSku: parentSku,
-  selectedItem,
-  selectedLevel,
-  onFilterChange
-}) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
-
-  // Use parent's selected city if provided, otherwise use first city
-  const [city, setCity] = useState(parentCity || CITIES[0]);
-
-  // Sync internal city state with parent's selectedCity
-  useEffect(() => {
-    if (parentCity && parentCity !== city) {
-      setCity(parentCity);
-    }
-  }, [parentCity]);
-
+  const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    categories: [],
+    brands: [],
+    skus: [],
+  });
+  const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
-  // Dynamic filter options from API
-  const [dynamicFilterOptions, setDynamicFilterOptions] = useState({
+  // API state for dynamic filter options
+  const [filterOptions, setFilterOptions] = useState({
     locations: ['All India'],
     categories: ['All'],
     brands: ['All'],
     skus: ['All']
   });
-  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
-
-  // Fetch filter options from competition-filter-options API
-  const fetchFilterOptions = async (location = null, category = null, brand = null) => {
-    setFilterOptionsLoading(true);
-    try {
-      const params = {};
-      if (location && location !== 'All India') params.location = location;
-      if (category && category !== 'All') params.category = category;
-      if (brand && brand !== 'All') params.brand = brand;
-
-      console.log('[PlatformOverviewKpiShowcase] Fetching filter options with params:', params);
-      const response = await axiosInstance.get('/watchtower/competition-filter-options', { params });
-
-      if (response.data) {
-        console.log('[PlatformOverviewKpiShowcase] Filter options received:', {
-          locations: response.data.locations?.length,
-          categories: response.data.categories?.length,
-          brands: response.data.brands?.length,
-          skus: response.data.skus?.length
-        });
-        setDynamicFilterOptions({
-          locations: response.data.locations || ['All India'],
-          categories: response.data.categories || ['All'],
-          brands: response.data.brands || ['All'],
-          skus: response.data.skus || ['All']
-        });
-      }
-    } catch (error) {
-      console.error('[PlatformOverviewKpiShowcase] Error fetching filter options:', error);
-    }
-    setFilterOptionsLoading(false);
-  };
+  const [apiBrandData, setApiBrandData] = useState([]);
+  const [apiSkuData, setApiSkuData] = useState([]);
+  const [apiLoading, setApiLoading] = useState(false);
 
   // Fetch filter options on mount
   useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const params = { location: city !== 'All India' ? city : undefined };
+        const res = await axiosInstance.get('/watchtower/competition-filter-options', { params });
+        if (res.data) {
+          setFilterOptions(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch filter options:', err);
+      }
+    };
     fetchFilterOptions();
-  }, []);
-
-  // Refresh filter options when city/location changes (cascading)
-  useEffect(() => {
-    if (city && city !== 'All India') {
-      fetchFilterOptions(city, filters.categories[0], filters.brands[0]);
-    }
   }, [city]);
 
-  const [filters, setFilters] = useState({
-    categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
-    // FIXED: Parse comma-separated brands back into array
-    brands: parentBrand && parentBrand !== 'All' ? parentBrand.split(',').map(b => b.trim()) : [],
-    skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
-  });
-
-  // Sync filters with parent selections
-  // Ref to track if filter change was initiated by user (not parent props)
-  const userChangedFiltersRef = useRef(false);
-
+  // Fetch brand/sku data when filters change
   useEffect(() => {
-    // This is a prop-driven change, not user-initiated
-    setFilters({
-      categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
-      // FIXED: Parse comma-separated brands back into array
-      brands: parentBrand && parentBrand !== 'All' ? parentBrand.split(',').map(b => b.trim()) : [],
-      skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
-    });
-  }, [parentCategory, parentBrand, parentSku]);
+    const fetchCompetitionData = async () => {
+      setApiLoading(true);
+      try {
+        // Build params for competition API
+        const selectedBrands = filters.brands.length > 0 ? filters.brands.join(',') : 'All';
+        const selectedCategory = filters.categories.length > 0 ? filters.categories[0] : 'All';
 
-  //Notify parent when user changes filters (via Filter Dialog)
-  // FIXED: Only notify when dialog closes AND user initiated the change
-  useEffect(() => {
-    // Skip if dialog is still open (user is still selecting)
-    if (filterDialogOpen) return;
+        const params = {
+          platform: 'All',
+          location: city !== 'All India' ? city : 'All',
+          category: selectedCategory,
+          brand: selectedBrands,
+          period: '1M'
+        };
 
-    // Only notify if user actually changed filters
-    if (!userChangedFiltersRef.current) return;
+        console.log('[PlatformOverviewKpiShowcase] Fetching competition data with params:', params);
+        const res = await axiosInstance.get('/watchtower/competition', { params });
 
-    if (!onFilterChange) return;
+        if (res.data) {
+          console.log('[PlatformOverviewKpiShowcase] Received:', res.data.brands?.length || 0, 'brands,', res.data.skus?.length || 0, 'skus');
 
-    const categoryValue = filters.categories.length > 0 ? filters.categories[0] : 'All';
-    // FIXED: Send ALL selected brands as comma-separated string
-    const brandValue = filters.brands.length > 0 ? filters.brands.join(',') : 'All';
-    const skuValue = filters.skus.length > 0 ? filters.skus[0] : 'All';
+          // Transform API response to match expected format (top 8 sorted by OSA)
+          const brandsArray = (res.data.brands || []).slice(0, 8).map((b, idx) => ({
+            id: b.brand_name?.toLowerCase().replace(/\s+/g, '-') || `brand-${idx}`,
+            name: b.brand_name || 'Unknown',
+            category: selectedCategory !== 'All' ? selectedCategory : 'General',
+            osa: b.osa || 0,
+            sos: b.sos || 0,
+            price: b.price || 0,
+            categoryShare: b.categoryShare || 0,
+            marketShare: b.marketShare || 0,
+          }));
 
-    console.log('[PlatformOverviewKpiShowcase] User changed filters, notifying parent:', { category: categoryValue, brand: brandValue, sku: skuValue });
-    onFilterChange({ category: categoryValue, brand: brandValue, sku: skuValue });
+          const skusArray = (res.data.skus || []).slice(0, 8).map((s, idx) => ({
+            id: s.sku_name?.toLowerCase().replace(/\s+/g, '-') || `sku-${idx}`,
+            name: s.sku_name || 'Unknown',
+            brandName: s.brand_name || 'Unknown',
+            category: selectedCategory !== 'All' ? selectedCategory : 'General',
+            osa: s.osa || 0,
+            sos: s.sos || 0,
+            price: s.price || 0,
+            categoryShare: s.categoryShare || 0,
+            marketShare: s.marketShare || 0,
+          }));
 
-    // Reset the flag
-    userChangedFiltersRef.current = false;
-  }, [filterDialogOpen, filters, onFilterChange]);
-
-  const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
+          setApiBrandData(brandsArray);
+          setApiSkuData(skusArray);
+        }
+      } catch (err) {
+        console.error('[PlatformOverviewKpiShowcase] Failed to fetch competition data:', err);
+      } finally {
+        setApiLoading(false);
+      }
+    };
+    fetchCompetitionData();
+  }, [city, filters.brands, filters.categories]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
-  // Use real competition data if available, otherwise fall back to mock data
+  // Dynamic filtered rows for table for the active tab + city
   const brandRows = useMemo(() => {
-    // FIXED: Access brands array from response object
-    if (competitionData && competitionData.brands && Array.isArray(competitionData.brands)) {
-      console.log('[PlatformOverviewKpiShowcase] Using competition data:', competitionData.brands);
-      // Transform backend data to match expected format
-      // Backend returns: { brand_name, osa, sos, price, categoryShare, marketShare }
-      return competitionData.brands.map(brand => ({
-        name: brand.brand_name || brand.brand || brand.name,
-        osa: brand.osa || 0,
-        sos: brand.sos || 0,
-        price: brand.price || 0,
-        categoryShare: brand.categoryShare || 0,
-        marketShare: brand.marketShare || 0
-      }));
-    }
-
-    // Fallback to mock data
-    const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
+    // Use API data if available, otherwise fallback to mock data
+    const allRows = apiBrandData.length > 0
+      ? apiBrandData
+      : (DATA_MODEL.brandSummaryByCity[city] || []);
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -2079,25 +1831,13 @@ const PlatformOverviewKpiShowcase = ({
     }
 
     return rows;
-  }, [city, filters, competitionData]); // FIXED: Added competitionData to dependency array
+  }, [city, filters, apiBrandData]);
 
   const skuRows = useMemo(() => {
-    // FIXED: Use competition SKU data if available
-    if (competitionData && competitionData.skus && Array.isArray(competitionData.skus)) {
-      console.log('[PlatformOverviewKpiShowcase] Using competition SKU data:', competitionData.skus);
-      return competitionData.skus.map(sku => ({
-        name: sku.sku_name || sku.name,
-        brandName: sku.brand_name || sku.brandName || 'Unknown',
-        osa: sku.osa || 0,
-        sos: sku.sos || 0,
-        price: sku.price || 0,
-        categoryShare: sku.categoryShare || 0,
-        marketShare: sku.marketShare || 0
-      }));
-    }
-
-    // Fallback to mock data
-    const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
+    // Use API data if available, otherwise fallback to mock data
+    const allRows = apiSkuData.length > 0
+      ? apiSkuData
+      : (DATA_MODEL.skuSummaryByCity[city] || []);
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -2111,7 +1851,7 @@ const PlatformOverviewKpiShowcase = ({
     }
 
     return rows;
-  }, [city, filters, competitionData]);
+  }, [city, filters, apiSkuData]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -2132,23 +1872,12 @@ const PlatformOverviewKpiShowcase = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={city} onValueChange={(newCity) => {
-            setCity(newCity);
-            // FIXED: Notify parent when city changes
-            if (onFilterChange) {
-              onFilterChange({
-                city: newCity,
-                category: filters.categories.length > 0 ? filters.categories[0] : (parentCategory || 'All'),
-                brand: filters.brands.length > 0 ? filters.brands.join(',') : (parentBrand || 'All'),
-                sku: filters.skus.length > 0 ? filters.skus[0] : (parentSku || 'All')
-              });
-            }
-          }}>
+          <Select value={city} onValueChange={setCity}>
             <SelectTrigger className="h-9 w-40 bg-white">
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
             <SelectContent>
-              {dynamicFilterOptions.locations.map((c) => (
+              {(filterOptions.locations || CITIES).map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
@@ -2219,8 +1948,6 @@ const PlatformOverviewKpiShowcase = ({
               mode="brand"
               filters={filters}
               city={city}
-              competitionData={competitionData}
-              selectedBrands={parentBrand}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
             />
@@ -2230,7 +1957,6 @@ const PlatformOverviewKpiShowcase = ({
               mode="brand"
               filters={filters}
               city={city}
-              selectedBrands={parentBrand}
               onBackToTrend={() => setViewMode("trend")}
             />
           )}
@@ -2253,7 +1979,6 @@ const PlatformOverviewKpiShowcase = ({
               mode="sku"
               filters={filters}
               city={city}
-              selectedBrands={parentBrand}
               onBackToTrend={() => setViewMode("trend")}
             />
           )}
@@ -2265,21 +1990,7 @@ const PlatformOverviewKpiShowcase = ({
         onClose={() => setFilterDialogOpen(false)}
         mode={tab}
         value={filters}
-        onChange={(newFilters) => {
-          // Mark that user is changing filters
-          userChangedFiltersRef.current = true;
-          setFilters(newFilters);
-        }}
-        onSelectionChange={({ category, brand }) => {
-          // Refetch filter options with cascading params
-          console.log('[PlatformOverviewKpiShowcase] Cascading filter change:', { category, brand });
-          fetchFilterOptions(city !== 'All India' ? city : null, category, brand);
-        }}
-        categoryOptions={dynamicFilterOptions.categories.filter(c => c !== 'All')}
-        brandOptions={dynamicFilterOptions.brands.filter(b => b !== 'All')}
-        skuOptions={dynamicFilterOptions.skus.filter(s => s !== 'All')}
-        brandNameToId={BRAND_NAME_TO_ID}
-        skuNameToId={SKU_NAME_TO_ID}
+        onChange={setFilters}
       />
     </div>
   );

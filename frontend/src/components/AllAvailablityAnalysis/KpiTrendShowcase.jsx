@@ -1,4 +1,6 @@
-import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import axiosInstance from "../../api/axiosInstance";
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -16,8 +18,6 @@ import {
   CartesianGrid,
 } from "recharts";
 import { Box } from "@mui/material";
-import axiosInstance from "../../api/axiosInstance";
-import { formatNumber, formatKpiValue, formatYAxisTick } from "../../utils/formatters";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -315,25 +315,23 @@ const SelectItem = ({ value, children }) => {
 const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
 
 /** Raw config – you can change this and UI will adapt */
-const createRawData = (filterOptions = {}, brandOptions = []) => ({
-  cities: filterOptions.locations || ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
-  categories: filterOptions.categories || ["Body Lotion", "Face Cream", "Soap"],
-  brands: brandOptions.length > 0
-    ? brandOptions.map((name, idx) => ({
-      id: `brand-${idx}`,
-      name: name,
-      category: filterOptions.categories?.[0] || "Body Lotion"
-    }))
-    : [
-      { id: "my-brand", name: "My Brand", category: "Body Lotion" },
-      { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
-      { id: "nivea", name: "Nivea", category: "Body Lotion" },
-      { id: "parachute-adv", name: "Parachute Advanced", category: "Body Lotion" },
-      { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
-      { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
-      { id: "joy", name: "Joy", category: "Body Lotion" },
-      { id: "biotique", name: "Biotique", category: "Face Cream" },
-    ],
+const RAW_DATA = {
+  cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
+  categories: ["Body Lotion", "Face Cream", "Soap"],
+  brands: [
+    { id: "my-brand", name: "My Brand", category: "Body Lotion" },
+    { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
+    { id: "nivea", name: "Nivea", category: "Body Lotion" },
+    {
+      id: "parachute-adv",
+      name: "Parachute Advanced",
+      category: "Body Lotion",
+    },
+    { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
+    { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
+    { id: "joy", name: "Joy", category: "Body Lotion" },
+    { id: "biotique", name: "Biotique", category: "Face Cream" },
+  ],
   skus: [
     {
       id: "vas-100",
@@ -366,62 +364,35 @@ const createRawData = (filterOptions = {}, brandOptions = []) => ({
       category: "Body Lotion",
     },
   ],
-});
-
-/** Derived option lists for filters */
-const getDerivedOptions = (RAW_DATA) => {
-  const CITIES = RAW_DATA.cities;
-  const CATEGORY_OPTIONS = RAW_DATA.categories;
-  const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
-  const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
-
-  /** ID <-> Name maps */
-  const BRAND_ID_TO_NAME = {};
-  const BRAND_NAME_TO_ID = {};
-  RAW_DATA.brands.forEach((b) => {
-    BRAND_ID_TO_NAME[b.id] = b.name;
-    BRAND_NAME_TO_ID[b.name] = b.id;
-  });
-
-  const SKU_ID_TO_NAME = {};
-  const SKU_NAME_TO_ID = {};
-  RAW_DATA.skus.forEach((s) => {
-    SKU_ID_TO_NAME[s.id] = s.name;
-    SKU_NAME_TO_ID[s.name] = s.id;
-  });
-
-  /** SKU group by brand */
-  const SKUS_BY_BRAND_ID = {};
-  RAW_DATA.skus.forEach((s) => {
-    if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
-    SKUS_BY_BRAND_ID[s.brandId].push(s);
-  });
-
-  return {
-    CITIES,
-    CATEGORY_OPTIONS,
-    BRAND_OPTIONS,
-    SKU_OPTIONS,
-    BRAND_ID_TO_NAME,
-    BRAND_NAME_TO_ID,
-    SKU_ID_TO_NAME,
-    SKU_NAME_TO_ID,
-    SKUS_BY_BRAND_ID,
-  };
 };
 
-const RAW_DATA = createRawData();
-const {
-  CITIES,
-  CATEGORY_OPTIONS,
-  BRAND_OPTIONS,
-  SKU_OPTIONS,
-  BRAND_ID_TO_NAME,
-  BRAND_NAME_TO_ID,
-  SKU_ID_TO_NAME,
-  SKU_NAME_TO_ID,
-  SKUS_BY_BRAND_ID,
-} = getDerivedOptions(RAW_DATA);
+/** Derived option lists for filters */
+const CITIES = RAW_DATA.cities;
+const CATEGORY_OPTIONS = RAW_DATA.categories;
+const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
+const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
+
+/** ID <-> Name maps */
+const BRAND_ID_TO_NAME = {};
+const BRAND_NAME_TO_ID = {};
+RAW_DATA.brands.forEach((b) => {
+  BRAND_ID_TO_NAME[b.id] = b.name;
+  BRAND_NAME_TO_ID[b.name] = b.id;
+});
+
+const SKU_ID_TO_NAME = {};
+const SKU_NAME_TO_ID = {};
+RAW_DATA.skus.forEach((s) => {
+  SKU_ID_TO_NAME[s.id] = s.name;
+  SKU_NAME_TO_ID[s.name] = s.id;
+});
+
+/** SKU group by brand */
+const SKUS_BY_BRAND_ID = {};
+RAW_DATA.skus.forEach((s) => {
+  if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
+  SKUS_BY_BRAND_ID[s.brandId].push(s);
+});
 
 /** Build mock metrics and trends – all UI reads from this single data model */
 const buildDataModel = () => {
@@ -449,6 +420,7 @@ const buildDataModel = () => {
 
         // NEW REQUIRED KPI FIELDS
         Osa: 80 + brandIdx * 1.2 + cityIdx * 0.5,
+        Listing: 60 + Math.random() * 35,
         Doi: 40 + brandIdx * 1.3 + cityIdx * 0.6,
         Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
         Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
@@ -474,6 +446,7 @@ const buildDataModel = () => {
 
         // NEW REQUIRED KPI FIELDS
         Osa: 78 + skuIdx * 1.1 + cityIdx * 0.5,
+        Listing: 60 + Math.random() * 35,
         Doi: 42 + skuIdx * 1.0 + cityIdx * 0.4,
         Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
         Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
@@ -497,6 +470,7 @@ const buildDataModel = () => {
 
         // NEW KPI TREND LINES
         Osa: 78 + brandIdx * 1.2 + Math.sin(idx / 3) * 2,
+        Listing: 85 + brandIdx * 0.5 + Math.cos(idx / 4) * 1.5,
         Doi: 40 + brandIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
         Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
@@ -520,6 +494,7 @@ const buildDataModel = () => {
 
         // NEW KPI trend lines
         Osa: 76 + skuIdx * 1.1 + Math.sin(idx / 3) * 2,
+        Listing: 82 + skuIdx * 0.6 + Math.sin(idx / 4) * 1.5,
         Doi: 41 + skuIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
         Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
@@ -543,36 +518,85 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange, categoryOptions = [], brandOptions = [], skuOptions = [], brandNameToId = {}, skuNameToId = {} }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
   );
   const [search, setSearch] = useState("");
 
-  // strict dependency: Category -> Brand -> SKU
-  // helpers to build dependent option lists
+  // Dynamic filter options from API
+  const [filterOptions, setFilterOptions] = useState({
+    categories: [],
+    brands: [],
+    skus: [],
+    loading: false,
+    error: null
+  });
+
+  // Fetch filter options from backend API
+  useEffect(() => {
+    if (!open) return; // Only fetch when dialog is open
+
+    const fetchFilterOptions = async () => {
+      setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
+
+      try {
+        // Build query params for cascading filters
+        const params = new URLSearchParams();
+        if (value.categories.length > 0) {
+          params.append('category', value.categories[0]); // Use first selected category for cascading
+        }
+        if (value.brands.length > 0) {
+          params.append('brand', value.brands[0]); // Use first selected brand for cascading
+        }
+
+        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
+
+        if (response.data) {
+          setFilterOptions({
+            categories: (response.data.categories || []).filter(c => c && c !== 'All'),
+            brands: (response.data.brands || []).filter(b => b && b !== 'All'),
+            skus: (response.data.skus || []).filter(s => s && s !== 'All'),
+            loading: false,
+            error: null
+          });
+          console.log('[FilterDialog] Loaded filter options:', {
+            categories: response.data.categories?.length || 0,
+            brands: response.data.brands?.length || 0,
+            skus: response.data.skus?.length || 0
+          });
+        }
+      } catch (error) {
+        console.error('[FilterDialog] Error fetching filter options:', error);
+        setFilterOptions(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to load filter options'
+        }));
+      }
+    };
+
+    fetchFilterOptions();
+  }, [open, value.categories, value.brands]); // Refetch when categories or brands change (cascading filters)
+
+  // Use API-fetched options instead of hardcoded ones
+  const getCategoryOptions = () => filterOptions.categories;
 
   const getBrandOptions = () => {
-    // If no dynamic brands provided, return empty to show none
-    if (brandOptions.length === 0) return [];
-
-    // if categories selected, filter brands (if we had category-brand mapping)
-    // For now, return all available brands
-    return brandOptions;
+    // Brands are already filtered by category via the API cascading
+    return filterOptions.brands;
   };
 
   const getSkuOptions = () => {
-    // If no dynamic SKUs provided, return empty
-    if (skuOptions.length === 0) return [];
-
-    return skuOptions;
+    // SKUs are already filtered by category and brand via the API cascading
+    return filterOptions.skus;
   };
 
   const tabOptions = ["category", "brand", "sku"]; // always show all three
 
   const getListForTab = () => {
-    if (activeTab === "category") return categoryOptions;
+    if (activeTab === "category") return getCategoryOptions();
     if (activeTab === "brand") return getBrandOptions();
     return getSkuOptions();
   };
@@ -582,7 +606,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, value, categoryOptions, brandOptions, skuOptions]); // value drives dependencies
+  }, [activeTab, search, filterOptions]); // filterOptions drives dependencies
 
   const currentKey =
     activeTab === "category"
@@ -591,7 +615,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
         ? "brands"
         : "skus";
 
-  // strict dependency: parent change clears children AND triggers refetch
+  // strict dependency: parent change clears children
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
     if (current.has(item)) current.delete(item);
@@ -609,14 +633,6 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
     }
 
     onChange(next);
-
-    // Trigger cascading refetch for Category or Brand changes
-    if (onSelectionChange && (type === "categories" || type === "brands")) {
-      onSelectionChange({
-        category: next.categories.length > 0 ? next.categories[0] : null,
-        brand: next.brands.length > 0 ? next.brands[0] : null
-      });
-    }
   };
 
   const handleSelectAll = (type, items) => {
@@ -633,14 +649,6 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
     }
 
     onChange(next);
-
-    // Trigger cascading refetch for Category or Brand changes
-    if (onSelectionChange && (type === "categories" || type === "brands")) {
-      onSelectionChange({
-        category: next.categories.length > 0 ? next.categories[0] : null,
-        brand: next.brands.length > 0 ? next.brands[0] : null
-      });
-    }
   };
 
   const allItemsForCurrentTab = getListForTab();
@@ -650,7 +658,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-5xl gap-0 p-0">
+      <DialogContent className="max-w-4xl gap-0 p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="text-lg font-semibold">Filters</DialogTitle>
         </DialogHeader>
@@ -704,23 +712,32 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onSelectionChange,
 
             <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
               <div className="space-y-1 p-3">
-                {list.map((item) => (
+                {filterOptions.loading && (
+                  <div className="px-3 py-8 text-center text-xs text-slate-400">
+                    <div className="animate-pulse">Loading filter options...</div>
+                  </div>
+                )}
+
+                {filterOptions.error && (
+                  <div className="px-3 py-8 text-center text-xs text-red-400">
+                    {filterOptions.error}
+                  </div>
+                )}
+
+                {!filterOptions.loading && !filterOptions.error && list.map((item) => (
                   <label
                     key={item}
-                    className="flex cursor-pointer items-start gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                   >
                     <Checkbox
                       checked={value[currentKey].includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
-                      className="mt-0.5"
                     />
-                    <span className="flex-1 break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', hyphens: 'auto' }}>
-                      {item}
-                    </span>
+                    <span className="truncate">{item}</span>
                   </label>
                 ))}
 
-                {list.length === 0 && (
+                {!filterOptions.loading && !filterOptions.error && list.length === 0 && (
                   <div className="px-3 py-8 text-center text-xs text-slate-400">
                     No options found.
                   </div>
@@ -936,31 +953,19 @@ const KPI_KEYS = [
   {
     key: "Osa",
     label: "OSA",
-    color: "#2563EB", // blue
+    color: "#F97316", // orange (matching other drawer)
     unit: "%",
   },
   {
-    key: "Doi",
-    label: "DOI",
-    color: "#7C3AED", // purple
-    unit: " days",
-  },
-  {
-    key: "Fillrate",
-    label: "Fillrate",
-    color: "#22C55E", // green
+    key: "Listing",
+    label: "Listing %",
+    color: "#8B5CF6", // violet
     unit: "%",
   },
   {
     key: "Assortment",
     label: "Assortment",
-    color: "#F97316", // orange
-    unit: "%",
-  },
-  {
-    key: "PSL",
-    label: "PSL",
-    color: "#E11D48", // rose
+    color: "#22C55E", // green
     unit: "%",
   },
 ];
@@ -1083,18 +1088,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis
-                    tickLine={false}
-                    fontSize={10}
-                    width={48}
-                    tickFormatter={(value) => formatYAxisTick(value, kpi.key)}
-                  />
-                  <Tooltip
-                    formatter={(value) => {
-                      if (value === null || value === undefined || isNaN(value)) return '-';
-                      return formatKpiValue(Number(value), kpi.key, 2);
-                    }}
-                  />
+                  <YAxis tickLine={false} fontSize={10} width={32} />
+                  <Tooltip />
                   {selectedIds.map((id) => (
                     <Line
                       key={id}
@@ -1121,334 +1116,345 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows }) => (
-  <Card className="mt-3">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        Brands (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">Brand</th>
-              <th className="px-3 py-2 text-right">Osa</th>
-              <th className="px-3 py-2 text-right">Doi</th>
-              <th className="px-3 py-2 text-right">Fillrate</th>
-              <th className="px-3 py-2 text-right">Assortment</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.name}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Osa.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Doi.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Fillrate.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Assortment.toFixed(1)}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-3 py-8 text-center text-slate-500"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-lg">No data available</span>
-                    <span className="text-sm text-slate-400">No brands found for the selected filters. Try adjusting your filter criteria.</span>
-                  </div>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
+const ProgressBar = ({ value, color }) => (
+  <div className="h-1.5 w-24 rounded-full bg-slate-100">
+    <div
+      className="h-1.5 rounded-full transition-all duration-500"
+      style={{
+        width: `${Math.max(0, Math.min(100, value))}%`,
+        backgroundColor:
+          color || (value >= 80 ? "#10b981" : value >= 60 ? "#f59e0b" : "#ef4444"),
+      }}
+    />
+  </div>
 );
 
-const SkuTable = ({ rows }) => (
-  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
-    <CardHeader className="border-b pb-2">
-      <CardTitle className="text-sm font-medium text-slate-800">
-        SKUs (Top {rows.length || 0})
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="pt-3">
-      <div className="max-h-[380px] overflow-auto rounded-md border">
-        <table className="min-w-full divide-y divide-slate-200 text-xs">
-          <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2 text-left">SKU</th>
-              <th className="px-3 py-2 text-left">Brand</th>
-              <th className="px-3 py-2 text-right">Osa</th>
-              <th className="px-3 py-2 text-right">Doi</th>
-              <th className="px-3 py-2 text-right">Fillrate</th>
-              <th className="px-3 py-2 text-right">Assortment</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
-            {rows.map((row, idx) => (
-              <tr
-                key={row.id}
-                className={cn(
-                  "hover:bg-slate-50",
-                  idx % 2 === 1 && "bg-slate-50/60"
-                )}
-              >
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                  {row.name}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
-                  {row.brandName}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Osa.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Doi.toFixed(1)}
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Fillrate.toFixed(1)}%
-                </td>
-                <td className="px-3 py-2 text-right text-[12px]">
-                  {row.Assortment.toFixed(0)}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+const BrandTable = ({ rows, loading }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
+
+  return (
+    <Card className="mt-3">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          Brands (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <td
-                  colSpan={7}
-                  className="px-3 py-8 text-center text-slate-500"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-lg">No data available</span>
-                    <span className="text-sm text-slate-400">No SKUs found for the selected filters. Try adjusting your filter criteria.</span>
-                  </div>
-                </td>
+                <th className="px-3 py-2 text-left">Brand</th>
+                <th className="px-3 py-2 text-center">OSA</th>
+                <th className="px-3 py-2 text-center">SOS</th>
+                <th className="px-3 py-2 text-center">Price</th>
+                <th className="px-3 py-2 text-center">Category Share</th>
+                <th className="px-3 py-2 text-center">Market Share</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </CardContent>
-  </Card>
-);
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                    <div className="animate-pulse">Loading competition data...</div>
+                  </td>
+                </tr>
+              )}
+              {!loading && paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.name}
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {(row.osa || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {(row.sos || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      ₹{(row.price || 0).toFixed(0)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
+                      {(row.categoryShare || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
+                      {(row.marketShare || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No brands matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
+      />
+    </Card>
+  );
+};
+
+const SkuTable = ({ rows, loading }) => {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const totalPages = Math.ceil(rows.length / pageSize);
+  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
+
+  return (
+    <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+      <CardHeader className="border-b pb-2">
+        <CardTitle className="text-sm font-medium text-slate-800">
+          SKUs (Top {rows.length || 0})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">
+        <div className="max-h-[380px] overflow-auto rounded-md border">
+          <table className="min-w-full divide-y divide-slate-200 text-xs">
+            <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-left">SKU</th>
+                <th className="px-3 py-2 text-left">Brand</th>
+                <th className="px-3 py-2 text-center">OSA</th>
+                <th className="px-3 py-2 text-center">SOS</th>
+                <th className="px-3 py-2 text-center">Price</th>
+                <th className="px-3 py-2 text-center">Category Share</th>
+                <th className="px-3 py-2 text-center">Market Share</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                    <div className="animate-pulse">Loading competition data...</div>
+                  </td>
+                </tr>
+              )}
+              {!loading && paginatedRows.map((row, idx) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    "hover:bg-slate-50",
+                    idx % 2 === 1 && "bg-slate-50/60"
+                  )}
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                    {row.name}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                    {row.brandName}
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {(row.osa || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      {(row.sos || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="font-semibold text-slate-700">
+                      ₹{(row.price || 0).toFixed(0)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
+                      {(row.categoryShare || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-[12px]">
+                    <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
+                      {(row.marketShare || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-3 py-6 text-center text-[12px] text-slate-400"
+                  >
+                    No SKUs matching current filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <PaginationFooter
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        isVisible={rows.length > 0}
+      />
+    </Card>
+  );
+};
 
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = ({
-  filterOptions,
-  brandOptions: propBrandOptions = [],
-  skuOptions: propSkuOptions = [],
-  competitionData = null,
-  isLoading = false,
-  selectedCity: parentCity,
-  selectedCategory: parentCategory,
-  selectedBrand: parentBrand,
-  selectedSku: parentSku,
-  onFilterChange
-}) => {
-  // Create RAW_DATA with props
-  const RAW_DATA = useMemo(() => createRawData(filterOptions, propBrandOptions), [filterOptions, propBrandOptions]);
-  const derived = useMemo(() => getDerivedOptions(RAW_DATA), [RAW_DATA]);
-  const { CITIES, BRAND_ID_TO_NAME, BRAND_NAME_TO_ID, SKU_ID_TO_NAME, SKU_NAME_TO_ID, SKUS_BY_BRAND_ID } = derived;
-
-  // Use prop SKU options if available, otherwise use derived
-  const CATEGORY_OPTIONS = derived.CATEGORY_OPTIONS;
-  const BRAND_OPTIONS = propBrandOptions.length > 0 ? propBrandOptions : derived.BRAND_OPTIONS;
-  const SKU_OPTIONS = propSkuOptions.length > 0 ? propSkuOptions : derived.SKU_OPTIONS;
-
-  // Rebuild DATA_MODEL when RAW_DATA changes (for fallback/mock data)
-  const DATA_MODEL = useMemo(() => buildDataModel(), [RAW_DATA]);
-
+export const KpiTrendShowcase = () => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
-
-  // Use parent's selected city if provided, otherwise use first city
-  const [city, setCity] = useState(parentCity || CITIES[0]);
-
-  // Sync internal city state with parent's selectedCity
-  useEffect(() => {
-    if (parentCity && parentCity !== city) {
-      setCity(parentCity);
-    }
-  }, [parentCity]);
-
+  const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-
-  // Dynamic filter options from API
-  const [dynamicFilterOptions, setDynamicFilterOptions] = useState({
-    locations: ['All India'],
-    categories: ['All'],
-    brands: ['All'],
-    skus: ['All']
-  });
-  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
-
-  // Fetch filter options from competition-filter-options API
-  const fetchFilterOptions = async (location = null, category = null, brand = null) => {
-    setFilterOptionsLoading(true);
-    try {
-      const params = {};
-      if (location && location !== 'All India') params.location = location;
-      if (category && category !== 'All') params.category = category;
-      if (brand && brand !== 'All') params.brand = brand;
-
-      console.log('[KpiTrendShowcase] Fetching filter options with params:', params);
-      const response = await axiosInstance.get('/watchtower/competition-filter-options', { params });
-
-      if (response.data) {
-        console.log('[KpiTrendShowcase] Filter options received:', {
-          locations: response.data.locations?.length,
-          categories: response.data.categories?.length,
-          brands: response.data.brands?.length,
-          skus: response.data.skus?.length
-        });
-        setDynamicFilterOptions({
-          locations: response.data.locations || ['All India'],
-          categories: response.data.categories || ['All'],
-          brands: response.data.brands || ['All'],
-          skus: response.data.skus || ['All']
-        });
-      }
-    } catch (error) {
-      console.error('[KpiTrendShowcase] Error fetching filter options:', error);
-    }
-    setFilterOptionsLoading(false);
-  };
-
-  // Fetch filter options on mount
-  useEffect(() => {
-    fetchFilterOptions();
-  }, []);
-
-  // Refresh filter options when city/location changes (cascading)
-  useEffect(() => {
-    if (city && city !== 'All India') {
-      fetchFilterOptions(city, filters.categories?.[0], filters.brands?.[0]);
-    }
-  }, [city]);
-
   const [filters, setFilters] = useState({
-    categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
-    brands: parentBrand && parentBrand !== 'All' ? [parentBrand] : [],
-    skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
+    categories: [],
+    brands: [],
+    skus: [],
   });
-
-  // Sync filters with parent selections
-  useEffect(() => {
-    setFilters({
-      categories: parentCategory && parentCategory !== 'All' ? [parentCategory] : [],
-      brands: parentBrand && parentBrand !== 'All' ? [parentBrand] : [],
-      skus: parentSku && parentSku !== 'All' ? [parentSku] : [],
-    });
-  }, [parentCategory, parentBrand, parentSku]);
-
-  // Notify parent when user changes filters (via Filter Dialog)
-  useEffect(() => {
-    if (!onFilterChange) return;
-    const categoryValue = filters.categories.length > 0 ? filters.categories[0] : 'All';
-    const brandValue = filters.brands.length > 0 ? filters.brands[0] : 'All';
-    const skuValue = filters.skus.length > 0 ? filters.skus[0] : 'All';
-    if (categoryValue !== parentCategory || brandValue !== parentBrand || skuValue !== parentSku) {
-      console.log('[KpiTrendShowcase] User changed filters, notifying parent');
-      onFilterChange({ category: categoryValue, brand: brandValue, sku: skuValue });
-    }
-  }, [filters]);
-
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
+
+  // State for API competition data
+  const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+  const [loading, setLoading] = useState(false);
+
+  // Fetch competition data from API
+  useEffect(() => {
+    const fetchCompetitionData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          location: city === 'All India' ? 'All' : city,
+          category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
+          brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
+          sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+          period: '1M'
+        };
+        console.log('[KpiTrendShowcase] Fetching competition data with params:', params);
+        const response = await axiosInstance.get('/watchtower/competition', { params });
+        if (response.data) {
+          console.log('[KpiTrendShowcase] Received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
+          setCompetitionData(response.data);
+        }
+      } catch (error) {
+        console.error('[KpiTrendShowcase] Error fetching competition data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCompetitionData();
+  }, [city, filters]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
-  // Use real competition data if available, otherwise fall back to mock data
+  // Brand rows from API data (top 8 sorted by OSA)
   const brandRows = useMemo(() => {
-    // FIXED: Access brands array from response object (same structure as PlatformOverviewKpiShowcase)
-    if (competitionData && competitionData.brands && Array.isArray(competitionData.brands)) {
-      console.log('[KpiTrendShowcase] Using competition data:', competitionData.brands);
-      // Transform backend data to match expected format
-      // Backend returns: { brand_name, osa, sos, price, categoryShare, marketShare }
-      return competitionData.brands.map(brand => ({
-        name: brand.brand_name || brand.brand || brand.name,
-        osa: brand.osa || 0,
-        sos: brand.sos || 0,
-        price: brand.price || 0,
-        categoryShare: brand.categoryShare || 0,
-        marketShare: brand.marketShare || 0
-      }));
-    }
+    const apiBrands = competitionData.brands || [];
+    return apiBrands.slice(0, 8).map((b, idx) => ({
+      id: b.brand_name || `brand-${idx}`,
+      name: b.brand_name || 'Unknown',
+      osa: b.osa || 0,
+      sos: b.sos || 0,
+      price: b.price || 0,
+      categoryShare: b.categoryShare || 0,
+      marketShare: b.marketShare || 0
+    }));
+  }, [competitionData.brands]);
 
-    // Fallback to mock data
-    const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
-    let rows = allRows;
-
-    if (filters.categories.length) {
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    }
-    if (filters.brands.length) {
-      rows = rows.filter((r) => filters.brands.includes(r.name));
-    }
-    // if SKUs selected, show only brands that have any selected SKU
-    if (filters.skus.length) {
-      const brandIdsWithSelectedSkus = new Set(
-        RAW_DATA.skus
-          .filter((s) => filters.skus.includes(s.name))
-          .map((s) => s.brandId)
-      );
-      rows = rows.filter((r) => brandIdsWithSelectedSkus.has(r.id));
-    }
-
-    return rows;
-  }, [city, filters]);
-
+  // SKU rows from API data (top 8 sorted by OSA)
   const skuRows = useMemo(() => {
-    const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
-    let rows = allRows;
-
-    if (filters.categories.length) {
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    }
-    if (filters.brands.length) {
-      rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    }
-    if (filters.skus.length) {
-      rows = rows.filter((r) => filters.skus.includes(r.name));
-    }
-
-    return rows;
-  }, [DATA_MODEL, city, filters, competitionData]);
+    const apiSkus = competitionData.skus || [];
+    return apiSkus.slice(0, 8).map((s, idx) => ({
+      id: s.sku_name || `sku-${idx}`,
+      name: s.sku_name || 'Unknown',
+      brandName: s.brand_name || 'Unknown',
+      osa: s.osa || 0,
+      sos: s.sos || 0,
+      price: s.price || 0,
+      categoryShare: s.categoryShare || 0,
+      marketShare: s.marketShare || 0
+    }));
+  }, [competitionData.skus]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
       {/* Header */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-3 text-sm text-slate-500">
-            <Badge className="bg-blue-50 text-blue-700 border-blue-100">
-              {filters.categories[0] || "All Categories"}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+            {/* Categories: Always show selected or 'All Categories' */}
+            {filters.categories.length > 0 ? (
+              filters.categories.map((c) => (
+                <Badge
+                  key={c}
+                  className="bg-blue-50 text-blue-700 border-blue-100"
+                >
+                  {c}
+                </Badge>
+              ))
+            ) : (
+              <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                All Categories
+              </Badge>
+            )}
+
+            {/* Brands: Always show selected */}
+            {filters.brands.map((b) => (
+              <Badge
+                key={b}
+                className="bg-indigo-50 text-indigo-700 border-indigo-100"
+              >
+                {b}
+              </Badge>
+            ))}
+
+            {/* SKUs: Show only if tab is 'sku' */}
+            {tab === "sku" &&
+              filters.skus.map((s) => (
+                <Badge
+                  key={s}
+                  className="bg-purple-50 text-purple-700 border-purple-100"
+                >
+                  {s}
+                </Badge>
+              ))}
           </div>
           <h1 className="text-lg font-semibold text-slate-900">
             Competition List
@@ -1461,7 +1467,7 @@ export const KpiTrendShowcase = ({
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
             <SelectContent>
-              {dynamicFilterOptions.locations.map((c) => (
+              {CITIES.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
@@ -1526,7 +1532,7 @@ export const KpiTrendShowcase = ({
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} loading={loading} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -1548,7 +1554,7 @@ export const KpiTrendShowcase = ({
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} loading={loading} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -1569,23 +1575,12 @@ export const KpiTrendShowcase = ({
         </TabsContent>
       </Tabs>
 
-      {/* FILTER DIALOG */}
       <FilterDialog
         open={filterDialogOpen}
         onClose={() => setFilterDialogOpen(false)}
         mode={tab}
         value={filters}
         onChange={setFilters}
-        onSelectionChange={({ category, brand }) => {
-          // Refetch filter options with cascading params
-          console.log('[KpiTrendShowcase] Cascading filter change:', { category, brand });
-          fetchFilterOptions(city !== 'All India' ? city : null, category, brand);
-        }}
-        categoryOptions={dynamicFilterOptions.categories.filter(c => c !== 'All')}
-        brandOptions={dynamicFilterOptions.brands.filter(b => b !== 'All')}
-        skuOptions={dynamicFilterOptions.skus.filter(s => s !== 'All')}
-        brandNameToId={BRAND_NAME_TO_ID}
-        skuNameToId={SKU_NAME_TO_ID}
       />
     </div>
   );

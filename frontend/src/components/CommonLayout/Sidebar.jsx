@@ -34,6 +34,7 @@ import {
   AutoGraph as AutoGraphIcon,
   AdsClick as AdsClickIcon,
   Science as ScienceIcon,
+  Schedule as ScheduleIcon,
 } from "@mui/icons-material";
 
 const Sidebar = ({
@@ -69,6 +70,7 @@ const Sidebar = ({
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
     ],
   };
 
