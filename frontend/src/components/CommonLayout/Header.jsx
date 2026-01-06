@@ -22,8 +22,9 @@ import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeComparePicker from "./DateRangeComparePicker";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import CustomHeaderDropdown from "./CustomHeaderDropdown";
 
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
@@ -40,11 +41,17 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     selectedLocation,
     setSelectedLocation,
     platforms,
-    platform, setPlatform,
-    timeStart, setTimeStart,
-    timeEnd, setTimeEnd,
-    compareStart, setCompareStart,
-    compareEnd, setCompareEnd
+    platform,
+    setPlatform,
+    timeStart,
+    setTimeStart,
+    timeEnd,
+    setTimeEnd,
+    compareStart,
+    setCompareStart,
+    compareEnd,
+    setCompareEnd,
+    setComparisonLabel,
   } = React.useContext(FilterContext);
 
   const location = useLocation();
@@ -71,9 +78,11 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 2,
+          flexWrap: "nowrap",
+          gap: 1,
           alignItems: "center",
+          overflowX: "auto",
+          pb: 0.5, // slightly partial scrolling buffer
         }}
       >
         {/* LEFT SIDE */}
@@ -93,15 +102,58 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 bgcolor: "#f1f5f9",
                 "&:hover": { bgcolor: "#e2e8f0" },
                 transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.3s ease"
+                transition: "transform 0.3s ease",
               }}
             >
               <ChevronDown size={18} />
             </IconButton>
 
-            <Typography variant="h6" fontWeight="700">
-              {title}
-            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column" }}>
+              <Typography
+                variant="h6"
+                fontWeight="700"
+                sx={{ whiteSpace: "nowrap", lineHeight: 1.2 }}
+              >
+                {title}
+              </Typography>
+              {title !== "Performance Marketing" && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      bgcolor: "#22C55E",
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#64748b",
+                    }}
+                  >
+                    {(() => {
+                      const darkStorePlatforms = ["Blinkit", "Zepto", "Instamart"];
+                      const marketplacePlatforms = ["Flipkart", "Amazon"];
+
+                      const selectedList = platform === "All"
+                        ? [...darkStorePlatforms, ...marketplacePlatforms]
+                        : (Array.isArray(platform) ? platform : [platform]);
+
+                      const dCount = selectedList.filter(p => darkStorePlatforms.includes(p)).length;
+                      const mCount = selectedList.filter(p => marketplacePlatforms.includes(p)).length;
+
+                      const parts = [];
+                      if (dCount > 0) parts.push(`${dCount} Active Dark Store${dCount > 1 ? 's' : ''}`);
+                      if (mCount > 0) parts.push(`${mCount} Active Marketplace${mCount > 1 ? 's' : ''}`);
+
+                      return parts.length > 0 ? parts.join(" & ") : "0 Active Platforms";
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
         </Box>
 
@@ -115,106 +167,41 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 2,
-                flexWrap: "wrap",
-                overflow: "visible"
+                gap: 1,
+                flexWrap: "nowrap",
+                overflow: "visible",
               }}
             >
+
               {/* PLATFORM SELECTION */}
-              <Box>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  PLATFORM
-                </Typography>
-                <Autocomplete
-                  disableClearable
-                  options={platforms}
-                  value={platform}
-                  onChange={(event, newValue) => setPlatform(newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      sx={{ width: 130 }}
-                    />
-                  )}
-                />
-              </Box>
+              <CustomHeaderDropdown
+                label="PLATFORM"
+                options={platforms}
+                value={platform}
+                onChange={(newValue) => setPlatform(newValue)}
+                width={150}
+              />
 
-              {/* BRAND SELECTION */}
-              <Box>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  BRAND
-                </Typography>
-                <Autocomplete
-                  options={brands}
-                  value={selectedBrand}
-                  onChange={(event, newValue) => setSelectedBrand(newValue)}
-                  disableClearable
-                  ListboxProps={{
-                    style: {
-                      maxHeight: "160px", // Approx 4 items (assuming ~40px per item)
-                    },
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      sx={{ width: 130 }}
-                    />
-                  )}
-                />
-              </Box>
+              <CustomHeaderDropdown
+                label="BRAND"
+                options={brands}
+                value={selectedBrand}
+                onChange={(newValue) => setSelectedBrand(newValue)}
+                width={150}
+              />
 
-              {/* LOCATION SELECTION */}
-              <Box>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
-                  }}
-                >
-                  LOCATION
-                </Typography>
-                <Autocomplete
-                  disableClearable
-                  options={locations}
-                  value={selectedLocation}
-                  onChange={(event, newValue) => setSelectedLocation(newValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      sx={{ width: 130 }}
-                    />
-                  )}
-                  ListboxProps={{
-                    style: {
-                      maxHeight: "160px",
-                    },
-                  }}
-                />
-              </Box>
+              <CustomHeaderDropdown
+                label="LOCATION"
+                options={locations}
+                value={selectedLocation}
+                onChange={(newValue) => setSelectedLocation(newValue)}
+                width={150}
+              />
 
 
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: 220 }}>
+              <Box sx={{ width: 220, flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
@@ -230,9 +217,22 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   timeEnd={timeEnd}
                   compareStart={compareStart}
                   compareEnd={compareEnd}
-                  onApply={(start, end, cStart, cEnd, compareOn) => {
+                  onApply={(start, end, cStart, cEnd, compareOn, label) => {
                     setTimeStart(start);
                     setTimeEnd(end);
+
+                    // Format label for KPI cards
+                    let formattedLabel = "VS PREV. PERIOD";
+                    if (label) {
+                      const up = label.toUpperCase();
+                      if (up === "TODAY") formattedLabel = "VS YESTERDAY"; // Usually compares to yesterday
+                      else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
+                      else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
+                      else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
+                      else formattedLabel = `VS ${up}`;
+                    }
+                    setComparisonLabel(formattedLabel);
+
                     if (compareOn) {
                       setCompareStart(cStart);
                       setCompareEnd(cEnd);
@@ -264,7 +264,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               flexWrap: "wrap",
               mt: 2,
               alignItems: "center",
-              overflow: "visible"
+              overflow: "visible",
             }}
           >
             {/* DATE INFO

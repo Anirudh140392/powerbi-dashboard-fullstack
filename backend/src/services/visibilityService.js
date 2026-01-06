@@ -15,11 +15,40 @@ import dayjs from 'dayjs';
  * @param {string|null} platform - Platform filter (optional)
  * @returns {Promise<{overall: number, sponsored: number, organic: number}>}
  */
+/**
+ * OPTIMIZED: Calculate ALL SOS percentages in a SINGLE query
+ * Returns overall, sponsored, and organic SOS in one database call
+ * @param {string} dateFrom - Start date (YYYY-MM-DD)
+ * @param {string} dateTo - End date (YYYY-MM-DD)
+ * @param {string|null} platform - Platform filter (optional)
+ * @returns {Promise<{overall: number, sponsored: number, organic: number}>}
+ */
 async function calculateAllSOS(dateFrom, dateTo, platform = null) {
     try {
         let platformCondition = '';
         if (platform && platform !== 'All') {
             platformCondition = `AND LOWER(platform_name) = LOWER('${platform}')`;
+        }
+
+        // Optimization: Add YEAR and MONTH filters to help partition pruning
+        const start = dayjs(dateFrom);
+        const end = dayjs(dateTo);
+        const startYear = start.year();
+        const startMonth = start.month() + 1; // dayjs is 0-indexed
+        const endYear = end.year();
+        const endMonth = end.month() + 1;
+
+        let partitionCondition = '';
+        if (startYear === endYear && startMonth === endMonth) {
+            partitionCondition = `AND YEAR = ${startYear} AND MONTH = ${startMonth}`;
+        } else if (startYear === endYear) {
+            partitionCondition = `AND YEAR = ${startYear} AND MONTH BETWEEN ${startMonth} AND ${endMonth}`;
+        } else {
+            // Basic cross-year/month handling
+            partitionCondition = `AND (
+                (YEAR = ${startYear} AND MONTH >= ${startMonth}) OR 
+                (YEAR = ${endYear} AND MONTH <= ${endMonth})
+             )`;
         }
 
         // Single query that calculates ALL SOS types at once
@@ -31,6 +60,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null) {
             FROM rb_kw
             WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
             ${platformCondition}
+            ${partitionCondition}
         `;
 
         const result = await sequelize.query(query, {
@@ -70,6 +100,26 @@ async function getAllSOSTrends(days = 7, platform = null) {
             platformCondition = `AND LOWER(platform_name) = LOWER('${platform}')`;
         }
 
+        // Optimization: Add YEAR and MONTH filters
+        const start = dayjs(dateFrom);
+        const end = dayjs(dateTo);
+        const startYear = start.year();
+        const startMonth = start.month() + 1;
+        const endYear = end.year();
+        const endMonth = end.month() + 1;
+
+        let partitionCondition = '';
+        if (startYear === endYear && startMonth === endMonth) {
+            partitionCondition = `AND YEAR = ${startYear} AND MONTH = ${startMonth}`;
+        } else if (startYear === endYear) {
+            partitionCondition = `AND YEAR = ${startYear} AND MONTH BETWEEN ${startMonth} AND ${endMonth}`;
+        } else {
+            partitionCondition = `AND (
+                (YEAR = ${startYear} AND MONTH >= ${startMonth}) OR 
+                (YEAR = ${endYear} AND MONTH <= ${endMonth})
+             )`;
+        }
+
         // Single query to get ALL SOS types grouped by date
         const query = `
             SELECT 
@@ -80,6 +130,7 @@ async function getAllSOSTrends(days = 7, platform = null) {
             FROM rb_kw
             WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
             ${platformCondition}
+            ${partitionCondition}
             GROUP BY DATE(kw_crawl_date)
             ORDER BY crawl_date ASC
         `;
@@ -749,180 +800,120 @@ class VisibilityService {
      * @param {Object} params - { filterType, platform, format, city, metroFlag }
      * @returns {Object} { options: [...] }
      */
-    async getVisibilityFilterOptions({ filterType, platform, format, city, metroFlag }) {
+    /**
+     * Get dynamic filter options for visibility analysis cascading filters
+     * Uses rb_kw as primary source (main visibility data table)
+     * @param {Object} params - { filterType, platform, format, city }
+     * @returns {Object} { options: [...] }
+     */
+    async getVisibilityFilterOptions({ filterType, platform, format, city }) {
         try {
-            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}, platform=${platform}, format=${format}, city=${city}, metroFlag=${metroFlag}`);
+            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
 
-            // PLATFORMS: from rca_sku_dim.platform (master data)
+            // Base WHERE clause
+            let whereClause = "WHERE 1=1";
+            if (platform && platform !== 'All') {
+                whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
+            }
+
+            // PLATFORMS: from rb_kw.platform_name
             if (filterType === 'platforms') {
                 const [results] = await sequelize.query(`
-                    SELECT DISTINCT platform 
-                    FROM rca_sku_dim 
-                    WHERE platform IS NOT NULL AND platform != ''
-                    ORDER BY platform
+                    SELECT DISTINCT platform_name as platform
+                    FROM rb_kw 
+                    WHERE platform_name IS NOT NULL AND platform_name != ''
+                    ORDER BY platform_name
                 `);
                 const options = results.map(r => r.platform).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} platforms from rca_sku_dim`);
                 return { options };
             }
 
-            // MONTHS: from rb_kw.kw_crawl_date (filter by platform)
+            // MONTHS: from rb_kw.kw_crawl_date (Active Months)
             if (filterType === 'months') {
-                let whereClause = "WHERE kw_crawl_date IS NOT NULL";
-                if (platform && platform !== 'All') {
-                    whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
-                }
                 const [results] = await sequelize.query(`
                     SELECT DISTINCT DATE_FORMAT(kw_crawl_date, '%Y-%m') as month
                     FROM rb_kw
-                    ${whereClause}
+                    ${whereClause} AND kw_crawl_date IS NOT NULL
                     ORDER BY month DESC
                     LIMIT 36
                 `);
                 const options = results.map(r => r.month).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} months from rb_kw`);
                 return { options };
             }
 
-            // DATES: from rb_kw.kw_crawl_date (filter by platform)
+            // DATES: from rb_kw.kw_crawl_date (Active Dates)
             if (filterType === 'dates') {
-                let whereClause = "WHERE kw_crawl_date IS NOT NULL";
-                if (platform && platform !== 'All') {
-                    whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
-                }
                 const [results] = await sequelize.query(`
                     SELECT DISTINCT DATE_FORMAT(kw_crawl_date, '%Y-%m-%d') as date
                     FROM rb_kw
-                    ${whereClause}
+                    ${whereClause} AND kw_crawl_date IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 365
                 `);
                 const options = results.map(r => r.date).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} dates from rb_kw`);
                 return { options };
             }
 
-            // FORMATS (Categories): from rca_sku_dim.Category (master data, status=1)
+            // FORMATS (mapped to keyword_search_product): from rb_kw
             if (filterType === 'formats') {
-                let whereClause = "WHERE Category IS NOT NULL AND Category != '' AND status = 1";
-                if (platform && platform !== 'All') {
-                    whereClause += ` AND LOWER(platform) = LOWER('${platform}')`;
-                }
                 const [results] = await sequelize.query(`
-                    SELECT DISTINCT Category as format
-                    FROM rca_sku_dim
-                    ${whereClause}
-                    ORDER BY Category
+                    SELECT DISTINCT keyword_search_product as format
+                    FROM rb_kw
+                    ${whereClause} AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                    ORDER BY keyword_search_product
                 `);
                 const options = results.map(r => r.format).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} formats (Category) from rca_sku_dim`);
                 return { options };
             }
 
-            // CITIES: from rca_sku_dim.location (master data, filter by platform, format, metroFlag)
+            // CITIES: from rb_kw.location_name
             if (filterType === 'cities') {
-                // If metroFlag is set, filter cities by tier from rb_location_darkstore
-                if (metroFlag && metroFlag !== 'All') {
-                    const [tierCities] = await sequelize.query(`
-                        SELECT DISTINCT location 
-                        FROM rb_location_darkstore 
-                        WHERE tier = '${metroFlag}' AND location IS NOT NULL
-                        ORDER BY location
-                    `);
-                    const options = tierCities.map(r => r.location).filter(Boolean);
-                    console.log(`[VisibilityService] Found ${options.length} cities for tier=${metroFlag}`);
-                    return { options };
+                // Cascading: Filter by format (keyword_search_product) if selected
+                if (format && format !== 'All') {
+                    whereClause += ` AND LOWER(keyword_search_product) = LOWER('${format}')`;
                 }
 
-                // Otherwise get from rca_sku_dim with platform and format filters
-                let whereClause = "WHERE location IS NOT NULL AND location != ''";
-                if (platform && platform !== 'All') {
-                    whereClause += ` AND LOWER(platform) = LOWER('${platform}')`;
-                }
-                if (format && format !== 'All') {
-                    whereClause += ` AND LOWER(Category) = LOWER('${format}')`;
-                }
                 const [results] = await sequelize.query(`
-                    SELECT DISTINCT location as city
-                    FROM rca_sku_dim
-                    ${whereClause}
-                    ORDER BY location
+                    SELECT DISTINCT location_name as city
+                    FROM rb_kw
+                    ${whereClause} AND location_name IS NOT NULL AND location_name != ''
+                    ORDER BY location_name
                 `);
                 const options = results.map(r => r.city).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} cities from rca_sku_dim`);
                 return { options };
             }
 
-            // ZONES: from rb_location_darkstore.region
-            if (filterType === 'zones') {
-                let whereClause = "WHERE region IS NOT NULL AND region != ''";
-                // Can filter by metroFlag (tier) if needed
-                if (metroFlag && metroFlag !== 'All') {
-                    whereClause += ` AND tier = '${metroFlag}'`;
-                }
-                const [results] = await sequelize.query(`
-                    SELECT DISTINCT region as zone
-                    FROM rb_location_darkstore
-                    ${whereClause}
-                    ORDER BY region
-                `);
-                const options = results.map(r => r.zone).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} zones from rb_location_darkstore`);
-                return { options };
-            }
-
-            // PINCODES: from rb_kw.pincode (filter by platform, city)
+            // PINCODES: from rb_kw.pincode
             if (filterType === 'pincodes') {
-                let whereClause = "WHERE pincode IS NOT NULL";
-                if (platform && platform !== 'All') {
-                    whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
-                }
                 if (city && city !== 'All') {
                     whereClause += ` AND LOWER(location_name) = LOWER('${city}')`;
                 }
                 const [results] = await sequelize.query(`
                     SELECT DISTINCT pincode
                     FROM rb_kw
-                    ${whereClause}
+                    ${whereClause} AND pincode IS NOT NULL
                     ORDER BY pincode
-                    LIMIT 1000
                 `);
-                const options = results.map(r => String(r.pincode)).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} pincodes from rb_kw`);
+                const options = results.map(r => r.pincode).filter(Boolean);
                 return { options };
             }
 
-            // METRO FLAGS: from rb_location_darkstore.tier (no filter)
-            if (filterType === 'metroFlags') {
+            // PRODUCT NAMES: from rb_kw.keyword (or brand_name/keyword_search_product_id depending on need)
+            // Assuming "Product Name" refers to the search keyword or the specific product
+            if (filterType === 'productName') {
                 const [results] = await sequelize.query(`
-                    SELECT DISTINCT tier 
-                    FROM rb_location_darkstore 
-                    WHERE tier IS NOT NULL AND tier != ''
-                    ORDER BY tier
+                    SELECT DISTINCT keyword as productName
+                    FROM rb_kw
+                    ${whereClause} AND keyword IS NOT NULL AND keyword != ''
+                    ORDER BY keyword
                 `);
-                const options = results.map(r => r.tier).filter(Boolean);
-                console.log(`[VisibilityService] Found ${options.length} metro flags (tiers)`);
+                const options = results.map(r => r.productName).filter(Boolean);
                 return { options };
             }
 
-            // KPI: hardcoded values for SOS metrics
-            if (filterType === 'kpis') {
-                return {
-                    options: [
-                        'Overall SOS',
-                        'Sponsored SOS',
-                        'Organic SOS',
-                        'Display SOS'
-                    ]
-                };
-            }
-
-            // Unknown filter type
-            console.warn(`[VisibilityService] Unknown filterType: ${filterType}`);
             return { options: [] };
-
         } catch (error) {
-            console.error(`[VisibilityService] Error in getVisibilityFilterOptions:`, error);
+            console.error('[VisibilityService] Error getting filter options:', error);
             return { options: [] };
         }
     }

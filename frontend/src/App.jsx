@@ -19,6 +19,7 @@ import PiyConcept from "./pages/PiyConcept/PiyConcept";
 
 import { FilterProvider } from "./utils/FilterContext";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
+import ScheduledReports from "./pages/Reports/ScheduledReports";
 
 export default function App() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/sales" element={<SalesMainPage />} />
             <Route path="/piy" element={<PiyConcept />} />
             <Route path="/inventory" element={<InventeryConceptMains />} />
+            <Route path="/scheduled-reports" element={<ScheduledReports />} />
           </Routes>
         </FilterProvider>
       </BrowserRouter>

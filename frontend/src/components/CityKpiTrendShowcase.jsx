@@ -144,11 +144,11 @@ const mockKeywords = [
 // --- Helpers ---------------------------------------------------------------
 
 function getCellClasses(value) {
-  if (value >= 90) return "bg-emerald-50 text-emerald-800 border-emerald-100";
+  if (value >= 90) return "bg-green-100 text-green-900 border-green-200";
   if (value >= 80) return "bg-green-50 text-green-800 border-green-100";
-  if (value >= 70) return "bg-amber-50 text-amber-800 border-amber-100";
-  if (value >= 60) return "bg-orange-50 text-orange-800 border-orange-100";
-  return "bg-rose-50 text-rose-800 border-rose-100";
+  if (value >= 70) return "bg-yellow-100 text-yellow-900 border-yellow-200";
+  if (value >= 60) return "bg-orange-100 text-orange-900 border-orange-200";
+  return "bg-red-100 text-red-900 border-red-200";
 }
 
 function getTrendMeta(trend) {
@@ -642,10 +642,15 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
+  const isColumnPagination = dynamicKey === "availability" || dynamicKey === "visibility";
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(3);
+
+  // Column Pagination State
+  const [currentColPage, setCurrentColPage] = useState(1);
+  const [colPageSize, setColPageSize] = useState(5);
 
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
@@ -894,21 +899,41 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
   // Calculate Pagination
   const filteredRows = React.useMemo(() => {
+    if (selectedKPIs.length === 0) return rows;
     return rows.filter(row => selectedKPIs.includes(row.kpi));
   }, [rows, selectedKPIs]);
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
 
   const paginatedRows = React.useMemo(() => {
+    if (isColumnPagination) return filteredRows; // Show all rows for column pagination mode
     if (!showPagination) return filteredRows;
     const startIndex = (currentPage - 1) * pageSize;
     return filteredRows.slice(startIndex, startIndex + pageSize);
-  }, [filteredRows, currentPage, pageSize, showPagination]);
+  }, [filteredRows, currentPage, pageSize, showPagination, isColumnPagination]);
+
+  // Column Pagination Logic
+  const allDataColumns = React.useMemo(() => columns.slice(1), [columns]);
+  const totalColPages = Math.ceil(allDataColumns.length / colPageSize);
+
+  const visibleColumns = React.useMemo(() => {
+    if (isColumnPagination) {
+      // Logic: Cumulative columns (Page 1: 0-5, Page 2: 0-10, etc.)
+      const startIndex = 0;
+      const endIndex = currentColPage * colPageSize;
+      return allDataColumns.slice(startIndex, endIndex);
+    }
+    return allDataColumns;
+  }, [allDataColumns, currentColPage, colPageSize, isColumnPagination]);
 
   // Reset page when filters change
   React.useEffect(() => {
     setCurrentPage(1);
   }, [selectedKPIs, pageSize]);
+
+  React.useEffect(() => {
+    setCurrentColPage(1);
+  }, [colPageSize]);
 
   // ---------------- BUILD COMP META (same logic) ----------------
   const buildCompMeta = (columnName) => ({
@@ -1051,7 +1076,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                     {firstColLabel}
                   </th>
 
-                  {columns.slice(1).map((col) => (
+                  {visibleColumns.map((col) => (
                     <th
                       key={col}
                       className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 
@@ -1088,7 +1113,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                       {row.kpi.toUpperCase()}
                     </td>
 
-                    {columns.slice(1).map((col) => {
+                    {visibleColumns.map((col) => {
                       const value = row[col];
                       const trend = row.trend?.[col];
 
@@ -1170,13 +1195,14 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
         {/* ------------------ PAGINATION FOOTER ------------------ */}
         <PaginationFooter
-          isVisible={showPagination && filteredRows.length > 3}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          pageSize={pageSize}
-          onPageSizeChange={setPageSize}
-          pageSizeOptions={[3, 6, 9, 12]}
+          isVisible={showPagination && (isColumnPagination ? allDataColumns.length > 5 : filteredRows.length > 3)}
+          currentPage={isColumnPagination ? currentColPage : currentPage}
+          totalPages={isColumnPagination ? totalColPages : totalPages}
+          onPageChange={isColumnPagination ? setCurrentColPage : setCurrentPage}
+          pageSize={isColumnPagination ? colPageSize : pageSize}
+          onPageSizeChange={isColumnPagination ? setColPageSize : setPageSize}
+          pageSizeOptions={isColumnPagination ? [5, 10, 15, 20] : [3, 6, 9, 12]}
+          itemsLabel={isColumnPagination ? "Cols/page" : "Rows/page"}
         />
       </CardContent>
 
