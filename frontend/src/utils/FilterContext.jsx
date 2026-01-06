@@ -83,6 +83,7 @@ export const FilterProvider = ({ children }) => {
     const [timeEnd, setTimeEnd] = useState(dayjs());
     const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
+    const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
 
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
@@ -301,7 +302,9 @@ export const FilterProvider = ({ children }) => {
             setCompareStart,
             compareEnd,
             setCompareEnd,
-            backendAvailable
+            backendAvailable,
+            comparisonLabel,
+            setComparisonLabel
         }}>
             {children}
         </FilterContext.Provider>

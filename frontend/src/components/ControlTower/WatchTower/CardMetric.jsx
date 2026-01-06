@@ -2,35 +2,30 @@ import { Box, Card, CardContent, Typography, Chip, Skeleton } from "@mui/materia
 import { useState } from "react";
 
 const CardMetric = ({ data, onViewTrends }) => {
-  // Check if data is loading (empty/undefined)
   const isLoading = !data || data.length === 0;
-
-  const defaultCards = [
-    { title: "Offtake", value: "₹0", sub: "MTD (Month-to-Date)", change: "0%", changeColor: "grey", prevText: "vs Previous Month", extra: "#Units: 0", extraChange: "0%", extraChangeColor: "grey" },
-    { title: "Availability", value: "0%", sub: "MTD Coverage", change: "0%", changeColor: "grey", prevText: "vs Previous Month" },
-    { title: "Promo Spends %", value: "0%", sub: "MTD (Avg.)", change: "0%", changeColor: "grey", prevText: "vs Previous Month" },
-    { title: "Market Share", value: "0%", sub: "MTD", change: "0%", changeColor: "grey", prevText: "vs Previous Month" },
-  ];
 
   const cards = data && data.length > 0 ? data.map(item => ({
     title: item.name,
     value: item.label,
     sub: item.subtitle,
     change: item.trend,
-    changeColor: (item.trendType === 'positive' || item.trendType === 'up') ? '#22c55e' : (item.trendType === 'negative' || item.trendType === 'down') ? '#ef4444' : 'grey',
+    changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
     prevText: item.comparison,
     extra: item.units ? `#Units: ${item.units}` : null,
     extraChange: item.unitsTrend,
     extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
-    chart: item.chart,
-    labels: item.labels
-  })) : defaultCards;
+    chart: item.chart
+  })) : [];
 
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
   // Generate smooth data
   const generateValues = (card) => {
     if (card.chart && card.chart.length > 0) {
+      // Normalize chart data to 0-100 range for the mini chart if needed, 
+      // or just pass as is if the component handles it. 
+      // The current component expects values roughly between 20-80 for visual appeal.
+      // Let's just return the chart data.
       return card.chart;
     }
     return months.map(() => Math.floor(Math.random() * 60) + 20);
@@ -44,7 +39,12 @@ const CardMetric = ({ data, onViewTrends }) => {
     <Box sx={{ mb: 4 }}>
       <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4 }}>
         {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={3}
+        >
           <Box display="flex" alignItems="center" gap={1.5}>
             <Box
               sx={{
@@ -60,11 +60,15 @@ const CardMetric = ({ data, onViewTrends }) => {
             >
               📈
             </Box>
+
             <Typography variant="h5" fontWeight={600}>
               Watchtower Overview
             </Typography>
+
             <Chip label="All" size="large" variant="outlined" />
           </Box>
+
+          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
         {/* Cards Row */}
@@ -78,82 +82,69 @@ const CardMetric = ({ data, onViewTrends }) => {
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {isLoading ? (
-            // Skeleton loading cards
-            [1, 2, 3, 4].map((_, index) => (
-              <SkeletonChartCard key={index} scrollNeeded={scrollNeeded} totalCards={4} />
-            ))
-          ) : (
-            cards.map((card, index) => {
+          {isLoading
+            ? // Show skeleton cards while loading
+            [1, 2, 3, 4].map((i) => <SkeletonMetricCard key={i} />)
+            : cards.map((card, index) => {
               const values = generateValues(card);
               const color = isProfit(card.change) ? "#28a745" : "#dc3545";
-              const cardLabels = card.labels || months;
 
               return (
                 <MiniChartCard
                   key={index}
                   card={card}
-                  months={cardLabels}
+                  months={months} // Note: months are hardcoded, might not match data
                   values={values}
                   color={color}
                   scrollNeeded={scrollNeeded}
                   totalCards={cards.length}
-                  onClick={() => onViewTrends && onViewTrends(card.title, "Metric")}
+                  onClick={() => onViewTrends(card.title, "Metric")}
                 />
               );
             })
-          )}
+          }
         </Box>
       </Card>
     </Box>
   );
 };
 
-/* ------------ Skeleton Chart Card - Fancy Shimmer Loading ------------ */
-const SkeletonChartCard = ({ scrollNeeded, totalCards }) => {
+/* ------------ Skeleton Metric Card - Loading placeholder ------------ */
+const SkeletonMetricCard = () => {
   return (
     <Card
       sx={{
         flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+        width: 250,
         borderRadius: 3,
         scrollSnapAlign: "start",
       }}
     >
       <CardContent>
         {/* Title skeleton */}
-        <Skeleton variant="text" width="50%" height={20} animation="wave" sx={{ borderRadius: 1 }} />
+        <Skeleton variant="text" width={100} height={24} animation="wave" sx={{ borderRadius: 1 }} />
 
-        {/* Value skeleton */}
+        {/* Value + Sub skeleton */}
         <Box display="flex" alignItems="baseline" gap={1} mt={0.5}>
-          <Skeleton variant="text" width="40%" height={32} animation="wave" sx={{ borderRadius: 1 }} />
-          <Skeleton variant="text" width="30%" height={18} animation="wave" sx={{ borderRadius: 1 }} />
+          <Skeleton variant="text" width={80} height={32} animation="wave" sx={{ borderRadius: 1 }} />
+          <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
         </Box>
 
-        {/* Change skeleton */}
+        {/* Change + prevText skeleton */}
         <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-          <Skeleton variant="text" width={50} height={18} animation="wave" sx={{ borderRadius: 1, bgcolor: 'grey.300' }} />
-          <Skeleton variant="text" width={80} height={18} animation="wave" sx={{ borderRadius: 1 }} />
+          <Skeleton variant="text" width={100} height={18} animation="wave" sx={{ borderRadius: 1 }} />
+          <Skeleton variant="text" width={100} height={18} animation="wave" sx={{ borderRadius: 1 }} />
         </Box>
 
-        {/* Extra units skeleton */}
-        <Skeleton variant="text" width="60%" height={18} animation="wave" sx={{ mt: 0.5, borderRadius: 1 }} />
+        {/* Extra row skeleton */}
+        <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+          <Skeleton variant="text" width={90} height={18} animation="wave" sx={{ borderRadius: 1 }} />
+          <Skeleton variant="text" width={50} height={18} animation="wave" sx={{ borderRadius: 1 }} />
+        </Box>
 
-        {/* Chart skeleton */}
-        <Box mt={1.5} sx={{ height: 80, position: "relative" }}>
-          <Skeleton
-            variant="rectangular"
-            width="100%"
-            height={60}
-            animation="wave"
-            sx={{ borderRadius: 2, mt: 1 }}
-          />
-          {/* Fake chart dots */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-            {[1, 2, 3, 4, 5, 6, 7].map(i => (
-              <Skeleton key={i} variant="circular" width={8} height={8} animation="wave" />
-            ))}
-          </Box>
+        {/* Mini chart skeleton */}
+        <Box mt={1.5} sx={{ height: 80 }}>
+          <Skeleton variant="rounded" width="100%" height={70} animation="wave" sx={{ borderRadius: 2 }} />
         </Box>
       </CardContent>
     </Card>
