@@ -23,6 +23,41 @@ const PlatformIcon = ({ platform }) => {
   );
 };
 
+/* ---------------- SKU IMAGE WITH ERROR HANDLING ---------------- */
+const SKUImage = ({ src, alt, theme }) => {
+  const [error, setError] = React.useState(false);
+
+  if (error || !src) {
+    return (
+      <Box
+        sx={{
+          width: 40,
+          height: 40,
+          borderRadius: 1,
+          bgcolor: theme.palette.action.hover,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: theme.palette.text.secondary }}>
+          IMG
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setError(true)}
+      style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
+    />
+  );
+};
+
 export default function SKUTable({ data }) {
   const theme = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,10 +219,10 @@ export default function SKUTable({ data }) {
                       borderRight: `1px solid ${theme.palette.divider}`
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <img
+                        <SKUImage
                           src={row.productImage || 'https://via.placeholder.com/40'}
                           alt={row.sku}
-                          style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
+                          theme={theme}
                         />
                         <Box>
                           <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
