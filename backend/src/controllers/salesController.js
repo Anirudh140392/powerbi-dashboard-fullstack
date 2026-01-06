@@ -60,7 +60,22 @@ export const getSalesOverview = async (req, res) => {
             }
         }
 
-        // 3. Daily Trend Data (Primary Period)
+        let comparisonDrr = 0;
+        if (compareStartDate && compareEndDate) {
+            const cStart = dayjs(compareStartDate);
+            const cEnd = dayjs(compareEndDate);
+            const cDays = cEnd.diff(cStart, 'day') + 1;
+            if (cDays > 0) {
+                comparisonDrr = comparisonSales / cDays;
+            }
+        }
+
+        // 3. Trend Data (Daily or Monthly)
+        let daysInInterval = 0;
+        if (startDate && endDate) {
+            daysInInterval = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+        }
+
         const trendData = await RbPdpOlap.findAll({
             attributes: [
                 'DATE',
@@ -72,10 +87,25 @@ export const getSalesOverview = async (req, res) => {
             raw: true
         });
 
-        const formattedTrend = trendData.map(t => ({
-            date: dayjs(t.DATE).format('MMM DD'),
-            value: parseFloat(t.dailyTotal || 0)
-        }));
+        let formattedTrend = [];
+        if (daysInInterval > 35) {
+            // Aggregate by Month
+            const monthMap = {};
+            trendData.forEach(t => {
+                const monthKey = dayjs(t.DATE).format('MMM YY');
+                if (!monthMap[monthKey]) monthMap[monthKey] = 0;
+                monthMap[monthKey] += parseFloat(t.dailyTotal || 0);
+            });
+            formattedTrend = Object.keys(monthMap).map(key => ({
+                date: key,
+                value: monthMap[key]
+            }));
+        } else {
+            formattedTrend = trendData.map(t => ({
+                date: dayjs(t.DATE).format('MMM DD'),
+                value: parseFloat(t.dailyTotal || 0)
+            }));
+        }
 
         // 4. MTD Sales (1st of selected month to selected endDate)
         const primaryEndDate = endDate ? dayjs(endDate) : dayjs();
@@ -129,10 +159,48 @@ export const getSalesOverview = async (req, res) => {
         }));
 
         // 7. DRR and Projections based on MTD
-        const daysInMonth = primaryEndDate.daysInMonth();
-        const daysElapsed = primaryEndDate.date();
-        const drr = mtdSales / daysElapsed;
-        const projectedSales = drr * daysInMonth;
+        // 7. DRR and Projected Sales Calculation
+        // DRR = Overall Sales / No of days in selected date interval
+        let drr = 0;
+        // daysInInterval already calculated above
+        if (daysInInterval > 0) {
+            drr = overallSales / daysInInterval;
+        } else if (!startDate && !endDate) {
+            // Fallback if no specific interval provided: use MTD logic
+            const daysElapsed = primaryEndDate.date();
+            if (daysElapsed > 0) {
+                drr = mtdSales / daysElapsed;
+            }
+        }
+
+        // Projected Sales = (MTD Sales / Days in MTD interval) * Total Days in MTD Month
+        const mtdDaysElapsed = primaryEndDate.date();
+        const totalDaysInMtdMonth = primaryEndDate.daysInMonth();
+        let projectedSales = 0;
+        if (mtdDaysElapsed > 0) {
+            projectedSales = (mtdSales / mtdDaysElapsed) * totalDaysInMtdMonth;
+        }
+
+        // Percentage Changes for DRR and Projected
+        let drrChangePercentage = null;
+        if (comparisonDrr > 0) {
+            drrChangePercentage = ((drr - comparisonDrr) / comparisonDrr) * 100;
+        } else if (drr > 0) {
+            drrChangePercentage = 100; // if comparison was 0
+        }
+
+        let projectedComparison = 0;
+        const prevMonthTotalDays = prevMonthEnd.daysInMonth();
+        if (mtdDaysElapsed > 0) { // reuse relative days
+            projectedComparison = (mtdPrevSales / mtdDaysElapsed) * prevMonthTotalDays;
+        }
+
+        let projectedChangePercentage = null;
+        if (projectedComparison > 0) {
+            projectedChangePercentage = ((projectedSales - projectedComparison) / projectedComparison) * 100;
+        } else if (projectedSales > 0) {
+            projectedChangePercentage = 100;
+        }
 
         res.json({
             overallSales,
@@ -143,7 +211,9 @@ export const getSalesOverview = async (req, res) => {
             mtdChangePercentage,
             mtdTrend,
             drr,
-            projectedSales
+            drrChangePercentage,
+            projectedSales,
+            projectedChangePercentage
         });
     } catch (error) {
         console.error('Error fetching sales overview:', error);
