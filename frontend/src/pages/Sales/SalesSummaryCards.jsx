@@ -49,6 +49,26 @@ export default function SalesSummaryCards({ data, loading }) {
     const mtdSparklineData = data?.mtdTrend?.map(t => t.value) || [];
     const mtdSparklineMonths = data?.mtdTrend?.map(t => t.date) || [];
 
+    // DRR Change Logic
+    const drrChangePerc = data?.drrChangePercentage;
+    const isDrrPositive = drrChangePerc >= 0;
+    const drrChangeText = drrChangePerc !== null && drrChangePerc !== undefined
+        ? `${isDrrPositive ? "▲" : "▼"}${Math.abs(drrChangePerc).toFixed(1)}%`
+        : "Stable";
+    const drrChangeColor = drrChangePerc !== null && drrChangePerc !== undefined
+        ? (isDrrPositive ? "#28a745" : "#dc3545")
+        : "#6c757d";
+
+    // Projected Change Logic
+    const projChangePerc = data?.projectedChangePercentage;
+    const isProjPositive = projChangePerc >= 0;
+    const projChangeText = projChangePerc !== null && projChangePerc !== undefined
+        ? `${isProjPositive ? "▲" : "▼"}${Math.abs(projChangePerc).toFixed(1)}%`
+        : "Stable";
+    const projChangeColor = projChangePerc !== null && projChangePerc !== undefined
+        ? (isProjPositive ? "#28a745" : "#dc3545")
+        : "#6c757d";
+
     const cards = [
         {
             title: "Overall Sales",
@@ -77,23 +97,27 @@ export default function SalesSummaryCards({ data, loading }) {
             title: "Current DRR",
             value: loading ? "Loading..." : `₹${formatValue(drrValue)}`,
             sub: "",
-            change: "Stable",
-            changeColor: "#6c757d",
-            prevText: "",
+            change: drrChangeText,
+            changeColor: drrChangeColor,
+            prevText: drrChangePerc !== null ? "vs Prev Period" : "",
             extra: "Req. Run Rate: ₹80 Cr",
             extraChange: "▼5%",
             extraChangeColor: "#dc3545",
+            sparklineData: sparklineData,
+            months: sparklineMonths
         },
         {
             title: "Projected Sales",
             value: loading ? "Loading..." : `₹${formatValue(projectedValue)}`,
             sub: "",
-            change: `${mockProjected.change}%`,
-            changeColor: mockProjected.change >= 0 ? "#28a745" : "#dc3545",
-            prevText: mockProjected.comparison,
+            change: projChangeText,
+            changeColor: projChangeColor,
+            prevText: projChangePerc !== null ? "vs Last Month" : "",
             extra: "Forecast Accuracy",
             extraChange: "98%",
             extraChangeColor: "#28a745",
+            sparklineData: mtdSparklineData,
+            months: mtdSparklineMonths
         }
     ];
 

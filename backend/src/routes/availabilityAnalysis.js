@@ -10,7 +10,8 @@ import {
     getAvailabilityKpiTrends,
     getAvailabilityCompetition,
     getAvailabilityCompetitionFilterOptions,
-    getAvailabilityCompetitionBrandTrends
+    getAvailabilityCompetitionBrandTrends,
+    getSignalLabData
 } from '../controllers/availabilityAnalysisController.js';
 
 export default (app) => {
@@ -314,5 +315,38 @@ export default (app) => {
      *     description: Returns time-series data for comparing multiple brands
      */
     app.get('/api/availability-analysis/competition-brand-trends', getAvailabilityCompetitionBrandTrends);
+
+    /**
+     * @swagger
+     * /api/availability-analysis/signal-lab:
+     *   get:
+     *     summary: Get Signal Lab Data for Availability Analysis
+     *     description: Returns SKU-level OSA and DOI metrics with formulas - OSA = sum(neno_osa)/sum(deno_osa), DOI = Inventory/(sum(Qty_Sold in 30 days)/30)
+     *     parameters:
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: brand
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *     responses:
+     *       200:
+     *         description: Successful response with SKU data
+     */
+    app.get('/api/availability-analysis/signal-lab', getSignalLabData);
 };
 

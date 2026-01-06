@@ -332,3 +332,161 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
         res.status(500).json({ metrics: [], timeSeries: {}, brands: [] });
     }
 };
+
+/**
+ * Get Signal Lab Data for Availability Analysis
+ * Formulas:
+ * - OSA = sum(neno_osa) / sum(deno_osa)
+ * - DOI = Inventory / (sum(Qty_Sold in 30 days) / 30)
+ */
+export const getSignalLabData = async (req, res) => {
+    try {
+        const { platform, brand, location, startDate, endDate } = req.query;
+        console.log('\n========== SIGNAL LAB DATA API ==========');
+        console.log('[REQUEST] Filters:', { platform, brand, location, startDate, endDate });
+
+        // Import models
+        const RbPdpOlap = (await import('../models/RbPdpOlap.js')).default;
+        const { Op } = await import('sequelize');
+        const Sequelize = (await import('sequelize')).default;
+        const dayjs = (await import('dayjs')).default;
+
+        // Build base where clause
+        const baseWhere = {};
+
+        // Platform Filter
+        if (platform && platform !== 'All') {
+            baseWhere.Platform = platform;
+        }
+
+        // Brand Filter
+        if (brand && brand !== 'All') {
+            baseWhere.Brand = { [Op.like]: `%${brand}%` };
+        } else {
+            baseWhere.Comp_flag = 0; // Only our brands if "All"
+        }
+
+        // Location Filter
+        if (location && location !== 'All') {
+            baseWhere.Location = location;
+        }
+
+        // Date Filter for current period
+        const endDateObj = endDate ? dayjs(endDate) : dayjs();
+        const startDateObj = startDate ? dayjs(startDate) : endDateObj.subtract(30, 'day');
+
+        baseWhere.DATE = {
+            [Op.between]: [startDateObj.format('YYYY-MM-DD'), endDateObj.format('YYYY-MM-DD')]
+        };
+
+        // Calculate 30 days ago for DOI calculation
+        const thirtyDaysAgo = endDateObj.subtract(30, 'day');
+
+        console.log('[QUERY] Where clause:', baseWhere);
+
+        // Query for OSA and current inventory (grouped by SKU)
+        const osaData = await RbPdpOlap.findAll({
+            attributes: [
+                'Web_Pid',
+                'Product',
+                'Category',
+                'Platform',
+                'Weight',
+                'Brand',
+                [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'totalNeno'],
+                [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'totalDeno'],
+                [Sequelize.fn('AVG', Sequelize.col('Inventory')), 'avgInventory'],
+                [Sequelize.fn('MAX', Sequelize.col('DATE')), 'latestDate']
+            ],
+            where: baseWhere,
+            group: ['Web_Pid', 'Product', 'Category', 'Platform', 'Weight', 'Brand'],
+            raw: true
+        });
+
+        console.log(`[QUERY] Found ${osaData.length} SKUs`);
+
+        // For DOI calculation, we need to query last 30 days of sales
+        const skuList = osaData.map(item => item.Web_Pid);
+
+        let doiMap = {};
+        if (skuList.length > 0) {
+            const doiWhere = { ...baseWhere };
+            doiWhere.Web_Pid = { [Op.in]: skuList };
+            doiWhere.DATE = {
+                [Op.between]: [thirtyDaysAgo.format('YYYY-MM-DD'), endDateObj.format('YYYY-MM-DD')]
+            };
+
+            const doiData = await RbPdpOlap.findAll({
+                attributes: [
+                    'Web_Pid',
+                    [Sequelize.fn('SUM', Sequelize.col('Qty_Sold')), 'totalQtySold']
+                ],
+                where: doiWhere,
+                group: ['Web_Pid'],
+                raw: true
+            });
+
+            doiData.forEach(item => {
+                doiMap[item.Web_Pid] = parseFloat(item.totalQtySold || 0);
+            });
+        }
+
+        // Process results and calculate metrics
+        const skus = osaData.map((item, index) => {
+            const neno = parseFloat(item.totalNeno || 0);
+            const deno = parseFloat(item.totalDeno || 0);
+
+            // OSA Formula: sum(neno_osa) / sum(deno_osa)
+            const osa = deno > 0 ? ((neno / deno) * 100) : 0;
+
+            const inventory = parseFloat(item.avgInventory || 0);
+            const qtySold30Days = doiMap[item.Web_Pid] || 0;
+            const avgDailySales = qtySold30Days / 30;
+
+            // DOI Formula: Inventory / (sum(Qty_Sold in 30 days) / 30)
+            const doi = avgDailySales > 0 ? (inventory / avgDailySales) : 0;
+
+            // SOH (Stock on Hand) Formula: Inventory - Quantity_Sold
+            const qtySold = qtySold30Days || 0;
+            const sohValue = inventory - qtySold;
+            const soh = sohValue > 0 ? `${Math.round(sohValue)} units` : '0 units';
+
+            // Determine if gainer or drainer based on OSA threshold
+            const type = osa >= 90 ? 'gainer' : 'drainer';
+
+            // Return complete card structure matching sample data format
+            return {
+                id: `AVL-${index + 1}`,
+                type: type,
+                metricType: 'availability',
+                // skuCode: item.Web_Pid || `SKU-${index + 1}`,
+                skuCode: '-',
+                skuName: item.Product || 'Unknown Product',
+                packSize: item.Weight || 'N/A',
+                platform: item.Platform || platform || 'All',
+                categoryTag: item.Category || 'N/A',
+                offtakeValue: '₹ 0 lac', // Placeholder - can be calculated from Sales if needed
+                impact: type === 'gainer' ? '+0%' : '-0%', // Placeholder - needs period comparison
+                kpis: {
+                    soh: soh, // Stock on Hand: Inventory - Quantity_Sold
+                    doi: doi.toFixed(1),
+                    weightedOsa: `${osa.toFixed(1)}%`
+                },
+                topCities: [] // Placeholder - can be populated with city-level data
+            };
+        });
+
+        console.log(`[RESPONSE] Returning ${skus.length} SKUs`);
+        console.log('==========================================\n');
+
+        res.json({
+            skus,
+            total: skus.length,
+            filters: { platform, brand, location, startDate, endDate }
+        });
+    } catch (error) {
+        console.error('[ERROR] Signal Lab Data:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+

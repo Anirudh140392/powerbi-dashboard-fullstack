@@ -74,7 +74,8 @@ export default function MiniSparkline({ months, values, color }) {
       </Box>
 
       {/* Dots Layer - positioned absolutely within the same container */}
-      {normalizedValues.map((v, i) => {
+      {/* Only show dots if we have a reasonable number of points (e.g., <= 40) to avoid clutter */}
+      {normalizedValues.length <= 40 && normalizedValues.map((v, i) => {
         const x = (i / (normalizedValues.length - 1 || 1)) * 100;
         const y = 100 - v; // Same calculation as in createSmoothPath
 

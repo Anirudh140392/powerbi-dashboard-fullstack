@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useContext } from "react";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import { FilterContext } from "../../utils/FilterContext";
 import {
     X,
     SlidersHorizontal,
@@ -1024,11 +1025,83 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
-
     const [rowsPerPage, setRowsPerPage] = useState(4);
     const [page, setPage] = useState(1);
 
-    const filtered = SAMPLE_SKUS.filter(
+    // API data - either from API or sample data (no mixing)
+    const [skusData, setSkusData] = useState(SAMPLE_SKUS);
+    const [isUsingApiData, setIsUsingApiData] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    // Get filters from FilterContext (from Header.jsx)
+    const {
+        platform,
+        selectedBrand,
+        selectedLocation,
+        timeStart,
+        timeEnd
+    } = useContext(FilterContext);
+
+    // Fetch data from API - use API data if successful, otherwise keep sample data
+    useEffect(() => {
+        const fetchSignalLabData = async () => {
+            try {
+                setLoading(true);
+
+                // Build query parameters from FilterContext
+                const queryParams = new URLSearchParams({
+                    platform: platform || 'All',
+                    brand: selectedBrand || 'All',
+                    location: selectedLocation || 'All',
+                    startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
+                    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : ''
+                });
+
+                console.log('[SignalLabVisibility] Fetching API data with filters:', {
+                    platform,
+                    brand: selectedBrand,
+                    location: selectedLocation,
+                    startDate: timeStart?.format('YYYY-MM-DD'),
+                    endDate: timeEnd?.format('YYYY-MM-DD')
+                });
+
+                const response = await fetch(
+                    `http://localhost:5000/api/availability-analysis/signal-lab?${queryParams}`
+                );
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('[SignalLabVisibility] API Response:', data);
+
+                // Use API data directly (no merging)
+                if (data.skus && data.skus.length > 0) {
+                    setSkusData(data.skus);
+                    setIsUsingApiData(true);
+                    console.log('[SignalLabVisibility] Using API data');
+                } else {
+                    // No data from API, use sample data
+                    setSkusData(SAMPLE_SKUS);
+                    setIsUsingApiData(false);
+                    console.log('[SignalLabVisibility] No API data, using sample data');
+                }
+            } catch (err) {
+                console.error('[SignalLabVisibility] Error fetching API data:', err);
+                // API failed, use sample data
+                setSkusData(SAMPLE_SKUS);
+                setIsUsingApiData(false);
+                console.log('[SignalLabVisibility] API failed, using sample data');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSignalLabData();
+    }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+
+    const filtered = skusData.filter(
         (sku) => sku.metricType === metricType && sku.type === signalType
     );
 
@@ -1060,18 +1133,51 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 />
             </div>
 
-            <div className="mt-5">
-                <div className="grid grid-cols-4 gap-4 items-start">
-                    {pageRows.map((s) => (
-                        <SignalCard
-                            key={s.id}
-                            sku={s}
-                            metricType={metricType}
-                            onShowDetails={() => setSelectedSkuForDetails(s)}
-                        />
-                    ))}
+            {/* Loading State */}
+            {loading && (
+                <div className="mt-5 flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sky-600 border-r-transparent"></div>
+                        <p className="mt-3 text-sm text-slate-600">Loading signal lab data...</p>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* No Data Found */}
+            {!loading && filtered.length === 0 && (
+                <div className="mt-5 flex items-center justify-center py-12">
+                    <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
+                            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                            </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-slate-700 mb-2">No Data Found</h3>
+                        <p className="text-sm text-slate-500">
+                            No {signalType === 'drainer' ? 'drainers' : 'gainers'} found for the selected filters.
+                        </p>
+                        <p className="text-xs text-slate-400 mt-2">
+                            Try adjusting your filters or check back later.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Data Grid */}
+            {!loading && filtered.length > 0 && (
+                <div className="mt-5">
+                    <div className="grid grid-cols-4 gap-4 items-start">
+                        {pageRows.map((s) => (
+                            <SignalCard
+                                key={s.id}
+                                sku={s}
+                                metricType={metricType}
+                                onShowDetails={() => setSelectedSkuForDetails(s)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {usePagination && (
                 <div className="mt-6 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
