@@ -197,13 +197,13 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  const LEVEL_TITLES = ["Keyword Type", "Direction", "City", "SKU", "SKU"];
+  const LEVEL_TITLES = ["Keyword Type", "Keyword", "City"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
   const [expanded, setExpanded] = useState({});
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [selectedQuarter, setSelectedQuarter] = useState("Q1");
+  const [selectedQuarter, setSelectedQuarter] = useState("Q4");
   const [page, setPage] = useState(1);
   // ---------- FILTERS STATE ----------
   const [activeFilters, setActiveFilters] = useState({
@@ -330,15 +330,17 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
-  // Max hierarchy depth (data-driven)
-  const maxDepth = getMaxDepth(collectedData?.rows, 0);
+  // Force reset expanded state on mount to ensure columns are hidden
+  useEffect(() => {
+    setExpanded({});
+  }, []);
 
-  // visibleHierarchyCols is dynamic
+  // visibleHierarchyCols is dynamic based strictly on expansion
   const expandedDepth = getExpandedDepth(expanded);
-  const visibleHierarchyCols = Math.max(
-    1,
-    Math.min(expandedDepth + 1, maxDepth + 1)
-  );
+  // If nothing expanded (depth 0), show 1 column. 
+  // If depth 1 expanded (e.g. Magnum), show 2 columns (Type + Keyword).
+  // If depth 2 expanded (e.g. Magnum > Keyword), show 3 columns.
+  const visibleHierarchyCols = expandedDepth + 1;
 
   const filteredRows = filteredDataRows;
 
@@ -767,17 +769,21 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         }}
       >
         {/* HEADER */}
-        <Box mb={2} display="flex" justifyContent="space-between">
+        <Box mb={2} display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box>
-            <Typography
-              sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
-            >
-              {collectedData?.title}
-            </Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <Typography
+                sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
+              >
+                {collectedData?.title}
+              </Typography>
+
+              {/* QUICK CATEGORY FILTER REMOVED */}
+            </Box>
 
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
               {selectedInsight === "All Campaign Summary"
-                ? "Keyword Type → Direction → City → SKU"
+                ? "Keyword Type → Keyword → City"
                 : "AD Property → GROUP → KEYWORD"}
             </Typography>
           </Box>
@@ -802,7 +808,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                   backgroundColor: "#f1f5f9",
                   color: "#334155",
                   border: "1px solid #e2e8f0",
-                  "&:hover": { backgroundColor: "#e2e8f0" }
+                  "&:hover": { backgroundColor: "#e2e8f0" },
                 }}
               >
                 Filters

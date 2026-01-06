@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, Check } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -148,6 +148,96 @@ const getCompetitorData = (keyword) => [
     { brand: "Havmor", overall: 5, organic: 5, paid: 0 },
 ];
 
+const FilterDropdown = ({ options, selected, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
+    const isAllSelected = selected.length === options.length;
+
+    const handleOptionClick = (option) => {
+        if (option === 'All') {
+            if (isAllSelected) {
+                onChange([]);
+            } else {
+                onChange(options);
+            }
+        } else {
+            if (selected.includes(option)) {
+                onChange(selected.filter(item => item !== option));
+            } else {
+                onChange([...selected, option]);
+            }
+        }
+    };
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+            >
+                Brand
+                <span className="flex items-center justify-center bg-slate-100 rounded-full px-1.5 min-w-[1.25rem] h-5 text-[10px] text-slate-600">
+                    {isAllSelected ? 'All' : selected.length}
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg border border-slate-200 bg-white shadow-xl p-1"
+                    >
+                        <div
+                            className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-md cursor-pointer font-medium border-b border-slate-50 mb-1"
+                            onClick={() => handleOptionClick('All')}
+                        >
+                            <div className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${isAllSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'}`}>
+                                {isAllSelected && <Check size={10} className="text-white" />}
+                            </div>
+                            All Brands
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                            {options.map((option) => {
+                                const isSelected = selected.includes(option);
+                                return (
+                                    <div
+                                        key={option}
+                                        className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-md cursor-pointer"
+                                        onClick={() => handleOptionClick(option)}
+                                    >
+                                        <div className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 bg-white'}`}>
+                                            {isSelected && <Check size={10} className="text-white" />}
+                                        </div>
+                                        {option}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+
 const DeltaIndicator = ({ value }) => {
     const num = Number(value || 0);
     const absValue = Math.abs(num).toFixed(1); // Removed % as per screenshot
@@ -182,19 +272,28 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
+    const [selectedBrands, setSelectedBrands] = useState([]);
 
     // Use API data if provided, otherwise fallback to MOCK_DATA
     const displayData = data || MOCK_DATA;
 
     const handleBrandClick = (keyword) => {
         setSelectedKeyword(keyword);
+        // Initialize brand selection with all brands for the clicked keyword
+        const brands = getCompetitorData(keyword).map(d => d.brand);
+        setSelectedBrands(brands);
     };
 
     const closeDrilldown = () => {
         setSelectedKeyword(null);
+        setSelectedBrands([]);
     };
 
-    const drilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
+    const allDrilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
+    const availableBrands = allDrilldownData.map(d => d.brand);
+
+    // Filter the data based on selection
+    const displayedDrilldownData = allDrilldownData.filter(d => selectedBrands.includes(d.brand));
 
     // Animation Variants
     const containerVariants = {
@@ -327,12 +426,19 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                 <h4 className="text-sm font-semibold text-slate-800">
                                     Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
                                 </h4>
-                                <button
-                                    onClick={closeDrilldown}
-                                    className="p-1 rounded-full hover:bg-slate-200 text-slate-500 transition"
-                                >
-                                    <X size={16} />
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <FilterDropdown
+                                        options={availableBrands}
+                                        selected={selectedBrands}
+                                        onChange={setSelectedBrands}
+                                    />
+                                    <button
+                                        onClick={closeDrilldown}
+                                        className="p-1 rounded-full hover:bg-slate-200 text-slate-500 transition"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
                             </div>
                             <div className="p-4">
                                 <table className="w-full text-left">
@@ -345,7 +451,7 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {drilldownData.map((d, i) => (
+                                        {displayedDrilldownData.map((d, i) => (
                                             <tr key={i} className="hover:bg-slate-50/50">
                                                 <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
                                                 <td className="py-2 text-center text-xs text-slate-600">{d.overall}%</td>
@@ -353,6 +459,13 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                                 <td className="py-2 text-center text-xs text-slate-600">{d.paid}%</td>
                                             </tr>
                                         ))}
+                                        {displayedDrilldownData.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="py-8 text-center text-xs text-slate-400 italic">
+                                                    No brands selected
+                                                </td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>

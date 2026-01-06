@@ -586,8 +586,8 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
       change: "▼8.6 pts (from 26.2%)",
       changeColor: "red",
       prevText: "vs Previous Period",
-      extra: "High-risk stores: 18",
-      extraChange: "+5 stores",
+      extra: "High risk keywords: 5",
+      extraChange: "",
       extraChangeColor: "red",
     },
     {

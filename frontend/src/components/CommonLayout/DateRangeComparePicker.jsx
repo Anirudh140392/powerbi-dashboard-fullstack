@@ -237,6 +237,19 @@ export default function DateRangeComparePicker({
         const [ns, ne] = computeCompareRange(cs, ce, compareMode);
         setCustomCompareStart(ns);
         setCustomCompareEnd(ne);
+
+        // Auto-apply and close
+        if (onApply) {
+            onApply(
+                dayjs(cs),
+                dayjs(ce),
+                dayjs(ns),
+                dayjs(ne),
+                compareOn,
+                item.label // Pass the friendly label
+            );
+        }
+        handleClose();
     }
 
     function onPrimaryStartChange(v) {
@@ -279,7 +292,8 @@ export default function DateRangeComparePicker({
                 dayjs(end),
                 dayjs(compareStartFinal),
                 dayjs(compareEndFinal),
-                compareOn
+                compareOn,
+                activeQuick === "custom" ? "Custom Range" : (quickRanges.find(q => q.key === activeQuick)?.label || "Custom Range")
             );
         }
         handleClose();
@@ -289,7 +303,7 @@ export default function DateRangeComparePicker({
         <Box>
             <button
                 type="button"
-                className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm hover:bg-slate-50"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-sm shadow-sm hover:border-slate-300"
                 style={{ cursor: 'pointer', textAlign: 'left', minHeight: '38px', minWidth: '190px' }}
                 onClick={handleOpen}
             >
@@ -351,19 +365,7 @@ export default function DateRangeComparePicker({
                             </Box>
                         </Box>
 
-                        <Box sx={{ mt: 3 }}>
-                            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', mb: 1.5 }}>Quick Ranges</Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                                {quickRanges.map((q) => (
-                                    <CustomChip
-                                        key={q.key}
-                                        active={activeQuick === q.key}
-                                        onClick={() => applyQuick(q.key)}
-                                        title={q.label}
-                                    />
-                                ))}
-                            </Box>
-                        </Box>
+
                     </Box>
 
                     <Box sx={{ p: 2.5 }}>
@@ -423,6 +425,20 @@ export default function DateRangeComparePicker({
                                 </Box>
                             </Box>
                         )}
+
+                        <Box sx={{ mt: 3, mb: 3 }}>
+                            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', mb: 1.5 }}>Quick Ranges</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                                {quickRanges.map((q) => (
+                                    <CustomChip
+                                        key={q.key}
+                                        active={activeQuick === q.key}
+                                        onClick={() => applyQuick(q.key)}
+                                        title={q.label}
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
 
                         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Button onClick={handleClose} sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}>Cancel</Button>

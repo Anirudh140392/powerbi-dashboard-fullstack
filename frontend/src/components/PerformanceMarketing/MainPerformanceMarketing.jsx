@@ -1,90 +1,113 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { Box, Grid, Card, Typography, Chip } from "@mui/material";
 import * as Icons from "lucide-react";
 import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
+import dayjs from "dayjs";
 
 import performanceData from "../../utils/PerformanceMarketingData";
 import HeatMapDrillTable from "./HeatMapDrillTable";
 import InsightHorizontalKpis from "./InsightHorizontalKpis";
-import KeywordAnalysisTable from "./KeywordAnalysisTable";
-import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 import DrilldownLatestTable from "./DrilldownLatestTable";
+import KeywordAnalysisTable from "./KeywordAnalysisTable";
 
-const cards = [
-  {
-    title: "Impressions",
-    value: "65.2%",
-    sub: "MTD on-shelf coverage",
-    change: "▲3.1 pts (from 82.1%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "High risk stores: 12",
-    extraChange: "▼4 stores",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Direct Conv",
-    value: "52.4",
-    sub: "Network average days of cover",
-    change: "▼5.3% (from 65.9)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Target band: 55–65 days",
-    extraChange: "Within target range",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Spend",
-    value: "43.7%",
-    sub: "Supplier fulfillment rate",
-    change: "▲1.8 pts (from 91.9%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 6%",
-    extraChange: "▼1.2 pts",
-    extraChangeColor: "green",
-  },
-  {
-    title: "New Users",
-    value: "60.5%",
-    sub: "MTD availability across metro cities",
-    change: "▼2.0 pts (from 80.5%)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Top 10 stores: 84.2%",
-    extraChange: "▲0.6 pts",
-    extraChangeColor: "green",
-  },
-];
+import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 
 export default function MainPerformanceMarketings() {
-  const calledOnce = useRef(false);
+  const { timeStart, timeEnd, comparisonLabel } = useContext(FilterContext);
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
-  useEffect(() => {
-    if (calledOnce.current) return;
-    calledOnce.current = true;
 
+  // Default to the mock data for initial render
+  const [kpiCards, setKpiCards] = useState([
+    {
+      title: "Impressions", value: "91", change: "▲ 10.4%", changeColor: "#28a745", sparklineData: null,
+      prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
+    },
+    {
+      title: "Conversion", value: "1%", change: "▲ 0.1%", changeColor: "#28a745", sparklineData: null,
+      prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
+    },
+    {
+      title: "Spend", value: "65", change: "▼ 18.0%", changeColor: "#dc3545", sparklineData: null,
+      prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
+    },
+    {
+      title: "ROAS", value: "3", change: "▼ 0.0", changeColor: "#dc3545", sparklineData: null,
+      prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
+    },
+  ]);
+
+  // Comparison label now comes from FilterContext dynamically
+
+  useEffect(() => {
     const fetchPerformanceData = async () => {
       try {
         const response = await axiosInstance.get("/performance-marketing", {
-          params: { platform: "Blinkit" }, // Default filter
+          params: {
+            platform: "Blinkit",
+            startDate: timeStart?.format("YYYY-MM-DD"),
+            endDate: timeEnd?.format("YYYY-MM-DD")
+          },
         });
         console.log("Performance Marketing Data:", response.data);
+
+        if (response.data?.kpi_cards) {
+          const trendChart = response.data.trend_chart || [];
+
+          // Helper to extract numeric values for sparkline
+          // We'll take the last 12 points or all if less
+          const getSparklineData = (key) => {
+            if (!trendChart.length) return null;
+            return trendChart.slice(-12).map(item => Number(item[key]) || 0);
+          };
+
+          const mappedCards = response.data.kpi_cards.map(card => {
+            let sparkKey = "";
+            // Map label to data key in trend_chart if possible
+            // Assuming trend_chart has keys like: impressions, spend, cpm, ctr, etc.
+            if (card.label.toLowerCase().includes("impression")) sparkKey = "impressions";
+            else if (card.label.toLowerCase().includes("spend")) sparkKey = "spend";
+            else if (card.label.toLowerCase().includes("roas")) sparkKey = "roas_roas";
+            else if (card.label.toLowerCase().includes("conversion")) sparkKey = "cr_percentage";
+
+            return {
+              title: card.label,
+              value: card.value,
+              change: `${card.positive ? "▲" : "▼"} ${card.change}`, // Add arrow
+              changeColor: card.positive ? "#28a745" : "#dc3545", // Green/Red
+              sub: "", // Optional subtitle
+              sparklineData: getSparklineData(sparkKey),
+              prevTextStyle: {
+                fontSize: 10,
+                fontWeight: "bold",
+                fontStyle: "italic",
+                textTransform: "uppercase",
+                color: "#94a3b8",
+                ml: 1,
+              }
+            };
+          });
+          setKpiCards(mappedCards);
+        }
       } catch (error) {
         console.error("Error fetching Performance Marketing data:", error);
       }
     };
 
-    fetchPerformanceData()
-  }, [])
+    if (timeStart && timeEnd) {
+      fetchPerformanceData();
+    }
+  }, [timeStart, timeEnd]);
 
   return (
     <Box>
-
       <Box sx={{ mt: 4 }}>
         <MetricCardContainer
-          title="Performance Marketing Overview"
-          cards={cards}
+          title="Performance Overview"
+          cards={kpiCards.map(card => ({
+            ...card,
+            prevText: comparisonLabel
+          }))}
         />
       </Box>
       <Box sx={{ mt: 4 }}>
@@ -104,6 +127,5 @@ export default function MainPerformanceMarketings() {
         <DrilldownLatestTable />
       </Box>
     </Box>
-
   );
 };

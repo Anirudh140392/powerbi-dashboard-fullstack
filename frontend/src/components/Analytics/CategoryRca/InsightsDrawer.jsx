@@ -83,9 +83,9 @@ export default function InsightsDrawer({ product, onClose, totalProducts }) {
                 <NavigateNext />
               </IconButton>
             </Box>
-            <Typography variant="body2" color="text.secondary">
+            {/* <Typography variant="body2" color="text.secondary">
               MTD vs Previous Month
-            </Typography>
+            </Typography> */}
             <IconButton onClick={onClose} size="small">
               <Close />
             </IconButton>
