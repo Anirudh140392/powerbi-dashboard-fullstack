@@ -4,6 +4,9 @@ import { SlidersHorizontal, X, Plus, Minus } from 'lucide-react'
 import { Box, Button, Typography, Select, MenuItem } from '@mui/material'
 import { KpiFilterPanel } from '../KpiFilterPanel'
 import PaginationFooter from '../CommonLayout/PaginationFooter'
+import { FilterContext } from '../../utils/FilterContext'
+import axiosInstance from '../../api/axiosInstance'
+import dayjs from 'dayjs'
 
 const KPI_LABELS = {
   impressions: 'Impressions',
@@ -70,19 +73,14 @@ const kpiModes = {
   },
   sales: {
     label: 'Sales',
-    description: 'Sales units or value.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
-    heat: (v) =>
-      v >= 8
-        ? 'bg-emerald-50 text-emerald-700'
-        : v >= 4
-          ? 'bg-amber-50 text-amber-700'
-          : 'bg-rose-50 text-rose-700',
+    description: 'Total Sales (Organic + Ad)',
+    formatter: (v) => (Number.isFinite(v) ? v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : ''),
+    heat: (v) => 'bg-white text-slate-700', // Remove heat map coloring for raw values or adjust threshold
   },
   inorganic: {
-    label: 'Inorganic',
-    description: 'Inorganic / promoted sales.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
+    label: 'Inorganic Sales',
+    description: 'Ad Sales (Sum of Ad_Sales)',
+    formatter: (v) => (Number.isFinite(v) ? v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : ''),
     heat: () => 'bg-white text-slate-700',
   },
 }
@@ -286,67 +284,107 @@ const FilterSelect = ({ label, value, options, onChange }) => (
 )
 
 // ------------------- AGGREGATORS -------------------
+const getSafe = (val) => Number.isFinite(val) ? val : 0;
+
 function aggregateQuarterKpis(rows) {
-  const totals = {}
-  const counts = {}
+  const aggs = {};
 
   rows.forEach((row) => {
-    Object.entries(row.quarters).forEach(([q, kpis]) => {
-      if (!totals[q]) totals[q] = {}
-      if (!counts[q]) counts[q] = {}
+    if (!row.quarters) return;
+    Object.entries(row.quarters).forEach(([q, metrics]) => {
+      if (!metrics) return;
+      if (!aggs[q]) {
+        aggs[q] = {
+          impressions: 0,
+          spend: 0,
+          clicks: 0,
+          adSales: 0,
+          totalSales: 0
+        };
+      }
+      aggs[q].impressions += getSafe(metrics.impressions);
+      aggs[q].spend += getSafe(metrics.spend);
+      // Back-calculate raw clicks/sales from derived metrics if needed, but optimally we should carry raw values
+      // Since metrics object from transformedItems (below) will carry raw values now, we can use them.
+      // But we need to ensure transformedItems actually HAS raw values mapped to these keys.
+      // Current transformedItems output (to be updated): 
+      // conversion = clicks/imps. So clicks = conversion * imps? 
+      // Better to update transformedItems to just pass raw Clicks, AdSales, TotalSales. 
+      // Let's assume metrics input has: impressions, spend, clicks, adSales, totalSales.
 
-      Object.entries(kpis).forEach(([key, val]) => {
-        if (!Number.isFinite(val)) return
-        totals[q][key] = (totals[q][key] || 0) + val
-        counts[q][key] = (counts[q][key] || 0) + 1
-      })
-    })
-  })
+      // Since we are updating transformedItems in the NEXT step, we will design this function 
+      // to expect raw values.
+      aggs[q].clicks += getSafe(metrics.clicks);
+      aggs[q].adSales += getSafe(metrics.adSales);
+      aggs[q].totalSales += getSafe(metrics.totalSales);
+    });
+  });
 
-  const result = {}
-  Object.entries(totals).forEach(([q, kpis]) => {
-    result[q] = {}
-    Object.entries(kpis).forEach(([key, total]) => {
-      result[q][key] = total / (counts[q][key] || 1)
-    })
-  })
-  return result
+  const result = {};
+  Object.keys(aggs).forEach(q => {
+    const a = aggs[q];
+    result[q] = {
+      impressions: a.impressions,
+      spend: a.spend,
+      conversion: a.impressions ? (a.clicks / a.impressions) : 0, // CTR
+      cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
+      roas: a.spend ? (a.adSales / a.spend) : 0,
+      sales: a.totalSales,       // Total Sales
+      inorganic: a.adSales,      // Ad Sales Value
+    };
+  });
+  return result;
 }
 
 function aggregateMonthKpis(rows) {
-  const totals = {}
-  const counts = {}
-
+  const aggs = {};
   rows.forEach((row) => {
-    const q = monthToQuarter[row.month]
-    const kpis = row.quarters[q]
-    if (!kpis) return
+    // Row has month property?
+    const m = row.month;
+    if (!m) return;
+    if (!aggs[m]) aggs[m] = { impressions: 0, spend: 0, clicks: 0, adSales: 0, totalSales: 0 };
 
-    if (!totals[row.month]) totals[row.month] = {}
-    if (!counts[row.month]) counts[row.month] = {}
+    // We need to access the metrics for this row.
+    // The row itself represents a day or category. 
+    // If row is a Day (leaf), it has its own metrics.
+    // Where are they stored? in row.quarters? 
+    // The transformation logic puts metrics in `quarters`.
+    // Let's assume we aggregate ALL quarters data for the month row?
+    // Or we look at specific quarter?
+    // Actually, simpler: The DrilldownTable column logic iterates `quarters`. 
+    // `aggregateMonthKpis` is used to create the "Header Row" for the Category, aggregating all its children (Days).
+    const qData = Object.values(row.quarters || {})[0]; // Take first quarter data found
+    if (qData) {
+      aggs[m].impressions += getSafe(qData.impressions);
+      aggs[m].spend += getSafe(qData.spend);
+      aggs[m].clicks += getSafe(qData.clicks);
+      aggs[m].adSales += getSafe(qData.adSales);
+      aggs[m].totalSales += getSafe(qData.totalSales);
+    }
+  });
 
-    Object.entries(kpis).forEach(([key, val]) => {
-      if (!Number.isFinite(val)) return
-      totals[row.month][key] = (totals[row.month][key] || 0) + val
-      counts[row.month][key] = (counts[row.month][key] || 0) + 1
-    })
-  })
-
-  const result = {}
-  Object.entries(totals).forEach(([m, kpis]) => {
-    result[m] = {}
-    Object.entries(kpis).forEach(([key, total]) => {
-      result[m][key] = total / (counts[m][key] || 1)
-    })
-  })
-  return result
+  const result = {};
+  Object.keys(aggs).forEach(m => {
+    const a = aggs[m];
+    result[m] = {
+      impressions: a.impressions,
+      spend: a.spend,
+      conversion: a.impressions ? (a.clicks / a.impressions) : 0,
+      cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
+      roas: a.spend ? (a.adSales / a.spend) : 0,
+      sales: a.totalSales,
+      inorganic: a.adSales,
+    };
+  });
+  return result;
 }
+
 
 // -------------------------------------------------------------
 // ---------------------- MAIN COMPONENT ------------------------
 // -------------------------------------------------------------
 export default function DrilldownLatestTable() {
-  console.log("DrilldownLatestTable loaded - Version 2 (Branded/Browse)")
+  console.log("DrilldownLatestTable loaded - Version 2 (APIData)")
   const [activeKpi, setActiveKpi] = useState('roas')
   const [visibleKpis, setVisibleKpis] = useState({
     impressions: true,
@@ -367,122 +405,219 @@ export default function DrilldownLatestTable() {
   const [pageSize, setPageSize] = useState(20)
   const [page, setPage] = useState(1)
 
-  const [filters, setFilters] = useState({
+  // Use FilterContext values
+  const { platform, selectedBrand, selectedLocation, timeStart, timeEnd } = React.useContext(FilterContext);
+
+  const [loading, setLoading] = useState(false);
+  const [apiData, setApiData] = useState([]);
+
+  const [localFilters, setLocalFilters] = useState({
     weekendFlag: 'All',
     tdp: 'All',
     month: 'All',
     year: 'All',
-    format: 'All',
+    format: 'All', // This will filter the Categories if needed
     day: '',
-  })
+  });
 
   const [sortField, setSortField] = useState('format')
   const [sortDir, setSortDir] = useState('asc')
-  const quarters = useMemo(() => ['Q3', 'Q4'], [])
-  const [expandedQuarters, setExpandedQuarters] = useState(new Set(['Q4']))
-  const showHierarchyColumn = true
+  const quarters = useMemo(() => ['Q3', 'Q4'], []) // Dynamically determine quarters later?
+  const [expandedQuarters, setExpandedQuarters] = useState(new Set([]))
 
-  // --------------- FLATTEN RAW DATA ---------------
-  const allRows = useMemo(() => {
-    const rows = []
-    sampleData.forEach((f) => {
-      f.days.forEach((d) => {
-        rows.push({
-          format: f.format,
-          day: d.day,
-          weekendFlag: d.weekendFlag,
-          tdp: d.tdp,
-          month: d.month,
-          year: d.year,
-          quarters: d.quarters,
-        })
-      })
-    })
-    return rows
-  }, [])
+  // Fetch Data
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          platform: platform || 'All',
+          brand: selectedBrand,
+          location: selectedLocation,
+          startDate: timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : undefined,
+          endDate: timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : undefined,
+        };
 
-  // -------------------- FILTERING --------------------
-  const filteredRows = useMemo(() => {
-    return allRows.filter((row) => {
-      if (filters.weekendFlag !== 'All' && row.weekendFlag !== filters.weekendFlag) return false
-      if (filters.tdp !== 'All' && row.tdp !== filters.tdp) return false
-      if (filters.month !== 'All' && row.month !== filters.month) return false
-      if (filters.year !== 'All' && String(row.year) !== filters.year) return false
-      if (filters.format !== 'All' && row.format !== filters.format) return false
-      if (filters.day && String(row.day ?? '') !== filters.day) return false
-      return true
-    })
-  }, [allRows, filters])
+        const response = await axiosInstance.get('/performance-marketing/format-performance', { params });
+        setApiData(response.data);
 
-  // ------------------ HIERARCHY BUILD ------------------
+      } catch (error) {
+        console.error("Error fetching format performance:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+
+
+  // --------------- TRANSFORM API DATA ---------------
   const hierarchy = useMemo(() => {
-    const rows = []
-    const byFormat = new Map()
+    if (!apiData || apiData.length === 0) return [];
 
-    filteredRows.forEach((r) => {
-      if (!byFormat.has(r.format)) byFormat.set(r.format, [])
-      byFormat.get(r.format).push(r)
-    })
+    // Group by Category
+    const byCategory = new Map();
 
-    Array.from(byFormat.entries()).forEach(([format, formatRows]) => {
-      const formatId = `fmt-${format}`
+    apiData.forEach(item => {
+      const cat = item.Category || 'Other';
+      if (!byCategory.has(cat)) byCategory.set(cat, []);
+      byCategory.get(cat).push(item);
+    });
+
+    const rows = [];
+
+    // Helper helpers
+    const getMonthName = (dateStr) => dayjs(dateStr).format('MMM');
+    const getQuarter = (dateStr) => {
+      const m = dayjs(dateStr).month(); // 0-11
+      if (m < 3) return 'Q1';
+      if (m < 6) return 'Q2';
+      if (m < 9) return 'Q3';
+      return 'Q4';
+    };
+
+    // Process each Category
+    byCategory.forEach((items, category) => {
+      const catId = category; // unique ID
+
+      // We need to bucket items by Quarter/Month/Day
+      const transformedItems = items.map(item => {
+        const d = dayjs(item.date);
+        const q = getQuarter(item.date);
+        const m = getMonthName(item.date);
+
+        // Calculate metrics
+        const imps = Number(item.impressions) || 0;
+        const clicks = Number(item.clicks) || 0;
+        const spend = Number(item.spend) || 0;
+        const sales = Number(item.sales) || 0; // Ad Sales from DB
+        const totalSales = Number(item.total_sales) || 0; // Total Sales from DB
+
+        return {
+          format: category,
+          day: d.date(), // 1-31
+          month: m,
+          year: d.year(),
+          quarters: {
+            [q]: {
+              impressions: imps,
+              spend: spend,
+              clicks: clicks, // Raw Clicks
+              adSales: sales, // Raw Ad Sales
+              totalSales: totalSales, // Raw Total Sales
+            }
+          }
+        };
+      });
 
       rows.push({
-        id: formatId,
+        id: catId,
         depth: 0,
-        label: format,
+        label: category,
         level: 'format',
-        format,
-        quarters: aggregateQuarterKpis(formatRows),
-        months: aggregateMonthKpis(formatRows),
-        hasChildren: true,
-      })
+        format: category,
+        quarters: aggregateQuarterKpis(transformedItems),
+        months: aggregateMonthKpis(transformedItems),
+        hasChildren: true
+      });
 
-      // Direct drilldown: expand format -> individual day rows (skip tdp/weekend levels)
-      if (!expandedRows.has(formatId)) return
+      // Direct drilldown: expand Category -> Individual Dates
+      if (expandedRows.has(catId)) {
+        // Aggregate by day to prevent duplicates, BUT keep quarters separate
+        const dayAggs = new Map();
 
-      formatRows.forEach((r, idx) => {
-        const dayId = `${formatId}-d-${idx}`
+        transformedItems.forEach(item => {
+          if (item.day < 1 || item.day > 7) return; // Strict filter 1-7
 
-        rows.push({
-          id: dayId,
-          depth: 1,
-          label: '',
-          level: 'day',
-          format,
-          day: r.day,
-          quarters: r.quarters || {},
-          months: aggregateMonthKpis([r]),
-          hasChildren: false,
-        })
-      })
-    })
+          if (!dayAggs.has(item.day)) {
+            dayAggs.set(item.day, {
+              day: item.day,
+              quarters: {} // Map<Quarter, Metrics>
+            });
+          }
 
-    return rows
-  }, [filteredRows, expandedRows])
+          const agg = dayAggs.get(item.day);
+          const q = Object.keys(item.quarters)[0];
+          const metrics = item.quarters[q];
 
-  // Reset page when filters change
+          if (metrics) {
+            if (!agg.quarters[q]) {
+              agg.quarters[q] = {
+                impressions: 0, spend: 0, clicks: 0, adSales: 0, totalSales: 0
+              };
+            }
+            agg.quarters[q].impressions += getSafe(metrics.impressions);
+            agg.quarters[q].spend += getSafe(metrics.spend);
+            agg.quarters[q].clicks += getSafe(metrics.clicks);
+            agg.quarters[q].adSales += getSafe(metrics.adSales);
+            agg.quarters[q].totalSales += getSafe(metrics.totalSales);
+          }
+        });
+
+        // Create rows from aggregated day data
+        Array.from(dayAggs.values())
+          .sort((a, b) => a.day - b.day)
+          .forEach((aggItem) => {
+            const dayId = `${catId}-d-${aggItem.day}`;
+            const quartersData = {};
+
+            // Calculate Key Metrics per Quarter
+            Object.entries(aggItem.quarters).forEach(([q, raw]) => {
+              const imps = raw.impressions;
+              const clicks = raw.clicks;
+              const spend = raw.spend;
+              const sales = raw.totalSales; // Total Sales
+              const adSales = raw.adSales;  // Ad Sales
+
+              quartersData[q] = {
+                impressions: imps,
+                spend: spend,
+                conversion: imps ? (clicks / imps) : 0,
+                cpm: imps ? ((spend / imps) * 1000) : 0,
+                roas: spend ? (adSales / spend) : 0,
+                sales: sales,
+                inorganic: adSales
+              };
+            });
+
+            rows.push({
+              id: dayId,
+              depth: 1,
+              label: '',
+              level: 'day',
+              format: category,
+              day: aggItem.day,
+              quarters: quartersData, // Now has Q3, Q4 keys
+              months: {},
+              hasChildren: false
+            });
+          });
+      }
+
+    });
+
+    return rows;
+  }, [apiData, expandedRows]); // filtered by api response directly
+
+  // Reset page when data changes
   useEffect(() => {
     setPage(1)
-  }, [filters, pageSize, hierarchy])
+  }, [apiData, pageSize])
 
   const totalPages = Math.max(1, Math.ceil(hierarchy.length / pageSize))
   const pageRows = hierarchy.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
 
   const toggleSort = (field) => {
-    if (sortField !== field) {
-      setSortField(field)
-      setSortDir('asc')
-    } else {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    }
+    setSortField(field)
+    setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
   }
 
   const toggleKpiVisibility = (k) =>
     setVisibleKpis((prev) => ({ ...prev, [k]: !prev[k] }))
 
   const resetFilters = () =>
-    setFilters({
+    setLocalFilters({
       weekendFlag: 'All',
       tdp: 'All',
       month: 'All',
@@ -575,7 +710,7 @@ export default function DrilldownLatestTable() {
                   Format Performance (Heatmap)
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-                  Keyword Type → Day
+                  Category → Day
                 </Typography>
               </Box>
             </Box>
@@ -628,7 +763,7 @@ export default function DrilldownLatestTable() {
             {/* PATH LEGEND */}
             <div className="mb-4 flex items-center gap-2 text-[11px] text-slate-500">
               <span className="px-2 py-1 rounded-full bg-slate-50 border">Path</span>
-              Keyword Type → Day
+              Category → Day
             </div>
 
             {/* TABLE WRAPPER WITH FULL BORDER */}
@@ -649,7 +784,7 @@ export default function DrilldownLatestTable() {
                           zIndex: 40
                         }}
                       >
-                        Format
+                        Category
                       </th>
 
                       {expandedRows.size > 0 && (
@@ -730,12 +865,12 @@ export default function DrilldownLatestTable() {
                     </tr>
 
                     {/* KPI SUB-HEADER ROW */}
-                    {expandedQuarters.size > 0 && (
-                      <tr className="bg-white">
-                        {quarters.flatMap((q) => {
-                          const isExpanded = expandedQuarters.has(q)
-                          if (!isExpanded) return null
+                    <tr className="bg-white">
+                      {quarters.flatMap((q) => {
+                        const isExpanded = expandedQuarters.has(q)
 
+                        // If expanded, show KPIs per month
+                        if (isExpanded) {
                           return quarterMonths[q].flatMap((m) =>
                             visibleKpiKeys.map((k) => (
                               <th
@@ -746,9 +881,19 @@ export default function DrilldownLatestTable() {
                               </th>
                             ))
                           )
-                        })}
-                      </tr>
-                    )}
+                        }
+
+                        // If NOT expanded (default view), show KPIs per Quarter
+                        return visibleKpiKeys.map((k) => (
+                          <th
+                            key={`${q}-${k}`}
+                            className="px-2 py-1 text-center text-[9px] text-slate-500 font-medium border-b border-r border-slate-200"
+                          >
+                            {KPI_LABELS[k]}
+                          </th>
+                        ))
+                      })}
+                    </tr>
                   </thead>
 
                   <tbody>

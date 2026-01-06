@@ -14,7 +14,7 @@ import KeywordAnalysisTable from "./KeywordAnalysisTable";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 
 export default function MainPerformanceMarketings() {
-  const { timeStart, timeEnd, comparisonLabel } = useContext(FilterContext);
+  const { timeStart, timeEnd, comparisonLabel, platform, selectedBrand, selectedLocation } = useContext(FilterContext);
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
 
   // Default to the mock data for initial render
@@ -44,10 +44,12 @@ export default function MainPerformanceMarketings() {
       try {
         const response = await axiosInstance.get("/performance-marketing", {
           params: {
-            platform: "Blinkit",
+            platform: platform,
+            brand: selectedBrand,
+            location: selectedLocation,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
-          },
+          }
         });
         console.log("Performance Marketing Data:", response.data);
 
