@@ -197,7 +197,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  const LEVEL_TITLES = ["Keyword Type", "Keyword", "City"];
+  const LEVEL_TITLES = ["Keyword Type", "Keyword", "Region"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
@@ -605,8 +605,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       <Box sx={{ width: 26 }} />
                     )}
 
-                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
-                      {node.label}
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      {level === 2 ? "Pan India" : node.label}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -687,7 +687,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         </TableRow>
 
         {isOpen &&
-          children.map((child) => renderRow(child, level + 1, fullPath))}
+          (level === 1
+            ? renderRow({ ...node, label: "Pan India", children: [] }, level + 1, fullPath)
+            : children.map((child) => renderRow(child, level + 1, fullPath))
+          )}
       </React.Fragment>
     );
   };
@@ -783,7 +786,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
               {selectedInsight === "All Campaign Summary"
-                ? "Keyword Type → Keyword → City"
+                ? "Keyword Type → Keyword → Region"
                 : "AD Property → GROUP → KEYWORD"}
             </Typography>
           </Box>

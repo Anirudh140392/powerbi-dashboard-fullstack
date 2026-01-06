@@ -61,29 +61,32 @@ export const FilterProvider = ({ children }) => {
     const location = useLocation();
     const currentPath = location.pathname;
 
+    // Load saved filters from localStorage
+    const savedFilters = JSON.parse(localStorage.getItem('savedFilters') || '{}');
+
     // Platform state
     const [platforms, setPlatforms] = useState(Object.keys(platformData));
-    const [platform, setPlatform] = useState("Zepto");
+    const [platform, setPlatform] = useState(savedFilters.platform || "Zepto");
 
     // Brand state
     const [brands, setBrands] = useState([]);
-    const [selectedBrand, setSelectedBrand] = useState(null);
+    const [selectedBrand, setSelectedBrand] = useState(savedFilters.selectedBrand || null);
 
     // Location state
     const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [selectedLocation, setSelectedLocation] = useState(savedFilters.selectedLocation || null);
 
     // Keyword state (for visibility analysis)
     const [keywords, setKeywords] = useState([]);
-    const [selectedKeyword, setSelectedKeyword] = useState(null);
+    const [selectedKeyword, setSelectedKeyword] = useState(savedFilters.selectedKeyword || null);
 
     // Date Ranges
     // Default date range: 1st of current month to today
-    const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
-    const [timeEnd, setTimeEnd] = useState(dayjs());
-    const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
-    const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
-    const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
+    const [timeStart, setTimeStart] = useState(savedFilters.timeStart ? dayjs(savedFilters.timeStart) : dayjs().startOf('month'));
+    const [timeEnd, setTimeEnd] = useState(savedFilters.timeEnd ? dayjs(savedFilters.timeEnd) : dayjs());
+    const [compareStart, setCompareStart] = useState(savedFilters.compareStart ? dayjs(savedFilters.compareStart) : dayjs("2025-09-01"));
+    const [compareEnd, setCompareEnd] = useState(savedFilters.compareEnd ? dayjs(savedFilters.compareEnd) : dayjs("2025-09-06"));
+    const [comparisonLabel, setComparisonLabel] = useState(savedFilters.comparisonLabel || "VS PREV. 30 DAYS");
 
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
@@ -92,6 +95,22 @@ export const FilterProvider = ({ children }) => {
     useEffect(() => {
         console.log('📍 Route changed to:', currentPath);
     }, [currentPath]);
+
+    // Save filters to localStorage whenever they change
+    useEffect(() => {
+        const filtersToSave = {
+            platform,
+            selectedBrand,
+            selectedLocation,
+            selectedKeyword,
+            timeStart: timeStart ? timeStart.toISOString() : null,
+            timeEnd: timeEnd ? timeEnd.toISOString() : null,
+            compareStart: compareStart ? compareStart.toISOString() : null,
+            compareEnd: compareEnd ? compareEnd.toISOString() : null,
+            comparisonLabel
+        };
+        localStorage.setItem('savedFilters', JSON.stringify(filtersToSave));
+    }, [platform, selectedBrand, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, comparisonLabel]);
 
     // Fetch platforms on mount (with fallback)
     useEffect(() => {

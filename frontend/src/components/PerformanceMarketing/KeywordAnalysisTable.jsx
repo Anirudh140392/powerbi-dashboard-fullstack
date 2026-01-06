@@ -467,8 +467,8 @@ export default function KeywordAnalysisTable() {
                         width: 20,
                         height: 20,
                         borderRadius: 2,
-                        backgroundColor: 'white',
-                        '&:hover': { backgroundColor: '#f8fafc' }
+                        backgroundColor: "white",
+                        "&:hover": { backgroundColor: "#f8fafc" },
                       }}
                     >
                       {isOpen ? <Minus size={14} /> : <Plus size={14} />}
