@@ -623,7 +623,11 @@ function WatchTower() {
                 activeKpisTab === "Platform Overview"
                   ? (() => {
                     const platforms = dashboardData?.platformOverview || [];
-                    const selectedPlatform = filters.platform?.toLowerCase();
+                    // Safely get platform as string - handle string, array, or undefined
+                    const platformValue = Array.isArray(filters.platform)
+                      ? (filters.platform.length > 0 ? filters.platform[0] : 'All')
+                      : (filters.platform || 'All');
+                    const selectedPlatform = typeof platformValue === 'string' ? platformValue.toLowerCase() : 'all';
 
                     // Sort platforms: All first, then selected platform, then others
                     return platforms.sort((a, b) => {
