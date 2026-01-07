@@ -1,4 +1,4 @@
-import { KpisOverview } from '../controllers/performanceMarketingController.js';
+import { KpisOverview, GetZones } from '../controllers/performanceMarketingController.js';
 
 export default (app) => {
     /**
@@ -18,4 +18,7 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/performance-marketing', KpisOverview);
+
+    // NEW Route for Zones
+    app.get('/api/performance-marketing/zones', GetZones);
 };

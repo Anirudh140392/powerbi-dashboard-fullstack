@@ -80,6 +80,10 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState(savedFilters.selectedKeyword || null);
 
+    // Zone state (for Performance Marketing page only)
+    const [zones, setZones] = useState([]);
+    const [selectedZone, setSelectedZone] = useState("All");
+
     // Date Ranges
     // Default date range: 1st of current month to today
     const [timeStart, setTimeStart] = useState(savedFilters.timeStart ? dayjs(savedFilters.timeStart) : dayjs().startOf('month'));
@@ -96,7 +100,7 @@ export const FilterProvider = ({ children }) => {
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
 
-    // Log route changes for debugging
+    // Log route changes for debugging and reset location for Performance Marketing
     useEffect(() => {
         console.log('📍 Route changed to:', currentPath);
     }, [currentPath]);
@@ -280,6 +284,8 @@ export const FilterProvider = ({ children }) => {
         };
 
         const fetchLocations = async () => {
+
+
             if (backendAvailable) {
                 try {
                     // Check if on Availability Analysis or Visibility Analysis page - include all locations
@@ -357,7 +363,11 @@ export const FilterProvider = ({ children }) => {
             comparisonLabel,
             setComparisonLabel,
             datesInitialized,
-            maxDate
+            maxDate,
+            zones,
+            selectedZone,
+            setZones,
+            setSelectedZone
         }}>
 
             {children}
