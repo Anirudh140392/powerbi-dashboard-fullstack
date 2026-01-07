@@ -40,6 +40,25 @@ export const getTrendData = async (req, res) => {
     }
 };
 
+export const getLatestAvailableMonth = async (req, res) => {
+    try {
+        const filters = req.query;
+        const latest = await watchTowerService.getLatestAvailableMonth(filters);
+
+        if (!latest?.available) {
+            return res.status(404).json({
+                available: false,
+                message: 'No data months available for the provided filters'
+            });
+        }
+
+        res.json(latest);
+    } catch (error) {
+        console.error('Error fetching latest available month:', error);
+        res.status(500).json({ available: false, error: 'Internal Server Error' });
+    }
+};
+
 export const getPlatforms = async (req, res) => {
     try {
         const platforms = await watchTowerService.getPlatforms();

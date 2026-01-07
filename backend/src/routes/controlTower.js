@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 
 export default (app) => {
@@ -129,6 +129,7 @@ export default (app) => {
 
     app.get('/api/watchtower/debug', debugAvailability);
     app.get('/api/watchtower/trend', getTrendData);
+    app.get('/api/watchtower/latest-available-month', getLatestAvailableMonth);
     app.get('/api/watchtower/categories', getBrandCategories);
     app.get('/api/watchtower/metrics', getMetrics);
     app.get('/api/watchtower/sku-metrics', getSkuMetricsData);

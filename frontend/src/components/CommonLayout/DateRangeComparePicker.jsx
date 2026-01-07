@@ -197,9 +197,17 @@ export default function DateRangeComparePicker({
     timeEnd,
     compareStart: initialCompareStart,
     compareEnd: initialCompareEnd,
-    onApply
+    onApply,
+    maxDate: maxDateProp // Optional: max selectable date from database
 }) {
-    const today = useMemo(() => new Date(), []);
+    // Use maxDate from props if provided, otherwise use today
+    const today = useMemo(() => {
+        if (maxDateProp && maxDateProp.isValid && maxDateProp.isValid()) {
+            return maxDateProp.toDate();
+        }
+        return new Date();
+    }, [maxDateProp]);
+
     const [anchorEl, setAnchorEl] = useState(null);
 
     const [start, setStart] = useState(timeStart ? timeStart.toDate() : addDays(today, -7));
@@ -208,6 +216,7 @@ export default function DateRangeComparePicker({
     const [activeQuick, setActiveQuick] = useState("last7");
     const [compareOn, setCompareOn] = useState(true);
     const [compareMode, setCompareMode] = useState("previous");
+
 
     const computedCompare = useMemo(() => computeCompareRange(start, end, compareMode), [start, end, compareMode]);
     const [customCompareStart, setCustomCompareStart] = useState(initialCompareStart ? initialCompareStart.toDate() : computedCompare[0]);
@@ -220,6 +229,35 @@ export default function DateRangeComparePicker({
     const compareLabel = rangeLabel(...clampRange(compareStartFinal, compareEndFinal));
 
     const quickRanges = useMemo(() => QUICK_RANGES(today), [today]);
+
+    useEffect(() => {
+        if (!timeStart || !timeEnd) return;
+
+        const incomingStart = timeStart.toDate();
+        const incomingEnd = timeEnd.toDate();
+
+        if (incomingStart.getTime() === start.getTime() && incomingEnd.getTime() === end.getTime()) {
+            return;
+        }
+
+        const [alignedStart, alignedEnd] = clampRange(incomingStart, incomingEnd);
+        setStart(alignedStart);
+        setEnd(alignedEnd);
+        setActiveQuick("custom");
+
+        const [ns, ne] = computeCompareRange(alignedStart, alignedEnd, compareMode);
+        setCustomCompareStart(ns);
+        setCustomCompareEnd(ne);
+    }, [timeStart, timeEnd]);
+
+    useEffect(() => {
+        if (!initialCompareStart || !initialCompareEnd) return;
+
+        const incomingCompareStart = initialCompareStart.toDate();
+        const incomingCompareEnd = initialCompareEnd.toDate();
+        setCustomCompareStart(incomingCompareStart);
+        setCustomCompareEnd(incomingCompareEnd);
+    }, [initialCompareStart, initialCompareEnd]);
 
     const handleOpen = (event) => setAnchorEl(event.currentTarget);
     const handleClose = () => setAnchorEl(null);
@@ -348,6 +386,7 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(start)}
                                         onChange={(e) => onPrimaryStartChange(e.target.value)}
+                                        max={toKey(today)}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
                                     />
                                 </Box>
@@ -359,11 +398,13 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(end)}
                                         onChange={(e) => onPrimaryEndChange(e.target.value)}
+                                        max={toKey(today)}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
                                     />
                                 </Box>
                             </Box>
                         </Box>
+
 
 
                     </Box>
