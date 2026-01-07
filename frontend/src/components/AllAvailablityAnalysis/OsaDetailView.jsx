@@ -13,6 +13,14 @@ function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
 }
 
+// Helper function to truncate long SKU names to 5-6 words
+function truncateName(name, maxWords = 6) {
+    if (!name) return '';
+    const words = name.split(/\s+/);
+    if (words.length <= maxWords) return name;
+    return words.slice(0, maxWords).join(' ') + '...';
+}
+
 function seededRandom(seed) {
     let t = seed % 2147483647;
     if (t <= 0) t += 2147483646;
@@ -460,10 +468,10 @@ export default function OsaDetailTableLight() {
                                                     <td
                                                         className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
                                                         style={{ minWidth: 280 }}
+                                                        title={r.name} // Show full name on hover
                                                     >
-                                                        <div>
-                                                            <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
-                                                            <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
+                                                        <div className="font-bold text-slate-900 leading-5 text-xs">
+                                                            {truncateName(r.name, 6)}
                                                         </div>
                                                     </td>
 
