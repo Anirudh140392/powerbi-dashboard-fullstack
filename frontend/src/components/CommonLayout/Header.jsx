@@ -52,7 +52,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     compareEnd,
     setCompareEnd,
     setComparisonLabel,
+    maxDate,
   } = React.useContext(FilterContext);
+
 
   const location = useLocation();
 
@@ -217,6 +219,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   timeEnd={timeEnd}
                   compareStart={compareStart}
                   compareEnd={compareEnd}
+                  maxDate={maxDate}
                   onApply={(start, end, cStart, cEnd, compareOn, label) => {
                     setTimeStart(start);
                     setTimeEnd(end);
@@ -243,6 +246,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     }
                   }}
                 />
+
               </Box>
             </Box>
           )}

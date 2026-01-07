@@ -14,10 +14,11 @@ const CardMetric = ({ data, onViewTrends }) => {
     extra: item.units ? `#Units: ${item.units}` : null,
     extraChange: item.unitsTrend,
     extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
-    chart: item.chart
+    chart: item.chart,
+    labels: item.labels
   })) : [];
 
-  const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+  const fallbackMonths = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
   // Generate smooth data
   const generateValues = (card) => {
@@ -28,7 +29,7 @@ const CardMetric = ({ data, onViewTrends }) => {
       // Let's just return the chart data.
       return card.chart;
     }
-    return months.map(() => Math.floor(Math.random() * 60) + 20);
+    return fallbackMonths.map(() => Math.floor(Math.random() * 60) + 20);
   };
 
   const isProfit = (txt) => txt?.includes("▲") || txt?.includes("+");
@@ -87,13 +88,16 @@ const CardMetric = ({ data, onViewTrends }) => {
             [1, 2, 3, 4].map((i) => <SkeletonMetricCard key={i} />)
             : cards.map((card, index) => {
               const values = generateValues(card);
+              const labels = Array.isArray(card.labels) && card.labels.length === values.length
+                ? card.labels
+                : fallbackMonths.slice(0, values.length);
               const color = isProfit(card.change) ? "#28a745" : "#dc3545";
 
               return (
                 <MiniChartCard
                   key={index}
                   card={card}
-                  months={months} // Note: months are hardcoded, might not match data
+                  months={labels}
                   values={values}
                   color={color}
                   scrollNeeded={scrollNeeded}

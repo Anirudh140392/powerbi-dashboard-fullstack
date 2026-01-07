@@ -65,7 +65,7 @@ function WatchTower() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = React.useState(0);
 
-  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation } = React.useContext(FilterContext);
+  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized } = React.useContext(FilterContext);
 
   const [filters, setFilters] = useState({
     platform: platform || "Zepto",
@@ -236,6 +236,8 @@ function WatchTower() {
 
   // Update filters when context changes
   useEffect(() => {
+    if (!datesInitialized) return;
+
     setFilters(prev => {
       const newFilters = {
         ...prev,
@@ -253,7 +255,7 @@ function WatchTower() {
       const isSame = Object.keys(newFilters).every(key => newFilters[key] === prev[key]);
       return isSame ? prev : newFilters;
     });
-  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
+  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized]);
 
   // ==================== PARALLEL DATA LOADING ====================
   // All 6 API calls run in parallel, whichever completes first displays first
@@ -262,6 +264,11 @@ function WatchTower() {
   const lastFetchedFiltersRef = useRef(null);
 
   useEffect(() => {
+    if (!datesInitialized) {
+      console.log("⏭️ Skipping fetch: Dates not initialized yet");
+      return;
+    }
+
     let ignore = false;
 
     const fetchAllInParallel = async () => {
@@ -417,7 +424,7 @@ function WatchTower() {
 
     fetchAllInParallel();
     return () => { ignore = true; };
-  }, [filters]); // Only re-fetch ALL sections when filters change (brand, location, dates)
+  }, [filters, datesInitialized]); // Only re-fetch ALL sections when filters change (brand, location, dates)
   // Platform-specific changes (monthOverviewPlatform, categoryOverviewPlatform, etc.) are handled by their own useEffects below
 
   // Separate effect for Month Overview platform changes (after initial load)
@@ -623,7 +630,11 @@ function WatchTower() {
                 activeKpisTab === "Platform Overview"
                   ? (() => {
                     const platforms = dashboardData?.platformOverview || [];
-                    const selectedPlatform = filters.platform?.toLowerCase();
+                    // Safely get platform as string - handle string, array, or undefined
+                    const platformValue = Array.isArray(filters.platform)
+                      ? (filters.platform.length > 0 ? filters.platform[0] : 'All')
+                      : (filters.platform || 'All');
+                    const selectedPlatform = typeof platformValue === 'string' ? platformValue.toLowerCase() : 'all';
 
                     // Sort platforms: All first, then selected platform, then others
                     return platforms.sort((a, b) => {
