@@ -1027,11 +1027,12 @@ function SignalLabBase({ metricType, usePagination = true }) {
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
     const [rowsPerPage, setRowsPerPage] = useState(4);
     const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
 
     // API data - either from API or sample data (no mixing)
     const [skusData, setSkusData] = useState(SAMPLE_SKUS);
     const [isUsingApiData, setIsUsingApiData] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     // Get filters from FilterContext (from Header.jsx)
     const {
@@ -1044,6 +1045,10 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
     // Fetch data from API - use API data if successful, otherwise keep sample data
     useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
+        let isMounted = true;
+
         const fetchSignalLabData = async () => {
             try {
                 setLoading(true);
@@ -1054,19 +1059,25 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     brand: selectedBrand || 'All',
                     location: selectedLocation || 'All',
                     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
-                    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : ''
+                    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
+                    type: metricType,
+                    signalType: signalType,
+                    page: page,
+                    limit: rowsPerPage
                 });
 
                 console.log('[SignalLabVisibility] Fetching API data with filters:', {
                     platform,
                     brand: selectedBrand,
                     location: selectedLocation,
-                    startDate: timeStart?.format('YYYY-MM-DD'),
-                    endDate: timeEnd?.format('YYYY-MM-DD')
+                    metricType,
+                    signalType,
+                    page
                 });
 
                 const response = await fetch(
-                    `http://localhost:5000/api/availability-analysis/signal-lab?${queryParams}`
+                    `http://localhost:5000/api/availability-analysis/signal-lab?${queryParams}`,
+                    { signal }
                 );
 
                 if (!response.ok) {
@@ -1074,46 +1085,62 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 }
 
                 const data = await response.json();
-                console.log('[SignalLabVisibility] API Response:', data);
 
-                // Use API data directly (no merging)
-                if (data.skus && data.skus.length > 0) {
-                    setSkusData(data.skus);
-                    setIsUsingApiData(true);
-                    console.log('[SignalLabVisibility] Using API data');
-                } else {
-                    // No data from API, use sample data
-                    setSkusData(SAMPLE_SKUS);
-                    setIsUsingApiData(false);
-                    console.log('[SignalLabVisibility] No API data, using sample data');
+                if (isMounted) {
+                    console.log('[SignalLabVisibility] API Response:', data);
+
+                    // Use API data directly (no merging)
+                    if (data.skus && data.skus.length > 0) {
+                        setSkusData(data.skus);
+                        setTotalCount(data.total || 0);
+                        setIsUsingApiData(true);
+                    } else if (data.skus && data.skus.length === 0) {
+                        setSkusData([]);
+                        setTotalCount(0);
+                        setIsUsingApiData(true);
+                    } else {
+                        // No valid data structure, use sample data
+                        setSkusData(SAMPLE_SKUS);
+                        setTotalCount(SAMPLE_SKUS.length);
+                        setIsUsingApiData(false);
+                        console.log('[SignalLabVisibility] No API data, using sample data');
+                    }
                 }
             } catch (err) {
-                console.error('[SignalLabVisibility] Error fetching API data:', err);
-                // API failed, use sample data
-                setSkusData(SAMPLE_SKUS);
-                setIsUsingApiData(false);
-                console.log('[SignalLabVisibility] API failed, using sample data');
+                if (err.name === 'AbortError') {
+                    console.log('[SignalLabVisibility] Fetch aborted');
+                    return;
+                }
+                if (isMounted) {
+                    console.error('[SignalLabVisibility] Error fetching API data:', err);
+                    // API failed, use sample data
+                    setSkusData(SAMPLE_SKUS);
+                    setTotalCount(SAMPLE_SKUS.length);
+                    setIsUsingApiData(false);
+                    console.log('[SignalLabVisibility] API failed, using sample data');
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchSignalLabData();
-    }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
-    const filtered = skusData.filter(
-        (sku) => sku.metricType === metricType && sku.type === signalType
-    );
+        return () => {
+            isMounted = false;
+            controller.abort();
+        };
+    }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd, page, rowsPerPage, signalType]);
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+    // Use API data directly
+    const filtered = skusData; // With server-side pagination, skusData IS the filtered page
+
+    const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
 
-    const pageRows = useMemo(() => {
-        if (!usePagination) return filtered;
-        const start = (safePage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        return filtered.slice(start, end);
-    }, [filtered, safePage, rowsPerPage, usePagination]);
+    const pageRows = skusData; // Direct assignment as API returns paginated data
 
 
     return (
@@ -1238,6 +1265,6 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
 
 export function SignalLabVisibility({ type, usePagination = true }) {
-    return <SignalLabBase metricType={type} usePagination={usePagination} />;
+    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} />;
 }
 
