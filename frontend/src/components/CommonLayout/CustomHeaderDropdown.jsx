@@ -35,8 +35,10 @@ const CustomHeaderDropdown = ({
     );
 
     const emitChange = (newList) => {
-        if (newList.length === options.length || newList.length === 0) {
-            onChange("All");
+        if (newList.length === options.length) {
+            onChange("All"); // All options selected = "All"
+        } else if (newList.length === 0) {
+            onChange([]); // No options selected = empty array
         } else {
             onChange(newList.length === 1 ? newList[0] : newList);
         }
@@ -53,10 +55,12 @@ const CustomHeaderDropdown = ({
     };
 
     const handleSelectAll = () => {
-        if (currentSelected.length === options.length) {
-            emitChange([]);
+        // Toggle: if all are selected, deselect all; otherwise select all
+        const allSelected = currentSelected.length === options.length && options.length > 0;
+        if (allSelected) {
+            onChange([]); // Deselect all - emit empty array
         } else {
-            emitChange([...options]);
+            onChange("All"); // Select all - emit "All"
         }
     };
 
@@ -71,7 +75,7 @@ const CustomHeaderDropdown = ({
     const displayValue = !value
         ? (options.length > 0 ? "All" : "Select...")
         : Array.isArray(value)
-            ? (value.length === options.length ? "All" : value.join(", "))
+            ? (value.length === 0 ? "None" : value.length === options.length ? "All" : value.join(", "))
             : value;
 
     return (

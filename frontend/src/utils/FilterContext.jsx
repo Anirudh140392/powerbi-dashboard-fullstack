@@ -88,6 +88,11 @@ export const FilterProvider = ({ children }) => {
     const [compareEnd, setCompareEnd] = useState(savedFilters.compareEnd ? dayjs(savedFilters.compareEnd) : dayjs("2025-09-06"));
     const [comparisonLabel, setComparisonLabel] = useState(savedFilters.comparisonLabel || "VS PREV. 30 DAYS");
 
+    const [datesInitialized, setDatesInitialized] = useState(false);
+
+    // Max date available in the database (for date picker limit)
+    const [maxDate, setMaxDate] = useState(dayjs());
+
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
 
@@ -96,21 +101,48 @@ export const FilterProvider = ({ children }) => {
         console.log('📍 Route changed to:', currentPath);
     }, [currentPath]);
 
-    // Save filters to localStorage whenever they change
+    // Fetch latest month available in backend to init date range (fallback to current month on failure)
     useEffect(() => {
-        const filtersToSave = {
-            platform,
-            selectedBrand,
-            selectedLocation,
-            selectedKeyword,
-            timeStart: timeStart ? timeStart.toISOString() : null,
-            timeEnd: timeEnd ? timeEnd.toISOString() : null,
-            compareStart: compareStart ? compareStart.toISOString() : null,
-            compareEnd: compareEnd ? compareEnd.toISOString() : null,
-            comparisonLabel
+        if (datesInitialized) return;
+
+        let cancelled = false;
+
+        const fetchLatestMonth = async () => {
+            try {
+                const response = await axiosInstance.get("/watchtower/latest-available-month");
+                if (!cancelled && response.data?.available) {
+                    // Use defaultStartDate (1st of month) and latestDate (actual max date)
+                    const startDate = response.data.defaultStartDate || response.data.startDate;
+                    const endDate = response.data.latestDate || response.data.defaultEndDate || response.data.endDate;
+
+                    setTimeStart(dayjs(startDate));
+                    setTimeEnd(dayjs(endDate));
+                    setMaxDate(dayjs(endDate)); // Set max date for date picker
+                    setDatesInitialized(true);
+
+                    console.log('📅 Date range initialized:', {
+                        startDate,
+                        endDate,
+                        maxDate: endDate
+                    });
+                    return;
+                }
+            } catch (error) {
+                console.warn("⚠️ Unable to fetch latest available month, keeping default dates:", error.message);
+            }
+
+            if (!cancelled) {
+                setDatesInitialized(true);
+            }
         };
-        localStorage.setItem('savedFilters', JSON.stringify(filtersToSave));
-    }, [platform, selectedBrand, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, comparisonLabel]);
+
+        fetchLatestMonth();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [datesInitialized]);
+
 
     // Fetch platforms on mount (with fallback)
     useEffect(() => {
@@ -323,8 +355,11 @@ export const FilterProvider = ({ children }) => {
             setCompareEnd,
             backendAvailable,
             comparisonLabel,
-            setComparisonLabel
+            setComparisonLabel,
+            datesInitialized,
+            maxDate
         }}>
+
             {children}
         </FilterContext.Provider>
     );
