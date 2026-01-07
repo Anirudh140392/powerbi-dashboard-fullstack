@@ -52,7 +52,7 @@ const kpiModes = {
   cpm: {
     label: 'CPM',
     description: 'Cost per 1000 impressions.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(0) : ''),
+    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
     heat: (v) =>
       v <= 300
         ? 'bg-emerald-50 text-emerald-700'
@@ -298,23 +298,15 @@ function aggregateQuarterKpis(rows) {
           impressions: 0,
           spend: 0,
           clicks: 0,
+          orders: 0, // Init orders
           adSales: 0,
           totalSales: 0
         };
       }
       aggs[q].impressions += getSafe(metrics.impressions);
       aggs[q].spend += getSafe(metrics.spend);
-      // Back-calculate raw clicks/sales from derived metrics if needed, but optimally we should carry raw values
-      // Since metrics object from transformedItems (below) will carry raw values now, we can use them.
-      // But we need to ensure transformedItems actually HAS raw values mapped to these keys.
-      // Current transformedItems output (to be updated): 
-      // conversion = clicks/imps. So clicks = conversion * imps? 
-      // Better to update transformedItems to just pass raw Clicks, AdSales, TotalSales. 
-      // Let's assume metrics input has: impressions, spend, clicks, adSales, totalSales.
-
-      // Since we are updating transformedItems in the NEXT step, we will design this function 
-      // to expect raw values.
       aggs[q].clicks += getSafe(metrics.clicks);
+      aggs[q].orders += getSafe(metrics.orders); // Add orders aggregation
       aggs[q].adSales += getSafe(metrics.adSales);
       aggs[q].totalSales += getSafe(metrics.totalSales);
     });
@@ -326,7 +318,7 @@ function aggregateQuarterKpis(rows) {
     result[q] = {
       impressions: a.impressions,
       spend: a.spend,
-      conversion: a.impressions ? (a.clicks / a.impressions) : 0, // CTR
+      conversion: a.orders ? (a.clicks / a.orders) : 0, // Clicks / Orders
       cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
       roas: a.spend ? (a.adSales / a.spend) : 0,
       sales: a.totalSales,       // Total Sales
@@ -405,8 +397,8 @@ export default function DrilldownLatestTable() {
   const [pageSize, setPageSize] = useState(20)
   const [page, setPage] = useState(1)
 
-  // Use FilterContext values
-  const { platform, selectedBrand, selectedLocation, timeStart, timeEnd } = React.useContext(FilterContext);
+  // Use FilterContext values - PM specific
+  const { pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd } = React.useContext(FilterContext);
 
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState([]);
@@ -425,17 +417,16 @@ export default function DrilldownLatestTable() {
   const quarters = useMemo(() => ['Q3', 'Q4'], []) // Dynamically determine quarters later?
   const [expandedQuarters, setExpandedQuarters] = useState(new Set([]))
 
-  // Fetch Data
+  // Fetch Data - no date filter to get all Nov/Dec data
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const params = {
-          platform: platform || 'All',
-          brand: selectedBrand,
-          location: selectedLocation,
-          startDate: timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : undefined,
-          endDate: timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : undefined,
+          platform: pmSelectedPlatform || 'All',
+          brand: pmSelectedBrand,
+          zone: selectedZone,
+          // Removed date filters to fetch all Nov/Dec data
         };
 
         const response = await axiosInstance.get('/performance-marketing/format-performance', { params });
@@ -449,7 +440,7 @@ export default function DrilldownLatestTable() {
     };
 
     fetchData();
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone]);
 
 
   // --------------- TRANSFORM API DATA ---------------
@@ -485,14 +476,14 @@ export default function DrilldownLatestTable() {
       const transformedItems = items.map(item => {
         const d = dayjs(item.date);
         const q = getQuarter(item.date);
-        const m = getMonthName(item.date);
+        const m = getMonthName(item.date); // Nov, Dec, etc.
 
-        // Calculate metrics
+        // Calculate metrics from tb_zepto_pm_keyword_rca columns
         const imps = Number(item.impressions) || 0;
         const clicks = Number(item.clicks) || 0;
         const spend = Number(item.spend) || 0;
-        const sales = Number(item.sales) || 0; // Ad Sales from DB
-        const totalSales = Number(item.total_sales) || 0; // Total Sales from DB
+        const orders = Number(item.orders) || 0; // Get orders
+        const revenue = Number(item.sales) || Number(item.total_sales) || 0; // revenue column
 
         return {
           format: category,
@@ -500,12 +491,13 @@ export default function DrilldownLatestTable() {
           month: m,
           year: d.year(),
           quarters: {
-            [q]: {
+            [q]: { // Use QUARTER as key again
               impressions: imps,
               spend: spend,
-              clicks: clicks, // Raw Clicks
-              adSales: sales, // Raw Ad Sales
-              totalSales: totalSales, // Raw Total Sales
+              clicks: clicks,
+              orders: orders, // Pass orders
+              adSales: revenue,
+              totalSales: revenue,
             }
           }
         };
@@ -527,15 +519,16 @@ export default function DrilldownLatestTable() {
         // Aggregate by day to prevent duplicates, BUT keep quarters separate
         const dayAggs = new Map();
 
-        transformedItems.forEach(item => {
-          if (item.day < 1 || item.day > 7) return; // Strict filter 1-7
+        // Initialize all days 1-31 first
+        for (let d = 1; d <= 31; d++) {
+          dayAggs.set(d, {
+            day: d,
+            quarters: {}
+          });
+        }
 
-          if (!dayAggs.has(item.day)) {
-            dayAggs.set(item.day, {
-              day: item.day,
-              quarters: {} // Map<Quarter, Metrics>
-            });
-          }
+        transformedItems.forEach(item => {
+          if (item.day < 1 || item.day > 31) return;
 
           const agg = dayAggs.get(item.day);
           const q = Object.keys(item.quarters)[0];
@@ -544,12 +537,13 @@ export default function DrilldownLatestTable() {
           if (metrics) {
             if (!agg.quarters[q]) {
               agg.quarters[q] = {
-                impressions: 0, spend: 0, clicks: 0, adSales: 0, totalSales: 0
+                impressions: 0, spend: 0, clicks: 0, orders: 0, adSales: 0, totalSales: 0
               };
             }
             agg.quarters[q].impressions += getSafe(metrics.impressions);
             agg.quarters[q].spend += getSafe(metrics.spend);
             agg.quarters[q].clicks += getSafe(metrics.clicks);
+            agg.quarters[q].orders += getSafe(metrics.orders); // Sum orders
             agg.quarters[q].adSales += getSafe(metrics.adSales);
             agg.quarters[q].totalSales += getSafe(metrics.totalSales);
           }
@@ -567,13 +561,14 @@ export default function DrilldownLatestTable() {
               const imps = raw.impressions;
               const clicks = raw.clicks;
               const spend = raw.spend;
+              const orders = raw.orders; // Get summed orders
               const sales = raw.totalSales; // Total Sales
               const adSales = raw.adSales;  // Ad Sales
 
               quartersData[q] = {
                 impressions: imps,
                 spend: spend,
-                conversion: imps ? (clicks / imps) : 0,
+                conversion: orders ? (clicks / orders) : 0, // Clicks / Orders
                 cpm: imps ? ((spend / imps) * 1000) : 0,
                 roas: spend ? (adSales / spend) : 0,
                 sales: sales,
@@ -836,33 +831,36 @@ export default function DrilldownLatestTable() {
                       })}
                     </tr>
 
-                    {/* MONTH HEADER ROW */}
-                    <tr className="bg-white">
-                      {quarters.flatMap((q, qi) => {
-                        const isExpanded = expandedQuarters.has(q)
+                    {/* MONTH HEADER ROW - Only show when quarters are expanded */}
+                    {expandedQuarters.size > 0 && (
+                      <tr className="bg-white">
+                        {quarters.flatMap((q, qi) => {
+                          const isExpanded = expandedQuarters.has(q)
 
-                        if (isExpanded) {
-                          return quarterMonths[q].map((m, mi) => (
-                            <th
-                              key={`${q}-${m}`}
-                              colSpan={visibleKpiKeys.length}
-                              className={`px-2 py-1.5 text-center text-slate-600 font-semibold border-b border-r border-slate-200 ${mi % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'
-                                }`}
+                          if (isExpanded) {
+                            return quarterMonths[q].map((m, mi) => (
+                              <th
+                                key={`${q}-${m}`}
+                                colSpan={visibleKpiKeys.length}
+                                className={`px-2 py-1.5 text-center text-slate-600 font-semibold border-b border-r border-slate-200 ${mi % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'
+                                  }`}
+                              >
+                                {m}
+                              </th>
+                            ))
+                          }
+
+                          // When this quarter is not expanded but others are, show placeholder cells
+                          return visibleKpiKeys.map((k, ki) => (
+                            <th key={`${q}-${k}-placeholder`}
+                              className={`px-2 py-1.5 text-center text-slate-400 border-b border-r border-slate-200 ${qi % 2 === 0 ? 'bg-slate-50/30' : 'bg-white'}`}
                             >
-                              {m}
+                              –
                             </th>
                           ))
-                        }
-
-                        return visibleKpiKeys.map((k, ki) => (
-                          <th key={`${q}-${k}`}
-                            className={`px-2 py-1.5 text-center text-slate-600 font-semibold border-b border-r border-slate-200 ${qi % 2 === 0 ? 'bg-slate-50/30' : 'bg-white'}`}
-                          >
-                            {KPI_LABELS[k]}
-                          </th>
-                        ))
-                      })}
-                    </tr>
+                        })}
+                      </tr>
+                    )}
 
                     {/* KPI SUB-HEADER ROW */}
                     <tr className="bg-white">

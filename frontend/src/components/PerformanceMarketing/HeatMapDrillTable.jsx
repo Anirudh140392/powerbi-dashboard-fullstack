@@ -623,7 +623,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           {qVals.map((v, i) => {
             const heat = i >= 3 ? getHeatStyle(v) : {};
             return (
-              <TableCell key={i} align="center">
+              <TableCell key={i} align="center" sx={{ minWidth: 100, width: 100 }}>
                 <Box
                   sx={{
                     px: 1,
@@ -946,7 +946,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     background: "white",
                     verticalAlign: "bottom",
                     pb: 1.5,
-                    borderLeft: "1px solid #f1f5f9"
+                    borderLeft: "1px solid #f1f5f9",
+                    minWidth: 100,
+                    width: 100
                   }}>
                     <Box
                       sx={{
@@ -957,7 +959,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       }}
                     >
                       {/* Column Title */}
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
                         {col} ({selectedQuarter})
                       </Typography>
                     </Box>

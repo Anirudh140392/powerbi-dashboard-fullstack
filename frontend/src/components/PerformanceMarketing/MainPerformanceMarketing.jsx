@@ -15,19 +15,75 @@ import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 
 export default function MainPerformanceMarketings() {
   const {
-    timeStart, timeEnd, comparisonLabel, platform, selectedBrand,
-    zones, selectedZone, setZones, setSelectedZone
+    timeStart, timeEnd, comparisonLabel,
+    zones, selectedZone, setZones, setSelectedZone,
+    pmPlatforms, pmSelectedPlatform, setPmPlatforms, setPmSelectedPlatform,
+    pmBrands, pmSelectedBrand, setPmBrands, setPmSelectedBrand
   } = useContext(FilterContext);
 
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
+  const [loading, setLoading] = useState(false); // Loading state for cards
+
+  // Fetch PM-specific Platforms on mount
+  useEffect(() => {
+    const fetchPmPlatforms = async () => {
+      try {
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM platforms...");
+        const response = await axiosInstance.get("/performance-marketing/platforms");
+        console.log("✅ [MainPerformanceMarketing] PM Platforms:", response.data);
+
+        if (response.data && response.data.length > 0) {
+          const platformList = ["All", ...response.data];
+          setPmPlatforms(platformList);
+          if (!platformList.includes(pmSelectedPlatform)) {
+            setPmSelectedPlatform("All");
+          }
+        } else {
+          setPmPlatforms(["All"]);
+        }
+      } catch (error) {
+        console.error("❌ [MainPerformanceMarketing] Error fetching PM platforms:", error);
+        setPmPlatforms(["All"]);
+      }
+    };
+    fetchPmPlatforms();
+  }, [setPmPlatforms, setPmSelectedPlatform]);
+
+  // Fetch PM-specific Brands when platform changes
+  useEffect(() => {
+    const fetchPmBrands = async () => {
+      try {
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", pmSelectedPlatform);
+        const response = await axiosInstance.get("/performance-marketing/brands", {
+          params: { platform: pmSelectedPlatform }
+        });
+        console.log("✅ [MainPerformanceMarketing] PM Brands:", response.data);
+
+        if (response.data && response.data.length > 0) {
+          const brandList = ["All", ...response.data];
+          setPmBrands(brandList);
+          if (!brandList.includes(pmSelectedBrand)) {
+            setPmSelectedBrand("All");
+          }
+        } else {
+          setPmBrands(["All"]);
+          setPmSelectedBrand("All");
+        }
+      } catch (error) {
+        console.error("❌ [MainPerformanceMarketing] Error fetching PM brands:", error);
+        setPmBrands(["All"]);
+      }
+    };
+    fetchPmBrands();
+  }, [pmSelectedPlatform, setPmBrands, setPmSelectedBrand]);
 
   // Fetch Zones when brand changes (Performance Marketing page specific)
   useEffect(() => {
     const fetchZones = async () => {
       try {
-        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", selectedBrand);
+        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", pmSelectedBrand);
         const response = await axiosInstance.get("/performance-marketing/zones", {
-          params: { brand: selectedBrand }
+          params: { brand: pmSelectedBrand }
         });
         console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
 
@@ -51,7 +107,7 @@ export default function MainPerformanceMarketings() {
     };
 
     fetchZones();
-  }, [selectedBrand, setZones, setSelectedZone]);
+  }, [pmSelectedBrand, setZones, setSelectedZone]);
 
 
 
@@ -79,12 +135,13 @@ export default function MainPerformanceMarketings() {
 
   useEffect(() => {
     const fetchPerformanceData = async () => {
+      setLoading(true); // Start loading
       try {
         const response = await axiosInstance.get("/performance-marketing", {
           params: {
-            platform: platform,
-            brand: selectedBrand,
-            zone: selectedZone, // Use zone instead of location for Performance Marketing
+            platform: pmSelectedPlatform, // Use PM-specific platform
+            brand: pmSelectedBrand, // Use PM-specific brand
+            zone: selectedZone,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -131,13 +188,15 @@ export default function MainPerformanceMarketings() {
         }
       } catch (error) {
         console.error("Error fetching Performance Marketing data:", error);
+      } finally {
+        setLoading(false); // Stop loading
       }
     };
 
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd, platform, selectedBrand, selectedZone]); // Added selectedZone to dependencies
+  }, [timeStart, timeEnd, pmSelectedPlatform, pmSelectedBrand, selectedZone]); // Updated dependencies
 
   return (
     <Box>
@@ -148,6 +207,7 @@ export default function MainPerformanceMarketings() {
             ...card,
             prevText: comparisonLabel
           }))}
+          loading={loading} // Pass loading state
         />
       </Box>
       <Box sx={{ mt: 4 }}>

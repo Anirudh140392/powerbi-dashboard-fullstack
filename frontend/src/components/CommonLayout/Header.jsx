@@ -56,6 +56,12 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     zones,
     selectedZone,
     setSelectedZone,
+    pmPlatforms,
+    pmSelectedPlatform,
+    setPmSelectedPlatform,
+    pmBrands,
+    pmSelectedBrand,
+    setPmSelectedBrand,
   } = React.useContext(FilterContext);
 
 
@@ -181,17 +187,29 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               {/* PLATFORM SELECTION */}
               <CustomHeaderDropdown
                 label="PLATFORM"
-                options={platforms}
-                value={platform}
-                onChange={(newValue) => setPlatform(newValue)}
+                options={title === "Performance Marketing" ? pmPlatforms : platforms}
+                value={title === "Performance Marketing" ? pmSelectedPlatform : platform}
+                onChange={(newValue) => {
+                  if (title === "Performance Marketing") {
+                    setPmSelectedPlatform(newValue);
+                  } else {
+                    setPlatform(newValue);
+                  }
+                }}
                 width={150}
               />
 
               <CustomHeaderDropdown
                 label="BRAND"
-                options={brands}
-                value={selectedBrand}
-                onChange={(newValue) => setSelectedBrand(newValue)}
+                options={title === "Performance Marketing" ? pmBrands : brands}
+                value={title === "Performance Marketing" ? pmSelectedBrand : selectedBrand}
+                onChange={(newValue) => {
+                  if (title === "Performance Marketing") {
+                    setPmSelectedBrand(newValue);
+                  } else {
+                    setSelectedBrand(newValue);
+                  }
+                }}
                 width={150}
               />
 
