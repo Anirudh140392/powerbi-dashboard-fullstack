@@ -315,12 +315,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             offtakeWhereClause.Comp_flag = 0;  // Our brands only when "All" selected
         }
         if (location && location !== 'All') {
-            offtakeWhereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            offtakeWhereClause.Location = location;
         }
 
         const selectedPlatform = filters.platform;
         if (selectedPlatform && selectedPlatform !== 'All') {
-            offtakeWhereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase());
+            offtakeWhereClause.Platform = selectedPlatform;
         }
 
         // 3. Availability Calculation Helper (Unified for all platforms using RbPdpOlap)
@@ -345,9 +345,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 } else {
                     where.Comp_flag = 0;  // Our brands only when "All" selected
                 }
-                if (platformFilter && platformFilter !== 'All') where.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platformFilter.toLowerCase());
-                if (locationFilter && locationFilter !== 'All') where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), locationFilter.toLowerCase());
-                if (categoryFilter && categoryFilter !== 'All') where.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), categoryFilter.toLowerCase());
+                if (platformFilter && platformFilter !== 'All') where.Platform = platformFilter;
+                if (locationFilter && locationFilter !== 'All') where.Location = locationFilter;
+                if (categoryFilter && categoryFilter !== 'All') where.Category = categoryFilter;
             }
 
             const result = await RbPdpOlap.findOne({
@@ -394,15 +394,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 };
 
                 if (categoryFilter && categoryFilter !== 'All') {
-                    baseWhere.keyword_category = sequelize.where(sequelize.fn('LOWER', sequelize.col('keyword_category')), categoryFilter.toLowerCase());
+                    baseWhere.keyword_category = categoryFilter;
                 }
 
                 if (locationFilter && locationFilter !== 'All') {
-                    baseWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), locationFilter.toLowerCase());
+                    baseWhere.location_name = locationFilter;
                 }
 
                 if (platformFilter && platformFilter !== 'All') {
-                    baseWhere.platform_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platformFilter.toLowerCase());
+                    baseWhere.platform_name = platformFilter;
                 }
 
                 // 1. Determine which rows to count in the numerator
@@ -704,10 +704,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     currWhere.Comp_flag = 0;  // Our brands only when "All" selected
                 }
                 if (location && location !== 'All') {
-                    currWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                    currWhere.Location = location;
                 }
                 if (category && category !== 'All') {
-                    currWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                    currWhere.Category = category;
                 }
 
                 // Previous period where clause
@@ -721,10 +721,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     prevWhere.Comp_flag = 0;  // Our brands only when "All" selected
                 }
                 if (location && location !== 'All') {
-                    prevWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                    prevWhere.Location = location;
                 }
                 if (category && category !== 'All') {
-                    prevWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                    prevWhere.Category = category;
                 }
 
                 // Execute 4 queries in parallel - GROUP BY Platform
@@ -754,13 +754,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         where: {
                             created_on: { [Op.between]: [currStart.toDate(), currEnd.toDate()] },
                             ...(brand && brand !== 'All' && {
-                                brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase())
+                                brand: brand
                             }),
                             ...(location && location !== 'All' && {
-                                Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase())
+                                Location: location
                             }),
                             ...(category && category !== 'All' && {
-                                category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase())
+                                category: category
                             })
                         },
                         raw: true
@@ -790,13 +790,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         where: {
                             created_on: { [Op.between]: [prevStart.toDate(), prevEnd.toDate()] },
                             ...(brand && brand !== 'All' && {
-                                brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase())
+                                brand: brand
                             }),
                             ...(location && location !== 'All' && {
-                                Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase())
+                                Location: location
                             }),
                             ...(category && category !== 'All' && {
-                                category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase())
+                                category: category
                             })
                         },
                         raw: true
@@ -914,8 +914,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const msFilter = {
                     created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     sales: { [Op.ne]: null },
-                    ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) }),
-                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(platform && platform !== 'All' && { Platform: platform }),
+                    ...(location && location !== 'All' && { Location: location })
                 };
 
                 // Monthly chart data
@@ -968,8 +968,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const msFilter = {
                     created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     sales: { [Op.ne]: null },
-                    ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) }),
-                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                    ...(platform && platform !== 'All' && { Platform: platform }),
+                    ...(location && location !== 'All' && { Location: location })
                 };
 
                 const [ourSalesResult, totalSalesResult] = await Promise.all([
@@ -1185,9 +1185,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     where: {
                         DATE: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
                         ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                        ...(category && category !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase()) }),
-                        ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                        ...(location && location !== 'All' && { Location: location }),
+                        ...(category && category !== 'All' && { Category: category }),
+                        ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: selectedPlatform })
                     }
                 })
                 : Promise.resolve(0),
@@ -1197,8 +1197,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
                     where: {
                         created_on: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
-                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                        ...(brand && brand !== 'All' && { brand: brand }),
+                        ...(location && location !== 'All' && { Location: location })
                         // Note: rb_brand_ms table does NOT have Platform column
                     },
                     raw: true
@@ -1445,8 +1445,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         // Fallback to database query
                         const where = {
                             DATE: { [Op.between]: [startRange.toDate(), endRange.toDate()] },
-                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                            ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), selectedPlatform.toLowerCase()) })
+                            ...(location && location !== 'All' && { Location: location }),
+                            ...(selectedPlatform && selectedPlatform !== 'All' && { Platform: selectedPlatform })
                         };
                         // FIXED: When brand is "All", only include OUR brands (Comp_flag = 0)
                         if (brand && brand !== 'All') {
@@ -1959,8 +1959,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             } else {
                 allOfftakeWhere.Comp_flag = 0;  // Our brands only when "All" selected
             }
-            if (location && location !== 'All') allOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-            if (category && category !== 'All') allOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+            if (location && location !== 'All') allOfftakeWhere.Location = location;
+            if (category && category !== 'All') allOfftakeWhere.Category = category;
             // Intentionally NOT filtering by Platform here to get the "All Platforms" total
 
             // Base where clause for previous period (same filters, different dates)
@@ -1972,8 +1972,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             } else {
                 prevAllOfftakeWhere.Comp_flag = 0;
             }
-            if (location && location !== 'All') prevAllOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-            if (category && category !== 'All') prevAllOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+            if (location && location !== 'All') prevAllOfftakeWhere.Location = location;
+            if (category && category !== 'All') prevAllOfftakeWhere.Category = category;
 
             // Fetch current and previous period metrics in parallel
             const [allMetricsResult, prevAllMetricsResult] = await Promise.all([
@@ -2049,9 +2049,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
                     where: {
                         created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                        ...(category && category !== 'All' && { category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase()) })
+                        ...(brand && brand !== 'All' && { brand: brand }),
+                        ...(location && location !== 'All' && { Location: location }),
+                        ...(category && category !== 'All' && { category: category })
                     },
                     raw: true
                 }),
@@ -2059,9 +2059,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
                     where: {
                         created_on: { [Op.between]: [allMomStart.toDate(), allMomEnd.toDate()] },
-                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                        ...(category && category !== 'All' && { category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase()) })
+                        ...(brand && brand !== 'All' && { brand: brand }),
+                        ...(location && location !== 'All' && { Location: location }),
+                        ...(category && category !== 'All' && { category: category })
                     },
                     raw: true
                 })
@@ -2076,8 +2076,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     Brand: { [Op.like]: `%${brand}%` },
                     Comp_flag: 0
                 };
-                if (location && location !== 'All') allPromoMyBrandWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-                if (category && category !== 'All') allPromoMyBrandWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                if (location && location !== 'All') allPromoMyBrandWhere.Location = location;
+                if (category && category !== 'All') allPromoMyBrandWhere.Category = category;
 
                 const allPromoMyBrandResult = await RbPdpOlap.findOne({
                     attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
@@ -2092,8 +2092,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                 Comp_flag: 1
             };
-            if (location && location !== 'All') allPromoCompeteWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-            if (category && category !== 'All') allPromoCompeteWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+            if (location && location !== 'All') allPromoCompeteWhere.Location = location;
+            if (category && category !== 'All') allPromoCompeteWhere.Category = category;
             if (brand && brand !== 'All') {
                 allPromoCompeteWhere.Brand = { [Op.notLike]: `%${brand}%` };
             }
@@ -2199,11 +2199,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // which is not included in bulk aggregation
                 const platformOfftakeWhere = {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase())
+                    Platform: p.label
                 };
                 if (brand && brand !== 'All') platformOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
-                if (location && location !== 'All') platformOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-                if (category && category !== 'All') platformOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                if (location && location !== 'All') platformOfftakeWhere.Location = location;
+                if (category && category !== 'All') platformOfftakeWhere.Category = category;
 
                 // ⚡ Fetch both promo metrics concurrently
                 const [promoMyBrandResult, promoCompeteResult] = await Promise.all([
@@ -2222,10 +2222,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
                         where: {
                             DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                            Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), p.label.toLowerCase()),
+                            Platform: p.label,
                             Comp_flag: 1,
-                            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                            ...(category && category !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase()) }),
+                            ...(location && location !== 'All' && { Location: location }),
+                            ...(category && category !== 'All' && { Category: category }),
                             ...(brand && brand !== 'All' && { Brand: { [Op.notLike]: `%${brand}%` } })
                         },
                         raw: true
@@ -2340,11 +2340,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Offtake
                 const moOfftakeWhere = {
                     DATE: { [Op.between]: [mStart.toDate(), mEnd.toDate()] },
-                    Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), moPlatform.toLowerCase())
+                    Platform: moPlatform
                 };
                 if (brand && brand !== 'All') moOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
-                if (location && location !== 'All') moOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-                if (category && category !== 'All') moOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                if (location && location !== 'All') moOfftakeWhere.Location = location;
+                if (category && category !== 'All') moOfftakeWhere.Category = category;
 
                 const moOfftakeResult = await RbPdpOlap.findOne({
                     attributes: [
@@ -2381,9 +2381,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     attributes: [[Sequelize.fn('AVG', Sequelize.col('market_share')), 'avg_ms']],
                     where: {
                         created_on: { [Op.between]: [mStart.toDate(), mEnd.toDate()] },
-                        Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), moPlatform.toLowerCase()),
-                        ...(brand && brand !== 'All' && { brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase()) }),
-                        ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                        Platform: moPlatform,
+                        ...(brand && brand !== 'All' && { brand: brand }),
+                        ...(location && location !== 'All' && { Location: location })
                     },
                     raw: true
                 });
@@ -2420,7 +2420,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const categoryWhere = { status: 1 };
 
         if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-            categoryWhere.platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform')), categoryOverviewPlatform.toLowerCase());
+            categoryWhere.platform = categoryOverviewPlatform;
         }
         if (brand && brand !== 'All') {
             categoryWhere.brand_name = { [Op.like]: `%${brand}%` };
@@ -2429,7 +2429,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Assuming location filter is not strictly needed for category listing, or we check if column exists.
         // Based on model, it has 'location'.
         if (location && location !== 'All') {
-            categoryWhere.location = sequelize.where(sequelize.fn('LOWER', sequelize.col('location')), location.toLowerCase());
+            categoryWhere.location = location;
         }
 
         const distinctCategories = await RcaSkuDim.findAll({
@@ -2448,7 +2448,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const catWhere = {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     // Case-insensitive Category match
-                    Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), catName.toLowerCase())
+                    Category: catName
                 };
 
                 // Apply brand filter
@@ -2460,12 +2460,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Apply location filter
                 if (location && location !== 'All') {
-                    catWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                    catWhere.Location = location;
                 }
 
                 // Apply Platform filter from categoryOverviewPlatform (not selectedPlatform)
                 if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-                    catWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase());
+                    catWhere.Platform = categoryOverviewPlatform;
                 }
 
                 console.log(`[Category Overview] Processing category: ${catName}, Platform: ${categoryOverviewPlatform}`);
@@ -2504,11 +2504,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'our_sales']],
                             where: {
                                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                                Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), catName.toLowerCase()),
+                                Category: catName,
                                 Comp_flag: 0,
-                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase()) }),
+                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: categoryOverviewPlatform }),
                                 ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                                ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                                ...(location && location !== 'All' && { Location: location })
                             },
                             raw: true
                         }),
@@ -2517,9 +2517,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
                             where: {
                                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                                Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), catName.toLowerCase()),
-                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), categoryOverviewPlatform.toLowerCase()) }),
-                                ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+                                Category: catName,
+                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: categoryOverviewPlatform }),
+                                ...(location && location !== 'All' && { Location: location })
                             },
                             raw: true
                         })
@@ -2684,9 +2684,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const boOfftakeWhere = {
             DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
             Comp_flag: 0, // Only our brands
-            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), brandsOverviewPlatform.toLowerCase()) }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), brandsOverviewCategory.toLowerCase()) }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
+            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: brandsOverviewCategory }),
+            ...(location && location !== 'All' && { Location: location })
         };
 
         const boPrevStartDate = startDate.clone().subtract(1, 'month');
@@ -2695,34 +2695,34 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const boPrevOfftakeWhere = {
             DATE: { [Op.between]: [boPrevStartDate.toDate(), boPrevEndDate.toDate()] },
             Comp_flag: 0, // Only our brands
-            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), brandsOverviewPlatform.toLowerCase()) }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), brandsOverviewCategory.toLowerCase()) }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
+            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: brandsOverviewCategory }),
+            ...(location && location !== 'All' && { Location: location })
         };
 
 
         const boMsWhere = {
             created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), brandsOverviewPlatform.toLowerCase()) }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { category: sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), brandsOverviewCategory.toLowerCase()) }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
+            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { category: brandsOverviewCategory }),
+            ...(location && location !== 'All' && { Location: location })
         };
 
         const boPrevMsWhere = {
             created_on: { [Op.between]: [boPrevStartDate.toDate(), boPrevEndDate.toDate()] },
-            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), brandsOverviewPlatform.toLowerCase()) }),
+            ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
             ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { category: brandsOverviewCategory }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) })
+            ...(location && location !== 'All' && { Location: location })
         };
 
         const rcaBrandWhere = {
             comp_flag: 0  // FIXED: Only show OUR brands, not competitors
         };
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
-            rcaBrandWhere.platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform')), brandsOverviewPlatform.toLowerCase());
+            rcaBrandWhere.platform = brandsOverviewPlatform;
         }
         if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
-            rcaBrandWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), brandsOverviewCategory.toLowerCase());
+            rcaBrandWhere.Category = brandsOverviewCategory;
         }
 
 
@@ -2734,8 +2734,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (lowerPlatform === 'zepto') {
             const zeptoWhere = {
                 sales_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { sku_category: sequelize.where(sequelize.fn('LOWER', sequelize.col('sku_category')), brandsOverviewCategory.toLowerCase()) }),
-                ...(location && location !== 'All' && { city: sequelize.where(sequelize.fn('LOWER', sequelize.col('city')), location.toLowerCase()) })
+                ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { sku_category: brandsOverviewCategory }),
+                ...(location && location !== 'All' && { city: location })
             };
             // Use rb_pdp_olap Sales column for Zepto (same as other platforms)
             boOfftakePromise = RbPdpOlap.findAll({
@@ -2756,8 +2756,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), lowerPlatform),
                     ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                    ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-                    ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), brandsOverviewCategory.toLowerCase()) })
+                    ...(location && location !== 'All' && { Location: location }),
+                    ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: brandsOverviewCategory })
                 },
                 group: ['Brand'],
                 raw: true
@@ -2766,7 +2766,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const blinkitWhere = {
                 created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                 // Removed category filter due to mismatch with RcaSkuDim categories
-                ...(location && location !== 'All' && { city_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('city_name')), location.toLowerCase()) })
+                ...(location && location !== 'All' && { city_name: location })
             };
             boOfftakePromise = TbBlinkitSalesData.findAll({
                 attributes: [
@@ -3112,7 +3112,7 @@ const getBrands = async (platform, includeCompetitors = false) => {
             // Query RcaSkuDim for brands - this table has comp_flag to distinguish our brands from competitors
             const whereClause = {};
             if (platform && platform !== 'All') {
-                whereClause.platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform')), platform.toLowerCase());
+                whereClause.platform = platform;
             }
 
             // If includeCompetitors is true, show all brands (for Availability Analysis)
@@ -3329,8 +3329,8 @@ const computeTrendData = async (filters) => {
             },
             ...(category && { Category: category }),
             ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) })
+            ...(location && location !== 'All' && { Location: location }),
+            ...(platform && platform !== 'All' && { Platform: platform })
         };
 
         const trendResults = await RbPdpOlap.findAll({
@@ -3363,8 +3363,8 @@ const computeTrendData = async (filters) => {
             },
             sales: { [Op.ne]: null },
             ...(category && { category: category }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) })
+            ...(location && location !== 'All' && { Location: location }),
+            ...(platform && platform !== 'All' && { Platform: platform })
         };
 
         // Get valid brands (comp_flag = 0)
@@ -3424,9 +3424,9 @@ const computeTrendData = async (filters) => {
             },
             spons_flag: { [Op.ne]: 1 },
             ...(category && { keyword_category: category }),
-            ...(brand && brand !== 'All' && { brand_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase()) }),
-            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+            ...(brand && brand !== 'All' && { brand_name: brand }),
+            ...(location && location !== 'All' && { location_name: location }),
+            ...(platform && platform !== 'All' && { platform_name: platform })
         };
 
         const sosNumerator = await RbKw.findAll({
@@ -3449,8 +3449,8 @@ const computeTrendData = async (filters) => {
             },
             spons_flag: { [Op.ne]: 1 },
             ...(category && { keyword_category: category }),
-            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+            ...(location && location !== 'All' && { location_name: location }),
+            ...(platform && platform !== 'All' && { platform_name: platform })
         };
 
         const sosDenominator = await RbKw.findAll({
@@ -3708,10 +3708,10 @@ const getPlatformOverview = async (filters) => {
                 currWhere.Comp_flag = 0;
             }
             if (location && location !== 'All') {
-                currWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                currWhere.Location = location;
             }
             if (category && category !== 'All') {
-                currWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                currWhere.Category = category;
             }
 
             // Previous period where clause
@@ -3724,10 +3724,10 @@ const getPlatformOverview = async (filters) => {
                 prevWhere.Comp_flag = 0;
             }
             if (location && location !== 'All') {
-                prevWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                prevWhere.Location = location;
             }
             if (category && category !== 'All') {
-                prevWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                prevWhere.Category = category;
             }
 
             // Execute 10 queries in parallel - GROUP BY Platform (including SOS and Market Share)
@@ -3738,20 +3738,20 @@ const getPlatformOverview = async (filters) => {
                 kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
             };
             if (location && location !== 'All') {
-                sosBaseWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase());
+                sosBaseWhere.location_name = location;
             }
             if (category && category !== 'All') {
-                sosBaseWhere.keyword_category = sequelize.where(sequelize.fn('LOWER', sequelize.col('keyword_category')), category.toLowerCase());
+                sosBaseWhere.keyword_category = category;
             }
 
             const sosPrevBaseWhere = {
                 kw_crawl_date: { [Op.between]: [momStart.toDate(), momEnd.toDate()] }
             };
             if (location && location !== 'All') {
-                sosPrevBaseWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase());
+                sosPrevBaseWhere.location_name = location;
             }
             if (category && category !== 'All') {
-                sosPrevBaseWhere.keyword_category = sequelize.where(sequelize.fn('LOWER', sequelize.col('keyword_category')), category.toLowerCase());
+                sosPrevBaseWhere.keyword_category = category;
             }
 
             // Build Market Share where clauses for rb_brand_ms table
@@ -3759,26 +3759,26 @@ const getPlatformOverview = async (filters) => {
                 created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
             };
             if (brand && brand !== 'All') {
-                msBaseWhere.brand = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase());
+                msBaseWhere.brand = brand;
             }
             if (location && location !== 'All') {
-                msBaseWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                msBaseWhere.Location = location;
             }
             if (category && category !== 'All') {
-                msBaseWhere.category = sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase());
+                msBaseWhere.category = category;
             }
 
             const msPrevBaseWhere = {
                 created_on: { [Op.between]: [momStart.toDate(), momEnd.toDate()] }
             };
             if (brand && brand !== 'All') {
-                msPrevBaseWhere.brand = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand')), brand.toLowerCase());
+                msPrevBaseWhere.brand = brand;
             }
             if (location && location !== 'All') {
-                msPrevBaseWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                msPrevBaseWhere.Location = location;
             }
             if (category && category !== 'All') {
-                msPrevBaseWhere.category = sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase());
+                msPrevBaseWhere.category = category;
             }
 
             const [currData, prevData, currSosOurBrands, currSosTotal, prevSosOurBrands, prevSosTotal, currMs, prevMs] = await Promise.all([
@@ -4039,8 +4039,8 @@ const getPlatformOverview = async (filters) => {
             } else {
                 allOfftakeWhere.Comp_flag = 0;
             }
-            if (location && location !== 'All') allOfftakeWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-            if (category && category !== 'All') allOfftakeWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+            if (location && location !== 'All') allOfftakeWhere.Location = location;
+            if (category && category !== 'All') allOfftakeWhere.Category = category;
 
             const allMetricsResult = await RbPdpOlap.findOne({
                 attributes: [
@@ -4205,38 +4205,40 @@ const getMonthOverview = async (filters) => {
             // Query all months at once with GROUP BY
             const moWhere = {
                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), moPlatform.toLowerCase())
+                Platform: moPlatform
             };
             if (brand && brand !== 'All') moWhere.Brand = { [Op.like]: `%${brand}%` };
             else moWhere.Comp_flag = 0;
-            if (location && location !== 'All') moWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-            if (category && category !== 'All') moWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+            if (location && location !== 'All') moWhere.Location = location;
+            if (category && category !== 'All') moWhere.Category = category;
 
-            const monthlyData = await RbPdpOlap.findAll({
-                attributes: [
-                    [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
-                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
-                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
-                ],
-                where: moWhere,
-                group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
-                raw: true
-            });
-
-            // ===== SOS Query for Month Overview =====
+            // ===== SOS Query Where Clause (build before Promise.all) =====
             const sosMonthWhere = {
                 kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), moPlatform.toLowerCase())
+                platform_name: moPlatform
             };
             if (category && category !== 'All') sosMonthWhere.keyword_category = category;
-            if (location && location !== 'All') sosMonthWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase());
+            if (location && location !== 'All') sosMonthWhere.location_name = location;
 
-            const [sosNumMonth, sosDenomMonth] = await Promise.all([
+            // ⚡ OPTIMIZED: Run monthlyData, SOS queries, and validBrands lookup in PARALLEL
+            const [monthlyData, sosNumMonth, sosDenomMonth, validBrandNamesForMonth] = await Promise.all([
+                // Query 1: Monthly offtake data
+                RbPdpOlap.findAll({
+                    attributes: [
+                        [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01'), 'month_date'],
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
+                        [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
+                        [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
+                    ],
+                    where: moWhere,
+                    group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('DATE'), '%Y-%m-01')],
+                    raw: true
+                }),
+                // Query 2: SOS numerator (our brands)
                 RbKw.findAll({
                     attributes: [
                         [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01'), 'month_date'],
@@ -4246,6 +4248,7 @@ const getMonthOverview = async (filters) => {
                     group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01')],
                     raw: true
                 }),
+                // Query 3: SOS denominator (all)
                 RbKw.findAll({
                     attributes: [
                         [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01'), 'month_date'],
@@ -4254,26 +4257,23 @@ const getMonthOverview = async (filters) => {
                     where: sosMonthWhere,
                     group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('kw_crawl_date'), '%Y-%m-01')],
                     raw: true
-                })
+                }),
+                // Query 4: Valid brands (uses cached function for efficiency)
+                getCachedValidBrandNames()
             ]);
+
             const sosNumMonthMap = new Map(sosNumMonth.map(r => [r.month_date, parseInt(r.count) || 0]));
             const sosDenomMonthMap = new Map(sosDenomMonth.map(r => [r.month_date, parseInt(r.count) || 0]));
 
             // ===== Market Share Query for Month Overview =====
-            const validBrandsForMonth = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                where: { comp_flag: 0 },
-                raw: true
-            });
-            const validBrandNamesForMonth = validBrandsForMonth.map(b => b.brand_name).filter(Boolean);
 
             const msMonthWhere = {
                 created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                 sales: { [Op.ne]: null },
-                Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), moPlatform.toLowerCase())
+                Platform: moPlatform
             };
-            if (category && category !== 'All') msMonthWhere.category = sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), category.toLowerCase());
-            if (location && location !== 'All') msMonthWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            if (category && category !== 'All') msMonthWhere.category = category;
+            if (location && location !== 'All') msMonthWhere.Location = location;
 
             const [msNumMonth, msDenomMonth] = await Promise.all([
                 RbBrandMs.findAll({
@@ -4400,82 +4400,81 @@ const getCategoryOverview = async (filters) => {
             // Get distinct categories (only active status=1)
             const categoryWhere = { status: 1 };
             if (catPlatform && catPlatform !== 'All') {
-                categoryWhere.platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform')), catPlatform.toLowerCase());
+                categoryWhere.platform = catPlatform;
             }
             if (brand && brand !== 'All') categoryWhere.brand_name = { [Op.like]: `%${brand}%` };
-            if (location && location !== 'All') categoryWhere.location = sequelize.where(sequelize.fn('LOWER', sequelize.col('location')), location.toLowerCase());
-
-            const distinctCategories = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Category')), 'Category']],
-                where: categoryWhere,
-                raw: true
-            });
-            const categories = distinctCategories.map(c => c.Category).filter(Boolean);
+            if (location && location !== 'All') categoryWhere.location = location;
 
             // Build where clause for bulk query
             const catWhere = {
                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
             };
-            if (catPlatform && catPlatform !== 'All') catWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), catPlatform.toLowerCase());
+            if (catPlatform && catPlatform !== 'All') catWhere.Platform = catPlatform;
             if (brand && brand !== 'All') catWhere.Brand = { [Op.like]: `%${brand}%` };
             else catWhere.Comp_flag = 0;
-            if (location && location !== 'All') catWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            if (location && location !== 'All') catWhere.Location = location;
 
-            // Bulk query all categories at once
-            const categoryData = await RbPdpOlap.findAll({
-                attributes: [
-                    'Category',
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
-                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
-                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
-                ],
-                where: catWhere,
-                group: ['Category'],
-                raw: true
-            });
-
-            // ===== SOS Query for Category Overview =====
+            // ===== SOS Query Where Clause (build before Promise.all) =====
             const sosCatWhere = {
                 kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
             };
-            if (catPlatform && catPlatform !== 'All') sosCatWhere.platform_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), catPlatform.toLowerCase());
-            if (location && location !== 'All') sosCatWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase());
+            if (catPlatform && catPlatform !== 'All') sosCatWhere.platform_name = catPlatform;
+            if (location && location !== 'All') sosCatWhere.location_name = location;
 
-            const [sosNumCat, sosDenomCat] = await Promise.all([
+            // ⚡ OPTIMIZED: Run all independent queries in PARALLEL
+            const [distinctCategories, categoryData, sosNumCat, sosDenomCat, validBrandNamesForCat] = await Promise.all([
+                // Query 1: Distinct categories
+                RcaSkuDim.findAll({
+                    attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Category')), 'Category']],
+                    where: categoryWhere,
+                    raw: true
+                }),
+                // Query 2: Category metrics
+                RbPdpOlap.findAll({
+                    attributes: [
+                        'Category',
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
+                        [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
+                        [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
+                    ],
+                    where: catWhere,
+                    group: ['Category'],
+                    raw: true
+                }),
+                // Query 3: SOS numerator
                 RbKw.findAll({
                     attributes: ['keyword_category', [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']],
                     where: { ...sosCatWhere, keyword_is_rb_product: 1 },
                     group: ['keyword_category'],
                     raw: true
                 }),
+                // Query 4: SOS denominator
                 RbKw.findAll({
                     attributes: ['keyword_category', [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']],
                     where: sosCatWhere,
                     group: ['keyword_category'],
                     raw: true
-                })
+                }),
+                // Query 5: Valid brands (cached)
+                getCachedValidBrandNames()
             ]);
+
+            const categories = distinctCategories.map(c => c.Category).filter(Boolean);
             const sosNumCatMap = new Map(sosNumCat.map(r => [r.keyword_category?.toLowerCase(), parseInt(r.count) || 0]));
             const sosDenomCatMap = new Map(sosDenomCat.map(r => [r.keyword_category?.toLowerCase(), parseInt(r.count) || 0]));
 
             // ===== Market Share Query for Category Overview =====
-            const validBrandsForCat = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                where: { comp_flag: 0 },
-                raw: true
-            });
-            const validBrandNamesForCat = validBrandsForCat.map(b => b.brand_name).filter(Boolean);
 
             const msCatWhere = {
                 created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                 sales: { [Op.ne]: null }
             };
-            if (catPlatform && catPlatform !== 'All') msCatWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), catPlatform.toLowerCase());
-            if (location && location !== 'All') msCatWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            if (catPlatform && catPlatform !== 'All') msCatWhere.Platform = catPlatform;
+            if (location && location !== 'All') msCatWhere.Location = location;
 
             const [msNumCat, msDenomCat] = await Promise.all([
                 RbBrandMs.findAll({
@@ -4594,31 +4593,20 @@ const getBrandsOverview = async (filters) => {
             // Get distinct brands from rca_sku_dim
             const rcaBrandWhere = { comp_flag: 0 };
             if (boPlatform && boPlatform !== 'All') {
-                rcaBrandWhere.platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform')), boPlatform.toLowerCase());
+                rcaBrandWhere.platform = boPlatform;
             }
             if (boCategory && boCategory !== 'All') {
-                rcaBrandWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), boCategory.toLowerCase());
+                rcaBrandWhere.Category = boCategory;
             }
-
-            const brandsData = await RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                where: rcaBrandWhere,
-                raw: true
-            });
-            const brands = brandsData.map(d => d.brand_name).filter(Boolean);
 
             // Build where clause for bulk query
             const boWhere = {
                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                 Comp_flag: 0 // Only our brands
             };
-            if (boPlatform && boPlatform !== 'All') boWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), boPlatform.toLowerCase());
-            if (boCategory && boCategory !== 'All') boWhere.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), boCategory.toLowerCase());
-            if (location && location !== 'All') boWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
-
-            // 2. Fetch Market Share using rb_brand_ms table
-            // Formula: Market Share = (Sales of our brands) / (Total platform sales) * 100
-            // Using rb_brand_ms joined with rca_sku_dim for comp_flag=0 filtering
+            if (boPlatform && boPlatform !== 'All') boWhere.Platform = boPlatform;
+            if (boCategory && boCategory !== 'All') boWhere.Category = boCategory;
+            if (location && location !== 'All') boWhere.Location = location;
 
             // Build where clause for rb_brand_ms
             const msWhere = {
@@ -4626,27 +4614,78 @@ const getBrandsOverview = async (filters) => {
                 sales: { [Op.ne]: null }
             };
             if (boPlatform && boPlatform !== 'All') {
-                msWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), boPlatform.toLowerCase());
+                msWhere.Platform = boPlatform;
             }
             if (boCategory && boCategory !== 'All') {
-                msWhere.category = sequelize.where(sequelize.fn('LOWER', sequelize.col('category')), boCategory.toLowerCase());
+                msWhere.category = boCategory;
             }
             if (location && location !== 'All') {
-                msWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                msWhere.Location = location;
             }
 
-            // Get total platform sales (Denominator) - ALL brands from rb_brand_ms
-            const totalPlatformData = await RbBrandMs.findOne({
-                attributes: [[Sequelize.fn('SUM', Sequelize.col('sales')), 'total_sales']],
-                where: msWhere,
-                raw: true
-            });
+            // ===== SOS Query Where Clause (build before Promise.all) =====
+            const sosBrandWhere = {
+                kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
+            };
+            if (boPlatform && boPlatform !== 'All') sosBrandWhere.platform_name = boPlatform;
+            if (location && location !== 'All') sosBrandWhere.location_name = location;
+            if (boCategory && boCategory !== 'All') sosBrandWhere.keyword_category = boCategory;
+
+            // ⚡ OPTIMIZED: Run ALL queries in PARALLEL (6 queries at once)
+            const [brandsData, totalPlatformData, validBrandNames, sosNumBrand, sosDenomBrand, brandsMetrics] = await Promise.all([
+                // Query 1: Distinct brands
+                RcaSkuDim.findAll({
+                    attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
+                    where: rcaBrandWhere,
+                    raw: true
+                }),
+                // Query 2: Total platform sales
+                RbBrandMs.findOne({
+                    attributes: [[Sequelize.fn('SUM', Sequelize.col('sales')), 'total_sales']],
+                    where: msWhere,
+                    raw: true
+                }),
+                // Query 3: Valid brands (cached)
+                getCachedValidBrandNames(),
+                // Query 4: SOS numerator
+                RbKw.findAll({
+                    attributes: ['brand_name', [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']],
+                    where: { ...sosBrandWhere, keyword_is_rb_product: 1 },
+                    group: ['brand_name'],
+                    raw: true
+                }),
+                // Query 5: SOS denominator
+                RbKw.findAll({
+                    attributes: ['brand_name', [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']],
+                    where: sosBrandWhere,
+                    group: ['brand_name'],
+                    raw: true
+                }),
+                // Query 6: Brand metrics from rb_pdp_olap
+                RbPdpOlap.findAll({
+                    attributes: [
+                        'Brand',
+                        [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_orders'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
+                        [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
+                        [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
+                    ],
+                    where: boWhere,
+                    group: ['Brand'],
+                    raw: true
+                })
+            ]);
+
+            const brands = brandsData.map(d => d.brand_name).filter(Boolean);
             const totalPlatformSales = parseFloat(totalPlatformData?.total_sales || 0);
+            const sosNumBrandMap = new Map(sosNumBrand.map(r => [r.brand_name?.toLowerCase(), parseInt(r.count) || 0]));
+            const sosDenomBrandMap = new Map(sosDenomBrand.map(r => [r.brand_name?.toLowerCase(), parseInt(r.count) || 0]));
 
-            // Get valid brands (comp_flag = 0) from cached function
-            const validBrandNames = await getCachedValidBrandNames();
-
-            // Get our brands sales per brand (Numerator) - brands that exist in valid_brands
+            // Get our brands sales per brand using cached validBrandNames
             const ourBrandsSales = await RbBrandMs.findAll({
                 attributes: [
                     'brand',
@@ -4662,51 +4701,7 @@ const getBrandsOverview = async (filters) => {
 
             // Create map of brand -> sales for MS calculation
             const brandMsSalesMap = new Map(ourBrandsSales.map(b => [b.brand?.toLowerCase(), parseFloat(b.brand_sales || 0)]));
-            const totalMarketSales = totalPlatformSales; // For compatibility with existing code
-
-            // ===== SOS Query for Brands Overview =====
-            const sosBrandWhere = {
-                kw_crawl_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
-            };
-            if (boPlatform && boPlatform !== 'All') sosBrandWhere.platform_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), boPlatform.toLowerCase());
-            if (location && location !== 'All') sosBrandWhere.location_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase());
-            if (boCategory && boCategory !== 'All') sosBrandWhere.keyword_category = boCategory;
-
-            const [sosNumBrand, sosDenomBrand] = await Promise.all([
-                RbKw.findAll({
-                    attributes: ['brand_name', [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']],
-                    where: { ...sosBrandWhere, keyword_is_rb_product: 1 },
-                    group: ['brand_name'],
-                    raw: true
-                }),
-                RbKw.findAll({
-                    attributes: ['brand_name', [Sequelize.fn('COUNT', Sequelize.col('*')), 'count']],
-                    where: sosBrandWhere,
-                    group: ['brand_name'],
-                    raw: true
-                })
-            ]);
-            const sosNumBrandMap = new Map(sosNumBrand.map(r => [r.brand_name?.toLowerCase(), parseInt(r.count) || 0]));
-            const sosDenomBrandMap = new Map(sosDenomBrand.map(r => [r.brand_name?.toLowerCase(), parseInt(r.count) || 0]));
-
-
-            // Bulk query all brands at once (Our brands only - Comp_flag=0)
-            const brandsMetrics = await RbPdpOlap.findAll({
-                attributes: [
-                    'Brand',
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_orders'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions'],
-                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
-                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
-                ],
-                where: boWhere,
-                group: ['Brand'],
-                raw: true
-            });
+            const totalMarketSales = totalPlatformSales;
 
             // Build lookup map
             const dataMap = new Map(brandsMetrics.map(d => [(d.Brand || '').toLowerCase(), d]));
@@ -4851,8 +4846,8 @@ const getKpiTrends = async (filters) => {
             },
             ...(category && category !== 'All' && { Category: category }), // ADDED: Category filter
             ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-            ...(location && location !== 'All' && { Location: sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase()) })
+            ...(location && location !== 'All' && { Location: location }),
+            ...(platform && platform !== 'All' && { Platform: platform })
         };
 
         // 4. Query for Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio
@@ -4892,14 +4887,14 @@ const getKpiTrends = async (filters) => {
             },
             spons_flag: { [Op.ne]: 1 },
             ...(category && category !== 'All' && { keyword_category: category }),
-            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+            ...(location && location !== 'All' && { location_name: location }),
+            ...(platform && platform !== 'All' && { platform_name: platform })
         };
 
         // When "All" brands selected, use keyword_is_rb_product=1 for our brands
         if (brand && brand !== 'All') {
             // Specific brand selected - filter by brand name
-            sosNumWhere.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), brand.toLowerCase());
+            sosNumWhere.brand_name = brand;
         } else {
             // "All" brands selected - use keyword_is_rb_product=1 (our RB products)
             sosNumWhere.keyword_is_rb_product = 1;
@@ -4926,8 +4921,8 @@ const getKpiTrends = async (filters) => {
             },
             spons_flag: { [Op.ne]: 1 },
             ...(category && category !== 'All' && { keyword_category: category }), // ADDED: Category filter
-            ...(location && location !== 'All' && { location_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('location_name')), location.toLowerCase()) }),
-            ...(platform && platform !== 'All' && { platform_name: sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), platform.toLowerCase()) })
+            ...(location && location !== 'All' && { location_name: location }),
+            ...(platform && platform !== 'All' && { platform_name: platform })
         };
 
         const sosDenominator = await RbKw.findAll({
@@ -5173,13 +5168,13 @@ const getCompetitionData = async (filters = {}) => {
         };
 
         if (platform && platform !== 'All') {
-            whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase());
+            whereClause.Platform = platform;
         }
         if (location && location !== 'All') {
-            whereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            whereClause.Location = location;
         }
         if (category && category !== 'All') {
-            whereClause.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+            whereClause.Category = category;
         }
 
         // FIXED: Handle multiple brand selection (comma-separated)
@@ -5204,7 +5199,7 @@ const getCompetitionData = async (filters = {}) => {
         }
 
         if (sku && sku !== 'All') {
-            whereClause.Product = sequelize.where(sequelize.fn('LOWER', sequelize.col('Product')), sku.toLowerCase());
+            whereClause.Product = sku;
         }
 
         // Only include our brands (Comp_flag = 0)
@@ -5675,7 +5670,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         };
 
         if (location && location !== 'All') {
-            where.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+            where.Location = location;
         }
 
         const brandTrends = {};
@@ -5683,7 +5678,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         for (const brandName of brandList) {
             const brandWhere = {
                 ...where,
-                Brand: sequelize.where(sequelize.fn('LOWER', sequelize.col('Brand')), brandName.toLowerCase())
+                Brand: brandName
             };
 
             // Main metrics query - only fetch what we need for the 5 KPIs
