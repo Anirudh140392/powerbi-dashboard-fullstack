@@ -5576,6 +5576,77 @@ const getCompetitionFilterOptions = async (filters = {}) => {
 };
 
 
+const getLatestAvailableMonth = async (filters = {}) => {
+    try {
+        const {
+            platform = 'All',
+            brand = 'All',
+            location = 'All',
+            category = 'All'
+        } = filters;
+
+        const whereClause = {};
+
+        if (platform && platform !== 'All') {
+            whereClause.Platform = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('Platform')),
+                platform.toLowerCase()
+            );
+        }
+
+        if (brand && brand !== 'All') {
+            whereClause.Brand = { [Op.like]: `%${brand}%` };
+            whereClause.Comp_flag = 0;
+        }
+
+        if (location && location !== 'All') {
+            whereClause.Location = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('Location')),
+                location.toLowerCase()
+            );
+        }
+
+        if (category && category !== 'All') {
+            whereClause.Category = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('Category')),
+                category.toLowerCase()
+            );
+        }
+
+        const result = await RbPdpOlap.findOne({
+            attributes: [[Sequelize.fn('MAX', Sequelize.col('DATE')), 'latestDate']],
+            where: whereClause,
+            raw: true
+        });
+
+        const latestDate = result?.latestDate;
+
+        if (!latestDate) {
+            return { available: false };
+        }
+
+        const latest = dayjs(latestDate);
+
+        return {
+            available: true,
+            monthLabel: latest.format('MMMM YYYY'),
+            startDate: latest.startOf('month').format('YYYY-MM-DD'),
+            endDate: latest.endOf('month').format('YYYY-MM-DD'),
+            // For date picker: actual latest date available in data
+            latestDate: latest.format('YYYY-MM-DD'),
+            // Default start date: 1st of the month of latest date
+            defaultStartDate: latest.startOf('month').format('YYYY-MM-DD'),
+            // Default end date: the actual latest date (max date in database)
+            defaultEndDate: latest.format('YYYY-MM-DD')
+        };
+
+    } catch (error) {
+        console.error('[getLatestAvailableMonth] Error:', error);
+        return { available: false, error: error.message };
+    }
+};
+
+
 // ==================== EXPORTS ====================
 
 
@@ -5691,5 +5762,6 @@ export default {
     getTrendsFilterOptions,
     getCompetitionData,
     getCompetitionFilterOptions,
-    getCompetitionBrandTrends
+    getCompetitionBrandTrends,
+    getLatestAvailableMonth
 };

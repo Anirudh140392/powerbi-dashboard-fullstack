@@ -28,6 +28,24 @@ function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+// Color palette for brand differentiation in comparison charts
+const BRAND_COLORS = [
+  "#2563EB", // Blue
+  "#DC2626", // Red
+  "#16A34A", // Green
+  "#F97316", // Orange
+  "#8B5CF6", // Purple
+  "#EC4899", // Pink
+  "#0891B2", // Cyan
+  "#84CC16", // Lime
+  "#F59E0B", // Amber
+  "#6366F1", // Indigo
+];
+
+// Helper to get a consistent color for a brand based on its index
+const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
+
+
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
 /* -------------------------------------------------------------------------- */
@@ -1175,7 +1193,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrendData, trendLoading }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("osa");
 
@@ -1184,59 +1202,68 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
 
   const isBrandMode = mode === "brand";
 
-  /* ---------------- SELECTED IDS ---------------- */
-  const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      let rows = DATA_MODEL.brandSummaryByCity[city] || [];
-
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.name));
-
-      return rows.length
-        ? rows.slice(0, 4).map((r) => r.id)
-        : [];
+  /* ---------------- SELECTED BRANDS/LABELS ---------------- */
+  // Get brand names from filters or API data
+  const selectedBrands = useMemo(() => {
+    if (filters.brands.length > 0) {
+      return filters.brands.slice(0, 4);
     }
+    // If no brands selected in filter, use brands from API data
+    if (apiTrendData && Object.keys(apiTrendData).length > 0) {
+      return Object.keys(apiTrendData).slice(0, 4);
+    }
+    return [];
+  }, [filters.brands, apiTrendData]);
 
-    let rows = DATA_MODEL.skuSummaryByCity[city] || [];
-
-    if (filters.categories.length)
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    if (filters.brands.length)
-      rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    if (filters.skus.length)
-      rows = rows.filter((r) => filters.skus.includes(r.name));
-
-    return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
-  }, [isBrandMode, filters, city]);
-
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
-  );
+  const selectedLabels = selectedBrands;
 
   /* ---------------- CHART DATA ---------------- */
   const chartData = useMemo(() => {
+    // Use API trend data when available
+    if (apiTrendData && Object.keys(apiTrendData).length > 0 && selectedBrands.length > 0) {
+      // Get all unique dates from all brands
+      const allDates = new Set();
+      selectedBrands.forEach(brand => {
+        const brandData = apiTrendData[brand] || [];
+        brandData.forEach(point => allDates.add(point.date));
+      });
+
+      // Sort dates chronologically
+      const sortedDates = Array.from(allDates).sort((a, b) => {
+        // Parse dates like "01 Jan'26" format
+        return new Date(a.replace("'", " 20")) - new Date(b.replace("'", " 20"));
+      });
+
+      return sortedDates.map(date => {
+        const row = { date };
+        selectedBrands.forEach(brand => {
+          const brandData = apiTrendData[brand] || [];
+          const point = brandData.find(p => p.date === date);
+          if (point) {
+            row[brand] = point[activeMetric] ?? null;
+          }
+        });
+        return row;
+      });
+    }
+
+    // Fallback to mock data
     const days = DATA_MODEL.days;
+    const selectedIds = isBrandMode
+      ? (DATA_MODEL.brandSummaryByCity[city] || []).slice(0, 4).map(r => r.id)
+      : (DATA_MODEL.skuSummaryByCity[city] || []).slice(0, 5).map(r => r.id);
 
     return days.map((date, idx) => {
       const row = { date };
-
       selectedIds.forEach((id) => {
         const series = isBrandMode
           ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
           : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-
         if (series) row[id] = series[idx]?.[activeMetric] ?? null;
       });
-
       return row;
     });
-  }, [selectedIds, city, isBrandMode, activeMetric]);
+  }, [apiTrendData, selectedBrands, city, isBrandMode, activeMetric]);
 
   const formatValue = (v) => {
     if (metricMeta.unit) return `${v}${metricMeta.unit}`;
@@ -1284,35 +1311,44 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
       </CardHeader>
 
       <CardContent className="pt-4">
-        <div className="h-[280px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
-              <YAxis
-                tickLine={false}
-                fontSize={11}
-                tickFormatter={formatValue}
-              />
-              <Tooltip formatter={formatValue} />
-              <Legend />
-
-              {selectedIds.map((id) => (
-                <Line
-                  key={id}
-                  type="monotone"
-                  dataKey={id}
-                  name={
-                    isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-                  }
-                  dot={false}
-                  stroke={metricMeta.color}
-                  strokeWidth={2}
+        {trendLoading ? (
+          <div className="h-[280px] w-full flex items-center justify-center">
+            <div className="text-slate-400 animate-pulse">Loading trend data...</div>
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="h-[280px] w-full flex items-center justify-center">
+            <div className="text-slate-400">No trend data available. Select brands from the filter.</div>
+          </div>
+        ) : (
+          <div className="h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
+                <YAxis
+                  tickLine={false}
+                  fontSize={11}
+                  tickFormatter={formatValue}
                 />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+                <Tooltip formatter={formatValue} />
+                <Legend />
+
+                {selectedBrands.map((brand, index) => (
+                  <Line
+                    key={brand}
+                    type="monotone"
+                    dataKey={brand}
+                    name={brand}
+                    dot={false}
+                    stroke={getBrandColor(index)}
+                    strokeWidth={2}
+                  />
+                ))}
+
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1371,77 +1407,65 @@ const KPI_KEYS = [
   },
 ];
 
-const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
+const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, trendLoading }) => {
   const isBrandMode = mode === "brand";
 
-  const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
-      let rows = allRows;
-
-      if (filters.categories.length) {
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      }
-      if (filters.brands.length) {
-        rows = rows.filter((r) => filters.brands.includes(r.name));
-      }
-
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 4);
-      return allRows.slice(0, 3).map((r) => r.id);
-    } else {
-      const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
-      let rows = allRows;
-
-      if (filters.categories.length) {
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      }
-      if (filters.brands.length) {
-        rows = rows.filter((r) => filters.brands.includes(r.brandName));
-      }
-      if (filters.skus.length) {
-        rows = rows.filter((r) => filters.skus.includes(r.name));
-      }
-
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 5);
-      return allRows.slice(0, 5).map((r) => r.id);
+  // Get brand names from filters or API data
+  const selectedBrands = useMemo(() => {
+    if (filters.brands.length > 0) {
+      return filters.brands.slice(0, 4);
     }
-  }, [isBrandMode, filters, city]);
+    // If no brands selected in filter, use brands from API data
+    if (apiTrendData && Object.keys(apiTrendData).length > 0) {
+      return Object.keys(apiTrendData).slice(0, 4);
+    }
+    return [];
+  }, [filters.brands, apiTrendData]);
 
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
-  );
+  const selectedLabels = selectedBrands;
 
+  // Build chart data for a specific KPI metric
   const chartDataFor = (metricKey) => {
-    const days = DATA_MODEL.days;
+    // Use API trend data when available
+    if (apiTrendData && Object.keys(apiTrendData).length > 0 && selectedBrands.length > 0) {
+      // Get all unique dates from all brands
+      const allDates = new Set();
+      selectedBrands.forEach(brand => {
+        const brandData = apiTrendData[brand] || [];
+        brandData.forEach(point => allDates.add(point.date));
+      });
 
-    if (isBrandMode) {
-      return days.map((date, idx) => {
+      // Sort dates chronologically
+      const sortedDates = Array.from(allDates).sort((a, b) => {
+        return new Date(a.replace("'", " 20")) - new Date(b.replace("'", " 20"));
+      });
+
+      return sortedDates.map(date => {
         const row = { date };
-        selectedIds.forEach((id) => {
-          const series =
-            DATA_MODEL.brandTrendsByCity[city] &&
-            DATA_MODEL.brandTrendsByCity[city][id];
-          if (!series) return;
-          row[id] = series[idx][metricKey];
+        selectedBrands.forEach(brand => {
+          const brandData = apiTrendData[brand] || [];
+          const point = brandData.find(p => p.date === date);
+          if (point) {
+            row[brand] = point[metricKey] ?? null;
+          }
         });
         return row;
       });
     }
 
+    // Fallback to mock data
+    const days = DATA_MODEL.days;
+    const selectedIds = isBrandMode
+      ? (DATA_MODEL.brandSummaryByCity[city] || []).slice(0, 4).map(r => r.id)
+      : (DATA_MODEL.skuSummaryByCity[city] || []).slice(0, 5).map(r => r.id);
+
     return days.map((date, idx) => {
       const row = { date };
       selectedIds.forEach((id) => {
-        const series =
-          DATA_MODEL.skuTrendsByCity[city] &&
-          DATA_MODEL.skuTrendsByCity[city][id];
-        if (!series) return;
-        row[id] = series[idx][metricKey];
+        const series = isBrandMode
+          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
+          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
+        if (series) row[id] = series[idx]?.[metricKey];
       });
       return row;
     });
@@ -1472,41 +1496,51 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
       </CardHeader>
 
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
-        {KPI_KEYS.map((kpi) => (
-          <Card
-            key={kpi.key}
-            className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">{kpi.label}</CardTitle>
-            </CardHeader>
-            <CardContent className="h-48 pt-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={chartDataFor(kpi.key)}
-                  margin={{ top: 8, left: -16, right: 8 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} />
-                  <Tooltip />
-                  {selectedIds.map((id) => (
-                    <Line
-                      key={id}
-                      type="monotone"
-                      dataKey={id}
-                      name={
-                        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-                      }
-                      dot={false}
-                      strokeWidth={2}
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        ))}
+        {trendLoading ? (
+          <div className="col-span-2 flex h-48 items-center justify-center">
+            <div className="text-slate-400 animate-pulse">Loading KPI data...</div>
+          </div>
+        ) : selectedBrands.length === 0 ? (
+          <div className="col-span-2 flex h-48 items-center justify-center">
+            <div className="text-slate-400">No brand data available. Select brands from the filter.</div>
+          </div>
+        ) : (
+          KPI_KEYS.map((kpi) => (
+            <Card
+              key={kpi.key}
+              className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">{kpi.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="h-48 pt-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={chartDataFor(kpi.key)}
+                    margin={{ top: 8, left: -16, right: 8 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="date" hide />
+                    <YAxis tickLine={false} fontSize={10} width={32} />
+                    <Tooltip />
+                    {selectedBrands.map((brand, index) => (
+                      <Line
+                        key={brand}
+                        type="monotone"
+                        dataKey={brand}
+                        name={brand}
+                        dot={false}
+                        stroke={getBrandColor(index)}
+                        strokeWidth={2}
+                      />
+                    ))}
+
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </CardContent>
     </Card>
   );
@@ -1727,6 +1761,53 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
   const [apiBrandData, setApiBrandData] = useState([]);
   const [apiSkuData, setApiSkuData] = useState([]);
   const [apiLoading, setApiLoading] = useState(false);
+
+  // State for brand trend data (used in TrendView and KpiCompareView)
+  const [apiTrendData, setApiTrendData] = useState({});
+  const [trendLoading, setTrendLoading] = useState(false);
+
+  // Fetch brand trends when switching to trend or kpi view
+  useEffect(() => {
+    if (viewMode !== 'trend' && viewMode !== 'kpi') return;
+
+    const fetchBrandTrends = async () => {
+      setTrendLoading(true);
+      try {
+        // Get brands from filter selection or from API brand data
+        let brandList = filters.brands.length > 0
+          ? filters.brands.slice(0, 4)
+          : apiBrandData.slice(0, 4).map(b => b.name);
+
+        if (brandList.length === 0) {
+          console.log('[PlatformOverviewKpiShowcase] No brands to fetch trends for');
+          setTrendLoading(false);
+          return;
+        }
+
+        const params = {
+          brands: brandList.join(','),
+          location: city !== 'All India' ? city : 'All',
+          category: filters.categories.length > 0 ? filters.categories[0] : 'All',
+          period: '1M'
+        };
+
+        console.log('[PlatformOverviewKpiShowcase] Fetching brand trends with params:', params);
+        const res = await axiosInstance.get('/watchtower/competition-brand-trends', { params });
+
+        if (res.data && res.data.brands) {
+          console.log('[PlatformOverviewKpiShowcase] Received trend data for', Object.keys(res.data.brands).length, 'brands');
+          setApiTrendData(res.data.brands);
+        }
+      } catch (err) {
+        console.error('[PlatformOverviewKpiShowcase] Failed to fetch brand trends:', err);
+      } finally {
+        setTrendLoading(false);
+      }
+    };
+
+    fetchBrandTrends();
+  }, [viewMode, city, filters.brands, filters.categories, apiBrandData]);
+
 
   // Fetch filter options on mount
   useEffect(() => {
@@ -1950,6 +2031,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              apiTrendData={apiTrendData}
+              trendLoading={trendLoading}
             />
           )}
           {viewMode === "kpi" && (
@@ -1958,6 +2041,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
+              apiTrendData={apiTrendData}
+              trendLoading={trendLoading}
             />
           )}
         </TabsContent>
@@ -1972,6 +2057,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              apiTrendData={apiTrendData}
+              trendLoading={trendLoading}
             />
           )}
           {viewMode === "kpi" && (
@@ -1980,9 +2067,12 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
+              apiTrendData={apiTrendData}
+              trendLoading={trendLoading}
             />
           )}
         </TabsContent>
+
       </Tabs>
 
       <FilterDialog
