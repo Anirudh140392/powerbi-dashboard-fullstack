@@ -1331,6 +1331,9 @@ export default function TrendsCompetitionDrawer({
   useEffect(() => {
     if (view !== "Trends") return;
 
+    let timeoutId;
+    let cancelled = false;
+
     const fetchTrendData = async () => {
       setLoading(true);
       try {
@@ -1361,6 +1364,8 @@ export default function TrendsCompetitionDrawer({
         console.log("Fetching trend data with params:", params);
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
 
+        if (cancelled) return;
+
         // Backend returns { timeSeries: [...] } - extract the array
         if (response.data && response.data.timeSeries && Array.isArray(response.data.timeSeries)) {
           console.log("Trend data received:", response.data.timeSeries.length, "points");
@@ -1370,14 +1375,32 @@ export default function TrendsCompetitionDrawer({
           setChartData(response.data);
         }
       } catch (error) {
-        console.error("Error fetching trend data:", error);
+        if (!cancelled) {
+          console.error("Error fetching trend data:", error);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchTrendData();
+    // Delay trend data fetch by 3 seconds to prioritize main dashboard segments loading first
+    console.log("⏳ Trend data fetch scheduled in 3 seconds...");
+    timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        fetchTrendData();
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [selectedPlatform, range, timeStep, allTrendMeta.context.audience, view, globalPlatform, globalBrand, globalLocation, timeStart, timeEnd]);
+
 
 
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
