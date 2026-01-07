@@ -343,6 +343,11 @@ export default (app) => {
      *         name: endDate
      *         schema:
      *           type: string
+     *       - in: query
+     *         name: type
+     *         schema:
+     *           type: string
+     *           enum: [availability, sales, inventory, performance, visibility]
      *     responses:
      *       200:
      *         description: Successful response with SKU data
