@@ -84,6 +84,12 @@ export const FilterProvider = ({ children }) => {
     const [zones, setZones] = useState([]);
     const [selectedZone, setSelectedZone] = useState("All");
 
+    // PM-specific Platform and Brand state (for Performance Marketing page only)
+    const [pmPlatforms, setPmPlatforms] = useState([]);
+    const [pmSelectedPlatform, setPmSelectedPlatform] = useState("All");
+    const [pmBrands, setPmBrands] = useState([]);
+    const [pmSelectedBrand, setPmSelectedBrand] = useState("All");
+
     // Date Ranges
     // Default date range: 1st of current month to today
     const [timeStart, setTimeStart] = useState(savedFilters.timeStart ? dayjs(savedFilters.timeStart) : dayjs().startOf('month'));
@@ -367,7 +373,15 @@ export const FilterProvider = ({ children }) => {
             zones,
             selectedZone,
             setZones,
-            setSelectedZone
+            setSelectedZone,
+            pmPlatforms,
+            pmSelectedPlatform,
+            setPmPlatforms,
+            setPmSelectedPlatform,
+            pmBrands,
+            pmSelectedBrand,
+            setPmBrands,
+            setPmSelectedBrand
         }}>
 
             {children}

@@ -2,6 +2,7 @@ import sequelize from '../config/db.js';
 import { Op } from 'sequelize';
 import RbPdpOlap from '../models/RbPdpOlap.js';
 import TbZeptoAdsKeywordData from '../models/TbZeptoAdsKeywordData.js';
+import TbZeptoPmKeywordRca from '../models/TbZeptoPmKeywordRca.js';
 import dayjs from 'dayjs';
 
 /**
@@ -12,6 +13,7 @@ const performanceMarketingService = {
 
     /**
      * Get KPIs Overview (Impressions, Spend, ROAS, Conversion)
+     * Data source: tb_zepto_pm_keyword_rca
      * @param {Object} filters 
      */
     async getKpisOverview(filters) {
@@ -30,10 +32,12 @@ const performanceMarketingService = {
             // 2. Build Query Conditions
             const whereClause = {};
 
-            // Note: tb_zepto_ads_keyword_data does NOT have a 'platform' column
-            // Platform filtering is not applicable for this table
+            // Platform filter - tb_zepto_pm_keyword_rca has 'Platform' column
+            if (filters.platform && filters.platform !== 'All') {
+                whereClause.Platform = filters.platform;
+            }
 
-            // Brand filter - column is 'brand_name' not 'brand'
+            // Brand filter - column is 'brand_name'
             if (filters.brand && filters.brand !== 'All') {
                 const brands = filters.brand.split(',').map(b => b.trim().toLowerCase());
                 whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
@@ -45,7 +49,15 @@ const performanceMarketingService = {
                 whereClause.zone = { [Op.in]: zones };
             }
 
+            // Restrict to specific keyword_categories (Consistency with Drilldown Table)
+            const targetCategories = ['bath & body', 'detergent', 'hair care', 'fragrance & talc'];
+            whereClause.keyword_category = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('keyword_category')),
+                { [Op.in]: targetCategories }
+            );
+
             // 3. Helper to fetch aggregate metrics for a date range
+            // Using TbZeptoPmKeywordRca for PM page KPIs
             const getMetrics = async (start, end) => {
                 const rangeWhere = {
                     ...whereClause,
@@ -54,13 +66,13 @@ const performanceMarketingService = {
                     }
                 };
 
-                const result = await TbZeptoAdsKeywordData.findOne({
+                const result = await TbZeptoPmKeywordRca.findOne({
                     attributes: [
                         [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
                         [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
                         [sequelize.fn('SUM', sequelize.col('revenue')), 'ad_sales'],
                         [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                        [sequelize.fn('SUM', sequelize.col('orders')), 'orders'] // Add orders
+                        [sequelize.fn('SUM', sequelize.col('orders')), 'orders']
                     ],
                     where: rangeWhere,
                     raw: true
@@ -76,6 +88,7 @@ const performanceMarketingService = {
             };
 
             // 4. Helper to fetch daily trend data
+            // Using TbZeptoPmKeywordRca for PM page trends
             const getTrendData = async (start, end) => {
                 const rangeWhere = {
                     ...whereClause,
@@ -84,7 +97,7 @@ const performanceMarketingService = {
                     }
                 };
 
-                const results = await TbZeptoAdsKeywordData.findAll({
+                const results = await TbZeptoPmKeywordRca.findAll({
                     attributes: [
                         [sequelize.col('date'), 'date'],
                         [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
@@ -112,7 +125,8 @@ const performanceMarketingService = {
                         spend: sp,
                         roas_roas: sp > 0 ? rev / sp : 0,
                         // Conversion % = (Orders / Clicks) * 100
-                        cr_percentage: clk > 0 ? (ord / clk) * 100 : 0
+                        // Conversion % = (Clicks / Orders) * 100
+                        cr_percentage: ord > 0 ? (clk / ord) * 100 : 0
                     };
                 });
             };
@@ -134,8 +148,9 @@ const performanceMarketingService = {
             const impressionsChange = calculateChange(currentMetrics.impressions, prevMetrics.impressions);
 
             // KPI 2: Conversion (Orders / Clicks * 100)
-            const currConversion = currentMetrics.clicks > 0 ? (currentMetrics.orders / currentMetrics.clicks) * 100 : 0;
-            const prevConversion = prevMetrics.clicks > 0 ? (prevMetrics.orders / prevMetrics.clicks) * 100 : 0;
+            // KPI 2: Conversion (Clicks / Orders * 100) -- as per user request
+            const currConversion = currentMetrics.orders > 0 ? (currentMetrics.clicks / currentMetrics.orders) * 100 : 0;
+            const prevConversion = prevMetrics.orders > 0 ? (prevMetrics.clicks / prevMetrics.orders) * 100 : 0;
             const conversionChange = currConversion - prevConversion; // Percentage point difference for rates
 
             // KPI 3: Spend
@@ -195,56 +210,63 @@ const performanceMarketingService = {
 
 
     /**
-     * Get Daily Format Performance (Category > Date)
-     * For HeatmapDrillTable
+     * Get Daily Format Performance (keyword_category > Date)
+     * For HeatmapDrillTable - uses tb_zepto_pm_keyword_rca
      */
     async getFormatPerformance(filters) {
         try {
-            const { platform, brand, location, startDate, endDate } = filters;
+            const { platform, brand, zone, startDate, endDate } = filters;
             const whereClause = {};
 
-            // Basic Filters
+            // Platform Filter
             if (platform && platform !== 'All') {
                 whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase());
             }
+
+            // Date Range Filter
             if (startDate && endDate) {
-                whereClause.DATE = {
+                whereClause.date = {
                     [Op.between]: [
-                        dayjs(startDate).startOf('day').toDate(),
-                        dayjs(endDate).endOf('day').toDate()
+                        dayjs(startDate).startOf('day').format('YYYY-MM-DD'),
+                        dayjs(endDate).endOf('day').format('YYYY-MM-DD')
                     ]
                 };
             }
 
-            // Global Filters (Brand/Location)
+            // Brand Filter
             if (brand && brand !== 'All') {
                 const brands = brand.split(',').map(b => b.trim().toLowerCase());
-                whereClause.Brand = sequelize.where(sequelize.fn('LOWER', sequelize.col('Brand')), { [Op.in]: brands });
-            }
-            if (location && location !== 'All') {
-                const locations = location.split(',').map(l => l.trim().toLowerCase());
-                whereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), { [Op.in]: locations });
+                whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
             }
 
-            // RESTRICT TO SPECIFIC CATEGORIES (User Request)
+            // Zone Filter
+            if (zone && zone !== 'All') {
+                const zones = zone.split(',').map(z => z.trim().toLowerCase());
+                whereClause.zone = sequelize.where(sequelize.fn('LOWER', sequelize.col('zone')), { [Op.in]: zones });
+            }
+
+            // Restrict to specific keyword_categories
             const targetCategories = ['bath & body', 'detergent', 'hair care', 'fragrance & talc'];
-            whereClause.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), { [Op.in]: targetCategories });
+            whereClause.keyword_category = sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('keyword_category')),
+                { [Op.in]: targetCategories }
+            );
 
-
-            // Group by Category -> Date
-            const dailyData = await RbPdpOlap.findAll({
+            // Group by keyword_category -> Date
+            const dailyData = await TbZeptoPmKeywordRca.findAll({
                 where: whereClause,
                 attributes: [
-                    'Category',
-                    [sequelize.fn('DATE', sequelize.col('DATE')), 'date'],
-                    [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'spend'],
-                    [sequelize.fn('SUM', sequelize.col('Ad_Impressions')), 'impressions'],
-                    [sequelize.fn('SUM', sequelize.col('Ad_Clicks')), 'clicks'],
-                    [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'sales'],
-                    [sequelize.fn('SUM', sequelize.col('Sales')), 'total_sales'], // Sales (Organic + Ad)
+                    ['keyword_category', 'Category'],
+                    [sequelize.fn('DATE', sequelize.col('date')), 'date'],
+                    [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
+                    [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
+                    [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
+                    [sequelize.fn('SUM', sequelize.col('orders')), 'orders'],
+                    [sequelize.fn('SUM', sequelize.col('revenue')), 'sales'],
+                    [sequelize.fn('SUM', sequelize.col('revenue')), 'total_sales'],
                 ],
-                group: ['Category', sequelize.fn('DATE', sequelize.col('DATE'))],
-                order: [['Category', 'ASC'], [sequelize.fn('DATE', sequelize.col('DATE')), 'ASC']],
+                group: ['keyword_category', sequelize.fn('DATE', sequelize.col('date'))],
+                order: [['keyword_category', 'ASC'], [sequelize.fn('DATE', sequelize.col('date')), 'ASC']],
                 raw: true
             });
 
@@ -257,7 +279,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct zones, optionally filtered by brand
+     * Get distinct zones from tb_zepto_pm_keyword_rca, optionally filtered by brand
      * @param {string} brand - Brand name to filter zones (optional)
      */
     getZones: async (brand) => {
@@ -276,7 +298,8 @@ const performanceMarketingService = {
                 );
             }
 
-            const zones = await TbZeptoAdsKeywordData.findAll({
+            // Using TbZeptoPmKeywordRca for zones (consistent with PM page data source)
+            const zones = await TbZeptoPmKeywordRca.findAll({
                 attributes: [[sequelize.fn('DISTINCT', sequelize.col('zone')), 'zone']],
                 where: whereClause,
                 order: [['zone', 'ASC']],
@@ -290,6 +313,140 @@ const performanceMarketingService = {
         } catch (error) {
             console.error("❌ [Service] Error fetching zones:", error);
             return [];
+        }
+    },
+
+    /**
+     * Get distinct platforms from tb_zepto_pm_keyword_rca for PM page
+     */
+    getPlatforms: async () => {
+        try {
+            console.error("🔍 [Service] Fetching PM platforms...");
+            const platforms = await TbZeptoPmKeywordRca.findAll({
+                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Platform')), 'Platform']],
+                where: {
+                    Platform: { [Op.ne]: null }
+                },
+                order: [['Platform', 'ASC']],
+                raw: true
+            });
+            const mappedPlatforms = platforms.map(p => p.Platform).filter(p => p);
+            console.error("📤 [Service] PM Platforms:", mappedPlatforms);
+            return mappedPlatforms;
+        } catch (error) {
+            console.error("❌ [Service] Error fetching PM platforms:", error);
+            return [];
+        }
+    },
+
+    /**
+     * Get distinct brands from tb_zepto_pm_keyword_rca, optionally filtered by platform
+     * @param {string} platform - Platform to filter by (optional)
+     */
+    getBrands: async (platform) => {
+        try {
+            console.error("🔍 [Service] Fetching PM brands for platform:", platform);
+
+            const whereClause = {
+                brand_name: { [Op.ne]: null }
+            };
+
+            if (platform && platform !== 'All') {
+                whereClause.Platform = platform;
+            }
+
+            const brands = await TbZeptoPmKeywordRca.findAll({
+                attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_name')), 'brand_name']],
+                where: whereClause,
+                order: [['brand_name', 'ASC']],
+                raw: true
+            });
+            const mappedBrands = brands.map(b => b.brand_name).filter(b => b);
+            console.error("📤 [Service] PM Brands:", mappedBrands);
+            return mappedBrands;
+        } catch (error) {
+            console.error("❌ [Service] Error fetching PM brands:", error);
+            return [];
+        }
+    },
+
+    /**
+     * Get campaign quadrant counts (Q1, Q2, Q3, Q4) from acos_spend_class
+     * @param {Object} filters - platform, brand, zone, startDate, endDate
+     */
+    getCampaignQuadrants: async (filters) => {
+        try {
+            console.error("🔍 [Service] Fetching campaign quadrants with filters:", filters);
+
+            const whereClause = {};
+
+            // Platform filter
+            if (filters.platform && filters.platform !== 'All') {
+                whereClause.Platform = filters.platform;
+            }
+
+            // Brand filter
+            if (filters.brand && filters.brand !== 'All') {
+                const brands = filters.brand.split(',').map(b => b.trim().toLowerCase());
+                whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
+            }
+
+            // Zone filter
+            if (filters.zone && filters.zone !== 'All') {
+                const zones = filters.zone.split(',').map(z => z.trim());
+                whereClause.zone = { [Op.in]: zones };
+            }
+
+            // Date filter
+            if (filters.startDate && filters.endDate) {
+                whereClause.date = {
+                    [Op.between]: [filters.startDate, filters.endDate]
+                };
+            }
+
+            // Get counts by acos_spend_class - counting distinct campaign_id
+            const results = await TbZeptoPmKeywordRca.findAll({
+                attributes: [
+                    'acos_spend_class',
+                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('campaign_id'))), 'count']
+                ],
+                where: {
+                    ...whereClause,
+                    acos_spend_class: { [Op.ne]: null }
+                },
+                group: ['acos_spend_class'],
+                raw: true
+            });
+
+            console.error("✅ [Service] Quadrant results:", results);
+
+            // Map results to quadrant object
+            const quadrants = {
+                Q1: 0,
+                Q2: 0,
+                Q3: 0,
+                Q4: 0
+            };
+
+            results.forEach(row => {
+                if (quadrants.hasOwnProperty(row.acos_spend_class)) {
+                    quadrants[row.acos_spend_class] = parseInt(row.count) || 0;
+                }
+            });
+
+            // Calculate total
+            const total = quadrants.Q1 + quadrants.Q2 + quadrants.Q3 + quadrants.Q4;
+
+            return {
+                total,
+                Q1: quadrants.Q1,
+                Q2: quadrants.Q2,
+                Q3: quadrants.Q3,
+                Q4: quadrants.Q4
+            };
+        } catch (error) {
+            console.error("❌ [Service] Error fetching campaign quadrants:", error);
+            return { total: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
         }
     }
 };
