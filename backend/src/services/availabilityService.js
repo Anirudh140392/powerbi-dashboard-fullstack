@@ -574,13 +574,42 @@ const getDOI = async (filters) => {
                 }
             };
 
-            const qtySoldResult = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
-                ],
-                where: last30DaysWhereClause,
-                raw: true
-            });
+            // Previous period where clauses
+            const prevTodayWhereClause = {
+                ...baseFilters,
+                DATE: prevEndDate.format('YYYY-MM-DD')
+            };
+            const prev30DaysWhereClause = {
+                ...baseFilters,
+                DATE: {
+                    [Op.between]: [prevStartDate.format('YYYY-MM-DD'), prevEndDate.format('YYYY-MM-DD')]
+                }
+            };
+
+            // ⚡ OPTIMIZED: Run all 3 queries in PARALLEL
+            const [qtySoldResult, prevInventoryResult, prevQtySoldResult] = await Promise.all([
+                RbPdpOlap.findOne({
+                    attributes: [
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
+                    ],
+                    where: last30DaysWhereClause,
+                    raw: true
+                }),
+                RbPdpOlap.findOne({
+                    attributes: [
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory']
+                    ],
+                    where: prevTodayWhereClause,
+                    raw: true
+                }),
+                RbPdpOlap.findOne({
+                    attributes: [
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
+                    ],
+                    where: prev30DaysWhereClause,
+                    raw: true
+                })
+            ]);
 
             console.log('[getDOI] Today inventory:', todayInventory);
             console.log('[getDOI] Last 30 days Qty_Sold result:', qtySoldResult);
@@ -593,35 +622,6 @@ const getDOI = async (filters) => {
             if (totalQtySold > 0) {
                 currentDOI = (todayInventory / totalQtySold) * 30;
             }
-
-            // Calculate previous period DOI for comparison
-            const prevTodayWhereClause = {
-                ...baseFilters,
-                DATE: prevEndDate.format('YYYY-MM-DD')
-            };
-
-            const prevInventoryResult = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory']
-                ],
-                where: prevTodayWhereClause,
-                raw: true
-            });
-
-            const prev30DaysWhereClause = {
-                ...baseFilters,
-                DATE: {
-                    [Op.between]: [prevStartDate.format('YYYY-MM-DD'), prevEndDate.format('YYYY-MM-DD')]
-                }
-            };
-
-            const prevQtySoldResult = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
-                ],
-                where: prev30DaysWhereClause,
-                raw: true
-            });
 
             const prevInventory = parseFloat(prevInventoryResult?.totalInventory) || 0;
             const prevTotalQtySold = parseFloat(prevQtySoldResult?.totalQtySold) || 0;
@@ -854,16 +854,28 @@ const getMetroCityStockAvailability = async (filters) => {
 
             // Query for current period
             const currentWhereClause = buildWhereClause(currentStartDate, currentEndDate, locationFilter);
+            const prevWhereClause = buildWhereClause(prevStartDate, prevEndDate, locationFilter);
             console.log('[getMetroCityStockAvailability] Current period where clause locations count:', locationFilter.length);
 
-            const currentResult = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
-                ],
-                where: currentWhereClause,
-                raw: true
-            });
+            // ⚡ OPTIMIZED: Run both queries in PARALLEL
+            const [currentResult, prevResult] = await Promise.all([
+                RbPdpOlap.findOne({
+                    attributes: [
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
+                    ],
+                    where: currentWhereClause,
+                    raw: true
+                }),
+                RbPdpOlap.findOne({
+                    attributes: [
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
+                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
+                    ],
+                    where: prevWhereClause,
+                    raw: true
+                })
+            ]);
 
             // Calculate current Stock Availability
             const currentNenoOsa = parseFloat(currentResult?.sumNenoOsa) || 0;
@@ -872,18 +884,6 @@ const getMetroCityStockAvailability = async (filters) => {
             if (currentDenoOsa > 0) {
                 currentStockAvail = (currentNenoOsa / currentDenoOsa) * 100;
             }
-
-            // Query for previous period (comparison)
-            const prevWhereClause = buildWhereClause(prevStartDate, prevEndDate, locationFilter);
-
-            const prevResult = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
-                ],
-                where: prevWhereClause,
-                raw: true
-            });
 
             // Calculate previous Stock Availability
             const prevNenoOsa = parseFloat(prevResult?.sumNenoOsa) || 0;
@@ -1486,13 +1486,13 @@ const getAvailabilityKpiTrends = async (filters) => {
             };
 
             if (platform && platform !== 'All') {
-                whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase());
+                whereClause.Platform = platform;
             }
             if (brand && brand !== 'All') {
                 whereClause.Brand = { [Op.like]: `%${brand}%` };
             }
             if (location && location !== 'All') {
-                whereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                whereClause.Location = location;
             }
             if (category && category !== 'All') {
                 whereClause.Category = category;
@@ -1607,13 +1607,13 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
             };
 
             if (platform && platform !== 'All') {
-                whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), platform.toLowerCase());
+                whereClause.Platform = platform;
             }
             if (location && location !== 'All' && location !== 'All India') {
-                whereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                whereClause.Location = location;
             }
             if (category && category !== 'All') {
-                whereClause.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                whereClause.Category = category;
             }
             if (brand && brand !== 'All') {
                 const brandList = brand.split(',').map(b => b.trim().toLowerCase());
@@ -1876,10 +1876,10 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             };
 
             if (location && location !== 'All') {
-                whereClause.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), location.toLowerCase());
+                whereClause.Location = location;
             }
             if (category && category !== 'All') {
-                whereClause.Category = sequelize.where(sequelize.fn('LOWER', sequelize.col('Category')), category.toLowerCase());
+                whereClause.Category = category;
             }
 
             // Query for each brand's KPIs over time
