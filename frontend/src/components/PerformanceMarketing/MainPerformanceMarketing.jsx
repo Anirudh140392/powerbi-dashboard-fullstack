@@ -14,8 +14,46 @@ import KeywordAnalysisTable from "./KeywordAnalysisTable";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 
 export default function MainPerformanceMarketings() {
-  const { timeStart, timeEnd, comparisonLabel, platform, selectedBrand, selectedLocation } = useContext(FilterContext);
+  const {
+    timeStart, timeEnd, comparisonLabel, platform, selectedBrand,
+    zones, selectedZone, setZones, setSelectedZone
+  } = useContext(FilterContext);
+
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
+
+  // Fetch Zones when brand changes (Performance Marketing page specific)
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", selectedBrand);
+        const response = await axiosInstance.get("/performance-marketing/zones", {
+          params: { brand: selectedBrand }
+        });
+        console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
+
+        if (response.data && response.data.length > 0) {
+          const zoneList = ["All", ...response.data];
+          setZones(zoneList);
+
+          // Reset selection if current zone is not in new list
+          if (!zoneList.includes(selectedZone)) {
+            setSelectedZone("All");
+          }
+        } else {
+          console.warn("⚠️ [MainPerformanceMarketing] No zones found, setting ['All'].");
+          setZones(["All"]);
+          setSelectedZone("All");
+        }
+      } catch (error) {
+        console.error("❌ [MainPerformanceMarketing] Error fetching zones:", error);
+        setZones(["All"]);
+      }
+    };
+
+    fetchZones();
+  }, [selectedBrand, setZones, setSelectedZone]);
+
+
 
   // Default to the mock data for initial render
   const [kpiCards, setKpiCards] = useState([
@@ -46,7 +84,7 @@ export default function MainPerformanceMarketings() {
           params: {
             platform: platform,
             brand: selectedBrand,
-            location: selectedLocation,
+            zone: selectedZone, // Use zone instead of location for Performance Marketing
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -99,7 +137,7 @@ export default function MainPerformanceMarketings() {
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd]);
+  }, [timeStart, timeEnd, platform, selectedBrand, selectedZone]); // Added selectedZone to dependencies
 
   return (
     <Box>

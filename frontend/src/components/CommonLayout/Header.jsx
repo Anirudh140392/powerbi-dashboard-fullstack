@@ -53,6 +53,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     setCompareEnd,
     setComparisonLabel,
     maxDate,
+    zones,
+    selectedZone,
+    setSelectedZone,
   } = React.useContext(FilterContext);
 
 
@@ -193,10 +196,16 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               />
 
               <CustomHeaderDropdown
-                label="LOCATION"
-                options={locations}
-                value={selectedLocation}
-                onChange={(newValue) => setSelectedLocation(newValue)}
+                label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
+                options={title === "Performance Marketing" ? zones : locations}
+                value={title === "Performance Marketing" ? selectedZone : selectedLocation}
+                onChange={(newValue) => {
+                  if (title === "Performance Marketing") {
+                    setSelectedZone(newValue);
+                  } else {
+                    setSelectedLocation(newValue);
+                  }
+                }}
                 width={150}
               />
 
