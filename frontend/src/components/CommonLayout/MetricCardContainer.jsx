@@ -1,7 +1,27 @@
-import { Box, Card, Typography, Chip } from "@mui/material";
+import { Box, Card, Typography, Chip, Skeleton } from "@mui/material";
 import MetricCard from "./MetricCard";
 
-export default function MetricCardContainer({ title = "Watchtower Overview", cards = [] }) {
+// Skeleton loader component for metric cards
+const MetricCardSkeleton = () => (
+  <Box
+    sx={{
+      flex: "0 0 auto",
+      minWidth: 200,
+      maxWidth: 240,
+      p: 2,
+      borderRadius: 3,
+      border: "1px solid #e5e7eb",
+      bgcolor: "#fafafa",
+    }}
+  >
+    <Skeleton variant="text" width="60%" height={20} sx={{ mb: 1 }} />
+    <Skeleton variant="text" width="40%" height={32} sx={{ mb: 1 }} />
+    <Skeleton variant="rectangular" width="100%" height={40} sx={{ borderRadius: 1, mb: 1 }} />
+    <Skeleton variant="text" width="80%" height={16} />
+  </Box>
+);
+
+export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false }) {
   const scrollNeeded = cards.length > 5;
 
   return (
@@ -32,7 +52,7 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
-        {/* Cards Row */}
+        {/* Cards Row - Show skeleton when loading */}
         <Box
           sx={{
             display: "flex",
@@ -42,14 +62,24 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {cards.map((card, index) => (
-            <MetricCard
-              key={index}
-              card={card}
-              scrollNeeded={scrollNeeded}
-              totalCards={cards.length}
-            />
-          ))}
+          {loading ? (
+            // Show skeleton loaders when loading
+            <>
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+              <MetricCardSkeleton />
+            </>
+          ) : (
+            cards.map((card, index) => (
+              <MetricCard
+                key={index}
+                card={card}
+                scrollNeeded={scrollNeeded}
+                totalCards={cards.length}
+              />
+            ))
+          )}
         </Box>
       </Card>
     </Box>

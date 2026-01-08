@@ -777,8 +777,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     DATE: { [Op.between]: [currStart.toDate(), currEnd.toDate()] }
                 };
                 // FIXED: When brand is "All", only include OUR brands (Comp_flag = 0)
-                if (brand && brand !== 'All') {
-                    currWhere.Brand = { [Op.like]: `%${brand}%` };
+                const brandCondition = buildBrandLikeCondition(brandArr);
+                if (brandCondition) {
+                    currWhere.Brand = brandCondition;
                 } else {
                     currWhere.Comp_flag = 0;  // Our brands only when "All" selected
                 }
@@ -794,8 +795,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     DATE: { [Op.between]: [prevStart.toDate(), prevEnd.toDate()] }
                 };
                 // FIXED: When brand is "All", only include OUR brands (Comp_flag = 0)
-                if (brand && brand !== 'All') {
-                    prevWhere.Brand = { [Op.like]: `%${brand}%` };
+                const prevBrandCondition = buildBrandLikeCondition(brandArr);
+                if (prevBrandCondition) {
+                    prevWhere.Brand = prevBrandCondition;
                 } else {
                     prevWhere.Comp_flag = 0;  // Our brands only when "All" selected
                 }
@@ -1306,10 +1308,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 ? RbPdpOlap.sum('Sales', {
                     where: {
                         DATE: { [Op.between]: [dayjs(filters.compareStartDate).toDate(), dayjs(filters.compareEndDate).toDate()] },
-                        ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                        ...(location && location !== 'All' && { Location: location }),
+                        ...(buildBrandLikeCondition(brandArr) && { Brand: buildBrandLikeCondition(brandArr) }),
+                        ...(buildMultiValueCondition(locationArr) && { Location: buildMultiValueCondition(locationArr) }),
                         ...(category && category !== 'All' && { Category: category }),
-                        ...(platform && platform !== 'All' && { Platform: platform })
+                        ...(buildMultiValueCondition(platformArr) && { Platform: buildMultiValueCondition(platformArr) })
                     }
                 })
                 : Promise.resolve(0),
@@ -1564,15 +1566,29 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                         console.log(`📊 [Redis] Aggregated ${redisResult.rows.length} rows into ${dataByMonth.size} months`);
                     } else {
-                        // Fallback to database query
+                        // Fallback to database query - MULTI-VALUE SUPPORT
                         const where = {
-                            DATE: { [Op.between]: [startRange.toDate(), endRange.toDate()] },
-                            ...(location && location !== 'All' && { Location: location }),
-                            ...(platform && platform !== 'All' && { Platform: platform })
+                            DATE: { [Op.between]: [startRange.toDate(), endRange.toDate()] }
                         };
-                        // FIXED: When brand is "All", only include OUR brands (Comp_flag = 0)
-                        if (brand && brand !== 'All') {
-                            where.Brand = { [Op.like]: `%${brand}%` };
+
+                        // Add location filter (multi-value support)
+                        const locCondition = buildMultiValueCondition(
+                            Array.isArray(location) ? location : (location && location !== 'All' ? [location] : null)
+                        );
+                        if (locCondition) where.Location = locCondition;
+
+                        // Add platform filter (multi-value support)
+                        const platCondition = buildMultiValueCondition(
+                            Array.isArray(platform) ? platform : (platform && platform !== 'All' ? [platform] : null)
+                        );
+                        if (platCondition) where.Platform = platCondition;
+
+                        // Add brand filter (multi-value support with LIKE)
+                        const brandCondition = buildBrandLikeCondition(
+                            Array.isArray(brand) ? brand : (brand && brand !== 'All' ? [brand] : null)
+                        );
+                        if (brandCondition) {
+                            where.Brand = brandCondition;
                         } else {
                             where.Comp_flag = 0;  // Our brands only when "All" selected
                         }
@@ -1625,8 +1641,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 const earliestDate = last7Months[0].start;
 
-                // Generate unique key for this specific computation
-                const coalesceKey = `perf-kpi:${platform}:${earliestDate.format('YYYY-MM')}:${endDate.format('YYYY-MM')}:${brand}:${location}`;
+                // Generate unique key for this specific computation - handle arrays
+                const brandKey = Array.isArray(brand) ? brand.sort().join(',') : (brand || 'null');
+                const locationKey = Array.isArray(location) ? location.sort().join(',') : (location || 'null');
+                const coalesceKey = `perf-kpi:${platform}:${earliestDate.format('YYYY-MM')}:${endDate.format('YYYY-MM')}:${brandKey}:${locationKey}`;
 
                 // Use coalesceRequest to prevent cache stampede
                 let bulkData;
@@ -2076,8 +2094,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
             };
             // FIXED: When brand is "All", only include OUR brands (Comp_flag = 0)
-            if (brand && brand !== 'All') {
-                allOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+            const allBrandCondition = buildBrandLikeCondition(brandArr);
+            if (allBrandCondition) {
+                allOfftakeWhere.Brand = allBrandCondition;
             } else {
                 allOfftakeWhere.Comp_flag = 0;  // Our brands only when "All" selected
             }
@@ -2089,8 +2108,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const prevAllOfftakeWhere = {
                 DATE: { [Op.between]: [allMomStart.toDate(), allMomEnd.toDate()] }
             };
-            if (brand && brand !== 'All') {
-                prevAllOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+            const prevAllBrandCondition = buildBrandLikeCondition(brandArr);
+            if (prevAllBrandCondition) {
+                prevAllOfftakeWhere.Brand = prevAllBrandCondition;
             } else {
                 prevAllOfftakeWhere.Comp_flag = 0;
             }
@@ -2235,13 +2255,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             prevAllMarketShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : 0;
 
             // Calculate Promo My Brand for "All" platforms (Comp_flag = 0)
-            if (brand && brand !== 'All') {
+            const promoAllBrandCondition = buildBrandLikeCondition(brandArr);
+            if (promoAllBrandCondition) {
                 const allPromoMyBrandWhere = {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    Brand: { [Op.like]: `%${brand}%` },
+                    Brand: promoAllBrandCondition,
                     Comp_flag: 0
                 };
-                if (location && location !== 'All') allPromoMyBrandWhere.Location = location;
+                const locCondition = buildMultiValueCondition(locationArr);
+                if (locCondition) allPromoMyBrandWhere.Location = locCondition;
                 if (category && category !== 'All') allPromoMyBrandWhere.Category = category;
 
                 const allPromoMyBrandResult = await RbPdpOlap.findOne({
@@ -2366,8 +2388,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                     Platform: p.label
                 };
-                if (brand && brand !== 'All') platformOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
-                if (location && location !== 'All') platformOfftakeWhere.Location = location;
+                const platformBrandCondition = buildBrandLikeCondition(brandArr);
+                if (platformBrandCondition) platformOfftakeWhere.Brand = platformBrandCondition;
+                const platLocCondition = buildMultiValueCondition(locationArr);
+                if (platLocCondition) platformOfftakeWhere.Location = platLocCondition;
                 if (category && category !== 'All') platformOfftakeWhere.Category = category;
 
                 // ⚡ Fetch both promo metrics concurrently
@@ -2507,8 +2531,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     DATE: { [Op.between]: [mStart.toDate(), mEnd.toDate()] },
                     Platform: moPlatform
                 };
-                if (brand && brand !== 'All') moOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
-                if (location && location !== 'All') moOfftakeWhere.Location = location;
+                const moBrandCondition = buildBrandLikeCondition(brandArr);
+                if (moBrandCondition) moOfftakeWhere.Brand = moBrandCondition;
+                const moLocCondition = buildMultiValueCondition(locationArr);
+                if (moLocCondition) moOfftakeWhere.Location = moLocCondition;
                 if (category && category !== 'All') moOfftakeWhere.Category = category;
 
                 const moOfftakeResult = await RbPdpOlap.findOne({
@@ -4244,12 +4270,14 @@ const getPlatformOverview = async (filters) => {
             const allOfftakeWhere = {
                 DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] }
             };
-            if (brand && brand !== 'All') {
-                allOfftakeWhere.Brand = { [Op.like]: `%${brand}%` };
+            const platOvBrandCond = buildBrandLikeCondition(brandArr);
+            if (platOvBrandCond) {
+                allOfftakeWhere.Brand = platOvBrandCond;
             } else {
                 allOfftakeWhere.Comp_flag = 0;
             }
-            if (location && location !== 'All') allOfftakeWhere.Location = location;
+            const platOvLocCond = buildMultiValueCondition(locationArr);
+            if (platOvLocCond) allOfftakeWhere.Location = platOvLocCond;
             if (category && category !== 'All') allOfftakeWhere.Category = category;
 
             const allMetricsResult = await RbPdpOlap.findOne({
@@ -5452,11 +5480,15 @@ const getCompetitionData = async (filters = {}) => {
             whereClause.Product = sku;
         }
 
-        // Only include our brands (Comp_flag = 0)
-        whereClause.Comp_flag = 0;
+        // Only include competitor brands (Comp_flag = 1) for competition analysis
+        whereClause.Comp_flag = 1;
 
+        console.log('[getCompetitionData] 🔍 DEBUG whereClause:', JSON.stringify(whereClause, null, 2));
+        console.log('[getCompetitionData] 🔍 DEBUG dateRange:', startDate.format('YYYY-MM-DD'), 'to', endDate.format('YYYY-MM-DD'));
 
         // 1. Get all brands with aggregated metrics for current period
+        // NOTE: Removed HAVING clause because competitor data (Comp_flag=1) may have Sales=0
+        // but still needs to be shown for OSA, SOS, Price, etc.
         const currentBrands = await RbPdpOlap.findAll({
             attributes: [
                 'Brand',
@@ -5465,10 +5497,11 @@ const getCompetitionData = async (filters = {}) => {
                 [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
                 [sequelize.fn('SUM', sequelize.col('Ad_Impressions')), 'total_impressions'],
                 [sequelize.fn('AVG', sequelize.cast(sequelize.col('MRP'), 'FLOAT')), 'avg_price'],
+                [sequelize.fn('COUNT', sequelize.col('*')), 'record_count'],  // Count records to verify data exists
             ],
             where: whereClause,
             group: ['Brand'],
-            having: sequelize.where(sequelize.fn('SUM', sequelize.col('Sales')), { [Op.gt]: 0 }),
+            // No HAVING clause - competitor brands may have 0 sales but should still appear
             raw: true
         });
 
@@ -5484,12 +5517,13 @@ const getCompetitionData = async (filters = {}) => {
 
         // 2. Get previous period metrics for MoM calculation
         const momWhereClause = {
-            DATE: { [Op.between]: [momStartDate.toDate(), momEndDate.toDate()] }
+            DATE: { [Op.between]: [momStartDate.toDate(), momEndDate.toDate()] },
+            Comp_flag: 1  // Only competitor brands
         };
         if (platform && platform !== 'All') momWhereClause.Platform = whereClause.Platform;
         if (location && location !== 'All') momWhereClause.Location = whereClause.Location;
         if (category && category !== 'All') momWhereClause.Category = whereClause.Category;
-        // FIXED: Also exclude selected brand from previous period data
+        // FIXED: Also include selected brand from previous period data
         if (brand && brand !== 'All') momWhereClause.Brand = whereClause.Brand;
 
         const previousBrands = await RbPdpOlap.findAll({
@@ -5737,11 +5771,11 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         });
 
         // Fetch distinct brands filtered by location + category
-        // NOTE: For competition pages, show ALL brands (our brands + competitor brands)
-        // This allows users to analyze competitive landscape
+        // NOTE: For competition pages, show only COMPETITOR brands (comp_flag=1)
+        // This allows users to analyze competitive landscape without seeing our own brands
         const brandWhere = {
-            brand_name: { [Op.ne]: null }
-            // No comp_flag filter - show all brands for competition analysis
+            brand_name: { [Op.ne]: null },
+            comp_flag: 1  // Only show competitor brands in competition filter
         };
         if (location && location !== 'All' && location !== 'All India') {
             brandWhere.location = sequelize.where(

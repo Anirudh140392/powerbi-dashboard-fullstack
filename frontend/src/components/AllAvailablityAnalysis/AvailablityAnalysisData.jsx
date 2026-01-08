@@ -1146,7 +1146,7 @@ const cards = {
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = ({ apiData, filters = {} }) => {
+export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false }) => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
 
@@ -1294,39 +1294,9 @@ export const AvailablityAnalysisData = ({ apiData, filters = {} }) => {
       <div className="space-y-4">
         {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
-        {/* AVAILABILITY TOGGLE BLOCK */}
-        <div className="flex justify-center">
-          <div className="relative w-full md:w-[420px]">
-            <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-              <motion.div
-                layout
-                className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
-                initial={false}
-                animate={{ x: availability === "absolute" ? 0 : "100%" }}
-                transition={{ type: "spring", stiffness: 260, damping: 26 }}
-              />
+        {/* AVAILABILITY MODE - Only Absolute (Weighted option removed) */}
 
-              {[
-                { key: "absolute", label: "Absolute" },
-                { key: "weighted", label: "Weighted" },
-              ].map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setAvailability(option.key)}
-                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
-                    ? "text-slate-900"
-                    : "text-slate-500 hover:text-slate-700"
-                    }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} />
+        <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
         {/* <SignalLabVisibility type="availability" /> */}
         <TabbedHeatmapTable olaMode={availability} apiData={apiData} filters={filters} />
         <OsaHeatmapTable olaMode={availability} />
