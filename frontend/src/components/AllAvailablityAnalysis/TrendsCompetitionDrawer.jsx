@@ -1825,6 +1825,7 @@ export default function TrendsCompetitionDrawer({
                 dynamicKey={dynamicKey}
                 selectedItem={selectedColumn}
                 selectedLevel={selectedLevel}
+                selectedPlatform={selectedPlatform}
               />
             ) : (
               <KpiTrendShowcase dynamicKey={dynamicKey} />

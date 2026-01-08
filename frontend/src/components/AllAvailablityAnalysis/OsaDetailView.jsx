@@ -406,171 +406,200 @@ export default function OsaDetailTableLight() {
 
 
                         {/* Controls */}
-                        {/* Table */}
-                        <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-                            <div className="overflow-auto">
-                                <table className="min-w-[1200px] w-full border-separate border-spacing-0">
-                                    <thead className="sticky top-0 z-10 bg-white">
-                                        <tr>
-                                            {/* Sticky first column header */}
-                                            <th
-                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
-                                                style={{ minWidth: 280 }}
-                                            >
-                                                <div className="flex items-center h-full">PRODUCT / SKU</div>
-                                            </th>
+                        {/* Table - Show skeleton when loading */}
+                        {isLoading ? (
+                            <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 p-4">
+                                {/* Skeleton Header */}
+                                <div className="flex gap-4 mb-4">
+                                    <div className="h-6 w-64 bg-slate-200 rounded animate-pulse" />
+                                    <div className="h-6 w-16 bg-slate-200 rounded animate-pulse" />
+                                    <div className="h-6 w-20 bg-slate-200 rounded animate-pulse" />
+                                    <div className="flex-1 flex gap-2">
+                                        {Array.from({ length: 8 }).map((_, i) => (
+                                            <div key={i} className="h-6 w-12 bg-slate-100 rounded animate-pulse" />
+                                        ))}
+                                    </div>
+                                </div>
+                                {/* Skeleton Rows */}
+                                {Array.from({ length: 5 }).map((_, rowIdx) => (
+                                    <div key={rowIdx} className="flex gap-4 mb-3">
+                                        <div className="h-8 w-64 bg-slate-100 rounded animate-pulse" />
+                                        <div className="h-8 w-16 bg-slate-100 rounded animate-pulse" />
+                                        <div className="h-8 w-20 bg-slate-100 rounded animate-pulse" />
+                                        <div className="flex-1 flex gap-2">
+                                            {Array.from({ length: 8 }).map((_, i) => (
+                                                <div key={i} className="h-8 w-12 bg-slate-50 rounded animate-pulse" />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                                <div className="overflow-auto">
+                                    <table className="min-w-[1200px] w-full border-separate border-spacing-0">
+                                        <thead className="sticky top-0 z-10 bg-white">
+                                            <tr>
+                                                {/* Sticky first column header */}
+                                                <th
+                                                    className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
+                                                    style={{ minWidth: 280 }}
+                                                >
+                                                    <div className="flex items-center h-full">PRODUCT / SKU</div>
+                                                </th>
 
-                                            {/* <th
+                                                {/* <th
                                                 className="px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-slate-500 border-b border-slate-200 cursor-pointer select-none"
                                                 onClick={() => headerSort("avg7")}
                                             >
                                                 7D AVG <SortIcon dir={sortKey === "avg7" ? sortDir : undefined} />
                                             </th> */}
 
-                                            <th
-                                                className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
-                                                onClick={() => headerSort("avg31")}
-                                            >
-                                                <div className="flex items-center justify-center gap-1 h-full">
-                                                    AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
-                                                </div>
-                                            </th>
-
-                                            <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
-                                                <div className="flex items-center justify-center h-full">STATUS</div>
-                                            </th>
-
-                                            {dayCols.map((d) => (
                                                 <th
-                                                    key={d}
-                                                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
-                                                    onClick={() => headerSort(`day_${d}`)}
+                                                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
+                                                    onClick={() => headerSort("avg31")}
                                                 >
                                                     <div className="flex items-center justify-center gap-1 h-full">
-                                                        DAY {d}
-                                                        <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
+                                                        AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
                                                     </div>
                                                 </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
 
-                                    <tbody>
-                                        {pageRows.map((r) => {
-                                            const st = statusStyles(r.status);
-                                            const avgND =
-                                                visibleDays === 31
-                                                    ? r.avg31
-                                                    : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+                                                <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
+                                                    <div className="flex items-center justify-center h-full">STATUS</div>
+                                                </th>
 
-                                            return (
-                                                <tr key={r.sku} className={"group " + st.rowAccent}>
-                                                    <td
-                                                        className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
-                                                        style={{ minWidth: 280 }}
-                                                        title={r.name} // Show full name on hover
+                                                {dayCols.map((d) => (
+                                                    <th
+                                                        key={d}
+                                                        className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
+                                                        onClick={() => headerSort(`day_${d}`)}
                                                     >
-                                                        <div className="font-bold text-slate-900 leading-5 text-xs">
-                                                            {truncateName(r.name, 6)}
+                                                        <div className="flex items-center justify-center gap-1 h-full">
+                                                            DAY {d}
+                                                            <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
                                                         </div>
-                                                    </td>
-
-
-
-                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
-                                                        {avgND}%
-                                                    </td>
-
-                                                    <td className="px-3 py-2 border-b border-slate-100">
-                                                        <span
-                                                            className={
-                                                                "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
-                                                                st.chip
-                                                            }
-                                                        >
-                                                            <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
-                                                            {r.status}
-                                                        </span>
-                                                    </td>
-
-                                                    {dayCols.map((d) => {
-                                                        const v = r.values[d - 1];
-                                                        return (
-                                                            <td
-                                                                key={d}
-                                                                className="px-2 py-2 border-b border-slate-100 text-center"
-                                                                title={`${r.name} • Day ${d}: ${v}%`}
-                                                            >
-                                                                <span
-                                                                    className={
-                                                                        "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
-                                                                        cellTone(v)
-                                                                    }
-                                                                >
-                                                                    {v}%
-                                                                </span>
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
-                                            );
-                                        })}
-
-                                        {pageRows.length === 0 && (
-                                            <tr>
-                                                <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
-                                                    No rows found.
-                                                </td>
+                                                    </th>
+                                                ))}
                                             </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
 
-                            {/* Pagination - Performance Marketing Style */}
-                            <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        disabled={safePage === 1}
-                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                        className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-                                    >
-                                        Prev
-                                    </button>
+                                        <tbody>
+                                            {pageRows.map((r) => {
+                                                const st = statusStyles(r.status);
+                                                const avgND =
+                                                    visibleDays === 31
+                                                        ? r.avg31
+                                                        : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
 
-                                    <span className="text-slate-600">
-                                        Page <b className="text-slate-900">{safePage}</b> / {totalPages}
-                                    </span>
+                                                return (
+                                                    <tr key={r.sku} className={"group " + st.rowAccent}>
+                                                        <td
+                                                            className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
+                                                            style={{ minWidth: 280 }}
+                                                            title={r.name} // Show full name on hover
+                                                        >
+                                                            <div className="font-bold text-slate-900 leading-5 text-xs">
+                                                                {truncateName(r.name, 6)}
+                                                            </div>
+                                                        </td>
 
-                                    <button
-                                        disabled={safePage >= totalPages}
-                                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                        className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-                                    >
-                                        Next
-                                    </button>
+
+
+                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
+                                                            {avgND}%
+                                                        </td>
+
+                                                        <td className="px-3 py-2 border-b border-slate-100">
+                                                            <span
+                                                                className={
+                                                                    "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
+                                                                    st.chip
+                                                                }
+                                                            >
+                                                                <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
+                                                                {r.status}
+                                                            </span>
+                                                        </td>
+
+                                                        {dayCols.map((d) => {
+                                                            const v = r.values[d - 1];
+                                                            return (
+                                                                <td
+                                                                    key={d}
+                                                                    className="px-2 py-2 border-b border-slate-100 text-center"
+                                                                    title={`${r.name} • Day ${d}: ${v}%`}
+                                                                >
+                                                                    <span
+                                                                        className={
+                                                                            "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
+                                                                            cellTone(v)
+                                                                        }
+                                                                    >
+                                                                        {v}%
+                                                                    </span>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                );
+                                            })}
+
+                                            {pageRows.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
+                                                        No rows found.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                    <div className="text-slate-600">
-                                        Rows/page
-                                        <select
-                                            value={rowsPerPage}
-                                            onChange={(e) => {
-                                                setPage(1);
-                                                setRowsPerPage(Number(e.target.value));
-                                            }}
-                                            className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                                {/* Pagination - Performance Marketing Style */}
+                                <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            disabled={safePage === 1}
+                                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
                                         >
-                                            <option value={5}>5</option>
-                                            <option value={10}>10</option>
-                                            <option value={20}>20</option>
-                                            <option value={50}>50</option>
-                                        </select>
+                                            Prev
+                                        </button>
+
+                                        <span className="text-slate-600">
+                                            Page <b className="text-slate-900">{safePage}</b> / {totalPages}
+                                        </span>
+
+                                        <button
+                                            disabled={safePage >= totalPages}
+                                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-slate-600">
+                                            Rows/page
+                                            <select
+                                                value={rowsPerPage}
+                                                onChange={(e) => {
+                                                    setPage(1);
+                                                    setRowsPerPage(Number(e.target.value));
+                                                }}
+                                                className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                                            >
+                                                <option value={5}>5</option>
+                                                <option value={10}>10</option>
+                                                <option value={20}>20</option>
+                                                <option value={50}>50</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                     {/* ------------------ KPI FILTER MODAL ------------------ */}
                     {showFilterPanel && (
