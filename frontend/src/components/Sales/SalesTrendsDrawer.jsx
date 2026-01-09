@@ -5,7 +5,11 @@ import React, {
     useEffect,
     useRef,
     useLayoutEffect,
+    useContext,
 } from "react";
+import { fetchSalesTrends, fetchSalesFilterOptions } from "../../api/salesService";
+import { FilterContext } from "../../utils/FilterContext";
+import dayjs from "dayjs";
 import {
     Box,
     Typography,
@@ -28,7 +32,7 @@ import {
     Select,
     MenuItem,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
@@ -390,16 +394,192 @@ const MetricChip = ({ label, color, active, onClick }) => {
 
 /**
  * ---------------------------------------------------------------------------
+ * SCROLL ROW COMPONENT
+ * ---------------------------------------------------------------------------
+ */
+const ScrollRow = ({ children }) => {
+    const scrollRef = useRef(null);
+    const [showLeft, setShowLeft] = useState(false);
+    const [showRight, setShowRight] = useState(false);
+
+    const checkScroll = () => {
+        if (scrollRef.current) {
+            const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+            setShowLeft(scrollLeft > 10);
+            setShowRight(scrollLeft < scrollWidth - clientWidth - 10);
+        }
+    };
+
+    useEffect(() => {
+        const timer = setTimeout(checkScroll, 100);
+        window.addEventListener("resize", checkScroll);
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener("resize", checkScroll);
+        };
+    }, [children]);
+
+    const handleScroll = (dir) => {
+        if (scrollRef.current) {
+            const amount = dir === "left" ? -300 : 300;
+            scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
+        }
+    };
+
+    return (
+        <Box sx={{ position: "relative", flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+            {/* Left Fade + Arrow */}
+            {showLeft && (
+                <Box
+                    sx={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 50,
+                        zIndex: 2,
+                        background: "linear-gradient(to right, white 20%, transparent)",
+                        pointerEvents: "none",
+                        display: "flex",
+                        alignItems: "center",
+                    }}
+                >
+                    <IconButton
+                        size="small"
+                        onClick={() => handleScroll("left")}
+                        sx={{
+                            pointerEvents: "auto",
+                            bgcolor: "white",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                            border: "1px solid #e2e8f0",
+                            "&:hover": { bgcolor: "#f1f5f9" },
+                            ml: 0.5
+                        }}
+                    >
+                        <ChevronLeft size={16} />
+                    </IconButton>
+                </Box>
+            )}
+
+            {/* Scroll Area */}
+            <Box
+                ref={scrollRef}
+                onScroll={checkScroll}
+                sx={{
+                    display: "flex",
+                    gap: 1.5,
+                    overflowX: "auto",
+                    width: "100%",
+                    pb: 1,
+                    pt: 0.5,
+                    px: 0.5,
+                    "&::-webkit-scrollbar": { display: "none" },
+                    msOverflowStyle: "none",
+                    scrollbarWidth: "none",
+                }}
+            >
+                {children}
+            </Box>
+
+            {/* Right Fade + Arrow */}
+            {showRight && (
+                <Box
+                    sx={{
+                        position: "absolute",
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 50,
+                        zIndex: 2,
+                        background: "linear-gradient(to left, white 20%, transparent)",
+                        pointerEvents: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                    }}
+                >
+                    <IconButton
+                        size="small"
+                        onClick={() => handleScroll("right")}
+                        sx={{
+                            pointerEvents: "auto",
+                            bgcolor: "white",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                            border: "1px solid #e2e8f0",
+                            "&:hover": { bgcolor: "#f1f5f9" },
+                            mr: 0.5
+                        }}
+                    >
+                        <ChevronRight size={16} />
+                    </IconButton>
+                </Box>
+            )}
+        </Box>
+    );
+};
+
+/**
+ * ---------------------------------------------------------------------------
  * MAIN COMPONENT
  * ---------------------------------------------------------------------------
  */
 
 export default function SalesTrendsDrawer({
-    dynamicKey,
+    dynamicKey = "sales",
     open = true,
     onClose = () => { },
     selectedColumn,
+    startDate,
+    endDate,
+    platform,
+    brand,
+    location,
 }) {
+    const [trendData, setTrendData] = useState([]);
+    const [fetching, setFetching] = useState(false);
+    const [options, setOptions] = useState({ platforms: [], brands: [], categories: [], locations: [] });
+    const [selectedPlatform, setSelectedPlatformState] = useState(platform || "All");
+    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [selectedBrandState, setSelectedBrandState] = useState(brand || "All");
+    const [selectedLocationState, setSelectedLocationState] = useState(location || "All");
+    const [filterType, setFilterType] = useState("Platform");
+    const [showAllPills, setShowAllPills] = useState(false);
+
+    useEffect(() => {
+        const loadOptions = async () => {
+            try {
+                const data = await fetchSalesFilterOptions();
+                setOptions(data);
+            } catch (e) {
+                console.error("Failed to fetch filter options:", e);
+            }
+        };
+        loadOptions();
+    }, []);
+
+    useEffect(() => {
+        if (open) {
+            const loadTrends = async () => {
+                setFetching(true);
+                try {
+                    const data = await fetchSalesTrends({
+                        startDate,
+                        endDate,
+                        platform: selectedPlatform === "All" ? "" : selectedPlatform,
+                        brand: selectedBrandState === "All" ? "" : selectedBrandState,
+                        location: selectedLocationState === "All" ? "" : selectedLocationState,
+                        category: selectedCategory === "All" ? "" : selectedCategory
+                    });
+                    setTrendData(data);
+                } catch (e) {
+                    console.error("Trends fetch failed:", e);
+                } finally {
+                    setFetching(false);
+                }
+            };
+            loadTrends();
+        }
+    }, [open, startDate, endDate, selectedPlatform, selectedBrandState, selectedLocationState, selectedCategory]);
     const [view, setView] = useState("Trends");
     const [allTrendMeta, allSetTrendMeta] = useState({
         context: {
@@ -426,8 +606,8 @@ export default function SalesTrendsDrawer({
 
     // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
     const [addSkuOpen, setAddSkuOpen] = useState(false);
-    const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
-    const [showPlatformPills, setShowPlatformPills] = useState(false);
+    // const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
+    const [showPlatformPills, setShowPlatformPills] = useState(true);
 
     const platformRef = useRef(null);
 
@@ -444,6 +624,26 @@ export default function SalesTrendsDrawer({
 
     const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
     const [compareInitialized, setCompareInitialized] = useState(false);
+
+    useEffect(() => {
+        if (selectedColumn) {
+            const mapping = {
+                "MTD SALES": "mtd_sales",
+                "PREV MONTH MTD": "mtd_sales",
+                "CURRENT DRR": "current_drr",
+                "YTD SALES": "overall_sales",
+                "LAST YEAR SALES": "overall_sales",
+                "PROJECTED SALES": "projected_sales"
+            };
+            const metricId = mapping[selectedColumn.toUpperCase()];
+            if (metricId) {
+                setActiveMetrics([metricId]);
+            } else {
+                // Fallback to overall sales if no specific mapping found
+                setActiveMetrics(["overall_sales"]);
+            }
+        }
+    }, [selectedColumn]);
 
     const trendMeta = DASHBOARD_DATA.trends;
     const compMeta = DASHBOARD_DATA.competition;
@@ -462,7 +662,8 @@ export default function SalesTrendsDrawer({
     }, [view, compareInitialized]);
 
     const trendPoints = useMemo(() => {
-        const enriched = trendMeta.points.map((p) => ({
+        const sourceData = trendData.length > 0 ? trendData : trendMeta.points;
+        const enriched = sourceData.map((p) => ({
             ...p,
             _dateObj: parseTrendDate(p.date),
         }));
@@ -597,16 +798,10 @@ export default function SalesTrendsDrawer({
         setAddSkuOpen(false);
     };
 
-    const PLATFORM_OPTIONS = [
-        "Blinkit",
-        "Zepto",
-        "Instamart",
-        "Swiggy",
-        "Amazon",
-    ];
-    const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
-    const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-    const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Britannia"];
+    const PLATFORM_OPTIONS = ["All", ...(options.platforms || [])];
+    const FORMAT_OPTIONS = ["All", ...(options.categories || [])];
+    const CITY_OPTIONS = ["All", ...(options.locations || [])];
+    const BRAND_OPTIONS = ["All", ...(options.brands || [])];
 
     if (!open) return null;
 
@@ -691,14 +886,12 @@ export default function SalesTrendsDrawer({
                                 >
                                     <Select
                                         size="small"
-                                        value={allTrendMeta.context.audience}
+                                        value={filterType}
                                         onChange={(e) => {
-                                            allSetTrendMeta((prev) => ({
-                                                ...prev,
-                                                context: { ...prev.context, audience: e.target.value },
-                                            }));
-                                            setShowPlatformPills(true); // always show pills after changing mode
+                                            setFilterType(e.target.value);
+                                            setShowPlatformPills(true);
                                         }}
+                                        sx={{ minWidth: 120, borderRadius: 2, bgcolor: 'white' }}
                                     >
                                         <MenuItem value="Platform">Platform</MenuItem>
                                         <MenuItem value="Format">Format</MenuItem>
@@ -710,40 +903,54 @@ export default function SalesTrendsDrawer({
                                 {/* DYNAMIC PILLS */}
                                 {/* DYNAMIC PILLS */}
                                 {showPlatformPills && (
-                                    <Box display="flex" gap={0.5}>
-                                        {(allTrendMeta.context.audience === "Platform"
+                                    <ScrollRow>
+                                        {(filterType === "Platform"
                                             ? PLATFORM_OPTIONS
-                                            : allTrendMeta.context.audience === "Format"
+                                            : filterType === "Format"
                                                 ? FORMAT_OPTIONS
-                                                : allTrendMeta.context.audience === "City"
+                                                : filterType === "City"
                                                     ? CITY_OPTIONS
-                                                    : allTrendMeta.context.audience === "Brand"
+                                                    : filterType === "Brand"
                                                         ? BRAND_OPTIONS
                                                         : []
-                                        ).map((p) => (
-                                            <Box
-                                                key={p}
-                                                onClick={() => {
-                                                    setSelectedPlatform(p); // only select the pill
-                                                    // ❌ DO NOT toggle or force open here
-                                                }}
-                                                sx={{
-                                                    px: 1.5,
-                                                    py: 0.7,
-                                                    borderRadius: "999px",
-                                                    fontSize: "12px",
-                                                    fontWeight: 600,
-                                                    cursor: "pointer",
-                                                    border: "1px solid #E5E7EB",
-                                                    backgroundColor:
-                                                        selectedPlatform === p ? "#0ea5e9" : "white",
-                                                    color: selectedPlatform === p ? "white" : "#0f172a",
-                                                }}
-                                            >
-                                                {p}
-                                            </Box>
-                                        ))}
-                                    </Box>
+                                        ).map((p) => {
+                                            const isSelected =
+                                                filterType === "Platform" ? selectedPlatform === p :
+                                                    filterType === "Format" ? selectedCategory === p :
+                                                        filterType === "City" ? selectedLocationState === p :
+                                                            filterType === "Brand" ? selectedBrandState === p : false;
+
+                                            return (
+                                                <Box
+                                                    key={p}
+                                                    onClick={() => {
+                                                        if (filterType === "Platform") setSelectedPlatformState(p);
+                                                        else if (filterType === "Format") setSelectedCategory(p);
+                                                        else if (filterType === "City") setSelectedLocationState(p);
+                                                        else if (filterType === "Brand") setSelectedBrandState(p);
+                                                    }}
+                                                    sx={{
+                                                        px: 2,
+                                                        py: 0.8,
+                                                        borderRadius: "999px",
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                        cursor: "pointer",
+                                                        whiteSpace: 'nowrap',
+                                                        border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB",
+                                                        backgroundColor: isSelected ? "#0ea5e9" : "white",
+                                                        color: isSelected ? "white" : "#0f172a",
+                                                        transition: 'all 0.2s ease',
+                                                        '&:hover': {
+                                                            borderColor: '#0ea5e9',
+                                                        }
+                                                    }}
+                                                >
+                                                    {p}
+                                                </Box>
+                                            );
+                                        })}
+                                    </ScrollRow>
                                 )}
                             </Box>
 
@@ -793,7 +1000,7 @@ export default function SalesTrendsDrawer({
                                 flexWrap="wrap"
                                 mb={2}
                             >
-                                <Box display="flex" gap={1} flexWrap="wrap">
+                                <ScrollRow>
                                     {trendMeta.metrics.map((m) => (
                                         <MetricChip
                                             key={m.id}
@@ -809,20 +1016,7 @@ export default function SalesTrendsDrawer({
                                             }
                                         />
                                     ))}
-                                </Box>
-
-                                <Button
-                                    size="small"
-                                    endIcon={<ChevronDown size={14} />}
-                                    sx={{
-                                        textTransform: "none",
-                                        borderRadius: "999px",
-                                        borderColor: "#E5E7EB",
-                                    }}
-                                    variant="outlined"
-                                >
-                                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                                </Button>
+                                </ScrollRow>
                             </Box>
 
                             {/* Chart */}

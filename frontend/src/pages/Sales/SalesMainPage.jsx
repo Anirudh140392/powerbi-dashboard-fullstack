@@ -4,8 +4,9 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import SalesSummaryCards from "./SalesSummaryCards";
 import CityKpiTrendShowcase from "../../components/CityKpiTrendShowcase";
 import SalesGainerDrainerWrapper from "./SalesGainerDrainerWrapper";
-import { SALES_MATRIX_DATA } from "./SalesData";
+import ByCategoryKpiMatrix from "../../components/Sales/ByCategoryKpiMatrix";
 import DrillDownSalesTable from "../../components/Sales/DrillDownSalesTable";
+import SalesTrendsDrawer from "../../components/Sales/SalesTrendsDrawer";
 import { FilterContext } from "../../utils/FilterContext";
 
 export default function SalesMainPage() {
@@ -21,6 +22,8 @@ export default function SalesMainPage() {
 
   const [summaryData, setSummaryData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [trendsOpen, setTrendsOpen] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState(null);
   useEffect(() => {
     const controller = new AbortController();
     const signal = controller.signal;
@@ -90,18 +93,40 @@ export default function SalesMainPage() {
           {/* ---------------- Gainers / Drainers ---------------- */}
           <SalesGainerDrainerWrapper />
 
-          {/* ---------------- Sales Matrix Table (By Format) ---------------- */}
-          <CityKpiTrendShowcase
-            dynamicKey='sales_category_table'
-            title="By Category"
-            data={SALES_MATRIX_DATA}
-            firstColLabel="CATEGORY"
+          {/* ---------------- Sales Matrix Table (By Category) ---------------- */}
+          <ByCategoryKpiMatrix
+            startDate={timeStart ? timeStart.format("YYYY-MM-DD") : ""}
+            endDate={timeEnd ? timeEnd.format("YYYY-MM-DD") : ""}
+            compareStartDate={compareStart ? compareStart.format("YYYY-MM-DD") : ""}
+            compareEndDate={compareEnd ? compareEnd.format("YYYY-MM-DD") : ""}
+            platform={platform}
+            brand={selectedBrand}
+            location={selectedLocation}
+            onTrendClick={(metric) => {
+              setSelectedMetric(metric);
+              setTrendsOpen(true);
+            }}
           />
 
           {/* ---------------- Drill Down Sales Table ---------------- */}
-          <DrillDownSalesTable />
+          <DrillDownSalesTable
+            startDate={timeStart ? timeStart.format("YYYY-MM-DD") : ""}
+            endDate={timeEnd ? timeEnd.format("YYYY-MM-DD") : ""}
+            brand={selectedBrand}
+          />
         </Box>
       </Box>
+      {/* ---------------- Trends Drawer ---------------- */}
+      <SalesTrendsDrawer
+        open={trendsOpen}
+        onClose={() => setTrendsOpen(false)}
+        selectedColumn={selectedMetric}
+        startDate={timeStart ? timeStart.format("YYYY-MM-DD") : ""}
+        endDate={timeEnd ? timeEnd.format("YYYY-MM-DD") : ""}
+        platform={platform}
+        brand={selectedBrand}
+        location={selectedLocation}
+      />
     </CommonContainer>
   );
 }

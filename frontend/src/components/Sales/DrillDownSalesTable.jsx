@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from "react";
 import {
     Box,
-    Card,
     Typography,
     Table,
     TableBody,
@@ -9,25 +8,30 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Paper,
     IconButton,
-    Button
+    Button,
+    CircularProgress,
+    LinearProgress
 } from "@mui/material";
-import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Minus, LineChartIcon, SlidersHorizontal, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { Plus, Minus, SlidersHorizontal, X } from "lucide-react";
 import { KpiFilterPanel } from '../KpiFilterPanel'
 import PaginationFooter from '../CommonLayout/PaginationFooter'
+import { fetchSalesDrilldown } from "../../api/salesService";
 
 /* -------------------------------------------------------------------------- */
 /*                               RENDER HELPERS                               */
 /* -------------------------------------------------------------------------- */
-const fmt = (val) => val?.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+const fmt = (val) => {
+    if (val === undefined || val === null || isNaN(val)) return "0.0";
+    return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+};
 
 const getMetricStyle = (label, val) => {
     if (val === undefined || val === null) return {};
     let status = 'action';
 
-    // Simple mock logic for thresholds
+    // Simple logic for thresholds
     if (label.includes('DRR')) {
         if (val > 100) status = 'healthy';
         else if (val > 50) status = 'watch';
@@ -44,223 +48,9 @@ const getMetricStyle = (label, val) => {
     return styles[status] || {};
 };
 
-/* -------------------------------------------------------------------------- */
-/*                                MOCK DATA                                   */
-/* -------------------------------------------------------------------------- */
-
-const generateMetrics = (baseMtd) => ({
-    mtdSales: baseMtd,
-    prevMtd: baseMtd * (0.8 + Math.random() * 0.4),
-    drr: baseMtd / 30, // rough daily rate
-    ytdSales: baseMtd * (10 + Math.random() * 3),
-    lastYear: baseMtd * (0.9 + Math.random() * 0.3) * 12,
-    projected: baseMtd * (1.0 + Math.random() * 0.1),
-});
-
-// Helper to add keywords to a city
-const withKeywords = (cityNode) => {
-    const keywords = [
-        "Sandwich, Cakes & Others",
-        "ice cream cake",
-        "ice cream",
-        "Gourmet",
-    ];
-    return {
-        ...cityNode,
-        children: keywords.map((k, i) => ({
-            id: `${cityNode.id}-kw-${i}`,
-            name: k,
-            type: "keyword", // Level 3 (0-indexed: Platform, Region, City, Keyword)
-            ...generateMetrics(cityNode.mtdSales / keywords.length)
-        }))
-    };
-};
-
-const DATA_HIERARCHY = [
-    {
-        id: "flipkart",
-        name: "Flipkart",
-        type: "platform",
-        ...generateMetrics(8981.9),
-        children: [
-            {
-                id: "fl-north1",
-                name: "North 1",
-                type: "region",
-                ...generateMetrics(3000),
-                children: [
-                    withKeywords({ id: "fl-n1-delhi", name: "Delhi", type: "city", ...generateMetrics(1500) }),
-                    withKeywords({ id: "fl-n1-gurgaon", name: "Gurgaon", type: "city", ...generateMetrics(800) }),
-                    withKeywords({ id: "fl-n1-noida", name: "Noida", type: "city", ...generateMetrics(700) }),
-                ],
-            },
-            {
-                id: "fl-north2",
-                name: "North 2",
-                type: "region",
-                ...generateMetrics(2500),
-                children: [
-                    withKeywords({ id: "fl-n2-lucknow", name: "Lucknow", type: "city", ...generateMetrics(1200) }),
-                    withKeywords({ id: "fl-n2-jaipur", name: "Jaipur", type: "city", ...generateMetrics(1300) }),
-                ]
-            },
-            {
-                id: "fl-south",
-                name: "South",
-                type: "region",
-                ...generateMetrics(4000),
-                children: [
-                    withKeywords({ id: "fl-s-bangalore", name: "Bangalore", type: "city", ...generateMetrics(2000) }),
-                    withKeywords({ id: "fl-s-hyderabad", name: "Hyderabad", type: "city", ...generateMetrics(1200) }),
-                    withKeywords({ id: "fl-s-chennai", name: "Chennai", type: "city", ...generateMetrics(800) }),
-                ]
-            },
-            {
-                id: "fl-west",
-                name: "West",
-                type: "region",
-                ...generateMetrics(3500),
-                children: [
-                    withKeywords({ id: "fl-w-mumbai", name: "Mumbai", type: "city", ...generateMetrics(2000) }),
-                    withKeywords({ id: "fl-w-pune", name: "Pune", type: "city", ...generateMetrics(800) }),
-                    withKeywords({ id: "fl-w-ahmedabad", name: "Ahmedabad", type: "city", ...generateMetrics(700) }),
-                ]
-            },
-            {
-                id: "fl-east",
-                name: "East",
-                type: "region",
-                ...generateMetrics(1500),
-                children: [
-                    withKeywords({ id: "fl-e-kolkata", name: "Kolkata", type: "city", ...generateMetrics(1000) }),
-                    withKeywords({ id: "fl-e-patna", name: "Patna", type: "city", ...generateMetrics(500) }),
-                ]
-            }
-        ],
-    },
-    {
-        id: "amazon",
-        name: "Amazon",
-        type: "platform",
-        ...generateMetrics(7500.5),
-        children: [
-            {
-                id: "amz-metro",
-                name: "Metros",
-                type: "region",
-                ...generateMetrics(5000),
-                children: [
-                    withKeywords({ id: "amz-dl", name: "Delhi", type: "city", ...generateMetrics(2000) }),
-                    withKeywords({ id: "amz-bom", name: "Mumbai", type: "city", ...generateMetrics(1800) }),
-                    withKeywords({ id: "amz-blr", name: "Bangalore", type: "city", ...generateMetrics(1200) }),
-                ]
-            },
-            {
-                id: "amz-t2",
-                name: "Tier 2",
-                type: "region",
-                ...generateMetrics(2500),
-                children: [
-                    withKeywords({ id: "amz-lko", name: "Lucknow", type: "city", ...generateMetrics(800) }),
-                    withKeywords({ id: "amz-ind", name: "Indore", type: "city", ...generateMetrics(700) }),
-                    withKeywords({ id: "amz-kop", name: "Kanpur", type: "city", ...generateMetrics(1000) }),
-                ]
-            }
-        ]
-    },
-    {
-        id: "zepto",
-        name: "Zepto",
-        type: "platform",
-        ...generateMetrics(546.6),
-        children: [
-            {
-                id: "zp-mumbai",
-                name: "Mumbai Region",
-                type: "region",
-                ...generateMetrics(300),
-                children: [
-                    withKeywords({ id: "zp-mum-all", name: "Mumbai", type: "city", ...generateMetrics(300) }),
-                ],
-            },
-            {
-                id: "zp-bangalore",
-                name: "Bangalore Region",
-                type: "region",
-                ...generateMetrics(246.6),
-                children: [
-                    withKeywords({ id: "zp-blr-all", name: "Bangalore", type: "city", ...generateMetrics(246.6) }),
-                ],
-            },
-        ],
-    },
-    {
-        id: "blinkit",
-        name: "Blinkit",
-        type: "platform",
-        ...generateMetrics(360.3),
-        children: [
-            {
-                id: "bk-ncr",
-                name: "NCR",
-                type: "region",
-                ...generateMetrics(360),
-                children: [
-                    withKeywords({ id: "bk-delhi", name: "Delhi", type: "city", ...generateMetrics(200) }),
-                    withKeywords({ id: "bk-ggn", name: "Gurgaon", type: "city", ...generateMetrics(100) }),
-                    withKeywords({ id: "bk-noida", name: "Noida", type: "city", ...generateMetrics(60) }),
-                ]
-            }
-        ]
-    },
-    {
-        id: "instamart",
-        name: "Instamart",
-        type: "platform",
-        ...generateMetrics(244.1),
-        children: [
-            {
-                id: "im-south",
-                name: "South",
-                type: "region",
-                ...generateMetrics(200),
-                children: [
-                    withKeywords({ id: "im-blr", name: "Bangalore", type: "city", ...generateMetrics(150) }),
-                    withKeywords({ id: "im-hyd", name: "Hyderabad", type: "city", ...generateMetrics(50) }),
-                ]
-            }
-        ]
-    },
-    {
-        id: "bigbasket",
-        name: "Bigbasket",
-        type: "platform",
-        ...generateMetrics(83.9),
-        children: [
-            {
-                id: "bb-tier1",
-                name: "Tier 1",
-                type: "region",
-                ...generateMetrics(83.9),
-                children: [
-                    withKeywords({ id: "bb-mum", name: "Mumbai", type: "city", ...generateMetrics(40) }),
-                    withKeywords({ id: "bb-dl", name: "Delhi", type: "city", ...generateMetrics(43.9) }),
-                ]
-            }
-        ]
-    },
-    {
-        id: "virtualstore",
-        name: "Virtual Store",
-        type: "platform",
-        ...generateMetrics(36.8),
-        children: []
-    }
-];
-
 // ---------------- COLUMN CONFIG ----------------
 // Hierarchy Columns
-const HIERARCHY_LEVELS = ["Platform", "Region", "City", "Keyword"];
+const HIERARCHY_LEVELS = ["Platform", "Region", "City", "Category"];
 
 // Metric Columns
 const METRIC_HEADERS = [
@@ -273,93 +63,161 @@ const METRIC_HEADERS = [
 ];
 
 // -------------- COMPONENT -----------------
-export default function DrillDownSalesTable() {
+export default function DrillDownSalesTable({ startDate, endDate, brand }) {
+    const [hierarchyData, setHierarchyData] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [expanded, setExpanded] = useState(new Set());
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
     const [filters, setFilters] = useState({ platform: [], region: [], city: [], keyword: [] });
     const [popupFilters, setPopupFilters] = useState({ platform: [], region: [], city: [], keyword: [] });
+    const [fetchingChildrenId, setFetchingChildrenId] = useState(null);
 
-    // Extract filter options from data hierarchy
-    const filterOptionsData = useMemo(() => {
-        const platforms = new Set(["All"]);
-        const regions = new Set(["All"]);
-        const cities = new Set(["All"]);
-        const keywords = new Set(["All"]);
-
-        DATA_HIERARCHY.forEach(p => {
-            platforms.add(p.name);
-            p.children?.forEach(r => {
-                regions.add(r.name);
-                r.children?.forEach(c => {
-                    cities.add(c.name);
-                    c.children?.forEach(k => {
-                        keywords.add(k.name);
-                    });
-                });
-            });
-        });
-
-        return {
-            platforms: Array.from(platforms).map(v => ({ id: v, label: v })),
-            regions: Array.from(regions).map(v => ({ id: v, label: v })),
-            cities: Array.from(cities).map(v => ({ id: v, label: v })),
-            keywords: Array.from(keywords).map(v => ({ id: v, label: v })),
+    React.useEffect(() => {
+        const loadPlatforms = async () => {
+            setLoading(true);
+            try {
+                const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand });
+                const formatted = data.map(item => ({
+                    id: item.name.toLowerCase(),
+                    name: item.name,
+                    type: "platform",
+                    mtdSales: item.mtdSales,
+                    prevMtd: item.prevMonthMtd,
+                    drr: item.currentDrr,
+                    ytdSales: item.ytdSales,
+                    lastYear: item.lastYearSales,
+                    projected: item.projectedSales,
+                    children: []
+                }));
+                setHierarchyData(formatted);
+            } catch (error) {
+                console.error("Failed to fetch platforms:", error);
+            } finally {
+                setLoading(false);
+            }
         };
-    }, []);
+        loadPlatforms();
+    }, [startDate, endDate, brand]);
 
-    const sectionConfig = [
-        { id: "platforms", label: "Platforms" },
-        { id: "regions", label: "Regions" },
-        { id: "cities", label: "Cities" },
-        { id: "keywords", label: "Keywords" },
-    ];
+    const toggleExpand = async (key, row) => {
+        const isCurrentlyExpanded = expanded.has(key);
 
-    // Filter and Flatten Logic
+        if (!isCurrentlyExpanded) {
+            // If expanding, check if children are already loaded
+            if (row.children && row.children.length === 0 && row.type !== 'category') {
+                setLoading(true);
+                setFetchingChildrenId(row.id);
+                try {
+                    let levelToFetch = '';
+                    let params = {};
+
+                    if (row.type === 'platform') {
+                        levelToFetch = 'region';
+                        params = { level: 'region', platform: row.name, startDate, endDate, brand };
+                    } else if (row.type === 'region') {
+                        levelToFetch = 'city';
+                        const platformName = row.path[0];
+                        params = { level: 'city', platform: platformName, region: row.name, startDate, endDate, brand };
+                    } else if (row.type === 'city') {
+                        levelToFetch = 'category';
+                        const platformName = row.path[0];
+                        const regionName = row.path[1];
+                        params = { level: 'category', platform: platformName, region: regionName, location: row.name, startDate, endDate, brand };
+                    }
+
+                    if (levelToFetch) {
+                        const data = await fetchSalesDrilldown(params);
+                        const children = data.map(item => ({
+                            id: `${row.id}-${item.name.toLowerCase()}`,
+                            name: item.name,
+                            type: levelToFetch,
+                            mtdSales: item.mtdSales,
+                            prevMtd: item.prevMonthMtd,
+                            drr: item.currentDrr,
+                            ytdSales: item.ytdSales,
+                            lastYear: item.lastYearSales,
+                            projected: item.projectedSales,
+                            children: []
+                        }));
+
+                        // Update hierarchyData deep
+                        setHierarchyData(prev => {
+                            const newData = JSON.parse(JSON.stringify(prev));
+                            const updateNode = (nodes) => {
+                                for (let node of nodes) {
+                                    if (node.id === row.id) {
+                                        node.children = children;
+                                        return true;
+                                    }
+                                    if (node.children && updateNode(node.children)) return true;
+                                }
+                                return false;
+                            };
+                            updateNode(newData);
+                            return newData;
+                        });
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch children:", error);
+                } finally {
+                    setLoading(false);
+                    setFetchingChildrenId(null);
+                }
+            }
+        }
+
+        setExpanded(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    // Filter and Flatten Logic (adapted to hierarchyData state)
     const flattenedRows = useMemo(() => {
         const rows = [];
-
         const walk = (node, depth, parentPaths) => {
             const currentPath = {
                 platform: depth === 0 ? node.name : parentPaths.platform,
                 region: depth === 1 ? node.name : parentPaths.region,
                 city: depth === 2 ? node.name : parentPaths.city,
-                keyword: depth === 3 ? node.name : parentPaths.keyword,
+                category: depth === 3 ? node.name : parentPaths.category,
             };
 
-            // A node passes if its known path components match the filters
-            // For components not yet known (deeper than current depth), we assume true
             const passesFilter =
                 (filters.platform.length === 0 || depth < 0 || filters.platform.includes(currentPath.platform)) &&
                 (filters.region.length === 0 || depth < 1 || filters.region.includes(currentPath.region)) &&
-                (filters.city.length === 0 || depth < 2 || filters.city.includes(currentPath.city)) &&
-                (filters.keyword.length === 0 || depth < 3 || filters.keyword.includes(currentPath.keyword));
+                (filters.city.length === 0 || depth < 2 || filters.city.includes(currentPath.city));
 
             if (!passesFilter) return;
 
             const fullIdPath = [...(parentPaths.fullIdPath || []), node.id];
+            const nodePathNames = [...(parentPaths.nodePathNames || []), node.name];
             const key = fullIdPath.join(">");
             const isOpen = expanded.has(key);
             const children = node.children || [];
-            const hasChildren = children.length > 0;
+            // For lazy loading, we show expansion icon if it's not a category (or final level)
+            const hasChildren = node.type !== 'category';
 
             rows.push({
                 ...node,
                 key,
                 level: depth,
-                path: fullIdPath,
+                path: nodePathNames, // Pass names for context if needed
                 hasChildren
             });
 
-            if (isOpen && hasChildren) {
-                children.forEach(child => walk(child, depth + 1, { ...currentPath, fullIdPath }));
+            if (isOpen && children.length > 0) {
+                children.forEach(child => walk(child, depth + 1, { ...currentPath, fullIdPath, nodePathNames }));
             }
         };
 
-        DATA_HIERARCHY.forEach(p => walk(p, 0, { platform: 'All', region: 'All', city: 'All', keyword: 'All', fullIdPath: [] }));
+        hierarchyData.forEach(p => walk(p, 0, { platform: 'All', region: 'All', city: 'All', category: 'All', fullIdPath: [], nodePathNames: [] }));
         return rows;
-    }, [filters, expanded]);
+    }, [filters, expanded, hierarchyData]);
 
     const totalPages = Math.max(1, Math.ceil(flattenedRows.length / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
@@ -382,11 +240,41 @@ export default function DrillDownSalesTable() {
                 }
             });
         };
-        traverse(DATA_HIERARCHY);
+        traverse(hierarchyData);
         setExpanded(all);
     };
 
     const collapseAll = () => setExpanded(new Set());
+
+    // Filter options based on loaded hierarchyData
+    const filterOptionsData = useMemo(() => {
+        const platforms = new Set(["All"]);
+        const regions = new Set(["All"]);
+        const cities = new Set(["All"]);
+
+        const traverse = (nodes) => {
+            nodes.forEach(n => {
+                if (n.type === 'platform') platforms.add(n.name);
+                if (n.type === 'region') regions.add(n.name);
+                if (n.type === 'city') cities.add(n.name);
+                if (n.children) traverse(n.children);
+            });
+        };
+        traverse(hierarchyData);
+
+        return {
+            platforms: Array.from(platforms).map(v => ({ id: v, label: v })),
+            regions: Array.from(regions).map(v => ({ id: v, label: v })),
+            cities: Array.from(cities).map(v => ({ id: v, label: v })),
+            keywords: [{ id: "All", label: "All" }],
+        };
+    }, [hierarchyData]);
+
+    const sectionConfig = [
+        { id: "platforms", label: "Platforms" },
+        { id: "regions", label: "Regions" },
+        { id: "cities", label: "Cities" },
+    ];
 
     const maxVisibleDepth = useMemo(() => {
         let maxDepth = 0;
@@ -398,15 +286,6 @@ export default function DrillDownSalesTable() {
     }, [expanded]);
 
     const visibleHierarchyCols = HIERARCHY_LEVELS.slice(0, maxVisibleDepth + 1);
-
-    const toggleExpand = (key) => {
-        setExpanded(prev => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
-            return next;
-        });
-    };
 
     const renderRow = (row) => {
         const { key, level, name, hasChildren, mtdSales, prevMtd, drr, ytdSales, lastYear, projected } = row;
@@ -438,10 +317,12 @@ export default function DrillDownSalesTable() {
                             <TableCell key={colIndex} sx={{ ...stickyStyle, py: 1.5 }}>
                                 <Box display="flex" alignItems="center" gap={1}>
                                     <Box sx={{ width: 20, display: "flex", justifyContent: "center" }}>
-                                        {hasChildren ? (
+                                        {fetchingChildrenId === row.id ? (
+                                            <CircularProgress size={12} sx={{ color: "#64748b" }} />
+                                        ) : hasChildren ? (
                                             <IconButton
                                                 size="small"
-                                                onClick={() => toggleExpand(key)}
+                                                onClick={() => toggleExpand(key, row)}
                                                 sx={{
                                                     width: 20, height: 20,
                                                     borderRadius: 1,
@@ -575,7 +456,7 @@ export default function DrillDownSalesTable() {
             <div className="flex-1 overflow-auto p-4">
                 <div className="flex items-center justify-between mb-3 px-2">
                     <div className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">
-                        Platform → Region → City → Keyword
+                        Platform → Region → City → Category
                     </div>
                     <Box display="flex" gap={1}>
                         <Button
@@ -602,6 +483,16 @@ export default function DrillDownSalesTable() {
                         </Button>
                     </Box>
                 </div>
+
+                {loading && (
+                    <LinearProgress
+                        sx={{
+                            height: 2,
+                            bgcolor: 'rgba(16, 185, 129, 0.1)',
+                            '& .MuiLinearProgress-bar': { bgcolor: '#10b981' }
+                        }}
+                    />
+                )}
 
                 <TableContainer sx={{ maxHeight: 600, border: 'none' }}>
                     <Table stickyHeader size="small">
@@ -634,7 +525,28 @@ export default function DrillDownSalesTable() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {pageRows.map(row => renderRow(row))}
+                            {loading && pageRows.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
+                                        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+                                            <CircularProgress size={40} sx={{ color: "#10b981" }} />
+                                            <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
+                                                Loading data...
+                                            </Typography>
+                                        </Box>
+                                    </TableCell>
+                                </TableRow>
+                            ) : pageRows.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
+                                        <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
+                                            No data found.
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                pageRows.map(row => renderRow(row))
+                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>
