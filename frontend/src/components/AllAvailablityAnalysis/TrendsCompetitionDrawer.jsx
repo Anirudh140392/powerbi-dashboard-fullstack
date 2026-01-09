@@ -31,7 +31,7 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Check } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
@@ -347,37 +347,41 @@ const MetricChip = ({ label, color, active, onClick }) => {
       sx={{
         display: "flex",
         alignItems: "center",
-        gap: 0.8,
-        px: 1.5,
-        py: 0.6,
-        borderRadius: "999px",
+        gap: 1.2,
+        px: 2,
+        py: 1,
+        borderRadius: "20px",
         cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
-        color: active ? color : "#0f172a",
-        fontSize: "12px",
-        fontWeight: 600,
+        border: "1.5px solid",
+        borderColor: active ? color : "#F1F5F9",
+        backgroundColor: active ? `${color}15` : "#FFFFFF",
+        color: active ? color : "#1E293B",
+        fontSize: "13px",
+        fontWeight: 700,
         userSelect: "none",
-        transition: "all 0.15s ease",
+        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        whiteSpace: "nowrap",
+        "&:hover": {
+          borderColor: active ? color : "#E2E8F0",
+          backgroundColor: active ? `${color}20` : "#F8FAFC",
+        },
       }}
     >
-      {/* CHECKBOX ICON */}
       <Box
         sx={{
-          width: 14,
-          height: 14,
-          borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          border: `1.5px solid ${active ? color : "#E2E8F0"}`,
           backgroundColor: active ? color : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           color: "white",
-          fontSize: 10,
-          lineHeight: 1,
+          flexShrink: 0,
         }}
       >
-        {active && "✓"}
+        {active && <Check size={12} strokeWidth={4} />}
       </Box>
 
       {label}
@@ -1592,19 +1596,26 @@ export default function TrendsCompetitionDrawer({
     >
       <Box
         sx={{
-          mt: 4,
+          mt: { xs: 0, sm: 4 },
           width: "min(1200px, 100%)",
           bgcolor: "white",
-          borderRadius: 3,
+          borderRadius: { xs: 0, sm: 3 },
           boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
-          p: 3,
+          p: { xs: 2, sm: 3 },
           display: "flex",
           flexDirection: "column",
           gap: 2,
+          minHeight: { xs: "100vh", sm: "auto" },
         }}
       >
         {/* Header row */}
-        <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          gap={1.5}
+          sx={{ position: "relative" }}
+        >
           <ToggleButtonGroup
             exclusive
             value={view}
@@ -1613,13 +1624,16 @@ export default function TrendsCompetitionDrawer({
               backgroundColor: "#F3F4F6",
               borderRadius: "999px",
               p: "3px",
+              width: { xs: "calc(100% - 40px)", sm: "auto" },
+              display: "flex",
               "& .MuiToggleButton-root": {
                 textTransform: "none",
                 border: "none",
                 borderRadius: "999px",
-                px: 2.5,
-                py: 0.75,
-                fontSize: 14,
+                px: { xs: 1.5, sm: 2.5 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: 12, sm: 14 },
+                flex: { xs: 1, sm: "initial" },
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
                   color: "#fff",
@@ -1632,10 +1646,16 @@ export default function TrendsCompetitionDrawer({
               dynamicKey !== "performance_dashboard_tower" && (
                 <ToggleButton value="Competition">Competition</ToggleButton>
               )}
-            {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
-          <IconButton onClick={onClose} size="small">
+          <IconButton
+            onClick={onClose}
+            size="small"
+            sx={{
+              bgcolor: "rgba(0,0,0,0.04)",
+              "&:hover": { bgcolor: "rgba(0,0,0,0.08)" }
+            }}
+          >
             <X size={18} />
           </IconButton>
         </Box>
@@ -1644,14 +1664,14 @@ export default function TrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} gap={2}>
               {/* Title */}
-              <Typography variant="h6" fontWeight={600}>
+              <Typography variant="h6" fontWeight={700} sx={{ fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1}>
+              <Box display="flex" alignItems="center" gap={1} sx={{ width: { xs: "100%", sm: "auto" } }}>
                 <Select
                   size="small"
                   value={allTrendMeta.context.audience}
@@ -1663,12 +1683,12 @@ export default function TrendsCompetitionDrawer({
                     setShowPlatformPills(true); // always show pills after changing mode
                   }}
                   sx={{
-                    width: 160,
-                    height: 38,
+                    width: { xs: 110, sm: 140 },
+                    height: 34,
                     backgroundColor: "#F8FAFC",
                     borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
                     "& .MuiOutlinedInput-notchedOutline": {
                       borderColor: "#E2E8F0",
                     },
@@ -1690,7 +1710,18 @@ export default function TrendsCompetitionDrawer({
                 {/* DYNAMIC PILLS */}
                 {/* DYNAMIC PILLS */}
                 {showPlatformPills && (
-                  <Box display="flex" gap={0.5}>
+                  <Box
+                    display="flex"
+                    gap={0.5}
+                    sx={{
+                      overflowX: "auto",
+                      pb: 0.5,
+                      flex: 1,
+                      "&::-webkit-scrollbar": { height: 2 },
+                      "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 10 },
+                      maxWidth: { xs: "calc(100vw - 160px)", sm: "600px" }
+                    }}
+                  >
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
@@ -1703,10 +1734,7 @@ export default function TrendsCompetitionDrawer({
                     ).map((p) => (
                       <Box
                         key={p}
-                        onClick={() => {
-                          setSelectedPlatform(p); // only select the pill
-                          // ❌ DO NOT toggle or force open here
-                        }}
+                        onClick={() => setSelectedPlatform(p)}
                         sx={{
                           px: 1.5,
                           py: 0.7,
@@ -1718,6 +1746,7 @@ export default function TrendsCompetitionDrawer({
                           backgroundColor:
                             selectedPlatform === p ? "#0ea5e9" : "white",
                           color: selectedPlatform === p ? "white" : "#0f172a",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {p}
@@ -1733,10 +1762,10 @@ export default function TrendsCompetitionDrawer({
             {/* RANGE + TIMESTEP */}
             <Box
               display="flex"
+              flexDirection={{ xs: "column", sm: "row" }}
               justifyContent="space-between"
-              alignItems="center"
+              alignItems={{ xs: "flex-start", sm: "center" }}
               gap={2}
-              flexWrap="wrap"
             >
               <PillToggleGroup
                 value={range}
@@ -1744,8 +1773,8 @@ export default function TrendsCompetitionDrawer({
                 options={trendMeta.rangeOptions}
               />
 
-              <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="body2">Time Step:</Typography>
+              <Box display="flex" alignItems="center" gap={1.5}>
+                <Typography variant="body2" sx={{ fontSize: "0.75rem", opacity: 0.8 }}>Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
@@ -1761,19 +1790,28 @@ export default function TrendsCompetitionDrawer({
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5,
+                p: { xs: 1.5, sm: 2.5 },
               }}
             >
-              {/* Metric Row */}
               <Box
                 display="flex"
                 alignItems="center"
                 justifyContent="space-between"
-                gap={2}
+                gap={1.5}
                 flexWrap="wrap"
                 mb={2}
               >
-                <Box display="flex" gap={1} flexWrap="wrap">
+                <Box
+                  display="flex"
+                  gap={0.8}
+                  flexWrap="nowrap"
+                  sx={{
+                    overflowX: "auto",
+                    pb: 1,
+                    width: "100%",
+                    "&::-webkit-scrollbar": { height: 2 },
+                  }}
+                >
                   {trendMeta.metrics.map((m) => (
                     <MetricChip
                       key={m.id}
@@ -1806,7 +1844,7 @@ export default function TrendsCompetitionDrawer({
               </Box>
 
               {/* Chart */}
-              <Box sx={{ height: 340 }}>
+              <Box sx={{ height: { xs: 260, sm: 340 } }}>
                 <ReactECharts
                   style={{ height: "100%", width: "100%" }}
                   option={trendOption}
@@ -1853,14 +1891,14 @@ export default function TrendsCompetitionDrawer({
             </Box>
 
             {/* Range + Timestep */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} gap={2}>
               <PillToggleGroup
                 value={range}
                 onChange={setRange}
                 options={compareMeta.rangeOptions}
               />
-              <Box display="flex" alignItems="center" gap={1}>
-                <Typography variant="body2">Time Step:</Typography>
+              <Box display="flex" alignItems="center" gap={1.5}>
+                <Typography variant="body2" sx={{ fontSize: "0.75rem", opacity: 0.8 }}>Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
@@ -1872,12 +1910,21 @@ export default function TrendsCompetitionDrawer({
             {/* SKU pills + Add SKUs button row */}
             <Box
               display="flex"
-              alignItems="center"
+              flexDirection={{ xs: "column-reverse", sm: "row" }}
+              alignItems={{ xs: "stretch", sm: "center" }}
               justifyContent="space-between"
               gap={2}
-              flexWrap="wrap"
             >
-              <Box display="flex" gap={1} flexWrap="wrap" flex={1}>
+              <Box
+                display="flex"
+                gap={1}
+                flexWrap="nowrap"
+                sx={{
+                  overflowX: "auto",
+                  pb: 1,
+                  "&::-webkit-scrollbar": { height: 2 },
+                }}
+              >
                 {selectedCompareSkus.map((sku) => {
                   const color =
                     BRAND_COLORS[sku.brand] || "rgba(37,99,235,0.3)";
@@ -1888,13 +1935,13 @@ export default function TrendsCompetitionDrawer({
                         <Box display="flex" alignItems="center" gap={1}>
                           <Box
                             sx={{
-                              width: 12,
-                              height: 12,
+                              width: 10,
+                              height: 10,
                               borderRadius: "999px",
                               backgroundColor: color,
                             }}
                           />
-                          <Typography variant="body2" noWrap>
+                          <Typography variant="body2" sx={{ fontSize: "0.75rem" }} noWrap>
                             {sku.name}
                           </Typography>
                         </Box>
@@ -1908,7 +1955,8 @@ export default function TrendsCompetitionDrawer({
                         borderRadius: "999px",
                         backgroundColor: "#F9FAFB",
                         borderColor: "transparent",
-                        maxWidth: 260,
+                        maxWidth: 200,
+                        height: 28,
                       }}
                     />
                   );
@@ -1921,17 +1969,28 @@ export default function TrendsCompetitionDrawer({
                 sx={{
                   backgroundColor: "#2563EB",
                   textTransform: "none",
-                  borderRadius: "999px",
-                  minWidth: 140,
+                  borderRadius: "12px",
+                  height: 36,
+                  fontSize: "0.85rem",
                 }}
                 onClick={() => setAddSkuOpen(true)}
+                fullWidth
               >
                 Add SKUs
               </Button>
             </Box>
 
             {/* Metric Chips */}
-            <Box display="flex" gap={1.5} flexWrap="wrap">
+            <Box
+              display="flex"
+              gap={0.8}
+              flexWrap="nowrap"
+              sx={{
+                overflowX: "auto",
+                pb: 1,
+                "&::-webkit-scrollbar": { height: 2 },
+              }}
+            >
               {compareMeta.metrics.map((m) => (
                 <MetricChip
                   key={m.id}

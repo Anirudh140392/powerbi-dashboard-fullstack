@@ -67,8 +67,8 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
         borderColor: (theme) => "#e5e7eb",
-        px: { xs: 2, sm: 3 },
-        py: 2,
+        px: { xs: 1.5, sm: 3 },
+        py: { xs: 1.5, sm: 2 },
         position: "sticky",
         top: 0,
         zIndex: 1200,
@@ -80,15 +80,14 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: "nowrap",
-          gap: 1,
-          alignItems: "center",
-          overflowX: "auto",
-          pb: 0.5, // slightly partial scrolling buffer
+          flexWrap: { xs: "wrap", sm: "nowrap" },
+          gap: { xs: 1.5, sm: 1 },
+          alignItems: { xs: "flex-start", sm: "center" },
+          overflowX: "visible",
         }}
       >
         {/* LEFT SIDE */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
           <IconButton
             onClick={onMenuClick}
             sx={{ display: { xs: "block", sm: "none" } }}
@@ -105,16 +104,22 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 "&:hover": { bgcolor: "#e2e8f0" },
                 transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
                 transition: "transform 0.3s ease",
+                width: { xs: 28, sm: 32 },
+                height: { xs: 28, sm: 32 },
               }}
             >
-              <ChevronDown size={18} />
+              <ChevronDown size={16} />
             </IconButton>
 
             <Box sx={{ display: "flex", flexDirection: "column" }}>
               <Typography
                 variant="h6"
                 fontWeight="700"
-                sx={{ whiteSpace: "nowrap", lineHeight: 1.2 }}
+                sx={{
+                  whiteSpace: "nowrap",
+                  lineHeight: 1.2,
+                  fontSize: { xs: "1rem", sm: "1.25rem" }
+                }}
               >
                 {title}
               </Typography>
@@ -122,15 +127,15 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                   <Box
                     sx={{
-                      width: 6,
-                      height: 6,
+                      width: 5,
+                      height: 5,
                       borderRadius: "50%",
                       bgcolor: "#22C55E",
                     }}
                   />
                   <Typography
                     sx={{
-                      fontSize: "0.75rem",
+                      fontSize: { xs: "0.65rem", sm: "0.75rem" },
                       fontWeight: 600,
                       color: "#64748b",
                     }}
@@ -169,9 +174,15 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 1,
+                gap: { xs: 0.5, sm: 1 },
+                alignItems: "center",
                 flexWrap: "nowrap",
-                overflow: "visible",
+                overflowX: { xs: "auto", lg: "visible" },
+                mt: { xs: 0.5, sm: 0 },
+                pb: { xs: 0.5, sm: 0 },
+                minWidth: 0,
+                "&::-webkit-scrollbar": { height: 4 },
+                "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(0,0,0,0.1)", borderRadius: 10 }
               }}
             >
 
@@ -181,7 +192,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={platforms}
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
-                width={150}
+                width={{ xs: 130, sm: 150 }}
               />
 
               <CustomHeaderDropdown
@@ -189,7 +200,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={brands}
                 value={selectedBrand}
                 onChange={(newValue) => setSelectedBrand(newValue)}
-                width={150}
+                width={{ xs: 130, sm: 150 }}
               />
 
               <CustomHeaderDropdown
@@ -197,15 +208,16 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={locations}
                 value={selectedLocation}
                 onChange={(newValue) => setSelectedLocation(newValue)}
-                width={150}
+                width={{ xs: 130, sm: 150 }}
               />
 
 
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: 220, flexShrink: 0 }}>
+              <Box sx={{ width: { xs: 200, sm: 220 }, flexShrink: 0 }}>
                 <Typography
                   sx={{
+                    display: { xs: "none", sm: "block" },
                     fontSize: "0.7rem",
                     fontWeight: 600,
                     mb: 0.5,

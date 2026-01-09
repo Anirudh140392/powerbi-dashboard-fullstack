@@ -88,7 +88,7 @@ const Sidebar = ({
 
   const toggleSidebar = () => setIsCollapsed(!isCollapsed);
 
-  const sidebarWidth = isCollapsed ? 72 : 250;
+  const effectiveIsCollapsed = isMobile ? false : isCollapsed;
 
   const navbarContent = (
     <Box
@@ -101,8 +101,8 @@ const Sidebar = ({
         color: "#fff",
         borderRight: "1px solid rgba(255, 255, 255, 0.08)",
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        width: sidebarWidth,
-        overflow: "hidden", // 🔥 REMOVED SCROLLBAR
+        width: { xs: "100%", sm: effectiveIsCollapsed ? 72 : 250 },
+        overflow: "hidden",
       }}
     >
       <style>
@@ -121,17 +121,17 @@ const Sidebar = ({
 
       {/* Header / Logo */}
       <Box sx={{
-        px: isCollapsed ? 1 : 2,
+        px: effectiveIsCollapsed ? 1 : 2,
         py: 2,
         height: 60,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'space-between',
+        justifyContent: effectiveIsCollapsed ? 'center' : 'space-between',
         borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {!isCollapsed ? (
+        {!effectiveIsCollapsed ? (
           <Box
             component="img"
             src="/sidebar_logo.png"
@@ -158,26 +158,25 @@ const Sidebar = ({
             <Box sx={{ width: 3, height: '100%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
           </Box>
         )}
-        {!isMobile && (
-          <IconButton
-            onClick={toggleSidebar}
-            sx={{
-              color: 'rgba(255,255,255,0.4)',
-              p: 0.5,
-              '&:hover': { color: '#fff' },
-              ...(isCollapsed && {
-                bgcolor: 'rgba(255,255,255,0.05)'
-              })
-            }}
-          >
-            {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
-          </IconButton>
-        )}
+        <IconButton
+          onClick={toggleSidebar}
+          sx={{
+            display: { xs: 'none', sm: 'inline-flex' },
+            color: 'rgba(255,255,255,0.4)',
+            p: 0.5,
+            '&:hover': { color: '#fff' },
+            ...(effectiveIsCollapsed && {
+              bgcolor: 'rgba(255,255,255,0.05)'
+            })
+          }}
+        >
+          {effectiveIsCollapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+        </IconButton>
       </Box>
 
       {/* Search Bar - Slimmer or Conditional */}
       {
-        !isCollapsed && (
+        !effectiveIsCollapsed && (
           <Box sx={{ px: 2, py: 1.5 }}>
             <Box sx={{
               display: 'flex',
@@ -200,11 +199,24 @@ const Sidebar = ({
         )
       }
 
-      {/* Menu scroll area - Set to overflow hidden to remove scrollbar */}
+      {/* Menu scroll area */}
       <Box sx={{
         flex: 1,
-        overflowY: "hidden",
-        px: isCollapsed ? 1 : 1.5,
+        overflowY: "auto",
+        px: effectiveIsCollapsed ? 1 : 1.5,
+        "&::-webkit-scrollbar": {
+          width: "4px",
+        },
+        "&::-webkit-scrollbar-track": {
+          background: "transparent",
+        },
+        "&::-webkit-scrollbar-thumb": {
+          background: "rgba(255, 255, 255, 0.1)",
+          borderRadius: "10px",
+        },
+        "&:hover::-webkit-scrollbar-thumb": {
+          background: "rgba(255, 255, 255, 0.2)",
+        },
       }}>
         {Object.entries(filteredSections).map(([sectionName, items]) => (
           <Box key={sectionName}>
@@ -213,7 +225,7 @@ const Sidebar = ({
               const isPiy = item.isPiy;
 
               return (
-                <Tooltip key={item.label} title={isCollapsed ? item.label : ""} placement="right">
+                <Tooltip key={item.label} title={effectiveIsCollapsed ? item.label : ""} placement="right">
                   <ListItemButton
                     onClick={() => {
                       navigate(item.path);
@@ -222,9 +234,9 @@ const Sidebar = ({
                     sx={{
                       mb: 0.3,
                       borderRadius: '10px',
-                      justifyContent: isCollapsed ? 'center' : 'flex-start',
-                      px: isCollapsed ? 0 : 1.5,
-                      py: 0.8, // 🔥 COMPACT PADDING
+                      justifyContent: effectiveIsCollapsed ? 'center' : 'flex-start',
+                      px: effectiveIsCollapsed ? 0 : 1.5,
+                      py: 0.8,
                       minHeight: 40,
                       bgcolor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
                       color: isActive ? '#60a5fa' : 'rgba(255,255,255,0.55)',
@@ -239,7 +251,7 @@ const Sidebar = ({
                       transition: 'all 0.15s ease',
                     }}
                   >
-                    {isActive && !isCollapsed && (
+                    {isActive && !effectiveIsCollapsed && (
                       <Box sx={{
                         position: 'absolute', left: 0, top: '25%', bottom: '25%',
                         width: 3, bgcolor: '#3b82f6', borderRadius: '0 4px 4px 0'
@@ -248,15 +260,15 @@ const Sidebar = ({
 
                     <Box sx={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      minWidth: isCollapsed ? 0 : 32,
+                      minWidth: effectiveIsCollapsed ? 0 : 32,
                       color: isActive ? '#60a5fa' : 'inherit',
-                      mr: isCollapsed ? 0 : 1.5,
+                      mr: effectiveIsCollapsed ? 0 : 1.5,
                       transition: 'margin 0.3s'
                     }}>
                       {item.icon}
                     </Box>
 
-                    {!isCollapsed && (
+                    {!effectiveIsCollapsed && (
                       <ListItemText
                         primary={item.label}
                         primaryTypographyProps={{
@@ -279,44 +291,47 @@ const Sidebar = ({
           </Box>
         ))}
       </Box>
-
-      {/* Footer Branding Removed */}
     </Box >
   );
 
-  if (isMobile) {
-    return (
+  return (
+    <>
+      {/* MOBILE DRAWER */}
       <Drawer
         anchor="left"
         open={open}
         onClose={onClose}
         sx={{
+          display: { xs: "block", sm: "none" },
           "& .MuiDrawer-paper": {
-            width: 280,
-            bgcolor: "transparent",
-            border: 'none'
+            width: "80vw",
+            maxWidth: 300,
+            bgcolor: "rgba(17, 24, 39, 0.98)",
+            backdropFilter: "blur(20px)",
+            border: 'none',
+            boxShadow: "10px 0 30px rgba(0,0,0,0.5)"
           },
         }}
       >
         {navbarContent}
       </Drawer>
-    );
-  }
 
-  return (
-    <Box
-      sx={{
-        width: sidebarWidth,
-        height: "100vh",
-        position: "fixed",
-        left: 0,
-        top: 0,
-        zIndex: 1200,
-        transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-      }}
-    >
-      {navbarContent}
-    </Box>
+      {/* DESKTOP SIDEBAR */}
+      <Box
+        sx={{
+          display: { xs: "none", sm: "block" },
+          width: effectiveIsCollapsed ? 72 : 250,
+          height: "100vh",
+          position: "fixed",
+          left: 0,
+          top: 0,
+          zIndex: 1200,
+          transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+      >
+        {navbarContent}
+      </Box>
+    </>
   );
 };
 

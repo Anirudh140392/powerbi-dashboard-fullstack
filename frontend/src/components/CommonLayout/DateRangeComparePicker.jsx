@@ -341,16 +341,16 @@ export default function DateRangeComparePicker({
         <Box>
             <button
                 type="button"
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-sm shadow-sm hover:border-slate-300"
-                style={{ cursor: 'pointer', textAlign: 'left', minHeight: '38px', minWidth: '190px' }}
+                className="flex w-full items-center justify-between gap-2 rounded-lg border bg-[#F8FAFC] px-2 sm:px-3 py-1 sm:py-1.5 text-sm shadow-sm transition-all duration-200 hover:border-[#3B82F6]"
+                style={{ cursor: 'pointer', textAlign: 'left', height: '32px', minWidth: '190px', borderColor: '#E2E8F0', borderStyle: 'solid', borderWidth: '1px' }}
                 onClick={handleOpen}
             >
                 <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
                         {primaryLabel}
                     </Typography>
                     {compareOn && (
-                        <Typography sx={{ fontSize: '0.7rem', color: '#64748b', lineHeight: 1.2, fontWeight: 500 }}>
+                        <Typography sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem' }, color: '#64748b', lineHeight: 1.2, fontWeight: 500 }}>
                             vs {compareLabel}
                         </Typography>
                     )}

@@ -591,8 +591,15 @@ function WatchTower() {
             mb: 4,
           }}
         >
-          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
-            <Box sx={{ display: "flex", gap: 4 }}>
+          <Box sx={{
+            borderBottom: 1,
+            borderColor: "divider",
+            px: 3,
+            overflowX: "auto",
+            "&::-webkit-scrollbar": { height: 4 },
+            "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(0,0,0,0.1)", borderRadius: 10 }
+          }}>
+            <Box sx={{ display: "flex", gap: { xs: 2, sm: 4 }, minWidth: "max-content" }}>
               <TabButton
                 label="By Platfrom"
                 active={activeKpisTab === "Platform Overview"}
@@ -1183,20 +1190,24 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
         {/* Right side - KPI detail skeletons */}
         <div className="md:col-span-3">
           <div className="h-full rounded-3xl bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
               <Box>
-                <Skeleton variant="text" width={120} height={16} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={180} height={28} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={220} height={14} animation="wave" sx={{ borderRadius: 1, mt: 0.5 }} />
+                <Skeleton variant="text" width={100} height={16} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={150} height={28} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="text" width={200} height={14} animation="wave" sx={{ borderRadius: 1, mt: 0.5 }} />
               </Box>
-              <Box display="flex" flexDirection="column" alignItems="flex-end">
-                <Skeleton variant="text" width={60} height={14} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={80} height={24} animation="wave" sx={{ borderRadius: 1 }} />
-                <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1, mt: 1 }} />
-                <Skeleton variant="text" width={50} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+              <Box display="flex" flexDirection={{ xs: 'row', sm: 'column' }} alignItems={{ xs: 'center', sm: 'flex-end' }} gap={2} width={{ xs: '100%', sm: 'auto' }}>
+                <Box flex={1}>
+                  <Skeleton variant="text" width={60} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                  <Skeleton variant="text" width={80} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+                </Box>
+                <Box flex={1}>
+                  <Skeleton variant="text" width={80} height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                  <Skeleton variant="text" width={50} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+                </Box>
               </Box>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-6 sm:gap-4">
               {/* ROAS circle skeleton */}
               <Skeleton variant="circular" width={96} height={96} animation="wave" />
               {/* KPI bands skeletons */}
@@ -1334,12 +1345,12 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.35 }}
           >
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col sm:flex-row items-baseline sm:items-start justify-between gap-4">
               <div>
-                <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                <div className="text-[10px] sm:text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
                   {compare ? "Focus format · VS mode" : "Focus format"}
                 </div>
-                <div className="text-xl font-semibold">
+                <div className="text-lg sm:text-xl font-semibold">
                   {active.name}
                   {compare && (
                     <span className="text-sm font-normal text-slate-500">
@@ -1348,23 +1359,21 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-1">
                   Offtakes, ROAS, conversion and share in one view.
                 </p>
               </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                <div className="text-[10px] text-slate-500">Offtakes</div>
-                <div className="text-lg font-semibold">
-                  {active.offtakes}
+              <div className="flex flex-row sm:flex-col items-center sm:items-end gap-3 sm:gap-1 text-right w-full sm:w-auto">
+                <div className="flex flex-col items-start sm:items-end">
+                  <div className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider">Offtakes</div>
+                  <div className="text-base sm:text-lg font-semibold">{active.offtakes}</div>
                 </div>
-                <div className="mt-1 text-[10px] text-slate-500">
-                  Market share
-                </div>
-                <div className="text-sm font-medium">
-                  {active.marketSharePct}%
+                <div className="flex flex-col items-start sm:items-end ml-auto sm:ml-0">
+                  <div className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider">Market share</div>
+                  <div className="text-sm sm:text-base font-medium">{active.marketSharePct}%</div>
                 </div>
                 {compare && (
-                  <div className="mt-1 text-[10px] text-rose-500">
+                  <div className="hidden sm:block mt-1 text-[10px] text-rose-500">
                     Delta ROAS{" "}
                     {Number.isFinite(compare.roas)
                       ? (active.roas - compare.roas).toFixed(1)
@@ -1375,7 +1384,7 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
               </div>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-4">
               <div className="relative h-24 w-24">
                 <svg viewBox="0 0 100 100" className="h-full w-full">
                   <circle

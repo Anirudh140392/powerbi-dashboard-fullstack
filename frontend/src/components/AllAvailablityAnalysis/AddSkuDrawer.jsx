@@ -636,9 +636,8 @@ export default function AddSkuDrawer({
                             onClick={() => setSelectedPlatform(p.id)}
                           >
                             <div
-                              className={`filter-pill-icon ${
-                                selectedPlatform === p.id ? "checked" : ""
-                              }`}
+                              className={`filter-pill-icon ${selectedPlatform === p.id ? "checked" : ""
+                                }`}
                             />
                             {p.label}
                           </div>
@@ -665,9 +664,8 @@ export default function AddSkuDrawer({
                             }
                           >
                             <div
-                              className={`filter-checkbox-box ${
-                                selectedCategories.has(c.id) ? "checked" : ""
-                              }`}
+                              className={`filter-checkbox-box ${selectedCategories.has(c.id) ? "checked" : ""
+                                }`}
                             >
                               {selectedCategories.has(c.id) && "✓"}
                             </div>
@@ -694,9 +692,8 @@ export default function AddSkuDrawer({
                             }
                           >
                             <div
-                              className={`filter-checkbox-box ${
-                                selectedBrands.has(b) ? "checked" : ""
-                              }`}
+                              className={`filter-checkbox-box ${selectedBrands.has(b) ? "checked" : ""
+                                }`}
                             >
                               {selectedBrands.has(b) && "✓"}
                             </div>
@@ -717,9 +714,8 @@ export default function AddSkuDrawer({
                             onClick={() => setSelectedPPU(band.id)}
                           >
                             <div
-                              className={`filter-checkbox-box ${
-                                selectedPPU === band.id ? "checked" : ""
-                              }`}
+                              className={`filter-checkbox-box ${selectedPPU === band.id ? "checked" : ""
+                                }`}
                             >
                               {selectedPPU === band.id && "✓"}
                             </div>
@@ -740,9 +736,8 @@ export default function AddSkuDrawer({
                             onClick={() => setSelectedGrammage(band.id)}
                           >
                             <div
-                              className={`filter-checkbox-box ${
-                                selectedGrammage === band.id ? "checked" : ""
-                              }`}
+                              className={`filter-checkbox-box ${selectedGrammage === band.id ? "checked" : ""
+                                }`}
                             >
                               {selectedGrammage === band.id && "✓"}
                             </div>
@@ -797,9 +792,8 @@ export default function AddSkuDrawer({
 
                             <div>
                               <button
-                                className={`add-sku-btn ${
-                                  selected ? "added" : ""
-                                }`}
+                                className={`add-sku-btn ${selected ? "added" : ""
+                                  }`}
                               >
                                 {selected ? (
                                   <>

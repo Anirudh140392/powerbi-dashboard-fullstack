@@ -318,8 +318,8 @@ const PlatformOverview = ({
       {activeKpisTab !== "Skus Overview" ? (
         <Card
           sx={{
-            p: 3,
-            borderRadius: 4,
+            p: { xs: 2, sm: 3 },
+            borderRadius: { xs: 3, sm: 4 },
             boxShadow: 3,
             background: theme.palette.background.paper,
           }}
@@ -327,11 +327,12 @@ const PlatformOverview = ({
           {/* ---------------- HEADER ---------------- */}
           <Box
             display="flex"
+            flexDirection={{ xs: "column", sm: "row" }}
             justifyContent="space-between"
-            alignItems="center"
+            alignItems={{ xs: "flex-start", sm: "center" }}
             flexWrap="wrap"
             mb={3}
-            gap={2}
+            gap={2.5}
           >
             {/* Left Title */}
             <Box display="flex" alignItems="center">
@@ -352,7 +353,7 @@ const PlatformOverview = ({
               <Typography
                 ml={1.2}
                 fontWeight={700}
-                fontSize="1.2rem"
+                sx={{ fontSize: { xs: "1.05rem", sm: "1.2rem" } }}
                 fontFamily="Roboto, sans-serif"
               >
                 {activeKpisTab}
@@ -360,14 +361,20 @@ const PlatformOverview = ({
             </Box>
 
             {/* FILTERS + SEARCH + SORT */}
-            <Box display="flex" alignItems="center" gap={1.2}>
+            <Box
+              display="flex"
+              flexDirection={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "stretch", sm: "center" }}
+              gap={1.5}
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+            >
               {activeKpisTab !== "Platform Overview" && (
                 <Select
                   size="small"
                   value={getCurrentPlatform()}
                   onChange={(e) => handlePlatformChange(e.target.value)}
                   sx={{
-                    minWidth: 130,
+                    minWidth: { xs: "100%", sm: 130 },
                     height: 36,
                     fontSize: "0.85rem",
                     background: "#f3f4f6",
@@ -387,7 +394,7 @@ const PlatformOverview = ({
                   value={brandsOverviewCategory}
                   onChange={(e) => onBrandsCategoryChange(e.target.value)}
                   sx={{
-                    minWidth: 130,
+                    minWidth: { xs: "100%", sm: 130 },
                     height: 36,
                     fontSize: "0.85rem",
                     background: "#f3f4f6",
@@ -413,7 +420,7 @@ const PlatformOverview = ({
                       }))
                     }
                     sx={{
-                      minWidth: 130,
+                      minWidth: { xs: "100%", sm: 130 },
                       height: 36,
                       fontSize: "1.85rem",
                       background: "#f3f4f6",
@@ -432,7 +439,7 @@ const PlatformOverview = ({
                       }))
                     }
                     sx={{
-                      minWidth: 130,
+                      minWidth: { xs: "100%", sm: 130 },
                       height: 36,
                       fontSize: "0.85rem",
                       background: "#f3f4f6",
@@ -449,7 +456,7 @@ const PlatformOverview = ({
                 alignItems="center"
                 px={1.5}
                 sx={{
-                  width: 220,
+                  width: { xs: "100%", sm: 220 },
                   height: 36,
                   background: "#f3f4f6",
                   borderRadius: 5,
@@ -480,7 +487,8 @@ const PlatformOverview = ({
               gap: 2,
               overflow: "auto",
               pb: 2,
-              height: "650px",
+              height: { xs: "auto", sm: "650px" },
+              maxHeight: { xs: "550px", sm: "650px" },
               /* Custom Scrollbar for Premium Feel */
               "&::-webkit-scrollbar": {
                 width: "6px",
@@ -686,18 +694,18 @@ const PlatformOverview = ({
           {isPagination && (
             <Box
               sx={{
-                mt: 1,
+                mt: 2,
                 display: "flex",
-                justifyContent: "right",
+                justifyContent: { xs: "center", sm: "right" },
               }}
             >
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 1.2,
-                  px: 2.5,
-                  py: 1.2,
+                  gap: { xs: 0.8, sm: 1.2 },
+                  px: { xs: 1.5, sm: 2.5 },
+                  py: { xs: 0.8, sm: 1.2 },
                   borderRadius: "999px",
                   backdropFilter: "blur(14px)",
                   background:
@@ -713,8 +721,8 @@ const PlatformOverview = ({
                   onClick={handlePrevPage}
                   disabled={currentPage === 0}
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: { xs: 30, sm: 34 },
+                    height: { xs: 30, sm: 34 },
                     borderRadius: "50%",
                     backdropFilter: "blur(8px)",
                     background: "rgba(255,255,255,0.35)",
@@ -733,7 +741,7 @@ const PlatformOverview = ({
                 </IconButton>
 
                 {/* PAGE NUMBERS */}
-                <Box sx={{ display: "flex", gap: 0.6 }}>
+                <Box sx={{ display: "flex", gap: { xs: 0.4, sm: 0.6 } }}>
                   {Array.from({ length: totalPages }, (_, i) => {
                     const active = currentPage === i;
 
@@ -743,8 +751,8 @@ const PlatformOverview = ({
                         size="small"
                         onClick={() => setCurrentPage(i)}
                         sx={{
-                          minWidth: 34,
-                          height: 34,
+                          minWidth: { xs: 30, sm: 34 },
+                          height: { xs: 30, sm: 34 },
                           borderRadius: "50%",
                           fontSize: "0.75rem",
                           fontWeight: active ? 700 : 500,
@@ -780,8 +788,8 @@ const PlatformOverview = ({
                   onClick={handleNextPage}
                   disabled={currentPage >= totalPages - 1}
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: { xs: 30, sm: 34 },
+                    height: { xs: 30, sm: 34 },
                     borderRadius: "50%",
                     backdropFilter: "blur(8px)",
                     background: "rgba(255,255,255,0.35)",

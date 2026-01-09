@@ -38,12 +38,14 @@ const CardMetric = ({ data, onViewTrends }) => {
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4 }}>
+      <Card sx={{ p: { xs: 2, sm: 3 }, borderRadius: 4, boxShadow: 4 }}>
         {/* Header */}
         <Box
           display="flex"
+          flexDirection={{ xs: "column", sm: "row" }}
           justifyContent="space-between"
-          alignItems="center"
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          gap={2}
           mb={3}
         >
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -62,11 +64,11 @@ const CardMetric = ({ data, onViewTrends }) => {
               📈
             </Box>
 
-            <Typography variant="h5" fontWeight={600}>
+            <Typography variant="h5" fontWeight={600} sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}>
               Watchtower Overview
             </Typography>
 
-            <Chip label="All" size="large" variant="outlined" />
+            <Chip label="All" size="small" variant="outlined" />
           </Box>
 
           {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
@@ -77,10 +79,15 @@ const CardMetric = ({ data, onViewTrends }) => {
           sx={{
             display: "flex",
             gap: 2,
-            overflowX: scrollNeeded ? "auto" : "hidden",
-            pb: 1,
-            px: 1.5,
-            scrollSnapType: scrollNeeded ? "x mandatory" : "none",
+            overflowX: "auto",
+            pb: 2,
+            px: 0.5,
+            scrollSnapType: "x mandatory",
+            "&::-webkit-scrollbar": { height: 6 },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "rgba(0,0,0,0.1)",
+              borderRadius: 10,
+            },
           }}
         >
           {isLoading
@@ -119,7 +126,7 @@ const SkeletonMetricCard = () => {
     <Card
       sx={{
         flexShrink: 0,
-        width: 250,
+        width: { xs: 280, sm: 250 },
         borderRadius: 3,
         scrollSnapAlign: "start",
       }}
@@ -190,7 +197,11 @@ const MiniChartCard = ({
     <Card
       sx={{
         flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+        width: {
+          xs: "85%", // Show most of the card and a peek of the next one on mobile
+          sm: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1.5}%`
+        },
+        minWidth: { xs: 240, sm: "auto" },
         borderRadius: 3,
         scrollSnapAlign: "start",
         transition: "0.25s",
@@ -200,26 +211,26 @@ const MiniChartCard = ({
       onClick={onClick}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary" fontSize={16}>
+        <Typography variant="body2" color="text.secondary" fontSize={{ xs: 14, sm: 16 }}>
           {card.title}
         </Typography>
 
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary" fontSize={15}>
+          <Typography component="span" color="text.secondary" fontSize={{ xs: 13, sm: 15 }}>
             {card.sub}
           </Typography>
         </Typography>
 
-        <Typography variant="body3" sx={{ color: card.changeColor, mt: 1 }}>
+        <Typography variant="body2" sx={{ color: card.changeColor, mt: 0.5, fontSize: { xs: 13, sm: 15 } }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary" fontSize={15}>
+          <Typography component="span" color="text.secondary" fontSize={{ xs: 13, sm: 15 }}>
             {card.prevText}
           </Typography>
         </Typography>
 
         {card.extra && (
-          <Typography variant="body2" color="text.secondary" mt={0.5} fontSize={15}>
+          <Typography variant="body2" color="text.secondary" mt={0.5} fontSize={{ xs: 13, sm: 15 }}>
             {card.extra}{" "}
             <span style={{ color: card.extraChangeColor }}>
               {card.extraChange}
