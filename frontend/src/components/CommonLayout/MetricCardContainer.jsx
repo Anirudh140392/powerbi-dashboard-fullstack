@@ -1,32 +1,68 @@
 import { Box, Card, Typography, Chip, Skeleton } from "@mui/material";
 import MetricCard from "./MetricCard";
 
-// Skeleton loader component for metric cards
-const MetricCardSkeleton = () => (
-  <Box
-    sx={{
-      flex: "0 0 auto",
-      minWidth: 200,
-      maxWidth: 240,
-      p: 2,
-      borderRadius: 3,
-      border: "1px solid #e5e7eb",
-      bgcolor: "#fafafa",
-    }}
-  >
-    <Skeleton variant="text" width="60%" height={20} sx={{ mb: 1 }} />
-    <Skeleton variant="text" width="40%" height={32} sx={{ mb: 1 }} />
-    <Skeleton variant="rectangular" width="100%" height={40} sx={{ borderRadius: 1, mb: 1 }} />
-    <Skeleton variant="text" width="80%" height={16} />
-  </Box>
-);
+// Floating loader component - displays overlay while refreshing
+const FloatingLoader = ({ loading = false, label = "Updating..." }) => {
+  if (!loading) return null;
+
+  return (
+    <Box
+      sx={{
+        position: "absolute",
+        inset: 0,
+        bgcolor: "rgba(255, 255, 255, 0.75)",
+        backdropFilter: "blur(1px)",
+        zIndex: 10,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 4,
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+          bgcolor: "rgba(255, 255, 255, 0.95)",
+          px: 2.5,
+          py: 1.5,
+          borderRadius: 50,
+          boxShadow: 3,
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <Box
+          sx={{
+            width: 18,
+            height: 18,
+            border: "2px solid #e5e7eb",
+            borderTopColor: "#475569",
+            borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+            "@keyframes spin": {
+              "0%": { transform: "rotate(0deg)" },
+              "100%": { transform: "rotate(360deg)" },
+            },
+          }}
+        />
+        <Typography variant="body2" fontWeight={500} color="text.secondary">
+          {label}
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
 
 export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false }) {
   const scrollNeeded = cards.length > 5;
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4 }}>
+      <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4, position: "relative" }}>
+        {/* Floating loader overlay */}
+        <FloatingLoader loading={loading} label="Updating overview..." />
+
         {/* Header */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Box display="flex" alignItems="center" gap={1.5}>
@@ -52,7 +88,7 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
-        {/* Cards Row - Show skeleton when loading */}
+        {/* Cards Row - Always render cards, loader overlays */}
         <Box
           sx={{
             display: "flex",
@@ -62,24 +98,14 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {loading ? (
-            // Show skeleton loaders when loading
-            <>
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
-              <MetricCardSkeleton />
-            </>
-          ) : (
-            cards.map((card, index) => (
-              <MetricCard
-                key={index}
-                card={card}
-                scrollNeeded={scrollNeeded}
-                totalCards={cards.length}
-              />
-            ))
-          )}
+          {cards.map((card, index) => (
+            <MetricCard
+              key={index}
+              card={card}
+              scrollNeeded={scrollNeeded}
+              totalCards={cards.length}
+            />
+          ))}
         </Box>
       </Card>
     </Box>

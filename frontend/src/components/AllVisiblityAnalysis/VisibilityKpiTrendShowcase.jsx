@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useContext, createContext } from "react";
+import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
   Filter,
@@ -536,53 +537,66 @@ const DATA_MODEL = buildDataModel();
 /* -------------------------------------------------------------------------- */
 
 const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
-  const [activeTab, setActiveTab] = useState(
-    mode === "brand" ? "category" : "keyword"
-  );
+  // initial tab: format for visibility mode
+  const [activeTab, setActiveTab] = useState("format");
   const [search, setSearch] = useState("");
 
-  const getBrandOptions = () => {
-    let brands = RAW_DATA.brands;
-    if (value.categories.length) {
-      brands = brands.filter((b) => value.categories.includes(b.category));
-    }
-    return brands.map((b) => b.name);
-  };
+  // Dynamic filter options from API (rb_kw table)
+  const [filterOptions, setFilterOptions] = useState({
+    formats: [],      // from keyword_search_product (category)
+    cities: [],       // from location_name
+    productNames: [], // from keyword
+    loading: false,
+    error: null
+  });
 
-  const getSkuOptions = () => {
-    let skus = RAW_DATA.skus;
-    if (value.categories.length) {
-      skus = skus.filter((s) => value.categories.includes(s.category));
-    }
-    if (value.brands.length) {
-      const allowedBrandIds = new Set(
-        value.brands.map((name) => BRAND_NAME_TO_ID[name]).filter(Boolean)
-      );
-      skus = skus.filter((s) => allowedBrandIds.has(s.brandId));
-    }
-    return skus.map((s) => s.name);
-  };
+  // Fetch filter options from backend API when dialog opens or dependent filters change
+  useEffect(() => {
+    if (!open) return; // Only fetch when dialog is open
 
-  const getKeywordOptions = () => {
-    let kws = RAW_DATA.keywords;
-    if (value.categories.length) {
-      kws = kws.filter((k) => value.categories.includes(k.category));
-    }
-    if (value.brands.length) {
-      const allowedBrandIds = new Set(
-        value.brands.map((name) => BRAND_NAME_TO_ID[name]).filter(Boolean)
-      );
-      kws = kws.filter((k) => allowedBrandIds.has(k.brandId));
-    }
-    return kws.map((k) => k.keyword);
-  };
+    const fetchFilterOptions = async () => {
+      setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
-  const tabOptions = ["category", "brand", "keyword"];
+      try {
+        // Fetch all filter types in parallel
+        const [formatsRes, citiesRes, productNamesRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities${value.formats.length ? `&format=${value.formats[0]}` : ''}`),
+          axiosInstance.get('/visibility-analysis/filter-options?filterType=productName')
+        ]);
+
+        setFilterOptions({
+          formats: (formatsRes.data?.options || []).filter(f => f && f !== 'All'),
+          cities: (citiesRes.data?.options || []).filter(c => c && c !== 'All'),
+          productNames: (productNamesRes.data?.options || []).filter(p => p && p !== 'All'),
+          loading: false,
+          error: null
+        });
+        console.log('[FilterDialog Visibility] Loaded filter options:', {
+          formats: formatsRes.data?.options?.length || 0,
+          cities: citiesRes.data?.options?.length || 0,
+          productNames: productNamesRes.data?.options?.length || 0
+        });
+      } catch (error) {
+        console.error('[FilterDialog Visibility] Error fetching filter options:', error);
+        setFilterOptions(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to load filter options'
+        }));
+      }
+    };
+
+    fetchFilterOptions();
+  }, [open, value.formats]); // Refetch when formats change (cascading for cities)
+
+  // Filter tabs - mapped to rb_kw columns
+  const tabOptions = ["format", "city", "productName"];
 
   const getListForTab = () => {
-    if (activeTab === "category") return CATEGORY_OPTIONS;
-    if (activeTab === "brand") return getBrandOptions();
-    return getKeywordOptions();
+    if (activeTab === "format") return filterOptions.formats;
+    if (activeTab === "city") return filterOptions.cities;
+    return filterOptions.productNames;
   };
 
   const list = useMemo(() => {
@@ -590,15 +604,16 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, value]);
+  }, [activeTab, search, filterOptions]);
 
   const currentKey =
-    activeTab === "category"
-      ? "categories"
-      : activeTab === "brand"
-        ? "brands"
-        : "keywords";
+    activeTab === "format"
+      ? "formats"
+      : activeTab === "city"
+        ? "cities"
+        : "productNames";
 
+  // Handle toggle with cascading filter reset
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
     if (current.has(item)) current.delete(item);
@@ -606,13 +621,12 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
 
     const next = { ...value, [type]: Array.from(current) };
 
-    if (type === "categories") {
-      next.brands = [];
-      next.skus = [];
-      next.keywords = [];
-    } else if (type === "brands") {
-      next.skus = [];
-      next.keywords = [];
+    // Cascading: changing format resets cities
+    if (type === "formats") {
+      next.cities = [];
+      next.productNames = [];
+    } else if (type === "cities") {
+      next.productNames = [];
     }
 
     onChange(next);
@@ -621,15 +635,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   const handleSelectAll = (type, items) => {
     const allSelected =
       items.length > 0 && items.every((i) => value[type].includes(i));
+
     const next = { ...value, [type]: allSelected ? [] : items.slice() };
 
-    if (type === "categories") {
-      next.brands = [];
-      next.skus = [];
-      next.keywords = [];
-    } else if (type === "brands") {
-      next.skus = [];
-      next.keywords = [];
+    if (type === "formats") {
+      next.cities = [];
+      next.productNames = [];
+    } else if (type === "cities") {
+      next.productNames = [];
     }
 
     onChange(next);
@@ -666,9 +679,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                     value={t}
                     className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
                   >
-                    {t === "category" && "Category"}
-                    {t === "brand" && "Brand"}
-                    {t === "keyword" && "Keyword"}
+                    {t === "format" && "Format"}
+                    {t === "city" && "City"}
+                    {t === "productName" && "Product Name"}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -696,7 +709,19 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
 
             <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
               <div className="space-y-1 p-3">
-                {list.map((item) => (
+                {filterOptions.loading && (
+                  <div className="px-3 py-8 text-center text-xs text-slate-400">
+                    <div className="animate-pulse">Loading filter options...</div>
+                  </div>
+                )}
+
+                {filterOptions.error && (
+                  <div className="px-3 py-8 text-center text-xs text-red-400">
+                    {filterOptions.error}
+                  </div>
+                )}
+
+                {!filterOptions.loading && !filterOptions.error && list.map((item) => (
                   <label
                     key={item}
                     className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
@@ -709,7 +734,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                   </label>
                 ))}
 
-                {list.length === 0 && (
+                {!filterOptions.loading && !filterOptions.error && list.length === 0 && (
                   <div className="px-3 py-8 text-center text-xs text-slate-400">
                     No options found.
                   </div>
@@ -729,6 +754,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     </Dialog>
   );
 };
+
 
 const MetricChip = ({ label, color, active, onClick }) => {
   return (
@@ -1390,18 +1416,16 @@ export const VisibilityKpiTrendShowcase = () => {
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
-    categories: [],
-    brands: [],
-    skus: [],
-    keywords: [],
+    formats: [],      // from keyword_search_product (category)
+    cities: [],       // from location_name
+    productNames: [], // from keyword
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
   const selectionCount =
-    filters.categories.length +
-    filters.brands.length +
-    filters.skus.length +
-    filters.keywords.length;
+    filters.formats.length +
+    filters.cities.length +
+    filters.productNames.length;
 
   // Dynamic filtered rows for table for the active tab + city
   const brandRows = useMemo(() => {
