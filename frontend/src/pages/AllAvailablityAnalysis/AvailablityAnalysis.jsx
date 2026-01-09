@@ -217,7 +217,7 @@ export default function AvailablityAnalysis() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        <AvailablityAnalysisData apiData={apiData} filters={filters} />
+        <AvailablityAnalysisData apiData={apiData} filters={filters} loading={!apiData.overview} />
       </CommonContainer>
     </>
   );

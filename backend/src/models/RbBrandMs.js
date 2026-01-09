@@ -8,6 +8,9 @@ const RbBrandMs = sequelize.define('rb_brand_ms', {
   category: {
     type: DataTypes.STRING,
   },
+  category_master: {
+    type: DataTypes.STRING,
+  },
   created_on: {
     type: DataTypes.DATE,
   },

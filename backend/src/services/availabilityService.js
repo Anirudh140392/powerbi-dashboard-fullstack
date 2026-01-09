@@ -1277,34 +1277,45 @@ const getOsaDetailByCategory = async (filters) => {
                 const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
                 dateFilter = {
                     [Op.between]: [
-                        currentStartDate.toDate(),
-                        currentEndDate.toDate()
+                        currentStartDate.format('YYYY-MM-DD'),
+                        currentEndDate.format('YYYY-MM-DD')
                     ]
                 };
-                // Generate date array for response
-                for (let i = 30; i >= 0; i--) {
-                    datesToUse.push(currentEndDate.subtract(i, 'day').format('YYYY-MM-DD'));
+                // Generate date array for response - only for the selected range
+                const daysDiff = currentEndDate.diff(currentStartDate, 'day');
+                for (let i = 0; i <= daysDiff; i++) {
+                    datesToUse.push(currentStartDate.add(i, 'day').format('YYYY-MM-DD'));
                 }
             } else {
-                // Default: last 31 days
-                const currentEndDate = endDate ? dayjs(endDate) : dayjs();
-                const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
+                // OSA Detail View: Show ENTIRE MONTH based on selected date range
+                // Extract the month from endDate (or startDate) and show all days of that month
+                const referenceDate = endDate ? dayjs(endDate) : (startDate ? dayjs(startDate) : dayjs());
+
+                // Get first and last day of the month
+                const monthStart = referenceDate.startOf('month');
+                const monthEnd = referenceDate.endOf('month');
+
+                console.log(`[getOsaDetailByCategory] Showing full month: ${monthStart.format('YYYY-MM-DD')} to ${monthEnd.format('YYYY-MM-DD')}`);
+
                 dateFilter = {
                     [Op.between]: [
-                        currentStartDate.toDate(),
-                        currentEndDate.toDate()
+                        monthStart.format('YYYY-MM-DD'),
+                        monthEnd.format('YYYY-MM-DD')
                     ]
                 };
-                // Generate date array for response
-                for (let i = 30; i >= 0; i--) {
-                    datesToUse.push(currentEndDate.subtract(i, 'day').format('YYYY-MM-DD'));
+
+                // Generate date array for the entire month
+                const daysInMonth = monthEnd.date(); // number of days in the month
+                for (let i = 1; i <= daysInMonth; i++) {
+                    datesToUse.push(monthStart.date(i).format('YYYY-MM-DD'));
                 }
             }
 
             // Build base where clause for rb_pdp_olap query
+            // Changed: Now filtering by Product (SKU) instead of Category
             const whereClause = {
                 DATE: dateFilter,
-                Category: { [Op.ne]: null },
+                Product: { [Op.ne]: null },  // Filter by Product (SKU) instead of Category
                 deno_osa: { [Op.gt]: 0 }  // Only rows with actual data
             };
 
@@ -1327,57 +1338,52 @@ const getOsaDetailByCategory = async (filters) => {
                 whereClause.Location = location;
             }
 
-            // Category filter
+            // Category filter (still apply if provided, but display Product/SKU)
             if (categories && categories.length > 0) {
                 // Convert category IDs back to labels
                 const categoryLabels = categories.map(c => c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
-                whereClause.Category = {
-                    [Op.and]: [
-                        { [Op.ne]: null },
-                        { [Op.in]: categoryLabels }
-                    ]
-                };
+                whereClause.Category = { [Op.in]: categoryLabels };
             }
 
-            // Fetch all OSA data grouped by Category and Date at once
+            // Fetch all OSA data grouped by Product (SKU) and Date at once
             const results = await RbPdpOlap.findAll({
                 attributes: [
-                    'Category',
+                    'Product',  // Changed: Group by Product (SKU) instead of Category
                     [sequelize.fn('DATE', sequelize.col('DATE')), 'formattedDate'],
                     [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNeno'],
                     [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDeno']
                 ],
                 where: whereClause,
-                group: ['Category', sequelize.fn('DATE', sequelize.col('DATE'))],
+                group: ['Product', sequelize.fn('DATE', sequelize.col('DATE'))],  // Changed: Group by Product
                 raw: true
             });
 
-            console.log(`[getOsaDetailByCategory] Found ${results.length} category-date combinations`);
+            console.log(`[getOsaDetailByCategory] Found ${results.length} product-date combinations`);
 
-            // Group results by category
-            const categoryMap = new Map();
+            // Group results by Product (SKU)
+            const productMap = new Map();
 
             for (const row of results) {
-                const category = row.Category;
+                const product = row.Product;
                 const formattedDate = row.formattedDate;
                 const sumNeno = parseFloat(row.sumNeno) || 0;
                 const sumDeno = parseFloat(row.sumDeno) || 0;
 
                 const osaPercent = sumDeno > 0 ? Math.round((sumNeno / sumDeno) * 100) : 0;
 
-                if (!categoryMap.has(category)) {
-                    categoryMap.set(category, new Map());
+                if (!productMap.has(product)) {
+                    productMap.set(product, new Map());
                 }
 
-                categoryMap.get(category).set(formattedDate, osaPercent);
+                productMap.get(product).set(formattedDate, osaPercent);
             }
 
-            console.log(`[getOsaDetailByCategory] Processing ${categoryMap.size} categories`);
+            console.log(`[getOsaDetailByCategory] Processing ${productMap.size} products/SKUs`);
 
-            // Build category data array
-            const categoryData = [];
+            // Build product data array
+            const categoryData = [];  // Keep response field name for compatibility
 
-            for (const [category, dateMap] of categoryMap.entries()) {
+            for (const [product, dateMap] of productMap.entries()) {
                 // Build values array for all selected dates
                 const values = datesToUse.map(date => {
                     return dateMap.get(date) || 0;
@@ -1398,8 +1404,8 @@ const getOsaDetailByCategory = async (filters) => {
                 }
 
                 categoryData.push({
-                    name: category,
-                    sku: category.toLowerCase().replace(/\s+/g, '_'),
+                    name: product,  // Changed: Display Product name
+                    sku: product.toLowerCase().replace(/\s+/g, '_'),  // Changed: SKU from Product
                     values: values,
                     avg31: avg31,
                     status: status
@@ -1415,7 +1421,7 @@ const getOsaDetailByCategory = async (filters) => {
             const dateRangeEnd = sortedDates[sortedDates.length - 1] || dayjs().format('YYYY-MM-DD');
 
             return {
-                categories: categoryData,
+                categories: categoryData,  // Keep field name for frontend compatibility
                 dateRange: {
                     start: dateRangeStart,
                     end: dateRangeEnd
