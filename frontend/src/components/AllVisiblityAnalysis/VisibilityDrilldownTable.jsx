@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { KpiFilterPanel } from '../KpiFilterPanel'
 import { SlidersHorizontal, X } from 'lucide-react'
 import PaginationFooter from '../CommonLayout/PaginationFooter'
+import axiosInstance from '../../api/axiosInstance'
 
 const KPI_LABELS = {
     catImpShare: 'Cat Imp Share',
@@ -341,28 +342,15 @@ const FROZEN_WIDTHS = {
     spacer: 40,
 }
 
-const filterOptions = [
+// Initial static structure - will be populated dynamically from rb_kw table
+const FILTER_OPTIONS_CONFIG = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-    {
-        id: "kpi",
-        label: "KPI",
-        options: [
-            { id: "overallSos", label: "OVERALL SOS" },
-            { id: "sponsoredSos", label: "SPONSORED SOS" },
-            { id: "organicSos", label: "ORGANIC SOS" },
-            { id: "displaySos", label: "DISPLAY SOS" }
-        ]
-    },
-    { id: "keywords", label: "Keyword" },
-    { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-    { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
-    { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-    { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-    { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-    { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-    { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-    { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-    { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+    { id: "month", label: "Month", options: [{ id: "all", label: "All" }] },
+    { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }] },
+    { id: "productName", label: "Product Name", options: [{ id: "all", label: "All" }] },
+    { id: "format", label: "Format", options: [{ id: "all", label: "All" }] }, // Mapped to keyword_search_product in rb_kw
+    { id: "city", label: "City", options: [{ id: "all", label: "All" }] },
+    { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }] },
 ]
 
 export default function VisibilityDrilldownTable({ data = null, loading = false }) {
@@ -382,6 +370,57 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
     const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+
+    // Dynamic filter options from rb_kw table
+    const [filterOptions, setFilterOptions] = useState(FILTER_OPTIONS_CONFIG)
+
+    // Fetch dynamic filter options from backend on mount
+    useEffect(() => {
+        const fetchFilterOptions = async () => {
+            try {
+                // Fetch all filter types in parallel from visibility API
+                const [monthsRes, platformsRes, formatsRes, citiesRes, pincodesRes, productNamesRes] = await Promise.all([
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=months'),
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=cities'),
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=pincodes'),
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=productName')
+                ])
+
+                // Transform API responses to option format { id, label }
+                const toOptions = (arr) => [
+                    { id: 'all', label: 'All' },
+                    ...(arr || []).filter(v => v && v !== 'All').map(v => ({ id: v, label: String(v) }))
+                ]
+
+                const dynamicOptions = [
+                    { id: "date", label: "Date", options: [] },
+                    { id: "month", label: "Month", options: toOptions(monthsRes.data?.options) },
+                    { id: "platform", label: "Platform", options: toOptions(platformsRes.data?.options) },
+                    { id: "productName", label: "Product Name", options: toOptions(productNamesRes.data?.options) },
+                    { id: "format", label: "Format", options: toOptions(formatsRes.data?.options) },
+                    { id: "city", label: "City", options: toOptions(citiesRes.data?.options) },
+                    { id: "pincode", label: "Pincode", options: toOptions(pincodesRes.data?.options) },
+                ]
+
+                setFilterOptions(dynamicOptions)
+                console.log('[VisibilityDrilldownTable] Dynamic filter options loaded:', {
+                    months: monthsRes.data?.options?.length || 0,
+                    platforms: platformsRes.data?.options?.length || 0,
+                    formats: formatsRes.data?.options?.length || 0,
+                    cities: citiesRes.data?.options?.length || 0,
+                    pincodes: pincodesRes.data?.options?.length || 0,
+                    productNames: productNamesRes.data?.options?.length || 0
+                })
+            } catch (error) {
+                console.error('[VisibilityDrilldownTable] Error fetching filter options:', error)
+                // Keep using static fallback on error
+            }
+        }
+
+        fetchFilterOptions()
+    }, []) // Run once on mount
 
     // Use API data if provided, otherwise fallback to sampleHierarchy
     const sourceData = data || sampleHierarchy;

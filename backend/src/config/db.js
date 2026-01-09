@@ -10,7 +10,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     dialect: "mysql",
     port: process.env.DB_PORT || 3306,
-    logging: false, // set true if you want SQL logs
+    logging: false, // SQL logging disabled
     pool: {
       max: 200,       // Increased from 200 to handle burst of concurrent SOS queries
       min: 15,        // Minimum connections to keep available
