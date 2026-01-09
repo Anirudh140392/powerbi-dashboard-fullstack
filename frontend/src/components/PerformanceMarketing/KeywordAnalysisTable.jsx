@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useContext } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import {
   Box,
   Card,
@@ -19,11 +20,13 @@ import {
   Chip,
   Button,
   InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, ChevronUp, ChevronDown, LineChart, Search, SlidersHorizontal, X } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
+import axiosInstance from "../../api/axiosInstance";
 
 // --------- CONSTANTS ----------
 const MONTHS = [
@@ -42,121 +45,11 @@ const MONTHS = [
 ];
 
 // --------- CATEGORIES ----------
-const CATEGORIES = ["All", "Cones & Sticks", "Cakes & Desserts", "Premium", "Family Packs"];
+// Static fallback removed, fetching from backend now.
 
 // --------- SAMPLE N-LEVEL DATA ----------
-const momKeywordData = {
-  title: "Keyword Analysis",
-  keywords: [
-    {
-      keyword: "Family Pack",
-      category: "Family Packs",
-      months: MONTHS.map((m, idx) => ({
-        month: m,
-        impressions: 20 + idx * 2,
-        conversion: `${2 + (idx % 3)}%`,
-        spend: 8 + idx,
-        cpm: 380 + idx * 10,
-        roas: 1 + (idx % 4),
-      })),
-      children: [
-        {
-          keyword: "Magnum",
-          category: "Cakes & Desserts",
-          months: MONTHS.map((m, idx) => ({
-            month: m,
-            impressions: 10 + idx * 3,
-            conversion: `${2 + (idx % 4)}%`,
-            spend: 4 + idx,
-            cpm: 360 + idx * 9,
-            roas: 1 + (idx % 3),
-          })),
-          children: [
-            {
-              keyword: "Cakes & Desserts",
-              category: "Cakes & Desserts",
-              months: MONTHS.map((m, idx) => ({
-                month: m,
-                impressions: 10 + idx * 3,
-                conversion: `${2 + (idx % 4)}%`,
-                spend: 4 + idx,
-                cpm: 360 + idx * 9,
-                roas: 1 + (idx % 3),
-              })),
-            }
-          ]
-        },
-      ],
-    },
+// momKeywordData removed - using dynamic data from backend.
 
-    {
-      keyword: "Ice cream",
-      category: "Cones & Sticks",
-      months: MONTHS.map((m, idx) => ({
-        month: m,
-        impressions: 10 + idx * 3,
-        conversion: `${1 + (idx % 4)}%`,
-        spend: 4 + idx,
-        cpm: 330 + idx * 8,
-        roas: 1 + (idx % 5),
-      })),
-      children: [
-        {
-          keyword: "Core Tub",
-          category: "Cakes & Desserts",
-          months: MONTHS.map((m, idx) => ({
-            month: m,
-            impressions: 14 + idx,
-            conversion: `${1 + (idx % 2)}%`,
-            spend: 6 + idx,
-            cpm: 350 + idx * 12,
-            roas: 1 + (idx % 3),
-          })),
-          children: [
-            {
-              keyword: "Cakes & Desserts",
-              category: "Cakes & Desserts",
-              months: MONTHS.map((m, idx) => ({
-                month: m,
-                impressions: 14 + idx,
-                conversion: `${1 + (idx % 2)}%`,
-                spend: 6 + idx,
-                cpm: 350 + idx * 12,
-                roas: 1 + (idx % 3),
-              })),
-            }
-          ]
-        },
-      ]
-    },
-
-    {
-      keyword: "Double Chocolate",
-      category: "Premium",
-      months: MONTHS.map((m, idx) => ({
-        month: m,
-        impressions: 8 + idx * 2,
-        conversion: `${1 + (idx % 3)}%`,
-        spend: 3 + idx,
-        cpm: 310 + idx * 9,
-        roas: 1 + (idx % 4),
-      })),
-    },
-
-    {
-      keyword: "Gourmet",
-      category: "Family Packs",
-      months: MONTHS.map((m, idx) => ({
-        month: m,
-        impressions: 12 + idx * 2,
-        conversion: `${1 + (idx % 2)}%`,
-        spend: 5 + idx,
-        cpm: 320 + idx * 8,
-        roas: 1 + (idx % 3),
-      })),
-    },
-  ],
-};
 
 // ---------- helpers ----------
 const parsePercent = (v) =>
@@ -219,17 +112,31 @@ const buildAggTree = (node, monthFilter) => {
   return { ...node, agg, children };
 };
 
-const filterTree = (node, search, minImp, categoryFilter) => {
+const filterTree = (node, search, minImp, categoryFilter, activeFilters) => {
   const matchesSearch =
     !search || node.keyword.toLowerCase().includes(search.toLowerCase());
   const matchesImp = !minImp || node.agg.impressions >= minImp;
-  const matchesCategory = !categoryFilter || categoryFilter === "All" || node.category === categoryFilter;
+
+  // existing single-select category filter
+  const matchesCategorySelect = !categoryFilter || categoryFilter === "All" || node.category === categoryFilter;
+
+  // new multi-select filters from modal
+  const matchesMultiCategory =
+    !activeFilters?.categories?.length ||
+    activeFilters.categories.includes(node.category);
+
+  const matchesMultiKeyword =
+    !activeFilters?.keywords?.length ||
+    activeFilters.keywords.includes(node.keyword);
+
+  // Combine matches
+  const isMatch = matchesSearch && matchesImp && matchesCategorySelect && matchesMultiCategory && matchesMultiKeyword;
 
   const filteredChildren = (node.children || [])
-    .map((c) => filterTree(c, search, minImp, categoryFilter))
+    .map((c) => filterTree(c, search, minImp, categoryFilter, activeFilters))
     .filter(Boolean);
 
-  if (matchesSearch && matchesImp && matchesCategory)
+  if (isMatch)
     return { ...node, children: filteredChildren };
   if (filteredChildren.length) return { ...node, children: filteredChildren };
   return null;
@@ -265,15 +172,9 @@ export default function KeywordAnalysisTable() {
   const [monthFilter, setMonthFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [minImpressions, setMinImpressions] = useState("");
-
-  const [sortConfig, setSortConfig] = useState({
-    key: "conversion",
-    direction: "desc",
-  });
-
-  // pagination
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [backendCategories, setBackendCategories] = useState([]);
+  const [apiData, setApiData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState({
@@ -288,6 +189,66 @@ export default function KeywordAnalysisTable() {
     months: [],
   });
 
+  const {
+    pmSelectedPlatform,
+    pmSelectedBrand,
+    selectedZone,
+    timeStart,
+    timeEnd,
+  } = useContext(FilterContext);
+
+  useEffect(() => {
+    const fetchKeywordData = async () => {
+      setLoading(true);
+      try {
+        const response = await axiosInstance.get('/performance-marketing/keyword-analysis', {
+          params: {
+            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
+            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
+            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
+            startDate: timeStart?.format("YYYY-MM-DD"),
+            endDate: timeEnd?.format("YYYY-MM-DD"),
+            weekendFlag: activeFilters.weekendFlag
+          }
+        });
+        console.log("🔍 [Frontend] Keyword Analysis API Data:", response.data);
+        if (Array.isArray(response.data)) {
+          setApiData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching keyword analysis:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchKeywordData();
+  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd, activeFilters.weekendFlag]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axiosInstance.get('/performance-marketing/categories');
+        if (Array.isArray(response.data)) {
+          setBackendCategories(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching PM categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  const [sortConfig, setSortConfig] = useState({
+    key: "conversion",
+    direction: "desc",
+  });
+
+  // pagination
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
+
+
   const filterOptions = useMemo(() => {
     const opts = {
       keywords: new Map(),
@@ -295,12 +256,14 @@ export default function KeywordAnalysisTable() {
       months: new Map(),
     };
 
+    // Add backend categories first
+    backendCategories.forEach(cat => {
+      opts.categories.set(cat, { id: cat, label: cat, value: 0 });
+    });
+
     const traverse = (nodes) => {
       nodes.forEach((node) => {
         opts.keywords.set(node.keyword, { id: node.keyword, label: node.keyword, value: 0 });
-        if (node.category) {
-          opts.categories.set(node.category, { id: node.category, label: node.category, value: 0 });
-        }
         if (node.months) {
           node.months.forEach(m => {
             opts.months.set(m.month, { id: m.month, label: m.month, value: 0 });
@@ -310,7 +273,7 @@ export default function KeywordAnalysisTable() {
       });
     };
 
-    traverse(momKeywordData.keywords);
+    traverse(apiData);
 
     return {
       keywords: Array.from(opts.keywords.values()),
@@ -324,13 +287,13 @@ export default function KeywordAnalysisTable() {
         { id: "roas", label: "ROAS", type: "number" },
       ],
     };
-  }, []);
+  }, [apiData, backendCategories]);
 
   const processedKeywords = useMemo(() => {
     const searchTrim = search.trim();
     const minNum = Number(minImpressions) || 0;
 
-    let tree = momKeywordData.keywords.map((k) => buildAggTree(k, monthFilter));
+    let tree = apiData.map((k) => buildAggTree(k, monthFilter));
 
     tree = tree.map((n) => filterTree(n, searchTrim, minNum, categoryFilter, activeFilters, monthFilter)).filter(Boolean);
 
@@ -340,11 +303,11 @@ export default function KeywordAnalysisTable() {
     tree.sort((a, b) => (a.agg[key] - b.agg[key]) * dir);
 
     return tree;
-  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter, activeFilters]);
+  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter, activeFilters, apiData]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter]);
+  }, [search, monthFilter, minImpressions, sortConfig, categoryFilter, activeFilters, apiData]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * rowsPerPage;
@@ -388,7 +351,7 @@ export default function KeywordAnalysisTable() {
     Math.min(expandedDepth + 1, maxDepth + 1)
   );
 
-  const LEVEL_TITLES = ["Keyword", "Sub-keyword", "Category"];
+  const LEVEL_TITLES = ["Keyword", "Category"];
 
   const renderSortLabel = (label, key) => {
     const active = sortConfig.key === key;
@@ -550,8 +513,11 @@ export default function KeywordAnalysisTable() {
                   { id: "categories", label: "Category" },
                   { id: "keywords", label: "Keyword" },
                   { id: "platforms", label: "Month" },
+                  { id: "weekendFlag", label: "Weekend Flag" },
                   { id: "kpiRules", label: "KPI Rules" },
                 ]}
+                onWeekendChange={(vals) => setActiveFilters(p => ({ ...p, weekendFlag: vals }))}
+                sectionValues={{ ...activeFilters, platforms: activeFilters.months }} // Map 'months' to 'platforms' key
                 keywords={filterOptions.keywords}
                 categories={filterOptions.categories}
                 platforms={filterOptions.months}
@@ -590,7 +556,7 @@ export default function KeywordAnalysisTable() {
         <Box>
           <Box display="flex" alignItems="center" gap={2}>
             <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
-              {momKeywordData.title}
+              Keyword Analysis
             </Typography>
             <Select
               value={categoryFilter}
@@ -632,7 +598,7 @@ export default function KeywordAnalysisTable() {
             </Select>
           </Box>
           <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-            Keyword → Sub-keyword → Category
+            Keyword → Category
           </Typography>
         </Box>
 
@@ -732,11 +698,30 @@ export default function KeywordAnalysisTable() {
           </TableHead>
 
           <TableBody>
-            <AnimatePresence>
-              {paginated.map((n, i) =>
-                renderNode(n, 0, `root-${(page - 1) * rowsPerPage + i}`)
-              )}
-            </AnimatePresence>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={visibleHierarchyCols + 5} align="center" sx={{ py: 10 }}>
+                  <CircularProgress size={40} sx={{ color: "#10b981" }} />
+                  <Typography sx={{ mt: 2, color: "#64748b", fontSize: 14 }}>
+                    Fetching keyword performance...
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : paginated.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={visibleHierarchyCols + 5} align="center" sx={{ py: 10 }}>
+                  <Typography sx={{ color: "#64748b", fontSize: 14 }}>
+                    No keyword data found for the selected filters.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              <AnimatePresence>
+                {paginated.map((n, i) =>
+                  renderNode(n, 0, `root-${(page - 1) * rowsPerPage + i}`)
+                )}
+              </AnimatePresence>
+            )}
           </TableBody>
         </Table>
       </TableContainer >

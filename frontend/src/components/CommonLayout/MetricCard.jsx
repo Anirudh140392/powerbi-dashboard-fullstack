@@ -25,11 +25,14 @@ const generateMonthLabels = (startDate, endDate) => {
 const generateValues = (count) => Array.from({ length: count }, () => Math.floor(Math.random() * 60) + 20);
 
 export default function MetricCard({ card, scrollNeeded, totalCards }) {
-  // Use card-provided months, or generate from date range, or fallback to default
+  // Use card-provided months/labels, or generate from date range, or fallback to default
   const months = card.months ||
     (card.startDate && card.endDate ? generateMonthLabels(card.startDate, card.endDate) : generateMonthLabels());
 
-  const values = card.sparklineData || generateValues(months.length);
+  // Use card-provided sparklineData, fallback to random ONLY if explicitly undefined or null
+  const values = (card.sparklineData !== undefined && card.sparklineData !== null)
+    ? card.sparklineData
+    : generateValues(months.length);
   const positive = card.change && (card.change.includes("▲") || card.change.includes("+"));
   const color = positive ? "#28a745" : "#dc3545";
 

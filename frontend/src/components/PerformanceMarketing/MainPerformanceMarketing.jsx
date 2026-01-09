@@ -55,7 +55,7 @@ export default function MainPerformanceMarketings() {
       try {
         console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", pmSelectedPlatform);
         const response = await axiosInstance.get("/performance-marketing/brands", {
-          params: { platform: pmSelectedPlatform }
+          params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform }
         });
         console.log("✅ [MainPerformanceMarketing] PM Brands:", response.data);
 
@@ -83,7 +83,7 @@ export default function MainPerformanceMarketings() {
       try {
         console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", pmSelectedBrand);
         const response = await axiosInstance.get("/performance-marketing/zones", {
-          params: { brand: pmSelectedBrand }
+          params: { brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand }
         });
         console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
 
@@ -139,9 +139,9 @@ export default function MainPerformanceMarketings() {
       try {
         const response = await axiosInstance.get("/performance-marketing", {
           params: {
-            platform: pmSelectedPlatform, // Use PM-specific platform
-            brand: pmSelectedBrand, // Use PM-specific brand
-            zone: selectedZone,
+            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
+            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
+            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -152,20 +152,24 @@ export default function MainPerformanceMarketings() {
           const trendChart = response.data.trend_chart || [];
 
           // Helper to extract numeric values for sparkline
-          // We'll take the last 12 points or all if less
-          const getSparklineData = (key) => {
-            if (!trendChart.length) return null;
-            return trendChart.slice(-12).map(item => Number(item[key]) || 0);
+          // We'll take all points to show the selected range accurately
+          const getTrendSeries = (key) => {
+            if (!trendChart.length) return { values: [], labels: [] };
+            return {
+              values: trendChart.map(item => Number(item[key]) || 0),
+              labels: trendChart.map(item => dayjs(item.date).format("MMM DD"))
+            };
           };
 
           const mappedCards = response.data.kpi_cards.map(card => {
             let sparkKey = "";
             // Map label to data key in trend_chart if possible
-            // Assuming trend_chart has keys like: impressions, spend, cpm, ctr, etc.
             if (card.label.toLowerCase().includes("impression")) sparkKey = "impressions";
             else if (card.label.toLowerCase().includes("spend")) sparkKey = "spend";
             else if (card.label.toLowerCase().includes("roas")) sparkKey = "roas_roas";
             else if (card.label.toLowerCase().includes("conversion")) sparkKey = "cr_percentage";
+
+            const trendData = getTrendSeries(sparkKey);
 
             return {
               title: card.label,
@@ -173,7 +177,8 @@ export default function MainPerformanceMarketings() {
               change: `${card.positive ? "▲" : "▼"} ${card.change}`, // Add arrow
               changeColor: card.positive ? "#28a745" : "#dc3545", // Green/Red
               sub: "", // Optional subtitle
-              sparklineData: getSparklineData(sparkKey),
+              sparklineData: trendData.values,
+              months: trendData.labels,
               prevTextStyle: {
                 fontSize: 10,
                 fontWeight: "bold",

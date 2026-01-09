@@ -30,6 +30,7 @@ export function KpiFilterPanel({
   brands,
   categories,
   regions,
+  zones,
   skus,
   cities,
   platforms,
@@ -38,6 +39,7 @@ export function KpiFilterPanel({
   onBrandChange,
   onCategoryChange,
   onRegionChange,
+  onZoneChange,
   onSkuChange,
   onWeekendChange,
   onCityChange,
@@ -80,11 +82,11 @@ export function KpiFilterPanel({
                 ].join(" ")}
               >
                 <span>{section.label}</span>
-                {isActive ? (
-                  <span className="rounded-full bg-sky-600 px-2 text-[10px] font-semibold text-white">
-                    Active
+                {Array.isArray(sectionValues[section.id]) && sectionValues[section.id].length > 0 && (
+                  <span className="rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
+                    {sectionValues[section.id].length}
                   </span>
-                ) : null}
+                )}
               </button>
             );
           })}
@@ -92,7 +94,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -106,6 +108,7 @@ export function KpiFilterPanel({
                 options={keywords}
                 pageSize={pageSize}
                 onChange={onKeywordChange}
+                value={sectionValues["keywords"]}
               />
             );
           }
@@ -118,6 +121,7 @@ export function KpiFilterPanel({
                 options={brands}
                 pageSize={pageSize}
                 onChange={onBrandChange}
+                value={sectionValues["brands"]}
               />
             );
           }
@@ -130,6 +134,7 @@ export function KpiFilterPanel({
                 options={categories}
                 pageSize={pageSize}
                 onChange={onCategoryChange}
+                value={sectionValues["categories"]}
               />
             );
           }
@@ -142,6 +147,7 @@ export function KpiFilterPanel({
                 options={skus}
                 pageSize={pageSize}
                 onChange={onSkuChange}
+                value={sectionValues["skus"]}
               />
             );
           }
@@ -154,6 +160,20 @@ export function KpiFilterPanel({
                 options={regions}
                 pageSize={pageSize}
                 onChange={onRegionChange}
+                value={sectionValues["regions"]}
+              />
+            );
+          }
+          if (section.id === "zones" && zones) {
+            return (
+              <MultiSelectSection
+                key="zones"
+                title={section.label + " filter"}
+                description="Filter by zones."
+                options={zones}
+                pageSize={pageSize}
+                onChange={onZoneChange}
+                value={sectionValues["zones"]}
               />
             );
           }
@@ -173,6 +193,7 @@ export function KpiFilterPanel({
                 onChange={(vals) => {
                   if (onWeekendChange) onWeekendChange(vals || []);
                 }}
+                value={sectionValues["weekendFlag"]}
               />
             );
           }
@@ -185,6 +206,7 @@ export function KpiFilterPanel({
                 options={cities}
                 pageSize={pageSize}
                 onChange={onCityChange}
+                value={sectionValues["cities"]}
               />
             );
           }
@@ -197,6 +219,7 @@ export function KpiFilterPanel({
                 options={platforms}
                 pageSize={pageSize}
                 onChange={onPlatformChange}
+                value={sectionValues["platforms"]}
               />
             );
           }
@@ -437,24 +460,24 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
         </div>
       )}
 
-      <div className="flex-1 rounded-lg border border-slate-100 bg-slate-50/60 overflow-y-auto min-h-[400px]">
+      <div className="rounded-lg border border-slate-200 bg-white overflow-y-auto" style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
         {pageItems.map((opt) => (
           <label
             key={opt.id}
-            className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2 text-sm hover:bg-slate-100/80"
+            className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2.5 text-sm hover:bg-sky-50/50"
           >
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
-                className="h-3.5 w-3.5 accent-sky-600"
+                className="h-4 w-4 accent-sky-600 rounded"
                 checked={selected.has(opt.id)}
                 onChange={() => toggleOne(opt.id)}
               />
-              <span className="font-medium">{opt.label}</span>
+              <span className="font-medium text-slate-800">{opt.label}</span>
             </div>
             <div className="flex items-center gap-2">
               {typeof opt.value === "number" && (
-                <span className="rounded-full bg-slate-900/5 px-2 py-0.5 text-[10px] text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
                   {opt.value.toLocaleString()}
                 </span>
               )}
@@ -472,30 +495,32 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
         )}
       </div>
 
-      {options.length >= 15 && (
-        <footer className="mt-2 flex items-center justify-between text-xs text-slate-500">
-          <div>
-            {filtered.length} of {options.length} options
-          </div>
-          <div className="flex items-center gap-1">
+      {/* Pagination footer - always visible */}
+      {totalPages > 1 && (
+        <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+          <span className="text-xs text-slate-600">
+            {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} items
+          </span>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
+              className="rounded bg-white border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40"
             >
-              Prev
+              ← Prev
             </button>
+            <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded font-semibold text-sm">{page}/{totalPages}</span>
             <button
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-40"
+              className="rounded bg-white border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40"
             >
-              Next
+              Next →
             </button>
           </div>
-        </footer>
+        </div>
       )}
     </div>
   );

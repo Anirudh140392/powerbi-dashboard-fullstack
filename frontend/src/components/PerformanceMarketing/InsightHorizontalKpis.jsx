@@ -57,9 +57,9 @@ export default function InsightHorizontalKpis({
       try {
         const response = await axiosInstance.get("/performance-marketing/quadrants", {
           params: {
-            platform: pmSelectedPlatform,
-            brand: pmSelectedBrand,
-            zone: selectedZone,
+            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
+            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
+            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }

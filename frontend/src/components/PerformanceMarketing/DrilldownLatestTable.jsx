@@ -318,7 +318,7 @@ function aggregateQuarterKpis(rows) {
     result[q] = {
       impressions: a.impressions,
       spend: a.spend,
-      conversion: a.orders ? (a.clicks / a.orders) : 0, // Clicks / Orders
+      conversion: a.clicks ? (a.orders / a.clicks) : 0, // Orders / Clicks
       cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
       roas: a.spend ? (a.adSales / a.spend) : 0,
       sales: a.totalSales,       // Total Sales
@@ -334,7 +334,7 @@ function aggregateMonthKpis(rows) {
     // Row has month property?
     const m = row.month;
     if (!m) return;
-    if (!aggs[m]) aggs[m] = { impressions: 0, spend: 0, clicks: 0, adSales: 0, totalSales: 0 };
+    if (!aggs[m]) aggs[m] = { impressions: 0, spend: 0, clicks: 0, orders: 0, adSales: 0, totalSales: 0 };
 
     // We need to access the metrics for this row.
     // The row itself represents a day or category. 
@@ -350,6 +350,7 @@ function aggregateMonthKpis(rows) {
       aggs[m].impressions += getSafe(qData.impressions);
       aggs[m].spend += getSafe(qData.spend);
       aggs[m].clicks += getSafe(qData.clicks);
+      aggs[m].orders += getSafe(qData.orders); // Track orders
       aggs[m].adSales += getSafe(qData.adSales);
       aggs[m].totalSales += getSafe(qData.totalSales);
     }
@@ -361,7 +362,7 @@ function aggregateMonthKpis(rows) {
     result[m] = {
       impressions: a.impressions,
       spend: a.spend,
-      conversion: a.impressions ? (a.clicks / a.impressions) : 0,
+      conversion: a.clicks ? (a.orders / a.clicks) : 0, // Orders / Clicks (Conversion Rate)
       cpm: a.impressions ? ((a.spend / a.impressions) * 1000) : 0,
       roas: a.spend ? (a.adSales / a.spend) : 0,
       sales: a.totalSales,
@@ -403,6 +404,26 @@ export default function DrilldownLatestTable() {
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState([]);
 
+  // ---------- FILTERS STATE ----------
+  const [activeFilters, setActiveFilters] = useState({
+    brands: [],
+    categories: [],
+    zones: [],
+    keywords: [],
+    skus: [],
+    platforms: [],
+    kpiRules: null,
+    weekendFlag: [],
+  });
+
+  // Filter Options State
+  const [filterOptionsData, setFilterOptionsData] = useState({
+    brands: [],
+    categories: [],
+    zones: [],
+    keywords: [],
+  });
+
   const [localFilters, setLocalFilters] = useState({
     weekendFlag: 'All',
     tdp: 'All',
@@ -414,19 +435,118 @@ export default function DrilldownLatestTable() {
 
   const [sortField, setSortField] = useState('format')
   const [sortDir, setSortDir] = useState('asc')
-  const quarters = useMemo(() => ['Q3', 'Q4'], []) // Dynamically determine quarters later?
-  const [expandedQuarters, setExpandedQuarters] = useState(new Set([]))
 
-  // Fetch Data - no date filter to get all Nov/Dec data
+  // Dynamically determine quarters AND months from data
+  const { quarters, quarterMonths } = useMemo(() => {
+    if (!apiData || apiData.length === 0) return { quarters: [], quarterMonths: {} };
+
+    // Extract unique quarters from dates
+    const uniqueQuarters = new Set();
+    const monthsByQuarter = {};
+
+    apiData.forEach(item => {
+      const d = dayjs(item.date);
+      const mIdx = d.month(); // 0-11
+      const mName = d.format('MMM'); // Jan, Feb...
+
+      let q = '';
+      if (mIdx < 3) q = 'Q1';
+      else if (mIdx < 6) q = 'Q2';
+      else if (mIdx < 9) q = 'Q3';
+      else q = 'Q4';
+
+      if (q) {
+        uniqueQuarters.add(q);
+        if (!monthsByQuarter[q]) monthsByQuarter[q] = new Set();
+        monthsByQuarter[q].add(mName);
+      }
+    });
+
+    const sortedQuarters = Array.from(uniqueQuarters).sort();
+
+    // Month order for sorting
+    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const sortedQuarterMonths = {};
+
+    sortedQuarters.forEach(q => {
+      if (monthsByQuarter[q]) {
+        sortedQuarterMonths[q] = Array.from(monthsByQuarter[q]).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
+      } else {
+        sortedQuarterMonths[q] = [];
+      }
+    });
+
+    return { quarters: sortedQuarters, quarterMonths: sortedQuarterMonths };
+  }, [apiData]);
+
+  const [expandedQuarters, setExpandedQuarters] = useState(new Set(quarters))
+
+  // Make sure to update expanded quarters when quarters change (e.g. initial load)
+  useEffect(() => {
+    if (quarters.length > 0) {
+      setExpandedQuarters(new Set(quarters));
+    }
+  }, [quarters.join(',')]);
+
+  // Fetch Filter Options (Initial)
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [brandsRes, zonesRes, catsRes] = await Promise.all([
+          axiosInstance.get('/performance-marketing/brands', { params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform } }),
+          axiosInstance.get('/performance-marketing/zones'),
+          axiosInstance.get('/performance-marketing/categories')
+        ]);
+
+        const formatOptions = (list) => list.map(item => ({ id: item, label: item, value: item }));
+
+        setFilterOptionsData(prev => ({
+          ...prev,
+          brands: formatOptions(brandsRes.data || []),
+          zones: formatOptions(zonesRes.data || []),
+          categories: formatOptions(catsRes.data || [])
+        }));
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+    fetchOptions();
+  }, [pmSelectedPlatform]);
+
+  // Fetch Keywords when Categories change
+  useEffect(() => {
+    const fetchKeywords = async () => {
+      try {
+        const categories = activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : '';
+        const response = await axiosInstance.get('/performance-marketing/keywords', { params: { category: categories } });
+
+        const formatOptions = (list) => list.map(item => ({ id: item, label: item, value: item }));
+
+        setFilterOptionsData(prev => ({
+          ...prev,
+          keywords: formatOptions(response.data || [])
+        }));
+      } catch (error) {
+        console.error("Error fetching keywords:", error);
+      }
+    };
+    fetchKeywords();
+  }, [activeFilters.categories]);
+
+  // Fetch Data with date filter support
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const params = {
-          platform: pmSelectedPlatform || 'All',
-          brand: pmSelectedBrand,
-          zone: selectedZone,
-          // Removed date filters to fetch all Nov/Dec data
+          platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : (pmSelectedPlatform || 'All'),
+          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand),
+          zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone),
+          category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : '',
+          keywords: activeFilters.keywords.length > 0 ? activeFilters.keywords.join(',') : '',
+          weekendFlag: activeFilters.weekendFlag?.length > 0 ? activeFilters.weekendFlag.join(',') : (localFilters.weekendFlag === 'All' ? '' : localFilters.weekendFlag),
+          startDate: timeStart?.format?.("YYYY-MM-DD"),
+          endDate: timeEnd?.format?.("YYYY-MM-DD")
         };
 
         const response = await axiosInstance.get('/performance-marketing/format-performance', { params });
@@ -440,7 +560,7 @@ export default function DrilldownLatestTable() {
     };
 
     fetchData();
-  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone]);
+  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, localFilters.weekendFlag, timeStart, timeEnd, activeFilters]);
 
 
   // --------------- TRANSFORM API DATA ---------------
@@ -568,7 +688,7 @@ export default function DrilldownLatestTable() {
               quartersData[q] = {
                 impressions: imps,
                 spend: spend,
-                conversion: orders ? (clicks / orders) : 0, // Clicks / Orders
+                conversion: clicks ? (orders / clicks) : 0, // Orders / Clicks
                 cpm: imps ? ((spend / imps) * 1000) : 0,
                 roas: spend ? (adSales / spend) : 0,
                 sales: sales,
@@ -648,30 +768,40 @@ export default function DrilldownLatestTable() {
             {/* Panel Content */}
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
               <KpiFilterPanel
-                keywords={[]}
-                brands={[]}
-                categories={[]}
-                skus={[]}
-                cities={[]}
+                sectionConfig={[
+                  { id: "keywords", label: "Keywords" },
+                  { id: "brands", label: "Brands" },
+                  { id: "categories", label: "Categories" },
+                  { id: "weekendFlag", label: "Weekend Flag" },
+                  { id: "platforms", label: "Platform" },
+                  { id: "zones", label: "Zone" },
+                  { id: "kpiRules", label: "KPI Rules" },
+                ]}
+                keywords={filterOptionsData.keywords} // Keywords support linked to Category
+                brands={filterOptionsData.brands}
+                categories={filterOptionsData.categories}
+                zones={filterOptionsData.zones}
                 platforms={[]}
                 kpiFields={Object.keys(KPI_LABELS).map(key => ({
                   id: key,
                   label: KPI_LABELS[key],
                   type: 'number'
                 }))}
-                onKeywordChange={() => { }}
-                onBrandChange={() => { }}
-                onCategoryChange={() => { }}
-                onSkuChange={() => { }}
+                onKeywordChange={(ids) => setActiveFilters(prev => ({ ...prev, keywords: ids }))}
+                onBrandChange={(ids) => setActiveFilters(prev => ({ ...prev, brands: ids }))}
+                onCategoryChange={(ids) => setActiveFilters(prev => ({ ...prev, categories: ids }))}
                 onWeekendChange={(vals) => {
                   const sel = (vals || []);
                   let wf = 'All';
                   if (sel.length === 1) wf = sel[0] === 'Weekend' ? 'Weekend' : sel[0] === 'Weekday' ? 'Weekday' : 'All';
                   if (sel.length >= 2) wf = 'All';
-                  setFilters((prev) => ({ ...prev, weekendFlag: wf }));
+                  setLocalFilters((prev) => ({ ...prev, weekendFlag: wf }));
+                  setActiveFilters(prev => ({ ...prev, weekendFlag: vals || [] }));
                 }}
-                onCityChange={() => { }}
-                onPlatformChange={() => { }}
+                onZoneChange={(ids) => setActiveFilters(prev => ({ ...prev, zones: ids }))}
+                onPlatformChange={(ids) => setActiveFilters(prev => ({ ...prev, platforms: ids }))}
+                onRulesChange={(tree) => setActiveFilters(prev => ({ ...prev, kpiRules: tree }))}
+                sectionValues={activeFilters}
               />
             </div>
 
