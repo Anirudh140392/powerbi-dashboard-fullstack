@@ -1277,27 +1277,37 @@ const getOsaDetailByCategory = async (filters) => {
                 const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
                 dateFilter = {
                     [Op.between]: [
-                        currentStartDate.toDate(),
-                        currentEndDate.toDate()
+                        currentStartDate.format('YYYY-MM-DD'),
+                        currentEndDate.format('YYYY-MM-DD')
                     ]
                 };
-                // Generate date array for response
-                for (let i = 30; i >= 0; i--) {
-                    datesToUse.push(currentEndDate.subtract(i, 'day').format('YYYY-MM-DD'));
+                // Generate date array for response - only for the selected range
+                const daysDiff = currentEndDate.diff(currentStartDate, 'day');
+                for (let i = 0; i <= daysDiff; i++) {
+                    datesToUse.push(currentStartDate.add(i, 'day').format('YYYY-MM-DD'));
                 }
             } else {
-                // Default: last 31 days
-                const currentEndDate = endDate ? dayjs(endDate) : dayjs();
-                const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
+                // OSA Detail View: Show ENTIRE MONTH based on selected date range
+                // Extract the month from endDate (or startDate) and show all days of that month
+                const referenceDate = endDate ? dayjs(endDate) : (startDate ? dayjs(startDate) : dayjs());
+
+                // Get first and last day of the month
+                const monthStart = referenceDate.startOf('month');
+                const monthEnd = referenceDate.endOf('month');
+
+                console.log(`[getOsaDetailByCategory] Showing full month: ${monthStart.format('YYYY-MM-DD')} to ${monthEnd.format('YYYY-MM-DD')}`);
+
                 dateFilter = {
                     [Op.between]: [
-                        currentStartDate.toDate(),
-                        currentEndDate.toDate()
+                        monthStart.format('YYYY-MM-DD'),
+                        monthEnd.format('YYYY-MM-DD')
                     ]
                 };
-                // Generate date array for response
-                for (let i = 30; i >= 0; i--) {
-                    datesToUse.push(currentEndDate.subtract(i, 'day').format('YYYY-MM-DD'));
+
+                // Generate date array for the entire month
+                const daysInMonth = monthEnd.date(); // number of days in the month
+                for (let i = 1; i <= daysInMonth; i++) {
+                    datesToUse.push(monthStart.date(i).format('YYYY-MM-DD'));
                 }
             }
 

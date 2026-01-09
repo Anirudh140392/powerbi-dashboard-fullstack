@@ -38,6 +38,24 @@ const pct = (value) =>
   Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
+// ---------------------------------------------------------------------------
+// Floating Loader Component - Shows overlay while data is refreshing
+// ---------------------------------------------------------------------------
+const FloatingLoader = ({ loading = false, label = "Loading..." }) => {
+  if (!loading) return null;
+
+  return (
+    <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-20 flex items-center justify-center rounded-3xl transition-opacity duration-200">
+      <div className="flex items-center gap-3 bg-white/90 px-5 py-3 rounded-full shadow-lg border border-slate-200">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-200 border-t-slate-700"></div>
+        </div>
+        <span className="text-sm font-medium text-slate-600">{label}</span>
+      </div>
+    </div>
+  );
+};
+
 const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-slate-100 p-4 flex flex-col gap-4">
@@ -197,7 +215,9 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {} }) => 
   const active = tabs.find((t) => t.key === activeTab);
 
   return (
-    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+    <div className="relative rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+      {/* Floating loader overlay */}
+      <FloatingLoader loading={active.loading} label={`Loading ${active.label}...`} />
 
       {/* -------- TABS -------- */}
       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
@@ -213,16 +233,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {} }) => 
         ))}
       </div>
 
-      {/* -------- LOADING STATE -------- */}
-      {active.loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div>
-          <span className="ml-3 text-slate-600">Loading {active.label} data...</span>
-        </div>
-      ) : (
-        /* -------- MATRIX TABLE -------- */
-        <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
-      )}
+      {/* -------- MATRIX TABLE (always render, loader overlays) -------- */}
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
     </div>
   );
 };
@@ -1299,7 +1311,7 @@ export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false
         <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
         {/* <SignalLabVisibility type="availability" /> */}
         <TabbedHeatmapTable olaMode={availability} apiData={apiData} filters={filters} />
-        <OsaHeatmapTable olaMode={availability} />
+        <OsaHeatmapTable olaMode={availability} filters={filters} />
 
       </div>
     </div>
