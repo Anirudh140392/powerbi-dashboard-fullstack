@@ -934,14 +934,16 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     };
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
 
-    const PRIMARY_METRICS = {
-        visibility: { label: "Overall Sos", key: "overallSos" },
-        availability: { label: "Overall OSA", key: "weightedOsa" }
-    };
+    // const configMap = {
+    //     availability: { label: "Offtake", key: "weightedOsa" },
+    //     sales: { label: "Offtake", key: "offtakeValue" },
+    //     performance: { label: "Offtake", key: "roas" },
+    //     visibility: { label: "Offtake", key: "overallSos" },
+    //     inventory: { label: "Offtake", key: "doi" }
+    // };
 
-    const primary = PRIMARY_METRICS[metricType] || { label: "Offtake", key: "offtakeValue" };
-    // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
-    const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
+    const config = { label: "Offtake", key: "offtakeValue" };
+    const mainValue = config.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[config.key] || sku.offtakeValue);
 
     return (
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px]">
@@ -958,33 +960,46 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     </span>
                 </div>
 
-                <div>
-                    <div className="text-sm font-semibold">{sku.skuName}</div>
-                    <div className="text-xs text-slate-500">{sku.packSize}</div>
+                <div className="min-h-[40px]">
+                    <div className="text-sm font-semibold truncate-2-lines line-clamp-2 leading-tight" title={sku.skuName}>
+                        {sku.skuName}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{sku.packSize}</div>
                 </div>
 
-                <div className="mt-3 flex justify-between text-xs">
+                <div className="mt-3 flex justify-between items-end text-xs">
                     <div>
-                        <div className="text-slate-400">
-                            {metricType === "inventory" ? "DOI" : "Offtake"}
+                        <div className="text-slate-400 text-[10px] uppercase font-medium tracking-wider mb-0.5">
+                            {config.label}
                         </div>
-                        <div className="text-base font-semibold">
-                            {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
+                        <div className="text-lg font-bold text-slate-900 leading-none">
+                            {mainValue}
                         </div>
                     </div>
                     <ImpactPill value={sku.impact} />
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
+                    {/* Secondary KPI: Always show Offtake if it's not the primary metric */}
+                    {config.key !== "offtakeValue" && sku.offtakeValue && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full shadow-sm">
+                            <span className="text-slate-500 font-medium">Offtake:</span>
+                            <span className="font-bold text-slate-800 text-[11px]">
+                                {sku.offtakeValue}
+                            </span>
+                        </div>
+                    )}
+
                     {kpiKeys.map((key) =>
                         sku.kpis[key] ? (
                             <div
                                 key={key}
-                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full"
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-white border border-slate-100 rounded-full shadow-sm"
                             >
                                 <span className="text-slate-500">{KPI_LABELS[key]}:</span>
                                 <span className="font-semibold text-slate-800 text-[11px]">
                                     {sku.kpis[key]?.toString().replace("%", "")}
+                                    {key.toLowerCase().includes("sos") || key.toLowerCase().includes("share") ? "%" : ""}
                                 </span>
                             </div>
                         ) : null
@@ -1029,10 +1044,15 @@ function SignalLabBase({ metricType, usePagination = true }) {
     const [page, setPage] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
-    // API data - either from API or sample data (no mixing)
-    const [skusData, setSkusData] = useState(SAMPLE_SKUS);
+    // API data - initially empty to show loader
+    const [skusData, setSkusData] = useState([]);
     const [isUsingApiData, setIsUsingApiData] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    // Reset pagination when tab or signal type changes
+    useEffect(() => {
+        setPage(1);
+    }, [metricType, signalType]);
 
     // Get filters from FilterContext (from Header.jsx)
     const {
@@ -1062,18 +1082,11 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
                     type: metricType,
                     signalType: signalType,
-                    page: page,
-                    limit: rowsPerPage
+                    page: 1, // Reset page for Top N view
+                    limit: 50 // Fetch a larger sample to ensure representation of top 8
                 });
 
-                console.log('[SignalLabVisibility] Fetching API data with filters:', {
-                    platform,
-                    brand: selectedBrand,
-                    location: selectedLocation,
-                    metricType,
-                    signalType,
-                    page
-                });
+                console.log(`[SignalLabVisibility] Fetching Top ${signalType}s for ${metricType} (Limit 50)`);
 
                 const response = await fetch(
                     `http://localhost:5000/api/availability-analysis/signal-lab?${queryParams}`,
@@ -1087,23 +1100,40 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 const data = await response.json();
 
                 if (isMounted) {
-                    console.log('[SignalLabVisibility] API Response:', data);
+                    console.log('[SignalLabVisibility] API Response received');
 
-                    // Use API data directly (no merging)
                     if (data.skus && data.skus.length > 0) {
-                        setSkusData(data.skus);
-                        setTotalCount(data.total || 0);
+                        // Helper to parse impact string (e.g. "+5.2%" -> 5.2)
+                        const parseImpact = (str) => {
+                            if (!str) return 0;
+                            const num = parseFloat(str.replace(/[+%]/g, ''));
+                            return isNaN(num) ? 0 : num;
+                        };
+
+                        // Sort by impact locally
+                        const sorted = [...data.skus].sort((a, b) => {
+                            const valA = parseImpact(a.impact);
+                            const valB = parseImpact(b.impact);
+                            // Gainer: highest at top, Drainer: lowest (most negative) at top
+                            return signalType === 'gainer' ? valB - valA : valA - valB;
+                        });
+
+                        // Take only top 8
+                        const top8 = sorted.slice(0, 8);
+
+                        setSkusData(top8);
+                        setTotalCount(top8.length);
                         setIsUsingApiData(true);
                     } else if (data.skus && data.skus.length === 0) {
                         setSkusData([]);
                         setTotalCount(0);
                         setIsUsingApiData(true);
                     } else {
-                        // No valid data structure, use sample data
-                        setSkusData(SAMPLE_SKUS);
-                        setTotalCount(SAMPLE_SKUS.length);
-                        setIsUsingApiData(false);
-                        console.log('[SignalLabVisibility] No API data, using sample data');
+                        // No valid data structure, show empty state
+                        setSkusData([]);
+                        setTotalCount(0);
+                        setIsUsingApiData(true);
+                        console.log('[SignalLabVisibility] Invalid API data format');
                     }
                 }
             } catch (err) {
@@ -1113,11 +1143,10 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 }
                 if (isMounted) {
                     console.error('[SignalLabVisibility] Error fetching API data:', err);
-                    // API failed, use sample data
-                    setSkusData(SAMPLE_SKUS);
-                    setTotalCount(SAMPLE_SKUS.length);
-                    setIsUsingApiData(false);
-                    console.log('[SignalLabVisibility] API failed, using sample data');
+                    // If API fails, show empty state instead of sample data as requested
+                    setSkusData([]);
+                    setTotalCount(0);
+                    setIsUsingApiData(true);
                 }
             } finally {
                 if (isMounted) {
@@ -1134,13 +1163,13 @@ function SignalLabBase({ metricType, usePagination = true }) {
         };
     }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd, page, rowsPerPage, signalType]);
 
-    // Use API data directly
-    const filtered = skusData; // With server-side pagination, skusData IS the filtered page
-
+    // Implement client-side pagination for the Top 8 items
+    const filtered = skusData;
     const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
 
-    const pageRows = skusData; // Direct assignment as API returns paginated data
+    const startIndex = (safePage - 1) * rowsPerPage;
+    const pageRows = usePagination ? skusData.slice(startIndex, startIndex + rowsPerPage) : skusData;
 
 
     return (
@@ -1150,18 +1179,30 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     Signal Lab — Kwality Wall&apos;s ({metricType === "performance" ? "Performance Marketing" : metricType})
                 </h2>
 
-                <SegmentedSwitch
-                    value={signalType}
-                    onChange={setSignalType}
-                    options={[
-                        { value: "drainer", label: "Drainers" },
-                        { value: "gainer", label: "Gainers" },
-                    ]}
-                />
+                <div className="relative">
+                    <SegmentedSwitch
+                        value={signalType}
+                        onChange={setSignalType}
+                        options={[
+                            { value: "drainer", label: "Drainers" },
+                            { value: "gainer", label: "Gainers" },
+                        ]}
+                    />
+
+                    {/* Subtle Top Loader when refreshing existing data */}
+                    {loading && skusData.length > 0 && (
+                        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
+                            <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm border px-3 py-1 rounded-full shadow-sm">
+                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-sky-600 border-r-transparent"></div>
+                                <span className="text-[10px] font-medium text-slate-600 italic">Updating...</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Loading State */}
-            {loading && (
+            {/* Loading State (Overlay style if data exists, otherwise full spinner) */}
+            {loading && skusData.length === 0 && (
                 <div className="mt-5 flex items-center justify-center py-12">
                     <div className="text-center">
                         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sky-600 border-r-transparent"></div>
@@ -1172,28 +1213,23 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
             {/* No Data Found */}
             {!loading && filtered.length === 0 && (
-                <div className="mt-5 flex items-center justify-center py-12">
-                    <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
-                            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                            </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-slate-700 mb-2">No Data Found</h3>
-                        <p className="text-sm text-slate-500">
-                            No {signalType === 'drainer' ? 'drainers' : 'gainers'} found for the selected filters.
-                        </p>
-                        <p className="text-xs text-slate-400 mt-2">
-                            Try adjusting your filters or check back later.
-                        </p>
+                <div className="mt-5 flex items-center justify-center py-12 text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4 mx-auto">
+                        <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
                     </div>
+                    <h3 className="text-lg font-semibold text-slate-700 mb-2">No Data Found</h3>
+                    <p className="text-sm text-slate-500">
+                        No {signalType === 'drainer' ? 'drainers' : 'gainers'} found for the selected filters.
+                    </p>
                 </div>
             )}
 
-            {/* Data Grid */}
-            {!loading && filtered.length > 0 && (
-                <div className="mt-5">
-                    <div className="grid grid-cols-4 gap-4 items-start">
+            {/* Data Grid (Shown if data exists, regardless of loading state) */}
+            {skusData.length > 0 && (
+                <div className={`mt-5 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
+                    <div className="flex flex-wrap gap-5 justify-start">
                         {pageRows.map((s) => (
                             <SignalCard
                                 key={s.id}

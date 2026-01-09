@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from "react";
-import { Box } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import SalesSummaryCards from "./SalesSummaryCards";
 import CityKpiTrendShowcase from "../../components/CityKpiTrendShowcase";
@@ -20,34 +20,39 @@ export default function SalesMainPage() {
   } = useContext(FilterContext);
 
   const [summaryData, setSummaryData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const controller = new AbortController();
+    const signal = controller.signal;
 
-  const fetchSalesOverview = async () => {
-    try {
-      setLoading(true);
-      const queryParams = new URLSearchParams({
-        platform: platform || "All",
-        brand: selectedBrand || "All",
-        location: selectedLocation || "All",
-        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
-        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
-        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
-        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
-      });
+    const fetchSalesOverview = async () => {
+      try {
+        setLoading(true);
+        const queryParams = new URLSearchParams({
+          platform: platform || "All",
+          brand: selectedBrand || "All",
+          location: selectedLocation || "All",
+          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
+          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
+          compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
+          compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
+        });
 
-      const response = await fetch(`/api/sales/overview?${queryParams}`);
-      if (!response.ok) throw new Error("Failed to fetch sales overview");
-      const data = await response.json();
-      setSummaryData(data);
-    } catch (error) {
-      console.error("Error fetching sales overview:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const response = await fetch(`/api/sales/overview?${queryParams}`, { signal });
+        if (!response.ok) throw new Error("Failed to fetch sales overview");
+        const data = await response.json();
+        setSummaryData(data);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        console.error("Error fetching sales overview:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  React.useEffect(() => {
     fetchSalesOverview();
+
+    return () => controller.abort();
   }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
   return (
@@ -74,7 +79,13 @@ export default function SalesMainPage() {
           }}
         >
           {/* ---------------- KPI Cards ---------------- */}
-          <SalesSummaryCards data={summaryData} loading={loading} />
+          {!loading && !summaryData ? (
+            <Box sx={{ p: 4, textAlign: 'center', border: '1px dashed #ccc', borderRadius: 2 }}>
+              <Typography variant="body2" color="text.secondary">No sales data available for the selected filters.</Typography>
+            </Box>
+          ) : (
+            <SalesSummaryCards data={summaryData} loading={loading} />
+          )}
 
           {/* ---------------- Gainers / Drainers ---------------- */}
           <SalesGainerDrainerWrapper />

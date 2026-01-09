@@ -1,4 +1,4 @@
-import { Card, CardContent, Typography, Box } from "@mui/material";
+import { Card, CardContent, Typography, Box, Skeleton, CircularProgress } from "@mui/material";
 import MiniSparkline from "./MiniSparkLine";
 import dayjs from "dayjs";
 
@@ -32,6 +32,30 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
   const values = card.sparklineData || generateValues(months.length);
   const positive = card.change && (card.change.includes("▲") || card.change.includes("+"));
   const color = positive ? "#28a745" : "#dc3545";
+
+  // Handle Loading state
+  if (card.loading) {
+    return (
+      <Card
+        sx={{
+          flexShrink: 0,
+          width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+          borderRadius: 3,
+          scrollSnapAlign: "start",
+          transition: "0.25s",
+          bgcolor: "#fcfdfe",
+          border: "1px solid #e2e8f0",
+        }}
+      >
+        <CardContent>
+          <Skeleton variant="text" width="60%" height={24} sx={{ mb: 1 }} />
+          <Skeleton variant="rectangular" width="80%" height={40} sx={{ mb: 2, borderRadius: 1 }} />
+          <Skeleton variant="text" width="40%" height={24} sx={{ mb: 1 }} />
+          <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 1 }} />
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Handle "Coming Soon" state
   if (card.isComingSoon) {

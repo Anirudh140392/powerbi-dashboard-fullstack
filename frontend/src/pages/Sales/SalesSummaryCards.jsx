@@ -72,8 +72,8 @@ export default function SalesSummaryCards({ data, loading }) {
     const cards = [
         {
             title: "Overall Sales",
-            value: loading ? "Loading..." : `₹${formatValue(overallValue)}`,
-            sub: "",
+            value: `₹${formatValue(overallValue)}`,
+            loading: loading,
             change: changeText,
             changeColor: changeColor,
             prevText: changePerc !== null ? "vs Prev Period" : "",
@@ -82,8 +82,8 @@ export default function SalesSummaryCards({ data, loading }) {
         },
         {
             title: "MTD Sales",
-            value: loading ? "Loading..." : `₹${formatValue(mtdValue)}`,
-            sub: "",
+            value: `₹${formatValue(mtdValue)}`,
+            loading: loading,
             change: mtdChangeText,
             changeColor: mtdChangeColor,
             prevText: mtdChangePerc !== null ? "vs Last Month" : "",
@@ -95,8 +95,8 @@ export default function SalesSummaryCards({ data, loading }) {
         },
         {
             title: "Current DRR",
-            value: loading ? "Loading..." : `₹${formatValue(drrValue)}`,
-            sub: "",
+            value: `₹${formatValue(drrValue)}`,
+            loading: loading,
             change: drrChangeText,
             changeColor: drrChangeColor,
             prevText: drrChangePerc !== null ? "vs Prev Period" : "",
@@ -108,8 +108,8 @@ export default function SalesSummaryCards({ data, loading }) {
         },
         {
             title: "Projected Sales",
-            value: loading ? "Loading..." : `₹${formatValue(projectedValue)}`,
-            sub: "",
+            value: `₹${formatValue(projectedValue)}`,
+            loading: loading,
             change: projChangeText,
             changeColor: projChangeColor,
             prevText: projChangePerc !== null ? "vs Last Month" : "",
