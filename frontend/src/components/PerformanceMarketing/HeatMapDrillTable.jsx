@@ -1,5 +1,5 @@
 // HeatMapDrillTable.jsx
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useContext } from "react";
 import {
   Box,
   Card,
@@ -16,12 +16,15 @@ import {
   Chip,
   Select,
   MenuItem,
+  CircularProgress,
 } from "@mui/material";
 
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp, LineChart, SlidersHorizontal, X } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
 
+import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 import performanceData from "../../utils/PerformanceMarketingData";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import PerformanceTrendDatas from "./PerformanceTrendDatas";
@@ -176,6 +179,87 @@ const evaluateRule = (rowValues, rule) => {
 
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
+  // Get filter context for API calls
+  const { pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd } = useContext(FilterContext);
+
+  // API data state
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedQuarter, setSelectedQuarter] = useState("Q1"); // Spend class filter (Q1-Q4)
+
+  // ---------- FILTERS STATE ----------
+  const [activeFilters, setActiveFilters] = useState({
+    brands: [],     // Formats
+    zones: [],      // Zones (replaced Region/City)
+    keywords: [],
+    skus: [],
+    platforms: [],
+    kpiRules: null,
+    weekendFlag: [],
+  });
+
+  // Filter Options State
+  const [filterOptionsData, setFilterOptionsData] = useState({
+    brands: [],
+    zones: [],
+  });
+
+  // Fetch Filter Options (Brands, Zones)
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [brandsRes, zonesRes] = await Promise.all([
+          axiosInstance.get('/performance-marketing/brands', { params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform } }),
+          axiosInstance.get('/performance-marketing/zones')
+        ]);
+
+        console.log("DEBUG: Brands Response:", brandsRes.data);
+        console.log("DEBUG: Zones Response:", zonesRes.data);
+
+        const formatOptions = (list) => list.map(item => ({ id: item, label: item, value: item }));
+
+        setFilterOptionsData({
+          brands: formatOptions(brandsRes.data || []),
+          zones: formatOptions(zonesRes.data || [])
+        });
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+    fetchOptions();
+  }, [pmSelectedPlatform]);
+
+  // Fetch keyword type performance from API
+  useEffect(() => {
+    const fetchKeywordTypeData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : (pmSelectedPlatform || 'All'),
+          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand),
+          zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone),
+          startDate: timeStart,
+          endDate: timeEnd,
+          spendClass: selectedQuarter, // Q1, Q2, Q3, Q4 filter by acos_spend_class
+          weekendFlag: activeFilters.weekendFlag?.join(','), // Send weekend/weekday filter
+          // Keywords kept client-side for now to ensure filter list population
+        };
+        const response = await axiosInstance.get('/performance-marketing/keyword-type-performance', { params });
+        setApiData(response.data);
+      } catch (error) {
+        console.error('Error fetching keyword type performance:', error);
+        // Fallback to static data on error
+        setApiData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchKeywordTypeData();
+  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd, selectedQuarter, activeFilters.brands, activeFilters.zones, activeFilters.weekendFlag]);
+
+
+  // Use API data if available, otherwise fallback to static data
   const {
     heatmapData,
     heatmapDataSecond,
@@ -184,7 +268,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     heatmapDataFifth,
   } = performanceData;
 
-  const collectedData =
+  const staticCollectedData =
     selectedInsight === "All Campaign Summary"
       ? heatmapData
       : selectedInsight === "Q1 - Performing Well"
@@ -197,32 +281,34 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  const LEVEL_TITLES = ["Keyword Type", "Keyword", "Region"];
+  // Sync selectedQuarter with selectedInsight from parent
+  useEffect(() => {
+    if (!selectedInsight) return;
+    if (selectedInsight.includes("Q1")) setSelectedQuarter("Q1");
+    else if (selectedInsight.includes("Q2")) setSelectedQuarter("Q2");
+    else if (selectedInsight.includes("Q3")) setSelectedQuarter("Q3");
+    else if (selectedInsight.includes("Q4")) setSelectedQuarter("Q4");
+  }, [selectedInsight]);
+
+  // Use API data when available, fallback to static
+  const collectedData = apiData || staticCollectedData;
+
+  const LEVEL_TITLES = ["Keyword Type", "Keyword", "Zone"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
   const [expanded, setExpanded] = useState({});
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [selectedQuarter, setSelectedQuarter] = useState("Q4");
+  const [showTrends, setShowTrends] = useState(false);
+  const [trendState, setTrendState] = useState(null);
+  const [selectedMetrics, setSelectedMetrics] = useState(["spend", "conv"]);
+  const [chartType, setChartType] = useState("line");
   const [page, setPage] = useState(1);
-  // ---------- FILTERS STATE ----------
-  const [activeFilters, setActiveFilters] = useState({
-    brands: [],     // Formats
-    categories: [], // Regions
-    cities: [],
-    keywords: [],
-    skus: [],
-    platforms: [],
-    kpiRules: null,
-    weekendFlag: [],
-  });
-
   // ---------- DATA EXTRACTION FOR FILTERS ----------
   const filterOptions = useMemo(() => {
     const opts = {
       brands: new Map(),
-      categories: new Map(),
-      cities: new Map(),
+      zones: new Map(),
       keywords: new Map(),
     };
 
@@ -231,9 +317,13 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         const item = { id: node.label, label: node.label, value: 0 };
 
         if (level === 0) opts.brands.set(node.label, item);
-        else if (level === 1) opts.categories.set(node.label, item);
-        else if (level === 2) opts.cities.set(node.label, item);
-        else if (node.isKeyword || level === 3) opts.keywords.set(node.label, item);
+
+        // Use explicit flag if available, otherwise fallback to level 1
+        if (node.isKeyword || level === 1) {
+          opts.keywords.set(node.label, item);
+        }
+
+        if (level === 2) opts.zones.set(node.label, item); // Zone is at level 2 (Region level)
 
         if (node.children) traverse(node.children, level + 1);
       });
@@ -245,8 +335,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
     return {
       brands: Array.from(opts.brands.values()),
-      categories: Array.from(opts.categories.values()),
-      cities: Array.from(opts.cities.values()),
+      zones: Array.from(opts.zones.values()),
       keywords: Array.from(opts.keywords.values()),
       kpiFields: METRICS.map((m) => ({ id: m.key, label: m.label, type: "number" })),
     };
@@ -256,10 +345,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
   const filteredDataRows = useMemo(() => {
     if (!collectedData?.rows) return [];
 
-    const { brands, categories, cities, keywords, kpiRules } = activeFilters;
+    const { brands, zones, keywords, kpiRules } = activeFilters;
     const hasBrandFilter = brands.length > 0;
-    const hasRegionFilter = categories.length > 0;
-    const hasCityFilter = cities.length > 0;
+    const hasZoneFilter = zones.length > 0;
     const hasKwFilter = keywords.length > 0;
     const hasKpiRules = kpiRules && kpiRules.children && kpiRules.children.length > 0;
 
@@ -277,9 +365,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
         // 1. Check Level Filters
         if (level === 0 && hasBrandFilter && !brands.includes(node.label)) keep = false;
-        else if (level === 1 && hasRegionFilter && !categories.includes(node.label)) keep = false;
-        else if (level === 2 && hasCityFilter && !cities.includes(node.label)) keep = false;
-        else if ((level === 3 || node.isKeyword) && hasKwFilter && !keywords.includes(node.label)) keep = false;
+        else if (level === 1 && hasKwFilter && !keywords.includes(node.label)) keep = false;
+        else if (level === 2 && hasZoneFilter && !zones.includes(node.label)) keep = false;
 
         // 2. Check KPI Rules (on this node's values)
         if (keep && hasKpiRules && node.values) {
@@ -318,15 +405,6 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
     return filterRecursive(collectedData.rows, 0);
   }, [collectedData, activeFilters, selectedQuarter]);
-
-  const [trendState, setTrendState] = useState(null); // { node, path }
-  const [showTrends, setShowTrends] = useState(false);
-  const [chartType, setChartType] = useState("line"); // 'line' | 'area' | 'bar'
-  const [selectedMetrics, setSelectedMetrics] = useState([
-    "spend",
-    "conv",
-    "roas",
-  ]);
 
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -700,8 +778,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     <>
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {filterPanelOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-16 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[600px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -722,24 +800,22 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 sectionConfig={[
                   { id: "brands", label: "Format" },
                   { id: "weekendFlag", label: "Weekend Flag" },
-                  { id: "categories", label: "Region" },
-                  { id: "cities", label: "City" },
+                  { id: "zones", label: "Zone" },
                   { id: "keywords", label: "Keyword" },
                   { id: "kpiRules", label: "KPI Rules" },
                 ]}
                 keywords={filterOptions.keywords}
-                brands={filterOptions.brands}
-                categories={filterOptions.categories}
+                brands={filterOptionsData.brands.length > 0 ? filterOptionsData.brands : filterOptions.brands}
+                zones={filterOptionsData.zones.length > 0 ? filterOptionsData.zones : (filterOptions.zones || filterOptions.categories)}
                 skus={[]}
-                cities={filterOptions.cities}
                 platforms={[]}
                 kpiFields={filterOptions.kpiFields}
                 onKeywordChange={(ids) => setActiveFilters(p => ({ ...p, keywords: ids }))}
                 onBrandChange={(ids) => setActiveFilters(p => ({ ...p, brands: ids }))}
-                onCategoryChange={(ids) => setActiveFilters(p => ({ ...p, categories: ids }))}
+                onZoneChange={(ids) => setActiveFilters(p => ({ ...p, zones: ids }))}
                 onWeekendChange={(vals) => setActiveFilters(p => ({ ...p, weekendFlag: vals || [] }))}
-                onCityChange={(ids) => setActiveFilters(p => ({ ...p, cities: ids }))}
                 onRulesChange={(tree) => setActiveFilters(p => ({ ...p, kpiRules: tree }))}
+                sectionValues={activeFilters}
               />
             </div>
 
@@ -785,9 +861,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             </Box>
 
             <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-              {selectedInsight === "All Campaign Summary"
-                ? "Keyword Type → Keyword → Region"
-                : "AD Property → GROUP → KEYWORD"}
+              Keyword Type → Keyword → Zone
             </Typography>
           </Box>
 
@@ -972,11 +1046,24 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             </TableHead>
 
             <TableBody>
-              {filteredRows
-                .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
-                .map((row) => renderRow(row, 0, []))}
-
-
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={collectedData?.headers?.length + 2 || 8} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={32} sx={{ color: '#6366f1' }} />
+                    <Typography sx={{ mt: 2, fontSize: 13, color: '#64748b' }}>Loading keyword types...</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : filteredRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={collectedData?.headers?.length + 2 || 8} align="center" sx={{ py: 6 }}>
+                    <Typography sx={{ fontSize: 13, color: '#94a3b8' }}>No keyword types found</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredRows
+                  .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
+                  .map((row) => renderRow(row, 0, []))
+              )}
             </TableBody>
           </Table>
         </TableContainer >

@@ -1,4 +1,4 @@
-import { KpisOverview, GetZones, GetPlatforms, GetBrands, GetCampaignQuadrants, GetFormatPerformance } from '../controllers/performanceMarketingController.js';
+import { KpisOverview, GetZones, GetPlatforms, GetBrands, GetCampaignQuadrants, GetFormatPerformance, GetKeywordTypePerformance, GetCategories, GetKeywordAnalysis, GetKeywords } from '../controllers/performanceMarketingController.js';
 
 export default (app) => {
     /**
@@ -33,4 +33,16 @@ export default (app) => {
 
     // Route for Format Performance (Category data from RCA table)
     app.get('/api/performance-marketing/format-performance', GetFormatPerformance);
+
+    // Route for Keyword Type Performance (HeatMapDrillTable data)
+    app.get('/api/performance-marketing/keyword-type-performance', GetKeywordTypePerformance);
+
+    // Route for Categories
+    app.get('/api/performance-marketing/categories', GetCategories);
+
+    // Route for Keywords (filtered by Category)
+    app.get('/api/performance-marketing/keywords', GetKeywords);
+
+    // Route for Keyword Analysis (Dynamic Data)
+    app.get('/api/performance-marketing/keyword-analysis', GetKeywordAnalysis);
 };

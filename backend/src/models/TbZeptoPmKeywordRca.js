@@ -52,11 +52,17 @@ const TbZeptoPmKeywordRca = sequelize.define('tb_zepto_pm_keyword_rca', {
     keyword_category: {
         type: DataTypes.STRING
     },
+    keyword_type: {
+        type: DataTypes.STRING
+    },
     roas: {
         type: DataTypes.DECIMAL(10, 4)
     },
     acos: {
         type: DataTypes.DECIMAL(10, 4)
+    },
+    acos_spend_class: {
+        type: DataTypes.STRING
     }
 }, {
     tableName: 'tb_zepto_pm_keyword_rca',
