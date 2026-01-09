@@ -584,12 +584,15 @@ const KPI_CACHE_TTL = 3600; // 1 hour
  * Generate cache key for monthly KPI aggregations
  */
 const getKPICacheKey = (platform, month, brand, location) => {
+    // Handle array values for brand and location
+    const brandStr = Array.isArray(brand) ? brand.join(',') : (brand?.toLowerCase() || 'all');
+    const locationStr = Array.isArray(location) ? location.join(',') : (location?.toLowerCase() || 'all');
     const parts = [
         KPI_KEY_PREFIX,
         platform?.toLowerCase() || 'all',
         month, // YYYY-MM format
-        brand?.toLowerCase() || 'all',
-        location?.toLowerCase() || 'all'
+        brandStr,
+        locationStr
     ];
     return parts.join(':');
 };
@@ -764,7 +767,8 @@ export async function getPreAggregatedMonthlyData(platform, months = []) {
  * @returns {Map<string, Object>} - Map of month -> aggregated data
  */
 export async function getBrandMonthlyData(platform, brand, months = []) {
-    if (!redisClient.isReady() || !brand || brand === 'All') return null;
+    // Skip for multi-brand arrays or 'All'
+    if (!redisClient.isReady() || !brand || brand === 'All' || Array.isArray(brand)) return null;
 
     try {
         const keys = getKeys(platform);

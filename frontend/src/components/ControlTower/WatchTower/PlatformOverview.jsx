@@ -154,6 +154,16 @@ const PlatformOverview = ({
   activeKpisTab = "Platform Overview",
   currentPage,
   setCurrentPage = () => { },
+  // Platform/Category dropdown props from parent
+  monthOverviewPlatform = "Zepto",
+  onMonthPlatformChange = () => { },
+  categoryOverviewPlatform = "Zepto",
+  onCategoryPlatformChange = () => { },
+  brandsOverviewPlatform = "Zepto",
+  onBrandsPlatformChange = () => { },
+  brandsOverviewCategory = "All",
+  onBrandsCategoryChange = () => { },
+  filters = {},
 }) => {
   const theme = useTheme();
 
@@ -161,11 +171,72 @@ const PlatformOverview = ({
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isPagination, setIsPagination] = React.useState(true);
 
-  const [platformFilter, setPlatformFilter] = React.useState({
-    platform: "blinkit",
-    category: "Core Tub",
-    brand: "Amul",
-  });
+  // Fetch platform options from API
+  const [platformOptions, setPlatformOptions] = React.useState(["Zepto", "Blinkit", "Instamart"]);
+  const [categoryOptions, setCategoryOptions] = React.useState(["All"]);
+
+  // Fetch platforms from API
+  React.useEffect(() => {
+    const fetchPlatforms = async () => {
+      try {
+        const response = await fetch("/api/watchtower/platforms");
+        const data = await response.json();
+        if (data && data.length > 0) {
+          setPlatformOptions(data);
+        }
+      } catch (error) {
+        console.log("Using default platforms");
+      }
+    };
+    fetchPlatforms();
+  }, []);
+
+  // Fetch categories from API
+  React.useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch("/api/watchtower/categories");
+        const data = await response.json();
+        if (data && data.length > 0) {
+          setCategoryOptions(["All", ...data]);
+        }
+      } catch (error) {
+        console.log("Using default categories");
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Get current platform based on active tab
+  const getCurrentPlatform = () => {
+    switch (activeKpisTab) {
+      case "Month Overview":
+        return monthOverviewPlatform;
+      case "Category Overview":
+        return categoryOverviewPlatform;
+      case "Brands Overview":
+        return brandsOverviewPlatform;
+      default:
+        return filters.platform || "Zepto";
+    }
+  };
+
+  // Handle platform change based on active tab
+  const handlePlatformChange = (newPlatform) => {
+    switch (activeKpisTab) {
+      case "Month Overview":
+        onMonthPlatformChange(newPlatform);
+        break;
+      case "Category Overview":
+        onCategoryPlatformChange(newPlatform);
+        break;
+      case "Brands Overview":
+        onBrandsPlatformChange(newPlatform);
+        break;
+      default:
+        break;
+    }
+  };
 
   const CARDS_PER_PAGE = 5;
 
@@ -293,13 +364,8 @@ const PlatformOverview = ({
               {activeKpisTab !== "Platform Overview" && (
                 <Select
                   size="small"
-                  value={platformFilter.platform}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({
-                      ...p,
-                      platform: e.target.value,
-                    }))
-                  }
+                  value={getCurrentPlatform()}
+                  onChange={(e) => handlePlatformChange(e.target.value)}
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -307,20 +373,19 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  <MenuItem value="blinkit">Blinkit</MenuItem>
+                  {platformOptions.map((platform) => (
+                    <MenuItem key={platform} value={platform}>
+                      {platform}
+                    </MenuItem>
+                  ))}
                 </Select>
               )}
 
               {activeKpisTab === "Brands Overview" && (
                 <Select
                   size="small"
-                  value={platformFilter.category}
-                  onChange={(e) =>
-                    setPlatformFilter((p) => ({
-                      ...p,
-                      category: e.target.value,
-                    }))
-                  }
+                  value={brandsOverviewCategory}
+                  onChange={(e) => onBrandsCategoryChange(e.target.value)}
                   sx={{
                     minWidth: 130,
                     height: 36,
@@ -328,7 +393,11 @@ const PlatformOverview = ({
                     background: "#f3f4f6",
                   }}
                 >
-                  <MenuItem value="Core Tub">Core Tub</MenuItem>
+                  {categoryOptions.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      {category}
+                    </MenuItem>
+                  ))}
                 </Select>
               )}
 

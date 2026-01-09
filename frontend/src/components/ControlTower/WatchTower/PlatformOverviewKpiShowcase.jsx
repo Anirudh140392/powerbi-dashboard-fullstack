@@ -1740,7 +1740,7 @@ const SkuTable = ({ rows }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlatform }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1835,7 +1835,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
         const selectedCategory = filters.categories.length > 0 ? filters.categories[0] : 'All';
 
         const params = {
-          platform: 'All',
+          platform: selectedPlatform || selectedItem || 'All',
           location: city !== 'All India' ? city : 'All',
           category: selectedCategory,
           brand: selectedBrands,
@@ -1882,7 +1882,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
       }
     };
     fetchCompetitionData();
-  }, [city, filters.brands, filters.categories]);
+  }, [city, filters.brands, filters.categories, selectedPlatform, selectedItem]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;

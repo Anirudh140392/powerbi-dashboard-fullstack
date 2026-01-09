@@ -13,6 +13,14 @@ function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
 }
 
+// Helper function to truncate long SKU names to 5-6 words
+function truncateName(name, maxWords = 6) {
+    if (!name) return '';
+    const words = name.split(/\s+/);
+    if (words.length <= maxWords) return name;
+    return words.slice(0, maxWords).join(' ') + '...';
+}
+
 function seededRandom(seed) {
     let t = seed % 2147483647;
     if (t <= 0) t += 2147483646;
@@ -87,7 +95,23 @@ function SortIcon({ dir }) {
     );
 }
 
-export default function OsaDetailTableLight() {
+// Floating loader component for OSA Detail View
+const FloatingLoader = ({ loading = false, label = "Loading..." }) => {
+    if (!loading) return null;
+
+    return (
+        <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-20 flex items-center justify-center rounded-2xl transition-opacity duration-200">
+            <div className="flex items-center gap-3 bg-white/90 px-5 py-3 rounded-full shadow-lg border border-slate-200">
+                <div className="relative">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-200 border-t-slate-700"></div>
+                </div>
+                <span className="text-sm font-medium text-slate-600">{label}</span>
+            </div>
+        </div>
+    );
+};
+
+export default function OsaDetailTableLight({ filters = {} }) {
     const [query, setQuery] = useState("");
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
@@ -125,19 +149,40 @@ export default function OsaDetailTableLight() {
     // State to track the applied filters (set when Apply button is clicked)
     const [appliedFilters, setAppliedFilters] = useState({});
 
-    // Fetch category OSA data from API
+    // Fetch category OSA data from API - Uses global filters from props + local advanced filters
     useEffect(() => {
         const fetchCategoryOsaData = async () => {
             try {
                 setIsLoading(true);
                 const params = new URLSearchParams({});
 
-                // Platform filter
-                if (selectedPlatform) params.append('platform', selectedPlatform);
+                // ✅ Use GLOBAL Platform filter from props (top dropdown)
+                const globalPlatform = filters.platform || selectedPlatform;
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.append('platform', globalPlatform);
+                }
 
-                // Date filter - pass selected dates
+                // ✅ Use GLOBAL Brand filter from props (top dropdown)
+                if (filters.brand && filters.brand !== 'All') {
+                    params.append('brand', filters.brand);
+                }
+
+                // ✅ Use GLOBAL Location filter from props (top dropdown)
+                if (filters.location && filters.location !== 'All') {
+                    params.append('location', filters.location);
+                }
+
+                // ✅ Use GLOBAL Date Range from props (date picker)
+                if (filters.startDate) {
+                    params.append('startDate', filters.startDate);
+                }
+                if (filters.endDate) {
+                    params.append('endDate', filters.endDate);
+                }
+
+                // Local advanced filter overrides (from Filters panel)
+                // Date filter - pass selected dates (overrides global date range if set)
                 if (appliedFilters.date && appliedFilters.date.length > 0) {
-                    // Pass dates as comma-separated string
                     params.append('dates', appliedFilters.date.join(','));
                 }
 
@@ -184,7 +229,13 @@ export default function OsaDetailTableLight() {
                     setCategoryData(transformedData);
                     if (data.dates) {
                         setApiDates(data.dates);
+                        // Update visible days based on actual date range returned
+                        setVisibleDays(Math.min(data.dates.length, 31));
                     }
+                } else {
+                    // No data - clear state
+                    setCategoryData([]);
+                    setApiDates([]);
                 }
                 console.log('[OsaDetailView] Loaded', data.categories?.length, 'categories');
             } catch (error) {
@@ -195,7 +246,7 @@ export default function OsaDetailTableLight() {
         };
 
         fetchCategoryOsaData();
-    }, [selectedPlatform, appliedFilters]);
+    }, [filters.platform, filters.brand, filters.location, filters.startDate, filters.endDate, selectedPlatform, appliedFilters]);
 
     // Fetch filter options from API
     useEffect(() => {
@@ -309,7 +360,7 @@ export default function OsaDetailTableLight() {
 
         const getVal = (r) => {
             if (dayIndex != null) {
-                const idx = clamp(dayIndex - 1, 0, 30);
+                const idx = clamp(dayIndex - 1, 0, r.values.length - 1);
                 return r.values[idx];
             }
             return r[sortKey];
@@ -352,13 +403,30 @@ export default function OsaDetailTableLight() {
         });
     };
 
-    const dayCols = DAYS.slice(0, visibleDays);
+    // Use API dates if available, otherwise fallback to indexed days
+    // Dynamic: Only shows columns for the selected date range (not always 31 days)
+    const dayCols = useMemo(() => {
+        if (apiDates && apiDates.length > 0) {
+            // Use ALL dates from API - no slicing (dynamic based on selected date range)
+            return apiDates.map((date, idx) => ({
+                idx: idx + 1,
+                date: date,
+                label: new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+            }));
+        }
+        // Fallback to indexed days when no API response yet
+        return DAYS.slice(0, visibleDays).map(d => ({
+            idx: d,
+            date: null,
+            label: `DAY ${d}`
+        }));
+    }, [apiDates, visibleDays]);
 
     return (
         <div className="rounded-3xl flex-col bg-slate-50 relative">
             <div className="flex flex-1 overflow-hidden">
                 <div className="flex-1 overflow-auto p-0 pr-0">
-                    <div className="rounded-3xl border bg-white p-4 shadow">
+                    <div className="rounded-3xl border bg-white p-4 shadow relative">
                         {/* Title + Legend */}
                         <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
                             <div className="flex flex-col gap-0.5">
@@ -366,7 +434,10 @@ export default function OsaDetailTableLight() {
                                     OSA % Detail View
                                 </div>
                                 <div className="text-xs text-slate-500 font-normal">
-                                    Last {visibleDays} Days • Sortable • Paginated
+                                    {filters.endDate
+                                        ? `${new Date(filters.endDate).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} • Full Month View`
+                                        : `Current Month`
+                                    } • Sortable • Paginated
                                 </div>
                             </div>
 
@@ -398,7 +469,10 @@ export default function OsaDetailTableLight() {
 
 
                         {/* Controls */}
-                        {/* Table */}
+                        {/* Floating Loader - shows on top of table during refresh */}
+                        <FloatingLoader loading={isLoading} label="Loading OSA data..." />
+
+                        {/* Table - always render, loader overlays */}
                         <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                             <div className="overflow-auto">
                                 <table className="min-w-[1200px] w-full border-separate border-spacing-0">
@@ -434,13 +508,13 @@ export default function OsaDetailTableLight() {
 
                                             {dayCols.map((d) => (
                                                 <th
-                                                    key={d}
+                                                    key={d.idx}
                                                     className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
-                                                    onClick={() => headerSort(`day_${d}`)}
+                                                    onClick={() => headerSort(`day_${d.idx}`)}
                                                 >
                                                     <div className="flex items-center justify-center gap-1 h-full">
-                                                        DAY {d}
-                                                        <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
+                                                        {d.label}
+                                                        <SortIcon dir={sortKey === `day_${d.idx}` ? sortDir : undefined} />
                                                     </div>
                                                 </th>
                                             ))}
@@ -460,10 +534,10 @@ export default function OsaDetailTableLight() {
                                                     <td
                                                         className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
                                                         style={{ minWidth: 280 }}
+                                                        title={r.name} // Show full name on hover
                                                     >
-                                                        <div>
-                                                            <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
-                                                            <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
+                                                        <div className="font-bold text-slate-900 leading-5 text-xs">
+                                                            {truncateName(r.name, 6)}
                                                         </div>
                                                     </td>
 
@@ -486,12 +560,12 @@ export default function OsaDetailTableLight() {
                                                     </td>
 
                                                     {dayCols.map((d) => {
-                                                        const v = r.values[d - 1];
+                                                        const v = r.values[d.idx - 1];
                                                         return (
                                                             <td
-                                                                key={d}
+                                                                key={d.idx}
                                                                 className="px-2 py-2 border-b border-slate-100 text-center"
-                                                                title={`${r.name} • Day ${d}: ${v}%`}
+                                                                title={`${r.name} • ${d.label}: ${v}%`}
                                                             >
                                                                 <span
                                                                     className={
