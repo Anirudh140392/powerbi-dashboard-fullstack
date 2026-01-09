@@ -7,10 +7,12 @@ import redisClient from '../config/redis.js';
  * @returns {string} Cache key
  */
 export function generateCacheKey(section, filters) {
+    // Handle both 'brand' and 'brand[]' keys (frontend may send as array)
+    const rawPlatform = filters['platform[]'] || filters.platform || 'all';
+    const rawBrand = filters['brand[]'] || filters.brand || 'all';
+    const rawLocation = filters['location[]'] || filters.location || 'all';
+
     const {
-        platform = 'all',
-        brand = 'all',
-        location = 'all',
         startDate = '',
         endDate = '',
         category = 'all',
@@ -23,8 +25,14 @@ export function generateCacheKey(section, filters) {
         timeStep = ''
     } = filters;
 
-    // Normalize values to lowercase for consistency
-    const normalize = (val) => String(val || 'all').toLowerCase().replace(/\s+/g, '_');
+    // Normalize values to lowercase for consistency - handle arrays
+    const normalize = (val) => {
+        if (Array.isArray(val)) {
+            // Sort for consistent cache keys regardless of selection order
+            return val.map(v => String(v || '').toLowerCase().replace(/\s+/g, '_')).sort().join(',');
+        }
+        return String(val || 'all').toLowerCase().replace(/\s+/g, '_');
+    };
 
     // Build key based on section
     let key = `watchtower:${normalize(section)}`;
@@ -34,8 +42,8 @@ export function generateCacheKey(section, filters) {
         key += `:vm_${normalize(viewMode)}`;
     }
 
-    // Add common filters
-    key += `:${normalize(platform)}:${normalize(brand)}:${normalize(location)}`;
+    // Add common filters - now properly handles arrays
+    key += `:${normalize(rawPlatform)}:${normalize(rawBrand)}:${normalize(rawLocation)}`;
 
     // Add dates if present
     if (startDate && endDate) {
