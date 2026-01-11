@@ -467,8 +467,10 @@ const ScrollRow = ({ children }) => {
                 onScroll={checkScroll}
                 sx={{
                     display: "flex",
+                    flexWrap: "nowrap",
                     gap: 1.5,
                     overflowX: "auto",
+                    overflowY: "hidden",
                     width: "100%",
                     pb: 1,
                     pt: 0.5,
@@ -903,54 +905,57 @@ export default function SalesTrendsDrawer({
                                 {/* DYNAMIC PILLS */}
                                 {/* DYNAMIC PILLS */}
                                 {showPlatformPills && (
-                                    <ScrollRow>
-                                        {(filterType === "Platform"
-                                            ? PLATFORM_OPTIONS
-                                            : filterType === "Format"
-                                                ? FORMAT_OPTIONS
-                                                : filterType === "City"
-                                                    ? CITY_OPTIONS
-                                                    : filterType === "Brand"
-                                                        ? BRAND_OPTIONS
-                                                        : []
-                                        ).map((p) => {
-                                            const isSelected =
-                                                filterType === "Platform" ? selectedPlatform === p :
-                                                    filterType === "Format" ? selectedCategory === p :
-                                                        filterType === "City" ? selectedLocationState === p :
-                                                            filterType === "Brand" ? selectedBrandState === p : false;
+                                    <Box sx={{ flex: 1, minWidth: 0, maxWidth: '600px' }}>
+                                        <ScrollRow>
+                                            {(filterType === "Platform"
+                                                ? PLATFORM_OPTIONS
+                                                : filterType === "Format"
+                                                    ? FORMAT_OPTIONS
+                                                    : filterType === "City"
+                                                        ? CITY_OPTIONS
+                                                        : filterType === "Brand"
+                                                            ? BRAND_OPTIONS
+                                                            : []
+                                            ).map((p) => {
+                                                const isSelected =
+                                                    filterType === "Platform" ? selectedPlatform === p :
+                                                        filterType === "Format" ? selectedCategory === p :
+                                                            filterType === "City" ? selectedLocationState === p :
+                                                                filterType === "Brand" ? selectedBrandState === p : false;
 
-                                            return (
-                                                <Box
-                                                    key={p}
-                                                    onClick={() => {
-                                                        if (filterType === "Platform") setSelectedPlatformState(p);
-                                                        else if (filterType === "Format") setSelectedCategory(p);
-                                                        else if (filterType === "City") setSelectedLocationState(p);
-                                                        else if (filterType === "Brand") setSelectedBrandState(p);
-                                                    }}
-                                                    sx={{
-                                                        px: 2,
-                                                        py: 0.8,
-                                                        borderRadius: "999px",
-                                                        fontSize: "12px",
-                                                        fontWeight: 600,
-                                                        cursor: "pointer",
-                                                        whiteSpace: 'nowrap',
-                                                        border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB",
-                                                        backgroundColor: isSelected ? "#0ea5e9" : "white",
-                                                        color: isSelected ? "white" : "#0f172a",
-                                                        transition: 'all 0.2s ease',
-                                                        '&:hover': {
-                                                            borderColor: '#0ea5e9',
-                                                        }
-                                                    }}
-                                                >
-                                                    {p}
-                                                </Box>
-                                            );
-                                        })}
-                                    </ScrollRow>
+                                                return (
+                                                    <Box
+                                                        key={p}
+                                                        onClick={() => {
+                                                            if (filterType === "Platform") setSelectedPlatformState(p);
+                                                            else if (filterType === "Format") setSelectedCategory(p);
+                                                            else if (filterType === "City") setSelectedLocationState(p);
+                                                            else if (filterType === "Brand") setSelectedBrandState(p);
+                                                        }}
+                                                        sx={{
+                                                            px: 2,
+                                                            py: 0.8,
+                                                            borderRadius: "999px",
+                                                            fontSize: "12px",
+                                                            fontWeight: 600,
+                                                            cursor: "pointer",
+                                                            whiteSpace: 'nowrap',
+                                                            flexShrink: 0,
+                                                            border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB",
+                                                            backgroundColor: isSelected ? "#0ea5e9" : "white",
+                                                            color: isSelected ? "white" : "#0f172a",
+                                                            transition: 'all 0.2s ease',
+                                                            '&:hover': {
+                                                                borderColor: '#0ea5e9',
+                                                            }
+                                                        }}
+                                                    >
+                                                        {p}
+                                                    </Box>
+                                                );
+                                            })}
+                                        </ScrollRow>
+                                    </Box>
                                 )}
                             </Box>
 

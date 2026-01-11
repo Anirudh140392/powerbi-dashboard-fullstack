@@ -934,15 +934,15 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     };
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
 
-    // const configMap = {
-    //     availability: { label: "Offtake", key: "weightedOsa" },
-    //     sales: { label: "Offtake", key: "offtakeValue" },
-    //     performance: { label: "Offtake", key: "roas" },
-    //     visibility: { label: "Offtake", key: "overallSos" },
-    //     inventory: { label: "Offtake", key: "doi" }
-    // };
+    const configMap = {
+        availability: { label: "Offtake", key: "offtakeValue" },
+        sales: { label: "Offtake", key: "offtakeValue" },
+        performance: { label: "Offtake", key: "offtakeValue" },
+        visibility: { label: "Offtake", key: "offtakeValue" },
+        inventory: { label: "DOI", key: "offtakeValue" }
+    };
 
-    const config = { label: "Offtake", key: "offtakeValue" };
+    const config = configMap[metricType] || { label: "Offtake", key: "offtakeValue" };
     const mainValue = config.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[config.key] || sku.offtakeValue);
 
     return (
@@ -1060,7 +1060,9 @@ function SignalLabBase({ metricType, usePagination = true }) {
         selectedBrand,
         selectedLocation,
         timeStart,
-        timeEnd
+        timeEnd,
+        compareStart,
+        compareEnd
     } = useContext(FilterContext);
 
     // Fetch data from API - use API data if successful, otherwise keep sample data
@@ -1080,6 +1082,8 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     location: selectedLocation || 'All',
                     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
                     endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
+                    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
+                    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : '',
                     type: metricType,
                     signalType: signalType,
                     page: 1, // Reset page for Top N view
@@ -1176,7 +1180,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
         <>
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <h2 className="text-lg font-semibold capitalize">
-                    Signal Lab — Kwality Wall&apos;s ({metricType === "performance" ? "Performance Marketing" : metricType})
+                    Signal Lab — {selectedBrand || 'All Brands'} ({metricType === "performance" ? "Performance Marketing" : metricType})
                 </h2>
 
                 <div className="relative">

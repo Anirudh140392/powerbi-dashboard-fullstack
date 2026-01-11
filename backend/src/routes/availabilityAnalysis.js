@@ -11,7 +11,8 @@ import {
     getAvailabilityCompetition,
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends,
-    getSignalLabData
+    getSignalLabData,
+    getCityDetailsForProduct
 } from '../controllers/availabilityAnalysisController.js';
 
 export default (app) => {
@@ -353,5 +354,36 @@ export default (app) => {
      *         description: Successful response with SKU data
      */
     app.get('/api/availability-analysis/signal-lab', getSignalLabData);
+
+    /**
+     * @swagger
+     * /api/availability-analysis/signal-lab/city-details:
+     *   get:
+     *     summary: Get City Details for a Specific Product
+     *     description: Returns city-level metrics for a specific product in Signal Lab
+     *     parameters:
+     *       - in: query
+     *         name: webPid
+     *         schema:
+     *           type: string
+     *         required: true
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: type
+     *         schema:
+     *           type: string
+     *           enum: [availability, sales, inventory, performance, visibility]
+     *     responses:
+     *       200:
+     *         description: Successful response with city data
+     */
+    app.get('/api/availability-analysis/signal-lab/city-details', getCityDetailsForProduct);
 };
 
