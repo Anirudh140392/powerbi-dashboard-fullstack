@@ -351,7 +351,7 @@ export default function KeywordAnalysisTable() {
     Math.min(expandedDepth + 1, maxDepth + 1)
   );
 
-  const LEVEL_TITLES = ["Keyword", "Category"];
+  const LEVEL_TITLES = ["Keyword", "Category", "Month"];
 
   const renderSortLabel = (label, key) => {
     const active = sortConfig.key === key;
@@ -420,23 +420,25 @@ export default function KeywordAnalysisTable() {
                     display="flex"
                     alignItems="center"
                     gap={1.2}
-                    onClick={() => setExpandedNodes((p) => ({ ...p, [key]: !p[key] }))}
-                    sx={{ cursor: "pointer", userSelect: "none" }}
+                    onClick={hasChildren ? () => setExpandedNodes((p) => ({ ...p, [key]: !p[key] })) : undefined}
+                    sx={{ cursor: hasChildren ? "pointer" : "default", userSelect: "none" }}
                   >
-                    <IconButton
-                      size="small"
-                      sx={{
-                        border: "1px solid #e5e7eb",
-                        width: 20,
-                        height: 20,
-                        borderRadius: 2,
-                        backgroundColor: "white",
-                        "&:hover": { backgroundColor: "#f8fafc" },
-                      }}
-                    >
-                      {isOpen ? <Minus size={14} /> : <Plus size={14} />}
-                    </IconButton>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                    {hasChildren && (
+                      <IconButton
+                        size="small"
+                        sx={{
+                          border: "1px solid #e5e7eb",
+                          width: 20,
+                          height: 20,
+                          borderRadius: 2,
+                          backgroundColor: "white",
+                          "&:hover": { backgroundColor: "#f8fafc" },
+                        }}
+                      >
+                        {isOpen ? <Minus size={14} /> : <Plus size={14} />}
+                      </IconButton>
+                    )}
+                    <Typography sx={{ fontSize: 13, fontWeight: hasChildren ? 700 : 500, color: "#1e293b" }}>
                       {node.keyword}
                     </Typography>
                   </Box>
@@ -450,10 +452,6 @@ export default function KeywordAnalysisTable() {
             );
           })}
 
-
-          <TableCell align="center" sx={{ fontSize: 11 }}>
-            {monthFilter === "All" ? "All Months" : monthFilter}
-          </TableCell>
 
           <TableCell align="center">{node.agg.impressions}</TableCell>
 
@@ -598,7 +596,7 @@ export default function KeywordAnalysisTable() {
             </Select>
           </Box>
           <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
-            Keyword → Category
+            Keyword → Category → Month
           </Typography>
         </Box>
 
@@ -678,7 +676,7 @@ export default function KeywordAnalysisTable() {
                 </TableCell>
               ))}
 
-              <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>Month</TableCell>
+
               <TableCell align="center" sx={{ backgroundColor: 'white', fontSize: 12, fontWeight: 600, color: "#475569" }}>
                 {renderSortLabel("Impressions", "impressions")}
               </TableCell>
@@ -700,7 +698,7 @@ export default function KeywordAnalysisTable() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={visibleHierarchyCols + 5} align="center" sx={{ py: 10 }}>
+                <TableCell colSpan={visibleHierarchyCols + 4} align="center" sx={{ py: 10 }}>
                   <CircularProgress size={40} sx={{ color: "#10b981" }} />
                   <Typography sx={{ mt: 2, color: "#64748b", fontSize: 14 }}>
                     Fetching keyword performance...
@@ -709,7 +707,7 @@ export default function KeywordAnalysisTable() {
               </TableRow>
             ) : paginated.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={visibleHierarchyCols + 5} align="center" sx={{ py: 10 }}>
+                <TableCell colSpan={visibleHierarchyCols + 4} align="center" sx={{ py: 10 }}>
                   <Typography sx={{ color: "#64748b", fontSize: 14 }}>
                     No keyword data found for the selected filters.
                   </Typography>

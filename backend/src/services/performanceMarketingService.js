@@ -130,19 +130,37 @@ const performanceMarketingService = {
 
                 kwNode.months.push(metrics);
 
+                // Build Category node with Month children
                 if (!kwNode.children.has(cat)) {
                     kwNode.children.set(cat, {
                         keyword: cat,
                         category: cat,
+                        months: [],
+                        children: new Map() // Months will be children of Category
+                    });
+                }
+
+                const catNode = kwNode.children.get(cat);
+                catNode.months.push(metrics);
+
+                // Add month as child of category
+                if (!catNode.children.has(month)) {
+                    catNode.children.set(month, {
+                        keyword: month,
+                        category: cat,
                         months: []
                     });
                 }
-                kwNode.children.get(cat).months.push(metrics);
+                catNode.children.get(month).months.push(metrics);
             });
 
+            // Build final tree structure with 3 levels
             return Array.from(keywordMap.values()).map(kw => ({
                 ...kw,
-                children: Array.from(kw.children.values())
+                children: Array.from(kw.children.values()).map(catNode => ({
+                    ...catNode,
+                    children: Array.from(catNode.children.values())
+                }))
             }));
 
         } catch (error) {
