@@ -102,7 +102,6 @@ const CardMetric = ({ data, onViewTrends }) => {
                   color={color}
                   scrollNeeded={scrollNeeded}
                   totalCards={cards.length}
-                  onClick={() => onViewTrends(card.title, "Metric")}
                 />
               );
             })
@@ -163,7 +162,6 @@ const MiniChartCard = ({
   color,
   scrollNeeded,
   totalCards,
-  onClick,
 }) => {
   const [hover, setHover] = useState(null);
 
@@ -195,9 +193,7 @@ const MiniChartCard = ({
         scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
-        cursor: "pointer",
       }}
-      onClick={onClick}
     >
       <CardContent>
         <Typography variant="body2" color="text.secondary" fontSize={16}>

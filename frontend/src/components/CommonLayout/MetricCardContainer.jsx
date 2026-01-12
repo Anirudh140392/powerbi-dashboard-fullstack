@@ -57,11 +57,16 @@ const FloatingLoader = ({ loading = false, label = "Updating..." }) => {
 export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false }) {
   const scrollNeeded = cards.length > 5;
 
+  // Show skeleton cards during initial load (when no data exists yet)
+  const showSkeletonCards = loading && cards.length === 0;
+
   return (
     <Box sx={{ mb: 4 }}>
       <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4, position: "relative" }}>
-        {/* Floating loader overlay */}
-        <FloatingLoader loading={loading} label="Updating overview..." />
+        {/* Floating loader overlay - only when cards exist and refreshing */}
+        {loading && cards.length > 0 && (
+          <FloatingLoader loading={true} label="Updating overview..." />
+        )}
 
         {/* Header */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
@@ -88,7 +93,7 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
-        {/* Cards Row - Always render cards, loader overlays */}
+        {/* Cards Row - Show skeleton or actual cards */}
         <Box
           sx={{
             display: "flex",
@@ -98,16 +103,41 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {cards.map((card, index) => (
-            <MetricCard
-              key={index}
-              card={card}
-              scrollNeeded={scrollNeeded}
-              totalCards={cards.length}
-            />
-          ))}
+          {showSkeletonCards ? (
+            // Skeleton cards during initial load
+            [1, 2, 3, 4].map((i) => (
+              <Box
+                key={i}
+                sx={{
+                  flex: 1,
+                  minWidth: 200,
+                  p: 2,
+                  borderRadius: 3,
+                  border: '1px solid #e2e8f0',
+                  bgcolor: '#f8fafc',
+                }}
+              >
+                <Skeleton variant="text" width="60%" height={18} animation="wave" sx={{ borderRadius: 1, mb: 1 }} />
+                <Skeleton variant="text" width="80%" height={36} animation="wave" sx={{ borderRadius: 1, mb: 1 }} />
+                <Skeleton variant="text" width="90%" height={14} animation="wave" sx={{ borderRadius: 1, mb: 2 }} />
+                <Skeleton variant="text" width="50%" height={14} animation="wave" sx={{ borderRadius: 1 }} />
+                <Skeleton variant="rounded" width="100%" height={60} animation="wave" sx={{ borderRadius: 2, mt: 2 }} />
+              </Box>
+            ))
+          ) : (
+            // Actual cards
+            cards.map((card, index) => (
+              <MetricCard
+                key={index}
+                card={card}
+                scrollNeeded={scrollNeeded}
+                totalCards={cards.length}
+              />
+            ))
+          )}
         </Box>
       </Card>
     </Box>
   );
 }
+

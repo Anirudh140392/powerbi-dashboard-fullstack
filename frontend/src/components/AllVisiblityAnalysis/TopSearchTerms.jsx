@@ -238,14 +238,22 @@ const FilterDropdown = ({ options, selected, onChange }) => {
 };
 
 
-const DeltaIndicator = ({ value }) => {
+const DeltaIndicator = ({ value, isPosition = false }) => {
     const num = Number(value || 0);
-    const absValue = Math.abs(num).toFixed(1); // Removed % as per screenshot
+    const absValue = Math.abs(num).toFixed(1);
+
+    if (isPosition) {
+        return (
+            <span className="inline-flex items-center gap-[1px] rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 h-[18px] leading-none">
+                Pos: {num || '–'}
+            </span>
+        );
+    }
 
     if (num > 0) {
         return (
-            <span className="inline-flex items-center gap-[1px] rounded-full border border-emerald-200 bg-emerald-50 px-0.5 py-0 text-[9px] font-medium text-emerald-700 h-[13px] leading-none">
-                <TrendingUp size={8} />
+            <span className="inline-flex items-center gap-[1px] rounded-full border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700 h-[18px] leading-none">
+                <TrendingUp size={10} />
                 {absValue}
             </span>
         );
@@ -253,82 +261,119 @@ const DeltaIndicator = ({ value }) => {
 
     if (num < 0) {
         return (
-            <span className="inline-flex items-center gap-[1px] rounded-full border border-rose-200 bg-rose-50 px-0.5 py-0 text-[9px] font-medium text-rose-700 h-[13px] leading-none">
-                <TrendingDown size={8} />
+            <span className="inline-flex items-center gap-[1px] rounded-full border border-rose-200 bg-rose-50 px-1 py-0.5 text-[10px] font-medium text-rose-700 h-[18px] leading-none">
+                <TrendingDown size={10} />
                 {absValue}
             </span>
         );
     }
 
     return (
-        <span className="inline-flex items-center gap-[1px] rounded-full border border-slate-200 bg-slate-50 px-0.5 py-0 text-[9px] font-medium text-slate-600 h-[13px] leading-none">
-            <Minus size={8} />
+        <span className="inline-flex items-center gap-[1px] rounded-full border border-slate-200 bg-slate-50 px-1 py-0.5 text-[10px] font-medium text-slate-600 h-[18px] leading-none">
+            <Minus size={10} />
             {absValue}
         </span>
     );
 };
 
-export default function TopSearchTerms({ filter = "All", data = null, loading = false }) {
+export default function TopSearchTerms({ filter = "All", data = null, loading = false, filters = {} }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(5);
+    const [pageSize, setPageSize] = useState(10);
     const [selectedBrands, setSelectedBrands] = useState([]);
+    const [drilldownData, setDrilldownData] = useState([]);
+    const [topLosers, setTopLosers] = useState([]);
+    const [modalLoading, setModalLoading] = useState(false);
 
-    // Use API data if provided, otherwise fallback to MOCK_DATA
-    const displayData = data || MOCK_DATA;
+    useEffect(() => {
+        if (!selectedKeyword) return;
+
+        const fetchDrilldown = async () => {
+            setModalLoading(true);
+            try {
+                const params = new URLSearchParams({
+                    keyword: selectedKeyword,
+                    platform: filters?.platform || 'All',
+                    location: filters?.location || 'All',
+                    startDate: filters?.startDate || '',
+                    endDate: filters?.endDate || ''
+                }).toString();
+
+                const res = await fetch(`/api/visibility-analysis/brand-drilldown?${params}`);
+                const result = await res.json();
+
+                setDrilldownData(result.brands || []);
+                setTopLosers(result.topLosers || []);
+
+                // Select all brands by default on fresh fetch
+                const allBrands = (result.brands || []).map(b => b.brand);
+                setSelectedBrands(allBrands);
+            } catch (err) {
+                console.error('Error fetching brand drilldown:', err);
+            } finally {
+                setModalLoading(false);
+            }
+        };
+
+        fetchDrilldown();
+    }, [selectedKeyword, filters]);
+
+    // Use API data if provided
+    const displayData = data || [];
 
     const handleBrandClick = (keyword) => {
         setSelectedKeyword(keyword);
-        // Initialize brand selection with all brands for the clicked keyword
-        const brands = getCompetitorData(keyword).map(d => d.brand);
-        setSelectedBrands(brands);
     };
 
     const closeDrilldown = () => {
         setSelectedKeyword(null);
         setSelectedBrands([]);
+        setDrilldownData([]);
+        setTopLosers([]);
     };
 
-    const allDrilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
-    const availableBrands = allDrilldownData.map(d => d.brand);
+    const availableBrands = drilldownData.map(d => d.brand);
+    const displayedDrilldownData = drilldownData.filter(d => selectedBrands.includes(d.brand));
 
-    // Filter the data based on selection
-    const displayedDrilldownData = allDrilldownData.filter(d => selectedBrands.includes(d.brand));
-
-    // Animation Variants
     const containerVariants = {
         hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.05,
-                delayChildren: 0.1
-            }
-        }
+        visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
     };
 
     const itemVariants = {
         hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 12 } }
+        visible: { opacity: 1, y: 0 }
     };
 
-    const modalVariants = {
-        hidden: { opacity: 0, scale: 0.95 },
-        visible: { opacity: 1, scale: 1, transition: { type: "spring", duration: 0.3 } },
-        exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
-    };
+    if (loading && !displayData.length) {
+        return (
+            <div className="w-full h-64 flex items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
+                    <p className="text-sm text-slate-500 font-medium">Loading top search terms...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!displayData.length) {
+        return (
+            <div className="w-full h-64 flex items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm">
+                <p className="text-sm text-slate-400 italic">No search terms found for the selected filters</p>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 bg-white">
-                <h3 className="text-base font-bold text-slate-800">Top Search Terms</h3>
-
-                <div className="flex items-center gap-4">
-                    {/* Tabs */}
-
-
-
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-white/50">
+                <div className="flex items-center gap-2">
+                    <TrendingUp className="text-blue-600" size={20} />
+                    <h3 className="text-lg font-bold text-slate-800">Top Search Terms</h3>
+                </div>
+                <div className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+                    Showing top {displayData.length} keywords
                 </div>
             </div>
 
@@ -336,18 +381,18 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50/50">
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[20%]">Keywords</th>
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[15%]">
-                                Leading Brand <span className="normal-case font-normal text-xs text-slate-700">(by Overall Share of Search)</span>
+                        <tr className="border-b border-slate-100 bg-slate-50/80">
+                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 w-[20%]">Keywords</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 w-[15%]">
+                                Leading Brand <span className="normal-case font-medium text-[10px] text-slate-400 block mt-0.5">(by Overall Share of Search)</span>
                             </th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Overall Share of Search</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Organic Share of Search</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Paid Share of Search</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Overall Share of Search</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Organic Share of Search</th>
+                            <th className="px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Paid Share of Search</th>
                         </tr>
                     </thead>
                     <motion.tbody
-                        className="divide-y divide-slate-50"
+                        className="divide-y divide-slate-100"
                         variants={containerVariants}
                         initial="hidden"
                         animate="visible"
@@ -356,36 +401,35 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                             <motion.tr
                                 key={idx}
                                 variants={itemVariants}
-                                className="hover:bg-slate-50/80 transition-colors"
+                                className="hover:bg-blue-50/20 transition-colors group border-b border-slate-50 last:border-0"
                             >
-                                <td className="px-6 py-2 text-xs text-slate-700 font-semibold capitalize">
+                                <td className="px-6 py-4 text-xs text-slate-700 font-bold capitalize">
                                     {row.keyword}
                                 </td>
-                                <td className="px-6 py-2 text-[10px]">
-                                    <motion.button
+                                <td className="px-6 py-4">
+                                    <button
                                         onClick={() => handleBrandClick(row.keyword)}
-                                        whileTap={{ scale: 0.95 }}
-                                        className="pill underline-slide"
+                                        className="text-[11px] font-bold text-slate-700 bg-slate-100/50 group-hover:bg-blue-50 px-2 py-1 rounded border border-slate-200/50 transition-all hover:border-blue-200"
                                     >
                                         {row.topBrand}
-                                    </motion.button>
+                                    </button>
                                 </td>
-                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
-                                    <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
-                                        <span className="text-xs font-bold text-emerald-900">{row.overallSos}%</span>
-                                        <DeltaIndicator value={row.overallDelta} />
+                                <td className="px-6 py-4">
+                                    <div className="mx-auto flex w-fit items-center gap-2">
+                                        <span className="text-[13px] font-black text-slate-900">{row.overallSos}%</span>
+                                        <span className="text-[11px] font-bold text-slate-400">({row.overallPos})</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
-                                    <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
-                                        <span className="text-xs font-bold text-emerald-900">{row.organicSos}%</span>
-                                        <DeltaIndicator value={row.organicDelta} />
+                                <td className="px-6 py-4">
+                                    <div className="mx-auto flex w-fit items-center gap-2">
+                                        <span className="text-[13px] font-black text-slate-900">{row.organicSos}%</span>
+                                        <span className="text-[11px] font-bold text-slate-400">({row.organicPos})</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-2 text-center text-[11px] text-slate-700">
-                                    <div className="mx-auto flex w-fit min-w-[100px] items-center justify-between gap-3 rounded-xl bg-[#F0FDF4] px-3 py-1.5 border border-emerald-100/50">
-                                        <span className="text-xs font-bold text-emerald-900">{row.paidSos}%</span>
-                                        <DeltaIndicator value={row.paidDelta} />
+                                <td className="px-6 py-4">
+                                    <div className="mx-auto flex w-fit items-center gap-2">
+                                        <span className="text-[13px] font-black text-slate-900">{row.paidSos}%</span>
+                                        <span className="text-[11px] font-bold text-slate-400">({row.paidPos})</span>
                                     </div>
                                 </td>
                             </motion.tr>
@@ -397,7 +441,7 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
             {/* Footer / Pagination */}
             <div className="border-t border-slate-100 bg-slate-50/50">
                 <PaginationFooter
-                    isVisible={displayData.length > 3}
+                    isVisible={displayData.length > pageSize}
                     currentPage={currentPage}
                     totalPages={Math.ceil(displayData.length / pageSize)}
                     onPageChange={setCurrentPage}
@@ -406,26 +450,23 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                 />
             </div>
 
-            {/* Drilldown Modal */}
+            {/* Drilldown Modal (Kept as is but updated for better UI) */}
             <AnimatePresence>
                 {selectedKeyword && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/10 backdrop-blur-[1px]"
-                    >
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
                         <motion.div
-                            variants={modalVariants}
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            className="w-[90%] max-w-2xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden ring-1 ring-slate-900/5"
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
                         >
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
-                                <h4 className="text-sm font-semibold text-slate-800">
-                                    Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
-                                </h4>
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                                <div>
+                                    <h4 className="text-base font-bold text-slate-800">
+                                        Brand Visibility Analysis
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">Keyword: <span className="text-blue-600 font-semibold">"{selectedKeyword}"</span></p>
+                                </div>
                                 <div className="flex items-center gap-3">
                                     <FilterDropdown
                                         options={availableBrands}
@@ -434,43 +475,91 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                     />
                                     <button
                                         onClick={closeDrilldown}
-                                        className="p-1 rounded-full hover:bg-slate-200 text-slate-500 transition"
+                                        className="p-1.5 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition"
                                     >
-                                        <X size={16} />
+                                        <X size={18} />
                                     </button>
                                 </div>
                             </div>
-                            <div className="p-4">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
-                                            <th className="pb-2 font-semibold">Brand</th>
-                                            <th className="pb-2 font-semibold text-center">Overall Sos</th>
-                                            <th className="pb-2 font-semibold text-center">Organic Sos</th>
-                                            <th className="pb-2 font-semibold text-center">Paid Sos</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {displayedDrilldownData.map((d, i) => (
-                                            <tr key={i} className="hover:bg-slate-50/50">
-                                                <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.overall}%</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.organic}%</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.paid}%</td>
-                                            </tr>
-                                        ))}
-                                        {displayedDrilldownData.length === 0 && (
-                                            <tr>
-                                                <td colSpan={4} className="py-8 text-center text-xs text-slate-400 italic">
-                                                    No brands selected
-                                                </td>
-                                            </tr>
+                            <div className="p-6">
+                                {modalLoading ? (
+                                    <div className="py-20 flex flex-col items-center justify-center gap-3">
+                                        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600"></div>
+                                        <p className="text-sm text-slate-500 font-medium">Crunching brand data...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Top Losers Section */}
+                                        {topLosers.length > 0 && (
+                                            <div className="mb-6 rounded-xl bg-rose-50 border border-rose-100 p-4">
+                                                <h5 className="text-[10px] font-bold text-rose-800 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                    <TrendingDown size={14} className="text-rose-600" />
+                                                    Top Loser Brands (by Overall Share)
+                                                </h5>
+                                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                                    {topLosers.map((loser, idx) => (
+                                                        <div key={idx} className="bg-white rounded-lg p-2.5 shadow-sm border border-rose-100 flex flex-col gap-1 transition-transform hover:scale-[1.02]">
+                                                            <span className="text-[11px] font-bold text-slate-700 truncate">{loser.brand}</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[12px] font-black text-rose-600">
+                                                                    {loser.delta >= 0 ? '+' : ''}{loser.delta}%
+                                                                </span>
+                                                                <span className="text-[9px] text-slate-400 font-medium">vs prev</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
-                                    </tbody>
-                                </table>
+
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-[11px] text-slate-400 uppercase tracking-widest font-bold">
+                                                    <th className="pb-3">Brand</th>
+                                                    <th className="pb-3 text-center">Overall Sos</th>
+                                                    <th className="pb-3 text-center">Delta</th>
+                                                    <th className="pb-3 text-center">Organic Sos</th>
+                                                    <th className="pb-3 text-center">Paid Sos</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {displayedDrilldownData.map((d, i) => {
+                                                    const isLoser = d.delta < 0;
+                                                    return (
+                                                        <tr key={i} className={`hover:bg-slate-50 transition-colors ${isLoser ? 'bg-rose-50/20' : ''}`}>
+                                                            <td className="py-3 text-xs font-bold text-slate-700">
+                                                                <div className="flex items-center gap-2">
+                                                                    {isLoser && <TrendingDown size={12} className="text-rose-500" />}
+                                                                    {d.brand}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-3 text-center">
+                                                                <span className="text-xs font-bold text-slate-900 bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
+                                                                    {d.overall}%
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 text-center">
+                                                                <DeltaIndicator value={d.delta} />
+                                                            </td>
+                                                            <td className="py-3 text-center text-xs text-slate-600 font-medium">{d.organic}%</td>
+                                                            <td className="py-3 text-center text-xs text-slate-600 font-medium">{d.paid}%</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                                {displayedDrilldownData.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={5} className="py-12 text-center text-sm text-slate-400 italic">
+                                                            No brands selected for comparison
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </>
+                                )}
                             </div>
                         </motion.div>
-                    </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div>

@@ -537,12 +537,13 @@ const DATA_MODEL = buildDataModel();
 /* -------------------------------------------------------------------------- */
 
 const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
-  // initial tab: format for visibility mode
-  const [activeTab, setActiveTab] = useState("format");
+  // initial tab: platform for visibility mode (Platform KPI Matrix)
+  const [activeTab, setActiveTab] = useState("platform");
   const [search, setSearch] = useState("");
 
   // Dynamic filter options from API (rb_kw table)
   const [filterOptions, setFilterOptions] = useState({
+    platforms: [],    // from platform_name
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
@@ -558,14 +559,16 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
       setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
       try {
-        // Fetch all filter types in parallel
-        const [formatsRes, citiesRes, productNamesRes] = await Promise.all([
+        // Fetch all filter types in parallel (including platforms from rb_kw)
+        const [platformsRes, formatsRes, citiesRes, productNamesRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
           axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
           axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities${value.formats.length ? `&format=${value.formats[0]}` : ''}`),
           axiosInstance.get('/visibility-analysis/filter-options?filterType=productName')
         ]);
 
         setFilterOptions({
+          platforms: (platformsRes.data?.options || []).filter(p => p && p !== 'All'),
           formats: (formatsRes.data?.options || []).filter(f => f && f !== 'All'),
           cities: (citiesRes.data?.options || []).filter(c => c && c !== 'All'),
           productNames: (productNamesRes.data?.options || []).filter(p => p && p !== 'All'),
@@ -573,6 +576,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
           error: null
         });
         console.log('[FilterDialog Visibility] Loaded filter options:', {
+          platforms: platformsRes.data?.options?.length || 0,
           formats: formatsRes.data?.options?.length || 0,
           cities: citiesRes.data?.options?.length || 0,
           productNames: productNamesRes.data?.options?.length || 0
@@ -590,10 +594,11 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     fetchFilterOptions();
   }, [open, value.formats]); // Refetch when formats change (cascading for cities)
 
-  // Filter tabs - mapped to rb_kw columns
-  const tabOptions = ["format", "city", "productName"];
+  // Filter tabs - mapped to rb_kw columns (platform first for Platform KPI Matrix)
+  const tabOptions = ["platform", "format", "city", "productName"];
 
   const getListForTab = () => {
+    if (activeTab === "platform") return filterOptions.platforms;
     if (activeTab === "format") return filterOptions.formats;
     if (activeTab === "city") return filterOptions.cities;
     return filterOptions.productNames;
@@ -607,11 +612,13 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   }, [activeTab, search, filterOptions]);
 
   const currentKey =
-    activeTab === "format"
-      ? "formats"
-      : activeTab === "city"
-        ? "cities"
-        : "productNames";
+    activeTab === "platform"
+      ? "platforms"
+      : activeTab === "format"
+        ? "formats"
+        : activeTab === "city"
+          ? "cities"
+          : "productNames";
 
   // Handle toggle with cascading filter reset
   const handleToggle = (type, item) => {
@@ -679,6 +686,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                     value={t}
                     className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
                   >
+                    {t === "platform" && "Platform"}
                     {t === "format" && "Format"}
                     {t === "city" && "City"}
                     {t === "productName" && "Product Name"}
@@ -1416,6 +1424,7 @@ export const VisibilityKpiTrendShowcase = () => {
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
+    platforms: [],    // from platform_name in rb_kw table
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
@@ -1423,6 +1432,7 @@ export const VisibilityKpiTrendShowcase = () => {
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
   const selectionCount =
+    filters.platforms.length +
     filters.formats.length +
     filters.cities.length +
     filters.productNames.length;
