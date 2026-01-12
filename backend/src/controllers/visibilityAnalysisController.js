@@ -302,7 +302,10 @@ export const getVisibilityCompetition = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: req.query.location || 'All',
+            location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
+            format: req.query.format || 'All',
+            productName: req.query.productName || 'All',
+            brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M'
         };
         console.log('\n========== VISIBILITY COMPETITION API ==========');
@@ -322,6 +325,52 @@ export const getVisibilityCompetition = async (req, res) => {
         console.error('[ERROR] Visibility Competition:', error);
         console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
         res.status(500).json({ error: 'Internal Server Error', brands: [], skus: [] });
+    }
+};
+
+/**
+ * Get Brand Comparison Trends for chart display
+ * Returns: Daily SOS trends for multiple selected brands
+ */
+export const getBrandComparisonTrends = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        // Parse brands from query - can be comma-separated string or array
+        let brandsParam = req.query.brands;
+        let brands = [];
+        if (brandsParam) {
+            if (Array.isArray(brandsParam)) {
+                brands = brandsParam;
+            } else {
+                brands = brandsParam.split(',').map(b => b.trim()).filter(Boolean);
+            }
+        }
+
+        const filters = {
+            brands,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            period: req.query.period || '1M',
+            startDate: req.query.startDate || null,
+            endDate: req.query.endDate || null
+        };
+
+        console.log('\n========== BRAND COMPARISON TRENDS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getBrandComparisonTrends(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands:', Object.keys(data.brands || {}).length, 'Days:', data.days?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('==================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Brand Comparison Trends:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', brands: {}, days: [] });
     }
 };
 

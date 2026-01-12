@@ -8,7 +8,8 @@ import {
     getVisibilityBrandDrilldown,
     getVisibilityLatestAvailableDates,
     getVisibilityKpiTrends,
-    getVisibilityCompetition
+    getVisibilityCompetition,
+    getBrandComparisonTrends
 } from '../controllers/visibilityAnalysisController.js';
 
 
@@ -276,4 +277,33 @@ export default (app) => {
      *         description: Successful response with brands and skus arrays
      */
     app.get('/api/visibility-analysis/competition', getVisibilityCompetition);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/brand-comparison-trends:
+     *   get:
+     *     summary: Get Brand Comparison Trends
+     *     description: Returns daily SOS trends for multiple selected brands for chart comparison
+     *     parameters:
+     *       - in: query
+     *         name: brands
+     *         schema:
+     *           type: string
+     *         description: Comma-separated list of brand names to compare
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: period
+     *         schema:
+     *           type: string
+     *           enum: [1M, 3M, 6M, 1Y]
+     *         description: Time period for trends
+     *     responses:
+     *       200:
+     *         description: Successful response with brands trends and days array
+     */
+    app.get('/api/visibility-analysis/brand-comparison-trends', getBrandComparisonTrends);
 };

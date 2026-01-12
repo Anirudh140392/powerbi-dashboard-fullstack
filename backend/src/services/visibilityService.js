@@ -1398,13 +1398,13 @@ class VisibilityService {
                 return { options };
             }
 
-            // BRANDS: from rb_kw.brand_name (distinct brand names)
+            // BRANDS: from rb_kw.brand_crawl (competitor brands where is_competitor_product=1)
             if (filterType === 'brands') {
                 const [results] = await sequelize.query(`
-                    SELECT DISTINCT brand_name as brand
+                    SELECT DISTINCT brand_crawl as brand
                     FROM rb_kw
-                    ${whereClause} AND brand_name IS NOT NULL AND brand_name != ''
-                    ORDER BY brand_name
+                    ${whereClause} AND brand_crawl IS NOT NULL AND brand_crawl != '' AND is_competitor_product = 1
+                    ORDER BY brand_crawl
                     LIMIT 50
                 `);
                 const options = results.map(r => r.brand).filter(Boolean);
@@ -1560,18 +1560,21 @@ class VisibilityService {
      * @returns {Promise<{brands: Array, skus: Array}>}
      */
     async getVisibilityCompetition(filters = {}) {
-        console.log('[VisibilityService] getVisibilityCompetition called with filters:', filters);
+        console.error('[VisibilityService] getVisibilityCompetition called with filters:', filters);
 
         try {
             // First, get the latest available date from the database
-            const [maxDateResult] = await sequelize.query(`
+            const maxDateRes = await sequelize.query(`
                 SELECT MAX(kw_crawl_date) as maxDate
                 FROM rb_kw
                 WHERE kw_crawl_date IS NOT NULL
             `, { type: sequelize.QueryTypes.SELECT });
 
+            console.error('[VisibilityService] maxDateRes:', JSON.stringify(maxDateRes));
+            const maxDateResult = maxDateRes[0];
+
             if (!maxDateResult?.maxDate) {
-                console.log('[VisibilityService] No data found in rb_kw table');
+                console.error('[VisibilityService] No data found in rb_kw table');
                 return { brands: [], skus: [] };
             }
 
@@ -1603,10 +1606,33 @@ class VisibilityService {
 
             console.log('[VisibilityService] Competition date range:', currentReplacements);
 
+            // Build filter conditions for current period
             const platCondCurrent = parseMultiSelectFilter(platform, 'platform_name', currentReplacements, 'compPlat', { caseInsensitive: true });
             const locCondCurrent = parseMultiSelectFilter(location, 'location_name', currentReplacements, 'compLoc', { caseInsensitive: true });
+
+            // Add new filter conditions for format, productName, and brand
+            const format = filters.format || null;
+            const productName = filters.productName || null;
+            const brandFilter = filters.brand || null;
+
+            const formatCondCurrent = parseMultiSelectFilter(format, 'keyword_search_product', currentReplacements, 'compFormat', { caseInsensitive: true });
+            const productCondCurrent = parseMultiSelectFilter(productName, 'keyword', currentReplacements, 'compProduct', { caseInsensitive: true });
+            // Use brand_crawl column for brand filter (matches the filter dropdown data source)
+            const brandCondCurrent = parseMultiSelectFilter(brandFilter, 'brand_crawl', currentReplacements, 'compBrand', { caseInsensitive: true });
+
+            // Build filter conditions for previous period
             const platCondPrev = parseMultiSelectFilter(platform, 'platform_name', prevReplacements, 'prevPlat', { caseInsensitive: true });
             const locCondPrev = parseMultiSelectFilter(location, 'location_name', prevReplacements, 'prevLoc', { caseInsensitive: true });
+            const formatCondPrev = parseMultiSelectFilter(format, 'keyword_search_product', prevReplacements, 'prevFormat', { caseInsensitive: true });
+            const productCondPrev = parseMultiSelectFilter(productName, 'keyword', prevReplacements, 'prevProduct', { caseInsensitive: true });
+            // Use brand_crawl column for brand filter (matches the filter dropdown data source)
+            const brandCondPrev = parseMultiSelectFilter(brandFilter, 'brand_crawl', prevReplacements, 'prevBrand', { caseInsensitive: true });
+
+            // Combined filter conditions
+            const allCurrentFilters = `${platCondCurrent} AND ${locCondCurrent} AND ${formatCondCurrent} AND ${productCondCurrent} AND ${brandCondCurrent}`;
+            const allPrevFilters = `${platCondPrev} AND ${locCondPrev} AND ${formatCondPrev} AND ${productCondPrev} AND ${brandCondPrev}`;
+
+            console.log('[VisibilityService] Current filter conditions:', allCurrentFilters);
 
             // 1. Get total volume for both periods to serve as denominator for SOS
             const [currentTotalRes, prevTotalRes] = await Promise.all([
@@ -1614,15 +1640,13 @@ class VisibilityService {
                     SELECT COUNT(*) as total
                     FROM rb_kw
                     WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                      AND ${platCondCurrent}
-                      AND ${locCondCurrent}
+                      AND ${allCurrentFilters}
                 `, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT }),
                 sequelize.query(`
                     SELECT COUNT(*) as total
                     FROM rb_kw
                     WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                      AND ${platCondPrev}
-                      AND ${locCondPrev}
+                      AND ${allPrevFilters}
                 `, { replacements: prevReplacements, type: sequelize.QueryTypes.SELECT })
             ]);
 
@@ -1633,53 +1657,57 @@ class VisibilityService {
 
             // 2. Query for brand-level competition (current period)
             // SOS is calculated as (Brand Rows / Total Shelf Rows) * 100
+            // Using brand_crawl column with is_competitor_product=1 to show competitor brands
             const brandCurrentQuery = `
                 SELECT 
-                    brand_name,
+                    brand_crawl as brand_name,
                     ROUND(COUNT(*) * 100.0 / ${currentVolume}, 2) AS overall_sos,
                     ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
                     ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS organic_sos,
                     COUNT(*) as impressions
                 FROM rb_kw
                 WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                  AND ${platCondCurrent}
-                  AND ${locCondCurrent}
-                  AND brand_name IS NOT NULL AND brand_name != ''
-                GROUP BY brand_name
+                  AND ${allCurrentFilters}
+                  AND brand_crawl IS NOT NULL AND brand_crawl != ''
+                  AND is_competitor_product = 1
+                GROUP BY brand_crawl
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
 
             // 3. Query for brand-level competition (previous period)
+            // Using brand_crawl column with is_competitor_product=1 for competitor brands
             const brandPrevQuery = `
                 SELECT 
-                    brand_name,
+                    brand_crawl as brand_name,
                     ROUND(COUNT(*) * 100.0 / ${prevVolume}, 2) AS overall_sos,
                     ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${prevVolume}, 2) AS sponsored_sos,
                     ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${prevVolume}, 2) AS organic_sos
                 FROM rb_kw
                 WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                  AND ${platCondPrev}
-                  AND ${locCondPrev}
-                  AND brand_name IS NOT NULL AND brand_name != ''
-                GROUP BY brand_name
+                  AND ${allPrevFilters}
+                  AND brand_crawl IS NOT NULL AND brand_crawl != ''
+                  AND is_competitor_product = 1
+                GROUP BY brand_crawl
             `;
 
             // 4. Query for SKU-level competition (current period)
+            // Note: rb_kw table uses keyword_search_product for SKU/product name
+            // Using brand_crawl column with is_competitor_product=1 for competitor products
             const skuCurrentQuery = `
                 SELECT 
-                    sku_name,
-                    brand_name,
+                    keyword_search_product as sku_name,
+                    brand_crawl as brand_name,
                     ROUND(COUNT(*) * 100.0 / ${currentVolume}, 2) AS overall_sos,
                     ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
                     ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS organic_sos,
                     COUNT(*) as impressions
                 FROM rb_kw
                 WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                  AND ${platCondCurrent}
-                  AND ${locCondCurrent}
-                  AND sku_name IS NOT NULL AND sku_name != ''
-                GROUP BY sku_name, brand_name
+                  AND ${allCurrentFilters}
+                  AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                  AND is_competitor_product = 1
+                GROUP BY keyword_search_product, brand_crawl
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
@@ -1732,6 +1760,179 @@ class VisibilityService {
         } catch (error) {
             console.error('[VisibilityService] Error getting visibility competition:', error);
             return { brands: [], skus: [] };
+        }
+    }
+
+    /**
+     * Get Brand Comparison Trends for chart display
+     * Returns daily SOS trends for multiple selected brands for comparison
+     * @param {Object} filters - { brands: string[], platform, location, period, startDate, endDate }
+     * @returns {Promise<{brands: {[brandName]: {timeSeries: Array, color: string}}, days: string[]}>}
+     */
+    async getBrandComparisonTrends(filters = {}) {
+        console.error('[VisibilityService] getBrandComparisonTrends called with filters:', filters);
+
+        try {
+            // Predefined colors for brand lines (up to 10 brands)
+            const BRAND_COLORS = [
+                '#3B82F6', // blue
+                '#10B981', // emerald
+                '#F59E0B', // amber
+                '#EF4444', // red
+                '#8B5CF6', // violet
+                '#EC4899', // pink
+                '#06B6D4', // cyan
+                '#84CC16', // lime
+                '#F97316', // orange
+                '#6366F1', // indigo
+            ];
+
+            // Get latest available date from database
+            const [maxDateResult] = await sequelize.query(`
+                SELECT MAX(kw_crawl_date) as maxDate FROM rb_kw WHERE kw_crawl_date IS NOT NULL
+            `, { type: sequelize.QueryTypes.SELECT });
+
+            if (!maxDateResult?.maxDate) {
+                return { brands: {}, days: [] };
+            }
+
+            const latestDate = dayjs(maxDateResult.maxDate);
+
+            // Determine date range
+            let startDate, endDate;
+            const period = filters.period || '1M';
+
+            if (filters.startDate && filters.endDate) {
+                startDate = dayjs(filters.startDate);
+                endDate = dayjs(filters.endDate);
+            } else {
+                endDate = latestDate;
+                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodToDays[period] || 30;
+                startDate = endDate.subtract(days, 'day');
+            }
+
+            const dateFrom = startDate.format('YYYY-MM-DD');
+            const dateTo = endDate.format('YYYY-MM-DD');
+
+            // Parse filter values
+            const selectedBrands = filters.brands || [];
+            const platform = filters.platform || null;
+            const location = filters.location || null;
+
+            if (selectedBrands.length === 0) {
+                console.error('[VisibilityService] No brands selected for comparison');
+                return { brands: {}, days: [] };
+            }
+
+            // Build platform and location conditions
+            const replacements = { dateFrom, dateTo };
+            const platformCondition = parseMultiSelectFilter(platform, 'platform_name', replacements, 'compTrendPlat', { caseInsensitive: true });
+            const locationCondition = parseMultiSelectFilter(location, 'location_name', replacements, 'compTrendLoc', { caseInsensitive: true });
+
+            // First get total shelf volume per day for SOS calculation
+            const totalVolumeQuery = `
+                SELECT 
+                    DATE(kw_crawl_date) as crawl_date,
+                    COUNT(*) as total_volume
+                FROM rb_kw
+                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                  AND ${platformCondition}
+                  AND ${locationCondition}
+                GROUP BY DATE(kw_crawl_date)
+                ORDER BY crawl_date ASC
+            `;
+
+            const volumeResults = await sequelize.query(totalVolumeQuery, {
+                replacements,
+                type: sequelize.QueryTypes.SELECT
+            });
+
+            // Create volume lookup by date
+            const volumeByDate = {};
+            const allDays = [];
+            volumeResults.forEach(row => {
+                const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
+                volumeByDate[dateStr] = Number(row.total_volume) || 1;
+                allDays.push(dateStr);
+            });
+
+            // Query brand-specific data for each selected brand
+            const brandDataPromises = selectedBrands.map(async (brandName, index) => {
+                const brandReplacements = { ...replacements, brandName };
+
+                const brandQuery = `
+                    SELECT 
+                        DATE(kw_crawl_date) as crawl_date,
+                        COUNT(*) as brand_volume,
+                        SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) as sponsored_volume,
+                        SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) as organic_volume
+                    FROM rb_kw
+                    WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                      AND ${platformCondition}
+                      AND ${locationCondition}
+                      AND LOWER(brand_crawl) = LOWER(:brandName)
+                      AND is_competitor_product = 1
+                    GROUP BY DATE(kw_crawl_date)
+                    ORDER BY crawl_date ASC
+                `;
+
+                const brandResults = await sequelize.query(brandQuery, {
+                    replacements: brandReplacements,
+                    type: sequelize.QueryTypes.SELECT
+                });
+
+                // Map brand data to time series with SOS calculation
+                const brandDataByDate = {};
+                brandResults.forEach(row => {
+                    const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
+                    brandDataByDate[dateStr] = {
+                        brand_volume: Number(row.brand_volume) || 0,
+                        sponsored_volume: Number(row.sponsored_volume) || 0,
+                        organic_volume: Number(row.organic_volume) || 0,
+                    };
+                });
+
+                // Build time series for all days
+                const timeSeries = allDays.map(dateStr => {
+                    const totalVol = volumeByDate[dateStr] || 1;
+                    const brandData = brandDataByDate[dateStr] || { brand_volume: 0, sponsored_volume: 0, organic_volume: 0 };
+
+                    return {
+                        date: dateStr,
+                        overall_sos: Number(((brandData.brand_volume / totalVol) * 100).toFixed(2)),
+                        sponsored_sos: Number(((brandData.sponsored_volume / totalVol) * 100).toFixed(2)),
+                        organic_sos: Number(((brandData.organic_volume / totalVol) * 100).toFixed(2)),
+                        display_sos: 0, // Not implemented
+                    };
+                });
+
+                return {
+                    brandName,
+                    color: BRAND_COLORS[index % BRAND_COLORS.length],
+                    timeSeries
+                };
+            });
+
+            const brandDataList = await Promise.all(brandDataPromises);
+
+            // Format response
+            const brandsResult = {};
+            brandDataList.forEach(brandData => {
+                brandsResult[brandData.brandName] = {
+                    color: brandData.color,
+                    timeSeries: brandData.timeSeries
+                };
+            });
+
+            console.error('[VisibilityService] Returning trends for', Object.keys(brandsResult).length, 'brands');
+            return {
+                brands: brandsResult,
+                days: allDays
+            };
+        } catch (error) {
+            console.error('[VisibilityService] Error getting brand comparison trends:', error);
+            return { brands: {}, days: [] };
         }
     }
 }
