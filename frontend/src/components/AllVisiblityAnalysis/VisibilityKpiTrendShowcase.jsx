@@ -1158,16 +1158,14 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
 /* -------------------------------------------------------------------------- */
 
 const BrandTable = ({ rows }) => {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
-  const totalPages = Math.ceil(rows.length / pageSize);
-  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
+  // Show only top 8 brands
+  const top8Rows = rows.slice(0, 8);
 
   return (
     <Card className="mt-3">
       <CardHeader className="border-b pb-2">
         <CardTitle className="text-sm font-medium text-slate-800">
-          Brands (Top {rows.length || 0})
+          Brands (Top {Math.min(rows.length, 8)})
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1185,7 +1183,7 @@ const BrandTable = ({ rows }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedRows.map((row, idx) => (
+              {top8Rows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={cn(
@@ -1225,17 +1223,6 @@ const BrandTable = ({ rows }) => {
           </table>
         </div>
       </CardContent>
-      <PaginationFooter
-        currentPage={page}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
-        isVisible={rows.length > 0}
-      />
     </Card>
   );
 };
@@ -1419,15 +1406,21 @@ const KeywordTable = ({ rows }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const VisibilityKpiTrendShowcase = () => {
+export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], skus: [] }, loading = false }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku" | "keyword"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
+    // API-based filter keys
     platforms: [],    // from platform_name in rb_kw table
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
+    // Legacy filter keys (used by useMemo hooks)
+    categories: [],
+    brands: [],
+    skus: [],
+    keywords: [],
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
@@ -1438,7 +1431,38 @@ export const VisibilityKpiTrendShowcase = () => {
     filters.productNames.length;
 
   // Dynamic filtered rows for table for the active tab + city
+  // Use API competition data if available, fallback to mock data
   const brandRows = useMemo(() => {
+    console.log('[Competition] competitionData received:', JSON.stringify(competitionData));
+    console.log('[Competition] competitionData.brands length:', competitionData?.brands?.length || 0);
+
+    // If we have API competition data, use it instead of hardcoded DATA_MODEL
+    if (competitionData.brands && competitionData.brands.length > 0) {
+      console.log('[Competition] ✅ Using API data:', competitionData.brands.length, 'brands');
+      // Sort by overall_sos descending and map to expected format
+      // Backend returns { overall_sos: { value: 25.0, delta: 1.5 } } format
+      return competitionData.brands
+        .map(b => {
+          // Handle both nested {value, delta} format and flat number format
+          const getVal = (field) => {
+            if (field === null || field === undefined) return 0;
+            if (typeof field === 'object' && field.value !== undefined) return Number(field.value) || 0;
+            return Number(field) || 0;
+          };
+          return {
+            id: b.brand || b.id,
+            name: b.brand || b.name,
+            overall_sos: getVal(b.overall_sos),
+            sponsored_sos: getVal(b.sponsored_sos),
+            organic_sos: getVal(b.organic_sos),
+            display_sos: getVal(b.display_sos),
+          };
+        })
+        .sort((a, b) => b.overall_sos - a.overall_sos);
+    }
+
+    console.log('[Competition] ❌ FALLBACK to hardcoded mock data');
+    // Fallback to hardcoded mock data
     const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
     let rows = allRows;
 
@@ -1465,8 +1489,8 @@ export const VisibilityKpiTrendShowcase = () => {
       rows = rows.filter((r) => brandIdsWithSelectedKws.has(r.id));
     }
 
-    return rows;
-  }, [city, filters]);
+    return rows.sort((a, b) => b.overall_sos - a.overall_sos);
+  }, [city, filters, competitionData]);
 
   const skuRows = useMemo(() => {
     const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
@@ -1553,19 +1577,6 @@ export const VisibilityKpiTrendShowcase = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={city} onValueChange={setCity}>
-            <SelectTrigger className="h-9 w-40 bg-white">
-              <SelectValue placeholder="Select city" />
-            </SelectTrigger>
-            <SelectContent>
-              {CITIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Button
             variant="outline"
             size="sm"
