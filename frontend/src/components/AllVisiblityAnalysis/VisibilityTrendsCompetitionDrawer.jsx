@@ -728,26 +728,36 @@ export default function VisibilityTrendsCompetitionDrawer({
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
   // This ensures data is ready when user clicks Competition tab
+  // IMPORTANT: Use selectedColumn (from main page filter click) NOT selectedPlatform (internal dropdown)
   useEffect(() => {
-    if (!open) return;
+    // Wait for filter options to finish loading to avoid race conditions
+    if (!open || filterOptions.loading) return;
 
     let cancelled = false;
     const fetchCompetitionData = async () => {
+      console.log("[VisibilityTrendsDrawer] Starting fetchCompetitionData...");
       setCompetitionLoading(true);
       try {
+        // Use selectedColumn from main page click, not the internal dropdown selectedPlatform
+        // This ensures competition data reflects the user's main page filter selection
+        const platformToUse = selectedColumn || 'All';
         const params = {
           period: '1M',
-          platform: selectedPlatform || 'All',
+          platform: platformToUse,
         };
 
-        console.log("[VisibilityTrendsDrawer] Fetching competition data:", params);
+        console.log("[VisibilityTrendsDrawer] Fetching competition data for platform:", platformToUse);
         const response = await axiosInstance.get('/visibility-analysis/competition', { params });
 
-        if (cancelled) return;
+        if (cancelled) {
+          console.log("[VisibilityTrendsDrawer] Request was cancelled, not setting state");
+          return;
+        }
+
+        console.log("[VisibilityTrendsDrawer] API response received:", response.status);
 
         if (response.data) {
           console.log("[VisibilityTrendsDrawer] Received", response.data.brands?.length, "brands");
-          console.log("[VisibilityTrendsDrawer] First brand:", JSON.stringify(response.data.brands?.[0]));
           setCompetitionData({
             brands: response.data.brands || [],
             skus: response.data.skus || []
@@ -762,9 +772,13 @@ export default function VisibilityTrendsCompetitionDrawer({
       }
     };
 
-    fetchCompetitionData();
-    return () => { cancelled = true; };
-  }, [selectedPlatform, open]);
+    // Add debounce delay to avoid duplicate calls when multiple dependencies change rapidly
+    const timeoutId = setTimeout(fetchCompetitionData, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [selectedColumn, open, filterOptions.loading]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
