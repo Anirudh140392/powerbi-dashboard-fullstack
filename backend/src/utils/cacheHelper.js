@@ -7,77 +7,79 @@ import redisClient from '../config/redis.js';
  * @returns {string} Cache key
  */
 export function generateCacheKey(section, filters) {
-    // Handle both 'brand' and 'brand[]' keys (frontend may send as array)
+    // 1. Extract and Normalize Parent Filters
     const rawPlatform = filters['platform[]'] || filters.platform || 'all';
     const rawBrand = filters['brand[]'] || filters.brand || 'all';
     const rawLocation = filters['location[]'] || filters.location || 'all';
 
+    const normalize = (val) => {
+        if (!val || val === 'all' || val === 'All') return 'all';
+        let values = [];
+        if (Array.isArray(val)) {
+            values = val;
+        } else if (typeof val === 'string' && val.includes(',')) {
+            values = val.split(',');
+        } else {
+            return String(val).toLowerCase().trim().replace(/\s+/g, '_');
+        }
+        return values
+            .map(v => String(v || '').toLowerCase().trim().replace(/\s+/g, '_'))
+            .filter(Boolean)
+            .sort()
+            .join(',');
+    };
+
+    const p = normalize(rawPlatform);
+    const b = normalize(rawBrand);
+    const l = normalize(rawLocation);
+
+    // 2. Start building key with hierarchical prefix
+    // watchtower:p_{platform}:b_{brand}:l_{location}:s_{section}
+    let key = `watchtower:p_${p}:b_${b}:l_${l}:s_${normalize(section)}`;
+
+    // 3. Extract other filters
     const {
         startDate = '',
         endDate = '',
+        compareStartDate = '',
+        compareEndDate = '',
         category = 'all',
-        viewMode = '',  // Added for Platform KPI Matrix
-        monthOverviewPlatform = '',
-        categoryOverviewPlatform = '',
-        brandsOverviewPlatform = '',
-        brandsOverviewCategory = '',
+        region = 'all',
+        level = '',
+        viewMode = '',
         period = '',
-        timeStep = ''
+        timeStep = '',
+        page = '',
+        limit = '',
+        signalType = '',
+        type = '', // Often used in Signal Lab instead of section
+        webPid = ''
     } = filters;
 
-    // Normalize values to lowercase for consistency - handle arrays
-    const normalize = (val) => {
-        if (Array.isArray(val)) {
-            // Sort for consistent cache keys regardless of selection order
-            return val.map(v => String(v || '').toLowerCase().replace(/\s+/g, '_')).sort().join(',');
-        }
-        return String(val || 'all').toLowerCase().replace(/\s+/g, '_');
-    };
+    // 4. Append secondary filters
+    if (viewMode) key += `:vm_${normalize(viewMode)}`;
+    if (level) key += `:lv_${normalize(level)}`;
+    if (region && region !== 'all') key += `:reg_${normalize(region)}`;
+    if (category && category !== 'all') key += `:cat_${normalize(category)}`;
+    if (type && type !== 'all') key += `:tp_${normalize(type)}`;
+    if (signalType) key += `:sig_${normalize(signalType)}`;
+    if (webPid) key += `:pid_${normalize(webPid)}`;
 
-    // Build key based on section
-    let key = `watchtower:${normalize(section)}`;
+    // Pagination
+    if (page) key += `:pg_${page}`;
+    if (limit) key += `:lim_${limit}`;
 
-    // Add viewMode if present (for Platform KPI Matrix)
-    if (viewMode) {
-        key += `:vm_${normalize(viewMode)}`;
-    }
-
-    // Add common filters - now properly handles arrays
-    key += `:${normalize(rawPlatform)}:${normalize(rawBrand)}:${normalize(rawLocation)}`;
-
-    // Add dates if present
+    // Date ranges
     if (startDate && endDate) {
-        key += `:${startDate}:${endDate}`;
+        key += `:dt_${startDate}_${endDate}`;
+    }
+    if (compareStartDate && compareEndDate) {
+        key += `:comp_${compareStartDate}_${compareEndDate}`;
     }
 
-    // Add section-specific filters
-    if (category && category !== 'all') {
-        key += `:${normalize(category)}`;
-    }
-
-    if (monthOverviewPlatform) {
-        key += `:mo_${normalize(monthOverviewPlatform)}`;
-    }
-
-    if (categoryOverviewPlatform) {
-        key += `:co_${normalize(categoryOverviewPlatform)}`;
-    }
-
-    if (brandsOverviewPlatform) {
-        key += `:bo_${normalize(brandsOverviewPlatform)}`;
-        if (brandsOverviewCategory) {
-            key += `:${normalize(brandsOverviewCategory)}`;
-        }
-    }
-
-    // Add trend-specific filters
-    if (period) {
-        key += `:pd_${normalize(period)}`;
-    }
-
-    if (timeStep) {
-        key += `:ts_${normalize(timeStep)}`;
-    }
+    // Trends specific
+    if (period) key += `:pd_${normalize(period)}`;
+    if (timeStep) key += `:ts_${normalize(timeStep)}`;
 
     return key;
 }

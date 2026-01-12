@@ -4,7 +4,10 @@ import {
     getVisibilityPlatformKpiMatrix,
     getVisibilityKeywordsAtGlance,
     getVisibilityTopSearchTerms,
-    getVisibilityFilterOptions
+    getKeywordSkuVisibilityMetrics,
+    getVisibilityFilterOptions,
+    getVisibilitySignals,
+    getVisibilitySignalCityDetails
 } from '../controllers/visibilityAnalysisController.js';
 
 export default (app) => {
@@ -140,6 +143,51 @@ export default (app) => {
 
     /**
      * @swagger
+     * /api/visibility-analysis/keyword-sku-metrics:
+     *   get:
+     *     summary: Get Keyword & SKU Visibility Metrics
+     *     description: Retrieve keyword and SKU level visibility metrics from rb_kw table
+     *     parameters:
+     *       - in: query
+     *         name: keyword
+     *         schema:
+     *           type: string
+     *         description: Filter by keyword (supports partial match)
+     *       - in: query
+     *         name: sku
+     *         schema:
+     *           type: string
+     *         description: Filter by SKU/keyword_search_product (supports partial match)
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *         description: Filter by location
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *         description: Start date (YYYY-MM-DD)
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *         description: End date (YYYY-MM-DD)
+     *     responses:
+     *       200:
+     *         description: Successful response with keywords array and summary
+     */
+    app.get('/api/visibility-analysis/keyword-sku-metrics', getKeywordSkuVisibilityMetrics);
+
+    /**
+     * @swagger
      * /api/visibility-analysis/filter-options:
      *   get:
      *     summary: Get dynamic filter options for Advanced Filters modal
@@ -177,4 +225,99 @@ export default (app) => {
      *         description: Successful response with options array
      */
     app.get('/api/visibility-analysis/filter-options', getVisibilityFilterOptions);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/visibility-signals:
+     *   get:
+     *     summary: Get Visibility Signals for Keyword & SKU (Drainers/Gainers)
+     *     description: Retrieve signals with impact metrics, SOS KPIs, and city-level data from rb_kw table
+     *     parameters:
+     *       - in: query
+     *         name: level
+     *         schema:
+     *           type: string
+     *           enum: [keyword, sku]
+     *           default: keyword
+     *         description: Level to analyze - keyword (uses keyword column) or sku (uses keyword_search_product column)
+     *       - in: query
+     *         name: signalType
+     *         schema:
+     *           type: string
+     *           enum: [drainer, gainer]
+     *           default: drainer
+     *         description: Type of signal - drainer (declining) or gainer (improving)
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *         description: Filter by location
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *         description: Start date (YYYY-MM-DD)
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *         description: End date (YYYY-MM-DD)
+     *     responses:
+     *       200:
+     *         description: Successful response with signals array and summary
+     */
+    app.get('/api/visibility-analysis/visibility-signals', getVisibilitySignals);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/visibility-signals/city-details:
+     *   get:
+     *     summary: Get city-level KPI details for a visibility signal
+     *     description: Retrieve city-level metrics from rb_kw (visibility) and rb_pdp_olap (sales) for a specific keyword or SKU
+     *     parameters:
+     *       - in: query
+     *         name: keyword
+     *         schema:
+     *           type: string
+     *         description: Keyword to get city details for (when level=keyword)
+     *       - in: query
+     *         name: skuName
+     *         schema:
+     *           type: string
+     *         description: SKU name to get city details for (when level=sku)
+     *       - in: query
+     *         name: level
+     *         schema:
+     *           type: string
+     *           enum: [keyword, sku]
+     *         description: Level of the signal (keyword or sku)
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *         description: Start date (YYYY-MM-DD)
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *         description: End date (YYYY-MM-DD)
+     *     responses:
+     *       200:
+     *         description: Successful response with cities array containing KPIs
+     */
+    app.get('/api/visibility-analysis/visibility-signals/city-details', getVisibilitySignalCityDetails);
 };

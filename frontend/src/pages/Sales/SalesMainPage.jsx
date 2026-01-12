@@ -31,10 +31,17 @@ export default function SalesMainPage() {
     const fetchSalesOverview = async () => {
       try {
         setLoading(true);
+
+        const formatFilter = (val) => {
+          if (!val || val === "All") return "All";
+          if (Array.isArray(val)) return val.join(",");
+          return val;
+        };
+
         const queryParams = new URLSearchParams({
-          platform: platform || "All",
-          brand: selectedBrand || "All",
-          location: selectedLocation || "All",
+          platform: formatFilter(platform),
+          brand: formatFilter(selectedBrand),
+          location: formatFilter(selectedLocation),
           startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
           compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
@@ -87,7 +94,12 @@ export default function SalesMainPage() {
               <Typography variant="body2" color="text.secondary">No sales data available for the selected filters.</Typography>
             </Box>
           ) : (
-            <SalesSummaryCards data={summaryData} loading={loading} />
+            <SalesSummaryCards
+              data={summaryData}
+              loading={loading}
+              startDate={timeStart ? timeStart.format("YYYY-MM-DD") : ""}
+              endDate={timeEnd ? timeEnd.format("YYYY-MM-DD") : ""}
+            />
           )}
 
           {/* ---------------- Gainers / Drainers ---------------- */}

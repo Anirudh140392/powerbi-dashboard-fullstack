@@ -39,29 +39,52 @@ export default function CityDetailedTable({ sku, onClose }) {
             try {
                 setLoading(true);
 
-                const params = {
-                    webPid: sku.webPid || sku.id,
-                    startDate: sku.startDate || '2025-12-01',
-                    endDate: sku.endDate || '2025-12-31',
-                    compareStartDate: sku.compareStartDate || '2025-11-01',
-                    compareEndDate: sku.compareEndDate || '2025-11-30',
-                    type: sku.metricType || 'availability'
-                };
+                // Determine if this is a visibility signal (has keyword or level property)
+                const isVisibilitySignal = sku.level === 'keyword' || sku.level === 'sku' || sku.keyword || sku.skuName;
 
-                console.log('[CityDetailedTable] Fetching city data with params:', params);
-                console.log('[CityDetailedTable] Full SKU object:', sku);
+                if (isVisibilitySignal) {
+                    // Call visibility city details API with keyword or SKU name
+                    const params = {
+                        level: sku.level || (sku.keyword ? 'keyword' : 'sku'),
+                        keyword: sku.keyword || null,
+                        skuName: sku.skuName || displaySkuName,
+                        platform: sku.platform || 'All',
+                        startDate: sku.startDate || '2025-12-01',
+                        endDate: sku.endDate || '2025-12-31'
+                    };
 
-                const response = await axios.get('/api/availability-analysis/signal-lab/city-details', {
-                    params
-                });
+                    console.log('[CityDetailedTable] Fetching visibility city data with params:', params);
 
-                console.log('[CityDetailedTable] API Response:', response.data);
+                    const response = await axios.get('/api/visibility-analysis/visibility-signals/city-details', {
+                        params
+                    });
 
-                if (response.data && response.data.cities) {
-                    console.log('[CityDetailedTable] Found', response.data.cities.length, 'cities');
-                    setCityData(response.data.cities);
+                    console.log('[CityDetailedTable] Visibility API Response:', response.data);
+
+                    if (response.data && response.data.cities) {
+                        console.log('[CityDetailedTable] Found', response.data.cities.length, 'cities');
+                        setCityData(response.data.cities);
+                    }
                 } else {
-                    console.warn('[CityDetailedTable] No cities in response');
+                    // Fallback to availability API for non-visibility signals
+                    const params = {
+                        webPid: sku.webPid || sku.id,
+                        startDate: sku.startDate || '2025-12-01',
+                        endDate: sku.endDate || '2025-12-31',
+                        compareStartDate: sku.compareStartDate || '2025-11-01',
+                        compareEndDate: sku.compareEndDate || '2025-11-30',
+                        type: sku.metricType || 'availability'
+                    };
+
+                    console.log('[CityDetailedTable] Fetching availability city data with params:', params);
+
+                    const response = await axios.get('/api/availability-analysis/signal-lab/city-details', {
+                        params
+                    });
+
+                    if (response.data && response.data.cities) {
+                        setCityData(response.data.cities);
+                    }
                 }
             } catch (error) {
                 console.error('[CityDetailedTable] Error fetching city data:', error);
@@ -72,7 +95,7 @@ export default function CityDetailedTable({ sku, onClose }) {
         };
 
         fetchCityData();
-    }, [sku]);
+    }, [sku, displaySkuName]);
 
     // Prepare display data
     const allCities = useMemo(() => {

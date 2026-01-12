@@ -23,29 +23,16 @@ import { fetchSalesDrilldown } from "../../api/salesService";
 /*                               RENDER HELPERS                               */
 /* -------------------------------------------------------------------------- */
 const fmt = (val) => {
-    if (val === undefined || val === null || isNaN(val)) return "0.0";
-    return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+    if (val === undefined || val === null || isNaN(val)) return "0";
+    if (val >= 10000000) return (val / 10000000).toFixed(1) + " Cr";
+    if (val >= 100000) return (val / 100000).toFixed(1) + " L";
+    if (val >= 1000) return (val / 1000).toFixed(1) + " K";
+    return val.toFixed(1);
 };
 
 const getMetricStyle = (label, val) => {
-    if (val === undefined || val === null) return {};
-    let status = 'action';
-
-    // Simple logic for thresholds
-    if (label.includes('DRR')) {
-        if (val > 100) status = 'healthy';
-        else if (val > 50) status = 'watch';
-    } else {
-        if (val > 5000) status = 'healthy';
-        else if (val > 1000) status = 'watch';
-    }
-
-    const styles = {
-        healthy: { bgcolor: "rgba(16, 185, 129, 0.12)", color: "#064e3b" },
-        watch: { bgcolor: "rgba(245, 158, 11, 0.12)", color: "#92400e" },
-        action: { bgcolor: "rgba(239, 68, 68, 0.12)", color: "#991b1b" }
-    };
-    return styles[status] || {};
+    // Return empty styles - no background colors on values
+    return {};
 };
 
 // ---------------- COLUMN CONFIG ----------------
@@ -383,7 +370,7 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
                             minWidth: 50
                         }}
                     >
-                        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 500 }}>
                             {fmt(drr)}
                         </Typography>
                     </Box>
