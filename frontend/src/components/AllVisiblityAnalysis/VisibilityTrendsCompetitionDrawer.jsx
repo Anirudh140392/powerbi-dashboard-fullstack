@@ -33,6 +33,7 @@ import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityKpiTrendShowcase from "./VisibilityKpiTrendShowcase";
+import axiosInstance from "../../api/axiosInstance";
 
 /**
  * ---------------------------------------------------------------------------
@@ -618,6 +619,153 @@ export default function VisibilityTrendsCompetitionDrawer({
     }
   }, [view, compareInitialized]);
 
+  // ===================== API STATE =====================
+  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+  const [competitionLoading, setCompetitionLoading] = useState(false);
+
+  // ===================== DYNAMIC FILTER OPTIONS STATE =====================
+  const [filterOptions, setFilterOptions] = useState({
+    platforms: [],
+    formats: [],
+    cities: [],
+    brands: [],
+    loading: true
+  });
+
+  // ===================== FETCH FILTER OPTIONS =====================
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchFilterOptions = async () => {
+      try {
+        console.log("[VisibilityTrendsDrawer] Fetching filter options");
+        const [platformsRes, formatsRes, citiesRes, brandsRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands' } })
+        ]);
+
+        const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
+        const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
+        const cities = (citiesRes.data?.options || []).filter(c => c !== 'All');
+        const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
+
+        console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length });
+
+        setFilterOptions({
+          platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"],
+          formats: formats.length > 0 ? formats : ["Cassata", "Core Tubs", "Premium"],
+          cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
+          brands: brands.length > 0 ? brands : ["Amul", "Mother Dairy", "Nestle", "Britannia"],
+          loading: false
+        });
+
+        // Set default selected platform to first available
+        if (platforms.length > 0) {
+          setSelectedPlatform(platforms[0]);
+        }
+      } catch (error) {
+        console.error("[VisibilityTrendsDrawer] Error fetching filter options:", error);
+        setFilterOptions({
+          platforms: ["Blinkit", "Zepto", "Instamart", "BigBasket"],
+          formats: ["Cassata", "Core Tubs", "Premium"],
+          cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
+          brands: ["Amul", "Mother Dairy", "Nestle", "Britannia"],
+          loading: false
+        });
+      }
+    };
+
+    fetchFilterOptions();
+  }, [open]);
+
+  // ===================== FETCH TREND DATA =====================
+  useEffect(() => {
+    if (view !== "Trends" || !open) return;
+
+    let cancelled = false;
+    const fetchTrendData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          period: range,
+          platform: selectedPlatform || 'All',
+        };
+
+        console.log("[VisibilityTrendsDrawer] Fetching trend data:", params);
+        const response = await axiosInstance.get('/visibility-analysis/kpi-trends', { params });
+
+        if (cancelled) return;
+
+        if (response.data?.timeSeries?.length > 0) {
+          console.log("[VisibilityTrendsDrawer] Received", response.data.timeSeries.length, "points");
+          setChartData(response.data.timeSeries);
+        } else {
+          console.log("[VisibilityTrendsDrawer] No data, using hardcoded fallback");
+          setChartData([]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[VisibilityTrendsDrawer] Error fetching trends:", error);
+          setChartData([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    // Small delay to avoid blocking main UI
+    const timeoutId = setTimeout(fetchTrendData, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [view, range, selectedPlatform, open]);
+
+  // ===================== FETCH COMPETITION DATA =====================
+  // Fetch competition data when drawer opens (not just when Competition view is selected)
+  // This ensures data is ready when user clicks Competition tab
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+    const fetchCompetitionData = async () => {
+      setCompetitionLoading(true);
+      try {
+        const params = {
+          period: '1M',
+          platform: selectedPlatform || 'All',
+        };
+
+        console.log("[VisibilityTrendsDrawer] Fetching competition data:", params);
+        const response = await axiosInstance.get('/visibility-analysis/competition', { params });
+
+        if (cancelled) return;
+
+        if (response.data) {
+          console.log("[VisibilityTrendsDrawer] Received", response.data.brands?.length, "brands");
+          console.log("[VisibilityTrendsDrawer] First brand:", JSON.stringify(response.data.brands?.[0]));
+          setCompetitionData({
+            brands: response.data.brands || [],
+            skus: response.data.skus || []
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[VisibilityTrendsDrawer] Error fetching competition:", error);
+        }
+      } finally {
+        if (!cancelled) setCompetitionLoading(false);
+      }
+    };
+
+    fetchCompetitionData();
+    return () => { cancelled = true; };
+  }, [selectedPlatform, open]);
+
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
       ...p,
@@ -645,7 +793,9 @@ export default function VisibilityTrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const trendOption = useMemo(() => {
-    const xData = trendPoints.map((p) => p.date);
+    // Use fetched API data if available, otherwise fallback to hardcoded
+    const dataSource = chartData.length > 0 ? chartData : trendPoints;
+    const xData = dataSource.map((p) => p.date);
 
     const series = trendMeta.metrics
       .filter((m) => activeMetrics.includes(m.id))
@@ -659,7 +809,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         yAxisIndex: m.axis === "right" ? 1 : 0,
         lineStyle: { width: 2 },
         emphasis: { focus: "series" },
-        data: trendPoints.map((p) => p[m.id] ?? null),
+        data: dataSource.map((p) => p[m.id] ?? null),
         itemStyle: { color: m.color },
       }));
 
@@ -694,18 +844,21 @@ export default function VisibilityTrendsCompetitionDrawer({
       legend: { show: false },
       series,
     };
-  }, [trendMeta, activeMetrics, trendPoints]);
+  }, [trendMeta, activeMetrics, trendPoints, chartData]);
 
   const competitionRows = useMemo(() => {
-    const baseRows =
-      compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands;
+    // Use fetched API data if available, otherwise fallback to hardcoded
+    const hasApiData = competitionData.brands.length > 0 || competitionData.skus.length > 0;
+    const baseRows = hasApiData
+      ? (compTab === "Brands" ? competitionData.brands : competitionData.skus)
+      : (compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands);
 
     return baseRows.filter((r) =>
       search.trim()
         ? r.brand.toLowerCase().includes(search.toLowerCase())
         : true
     );
-  }, [compMeta, compTab, search]);
+  }, [compMeta, compTab, search, competitionData]);
 
   // Compare SKUs chart option (multi-KPI, multi-SKU)
   const compareOption = useMemo(() => {
@@ -754,10 +907,11 @@ export default function VisibilityTrendsCompetitionDrawer({
     setAddSkuOpen(false);
   };
 
-  const PLATFORM_OPTIONS = ["Blinkit", "Zepto", "Instamart", "BigBasket"];
-  const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
-  const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Britannia"];
+  // Use dynamic filter options from API, with fallbacks
+  const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Cassata", "Core Tubs", "Premium"];
+  const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : ["Amul", "Mother Dairy", "Nestle", "Britannia"];
 
   if (!open) return null;
 
@@ -870,10 +1024,26 @@ export default function VisibilityTrendsCompetitionDrawer({
                   <MenuItem value="City">City</MenuItem>
                 </Select>
 
-                {/* DYNAMIC PILLS */}
-                {/* DYNAMIC PILLS */}
+                {/* DYNAMIC PILLS - with scroll for many options */}
                 {showPlatformPills && (
-                  <Box display="flex" gap={0.5}>
+                  <Box
+                    display="flex"
+                    gap={0.5}
+                    sx={{
+                      maxWidth: '500px',
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      flexWrap: 'nowrap',
+                      pb: 0.5,
+                      '&::-webkit-scrollbar': {
+                        height: '4px',
+                      },
+                      '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: '#cbd5e1',
+                        borderRadius: '4px',
+                      },
+                    }}
+                  >
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
@@ -887,8 +1057,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                       <Box
                         key={p}
                         onClick={() => {
-                          setSelectedPlatform(p); // only select the pill
-                          // ❌ DO NOT toggle or force open here
+                          setSelectedPlatform(p);
                         }}
                         sx={{
                           px: 1.5,
@@ -901,6 +1070,8 @@ export default function VisibilityTrendsCompetitionDrawer({
                           backgroundColor:
                             selectedPlatform === p ? "#0ea5e9" : "white",
                           color: selectedPlatform === p ? "white" : "#0f172a",
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
                         }}
                       >
                         {p}
@@ -1001,7 +1172,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <VisibilityKpiTrendShowcase />}
+        {view === "Competition" && <VisibilityKpiTrendShowcase competitionData={competitionData} loading={competitionLoading} />}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (

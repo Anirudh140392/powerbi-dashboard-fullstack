@@ -6,8 +6,11 @@ import {
     getVisibilityTopSearchTerms,
     getVisibilityFilterOptions,
     getVisibilityBrandDrilldown,
-    getVisibilityLatestAvailableDates
+    getVisibilityLatestAvailableDates,
+    getVisibilityKpiTrends,
+    getVisibilityCompetition
 } from '../controllers/visibilityAnalysisController.js';
+
 
 export default (app) => {
     /**
@@ -215,4 +218,62 @@ export default (app) => {
      *         description: Successful response with brands array and top losers
      */
     app.get('/api/visibility-analysis/brand-drilldown', getVisibilityBrandDrilldown);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/kpi-trends:
+     *   get:
+     *     summary: Get Visibility KPI Trends for chart display
+     *     description: Returns daily SOS trends for Overall, Sponsored, Organic, and Display metrics
+     *     parameters:
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *         description: Filter by location
+     *       - in: query
+     *         name: period
+     *         schema:
+     *           type: string
+     *           enum: [1M, 3M, 6M, 1Y]
+     *         description: Time period for trends
+     *     responses:
+     *       200:
+     *         description: Successful response with timeSeries array
+     */
+    app.get('/api/visibility-analysis/kpi-trends', getVisibilityKpiTrends);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/competition:
+     *   get:
+     *     summary: Get Visibility Competition data
+     *     description: Returns brand and SKU competition data with SOS metrics and delta values
+     *     parameters:
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *         description: Filter by location
+     *       - in: query
+     *         name: period
+     *         schema:
+     *           type: string
+     *           enum: [1M, 3M, 6M, 1Y]
+     *         description: Time period for comparison
+     *     responses:
+     *       200:
+     *         description: Successful response with brands and skus arrays
+     */
+    app.get('/api/visibility-analysis/competition', getVisibilityCompetition);
 };

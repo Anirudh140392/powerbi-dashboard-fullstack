@@ -1398,6 +1398,19 @@ class VisibilityService {
                 return { options };
             }
 
+            // BRANDS: from rb_kw.brand_name (distinct brand names)
+            if (filterType === 'brands') {
+                const [results] = await sequelize.query(`
+                    SELECT DISTINCT brand_name as brand
+                    FROM rb_kw
+                    ${whereClause} AND brand_name IS NOT NULL AND brand_name != ''
+                    ORDER BY brand_name
+                    LIMIT 50
+                `);
+                const options = results.map(r => r.brand).filter(Boolean);
+                return { options };
+            }
+
             return { options: [] };
         } catch (error) {
             console.error('[VisibilityService] Error getting filter options:', error);
@@ -1463,6 +1476,265 @@ class VisibilityService {
             };
         }
     }
+
+    /**
+     * Get Visibility KPI Trends for chart display
+     * Returns daily SOS trends for Overall, Sponsored, Organic, and Display metrics
+     * @param {Object} filters - { platform, location, brand, startDate, endDate, period, timeStep }
+     * @returns {Promise<{timeSeries: Array}>}
+     */
+    async getVisibilityKpiTrends(filters = {}) {
+        console.log('[VisibilityService] getVisibilityKpiTrends called with filters:', filters);
+
+        try {
+            // Determine date range based on period or explicit dates
+            let startDate, endDate;
+            const period = filters.period || '1M';
+
+            if (filters.startDate && filters.endDate) {
+                startDate = dayjs(filters.startDate);
+                endDate = dayjs(filters.endDate);
+            } else {
+                endDate = dayjs();
+                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodToDays[period] || 30;
+                startDate = endDate.subtract(days, 'day');
+            }
+
+            const dateFrom = startDate.format('YYYY-MM-DD');
+            const dateTo = endDate.format('YYYY-MM-DD');
+
+            const replacements = { dateFrom, dateTo };
+            const platform = filters.platform || null;
+            const location = filters.location || null;
+            const brand = filters.brand || null;
+
+            const platformCondition = parseMultiSelectFilter(platform, 'platform_name', replacements, 'trendPlat', { caseInsensitive: true });
+            const locationCondition = parseMultiSelectFilter(location, 'location_name', replacements, 'trendLoc', { caseInsensitive: true });
+            const brandSOSCondition = parseMultiSelectFilter(brand, 'brand_name', replacements, 'trendBrand', { isBrand: true });
+
+            // Aggregate by day (timeStep could extend to weekly/monthly later)
+            const query = `
+                SELECT 
+                    DATE(kw_crawl_date) as crawl_date,
+                    ROUND(SUM(CASE WHEN ${brandSOSCondition} THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS overall_sos,
+                    ROUND(SUM(CASE WHEN ${brandSOSCondition} AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS sponsored_sos,
+                    ROUND(SUM(CASE WHEN ${brandSOSCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS organic_sos
+                FROM rb_kw
+                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                  AND ${platformCondition}
+                  AND ${locationCondition}
+                GROUP BY DATE(kw_crawl_date)
+                ORDER BY crawl_date ASC
+            `;
+
+            const results = await sequelize.query(query, {
+                replacements,
+                type: sequelize.QueryTypes.SELECT
+            });
+
+            // Format dates like "06 Sep'25"
+            const timeSeries = results.map(row => {
+                const date = dayjs(row.crawl_date);
+                return {
+                    date: date.format("DD MMM'YY"),
+                    overall_sos: Number(row.overall_sos) || 0,
+                    sponsored_sos: Number(row.sponsored_sos) || 0,
+                    organic_sos: Number(row.organic_sos) || 0,
+                    display_sos: 0 // Display SOS not yet implemented
+                };
+            });
+
+            console.log('[VisibilityService] Returning', timeSeries.length, 'trend data points');
+            return { timeSeries };
+        } catch (error) {
+            console.error('[VisibilityService] Error getting visibility KPI trends:', error);
+            return { timeSeries: [] };
+        }
+    }
+
+    /**
+     * Get Visibility Competition data for brand/SKU comparison
+     * Returns SOS metrics with period-over-period delta for all brands and SKUs
+     * @param {Object} filters - { platform, location, period }
+     * @returns {Promise<{brands: Array, skus: Array}>}
+     */
+    async getVisibilityCompetition(filters = {}) {
+        console.log('[VisibilityService] getVisibilityCompetition called with filters:', filters);
+
+        try {
+            // First, get the latest available date from the database
+            const [maxDateResult] = await sequelize.query(`
+                SELECT MAX(kw_crawl_date) as maxDate
+                FROM rb_kw
+                WHERE kw_crawl_date IS NOT NULL
+            `, { type: sequelize.QueryTypes.SELECT });
+
+            if (!maxDateResult?.maxDate) {
+                console.log('[VisibilityService] No data found in rb_kw table');
+                return { brands: [], skus: [] };
+            }
+
+            const latestDate = dayjs(maxDateResult.maxDate);
+            console.log('[VisibilityService] Using latest available date:', latestDate.format('YYYY-MM-DD'));
+
+            // Determine date ranges based on latest available date (not current date)
+            const period = filters.period || '1M';
+            const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+            const days = periodToDays[period] || 30;
+
+            const currentEnd = latestDate;
+            const currentStart = currentEnd.subtract(days, 'day');
+            const prevEnd = currentStart.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(days, 'day');
+
+            const platform = filters.platform || null;
+            const location = filters.location || null;
+
+            // Build conditions
+            const currentReplacements = {
+                dateFrom: currentStart.format('YYYY-MM-DD'),
+                dateTo: currentEnd.format('YYYY-MM-DD')
+            };
+            const prevReplacements = {
+                dateFrom: prevStart.format('YYYY-MM-DD'),
+                dateTo: prevEnd.format('YYYY-MM-DD')
+            };
+
+            console.log('[VisibilityService] Competition date range:', currentReplacements);
+
+            const platCondCurrent = parseMultiSelectFilter(platform, 'platform_name', currentReplacements, 'compPlat', { caseInsensitive: true });
+            const locCondCurrent = parseMultiSelectFilter(location, 'location_name', currentReplacements, 'compLoc', { caseInsensitive: true });
+            const platCondPrev = parseMultiSelectFilter(platform, 'platform_name', prevReplacements, 'prevPlat', { caseInsensitive: true });
+            const locCondPrev = parseMultiSelectFilter(location, 'location_name', prevReplacements, 'prevLoc', { caseInsensitive: true });
+
+            // 1. Get total volume for both periods to serve as denominator for SOS
+            const [currentTotalRes, prevTotalRes] = await Promise.all([
+                sequelize.query(`
+                    SELECT COUNT(*) as total
+                    FROM rb_kw
+                    WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                      AND ${platCondCurrent}
+                      AND ${locCondCurrent}
+                `, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT }),
+                sequelize.query(`
+                    SELECT COUNT(*) as total
+                    FROM rb_kw
+                    WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                      AND ${platCondPrev}
+                      AND ${locCondPrev}
+                `, { replacements: prevReplacements, type: sequelize.QueryTypes.SELECT })
+            ]);
+
+            const currentVolume = Number(currentTotalRes[0]?.total) || 1;
+            const prevVolume = Number(prevTotalRes[0]?.total) || 1;
+
+            console.log(`[VisibilityService] Competition Volume - Current: ${currentVolume}, Prev: ${prevVolume}`);
+
+            // 2. Query for brand-level competition (current period)
+            // SOS is calculated as (Brand Rows / Total Shelf Rows) * 100
+            const brandCurrentQuery = `
+                SELECT 
+                    brand_name,
+                    ROUND(COUNT(*) * 100.0 / ${currentVolume}, 2) AS overall_sos,
+                    ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
+                    ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS organic_sos,
+                    COUNT(*) as impressions
+                FROM rb_kw
+                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                  AND ${platCondCurrent}
+                  AND ${locCondCurrent}
+                  AND brand_name IS NOT NULL AND brand_name != ''
+                GROUP BY brand_name
+                ORDER BY impressions DESC
+                LIMIT 20
+            `;
+
+            // 3. Query for brand-level competition (previous period)
+            const brandPrevQuery = `
+                SELECT 
+                    brand_name,
+                    ROUND(COUNT(*) * 100.0 / ${prevVolume}, 2) AS overall_sos,
+                    ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${prevVolume}, 2) AS sponsored_sos,
+                    ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${prevVolume}, 2) AS organic_sos
+                FROM rb_kw
+                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                  AND ${platCondPrev}
+                  AND ${locCondPrev}
+                  AND brand_name IS NOT NULL AND brand_name != ''
+                GROUP BY brand_name
+            `;
+
+            // 4. Query for SKU-level competition (current period)
+            const skuCurrentQuery = `
+                SELECT 
+                    sku_name,
+                    brand_name,
+                    ROUND(COUNT(*) * 100.0 / ${currentVolume}, 2) AS overall_sos,
+                    ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
+                    ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS organic_sos,
+                    COUNT(*) as impressions
+                FROM rb_kw
+                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                  AND ${platCondCurrent}
+                  AND ${locCondCurrent}
+                  AND sku_name IS NOT NULL AND sku_name != ''
+                GROUP BY sku_name, brand_name
+                ORDER BY impressions DESC
+                LIMIT 20
+            `;
+
+            const [brandCurrent, brandPrev, skuCurrent] = await Promise.all([
+                sequelize.query(brandCurrentQuery, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT }),
+                sequelize.query(brandPrevQuery, { replacements: prevReplacements, type: sequelize.QueryTypes.SELECT }),
+                sequelize.query(skuCurrentQuery, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT })
+            ]);
+
+            // Create lookup for previous period brand data
+            const brandPrevMap = {};
+            brandPrev.forEach(b => {
+                brandPrevMap[b.brand_name] = b;
+            });
+
+            // Format brand data with deltas
+            const brands = brandCurrent.map(b => {
+                const prev = brandPrevMap[b.brand_name] || {};
+                return {
+                    brand: b.brand_name,
+                    overall_sos: {
+                        value: Number(b.overall_sos) || 0,
+                        delta: Number((b.overall_sos - (prev.overall_sos || 0)).toFixed(1))
+                    },
+                    sponsored_sos: {
+                        value: Number(b.sponsored_sos) || 0,
+                        delta: Number((b.sponsored_sos - (prev.sponsored_sos || 0)).toFixed(1))
+                    },
+                    organic_sos: {
+                        value: Number(b.organic_sos) || 0,
+                        delta: Number((b.organic_sos - (prev.organic_sos || 0)).toFixed(1))
+                    },
+                    display_sos: { value: 0, delta: 0 }
+                };
+            });
+
+            // Format SKU data (simple format, no delta calculation for SKUs to keep it lightweight)
+            const skus = skuCurrent.map(s => ({
+                brand: s.sku_name,
+                brandName: s.brand_name,
+                overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
+                sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
+                organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
+                display_sos: { value: 0, delta: 0 }
+            }));
+
+            console.log('[VisibilityService] Returning', brands.length, 'brands and', skus.length, 'skus');
+            return { brands, skus };
+        } catch (error) {
+            console.error('[VisibilityService] Error getting visibility competition:', error);
+            return { brands: [], skus: [] };
+        }
+    }
 }
+
 
 export default new VisibilityService();

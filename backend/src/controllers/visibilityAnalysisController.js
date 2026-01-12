@@ -256,3 +256,72 @@ export const getVisibilityLatestAvailableDates = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', available: false });
     }
 };
+
+/**
+ * Get Visibility KPI Trends for trend chart display
+ * Returns: Time series data for Overall SOS, Sponsored SOS, Organic SOS, Display SOS
+ */
+export const getVisibilityKpiTrends = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || 'All',
+            period: req.query.period || '1M',
+            timeStep: req.query.timeStep || 'Daily',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== VISIBILITY KPI TRENDS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getVisibilityKpiTrends(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Data points:', data.timeSeries?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('[DATA SAMPLE]: First point:', data.timeSeries?.[0]?.date || 'N/A');
+        console.log('================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility KPI Trends:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', timeSeries: [] });
+    }
+};
+
+/**
+ * Get Visibility Competition data for brand/SKU comparison
+ * Returns: Brands and SKUs with SOS metrics and delta values
+ */
+export const getVisibilityCompetition = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            period: req.query.period || '1M'
+        };
+        console.log('\n========== VISIBILITY COMPETITION API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getVisibilityCompetition(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands:', data.brands?.length, 'SKUs:', data.skus?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('[DATA SAMPLE]: First brand:', data.brands?.[0]?.brand || 'N/A');
+        console.log('=================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Competition:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', brands: [], skus: [] });
+    }
+};
+
