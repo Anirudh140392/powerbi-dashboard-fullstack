@@ -4,7 +4,9 @@ import {
     getVisibilityPlatformKpiMatrix,
     getVisibilityKeywordsAtGlance,
     getVisibilityTopSearchTerms,
-    getVisibilityFilterOptions
+    getVisibilityFilterOptions,
+    getVisibilityBrandDrilldown,
+    getVisibilityLatestAvailableDates
 } from '../controllers/visibilityAnalysisController.js';
 
 export default (app) => {
@@ -25,6 +27,18 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/visibility-analysis', VisibilityWorkspace);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/latest-available-dates:
+     *   get:
+     *     summary: Get latest available dates for Visibility Analysis
+     *     description: Returns the date range of the latest month that has data in rb_kw table. Call this first before fetching visibility data.
+     *     responses:
+     *       200:
+     *         description: Date range for available visibility data
+     */
+    app.get('/api/visibility-analysis/latest-available-dates', getVisibilityLatestAvailableDates);
 
     // ==================== Visibility Analysis APIs ====================
 
@@ -177,4 +191,28 @@ export default (app) => {
      *         description: Successful response with options array
      */
     app.get('/api/visibility-analysis/filter-options', getVisibilityFilterOptions);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/brand-drilldown:
+     *   get:
+     *     summary: Get Brand Visibility Drilldown for a keyword
+     *     description: Retrieve SOS metrics for all brands associated with a specific keyword, including delta changes.
+     *     parameters:
+     *       - in: query
+     *         name: keyword
+     *         required: true
+     *         schema:
+     *           type: string
+     *         description: The keyword to drill down into
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *     responses:
+     *       200:
+     *         description: Successful response with brands array and top losers
+     */
+    app.get('/api/visibility-analysis/brand-drilldown', getVisibilityBrandDrilldown);
 };

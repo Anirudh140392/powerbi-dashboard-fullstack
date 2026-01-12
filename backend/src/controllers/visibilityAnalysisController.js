@@ -193,3 +193,66 @@ export const getVisibilityFilterOptions = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', options: [] });
     }
 };
+
+/**
+ * Get Brand Visibility Drilldown for a keyword
+ * Returns: Brand SOS metrics with delta and top losers
+ */
+export const getVisibilityBrandDrilldown = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            keyword: req.query.keyword,
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+
+        if (!filters.keyword) {
+            return res.status(400).json({ error: 'Keyword is required' });
+        }
+
+        console.log('\n========== VISIBILITY BRAND DRILLDOWN API ==========');
+        console.log('[REQUEST] Keyword:', filters.keyword);
+        console.log('[REQUEST] Platform:', filters.platform);
+
+        const data = await visibilityService.getBrandDrilldown(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands count:', data.brands?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('====================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Brand Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error', brands: [], topLosers: [] });
+    }
+};
+
+/**
+ * Get Latest Available Dates for Visibility Analysis
+ * Returns: Date range of the latest month with available data in rb_kw table
+ */
+export const getVisibilityLatestAvailableDates = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        console.log('\n========== VISIBILITY LATEST AVAILABLE DATES API ==========');
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getLatestAvailableDates();
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Available:', data.available, 'Date range:', data.startDate, 'to', data.endDate);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('============================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Latest Available Dates:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', available: false });
+    }
+};

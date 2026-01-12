@@ -1690,7 +1690,30 @@ export default function TrendsCompetitionDrawer({
                 {/* DYNAMIC PILLS */}
                 {/* DYNAMIC PILLS */}
                 {showPlatformPills && (
-                  <Box display="flex" gap={0.5}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 0.5,
+                      overflowX: "auto",
+                      maxWidth: "calc(100vw - 450px)", // Prevents overflow while leaving space for title/select
+                      pb: 0.5, // Space for custom scrollbar
+                      whiteSpace: "nowrap",
+                      px: 0.5,
+                      "&::-webkit-scrollbar": {
+                        height: "4px",
+                      },
+                      "&::-webkit-scrollbar-track": {
+                        background: "transparent",
+                      },
+                      "&::-webkit-scrollbar-thumb": {
+                        background: "#E2E8F0",
+                        borderRadius: "10px",
+                      },
+                      "&::-webkit-scrollbar-thumb:hover": {
+                        background: "#CBD5E1",
+                      },
+                    }}
+                  >
                     {(allTrendMeta.context.audience === "Platform"
                       ? PLATFORM_OPTIONS
                       : allTrendMeta.context.audience === "Format"
@@ -1705,7 +1728,6 @@ export default function TrendsCompetitionDrawer({
                         key={p}
                         onClick={() => {
                           setSelectedPlatform(p); // only select the pill
-                          // ❌ DO NOT toggle or force open here
                         }}
                         sx={{
                           px: 1.5,
@@ -1715,9 +1737,15 @@ export default function TrendsCompetitionDrawer({
                           fontWeight: 600,
                           cursor: "pointer",
                           border: "1px solid #E5E7EB",
+                          flexShrink: 0, // Prevent pills from shrinking
                           backgroundColor:
                             selectedPlatform === p ? "#0ea5e9" : "white",
                           color: selectedPlatform === p ? "white" : "#0f172a",
+                          transition: "all 0.2s ease",
+                          "&:hover": {
+                            borderColor: selectedPlatform === p ? "#0ea5e9" : "#CBD5E1",
+                            backgroundColor: selectedPlatform === p ? "#0389c4" : "#F8FAFC",
+                          },
                         }}
                       >
                         {p}
