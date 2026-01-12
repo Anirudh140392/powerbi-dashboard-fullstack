@@ -32,30 +32,21 @@ import {
 } from "recharts";
 
 const fmt = (val) => {
-    if (val === undefined || val === null || isNaN(val)) return "0.0";
-    if (val >= 10000000) return (val / 10000000).toFixed(1);
-    if (val >= 100000) return (val / 100000).toFixed(1);
-    return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+    if (val === undefined || val === null || isNaN(val)) return "0";
+    if (val >= 10000000) return (val / 10000000).toFixed(1) + " Cr";
+    if (val >= 100000) return (val / 100000).toFixed(1) + " L";
+    if (val >= 1000) return (val / 1000).toFixed(1) + " K";
+    return val.toFixed(1);
 };
 
 const getMetricStyle = (label, val) => {
-    if (val === undefined || val === null) return {};
-    let status = 'healthy';
-
-    if (label && label.includes('DRR')) {
-        if (val < 500000) status = 'action';
-        else if (val < 1500000) status = 'watch';
-    } else if (label && label.includes('SALES')) {
-        if (val < 500000) status = 'action';
-        else if (val < 2000000) status = 'watch';
-    }
-
-    const styles = {
-        healthy: { bgcolor: "#f0fdf4", color: "#166534", border: "1px solid #dcfce7" },
-        watch: { bgcolor: "#fffbeb", color: "#92400e", border: "1px solid #fef3c7" },
-        action: { bgcolor: "#fef2f2", color: "#991b1b", border: "1px solid #fee2e2" }
+    // Return neutral styling - no colored backgrounds on values
+    // Only the delta/% change will have colors
+    return {
+        bgcolor: "#f8fafc",
+        color: "#334155",
+        border: "1px solid #e2e8f0"
     };
-    return styles[status] || styles.healthy;
 };
 
 const TrendSparkline = ({ data = [] }) => {

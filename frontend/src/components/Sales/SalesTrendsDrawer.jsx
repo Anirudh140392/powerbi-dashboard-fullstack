@@ -550,14 +550,18 @@ export default function SalesTrendsDrawer({
     useEffect(() => {
         const loadOptions = async () => {
             try {
-                const data = await fetchSalesFilterOptions();
+                const data = await fetchSalesFilterOptions({
+                    platform: selectedPlatform,
+                    brand: selectedBrandState,
+                    location: selectedLocationState
+                });
                 setOptions(data);
             } catch (e) {
                 console.error("Failed to fetch filter options:", e);
             }
         };
         loadOptions();
-    }, []);
+    }, [selectedPlatform, selectedBrandState, selectedLocationState]);
 
     useEffect(() => {
         if (open) {

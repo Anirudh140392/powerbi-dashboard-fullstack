@@ -164,6 +164,50 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
 };
 
 /**
+ * Get Keyword & SKU Visibility Metrics from rb_kw table
+ * Returns: Keyword and SKU level visibility metrics with filters
+ */
+export const getKeywordSkuVisibilityMetrics = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        console.log('\n========== KEYWORD-SKU VISIBILITY METRICS API ==========');
+        const filters = {
+            keyword: req.query.keyword || null,
+            sku: req.query.sku || null,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            startDate: req.query.startDate || null,
+            endDate: req.query.endDate || null
+        };
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getKeywordSkuVisibilityMetrics(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Keywords count:', data.keywords?.length);
+        console.log('[RESPONSE]: Summary -', JSON.stringify(data.summary, null, 2));
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('========================================================\n');
+
+        res.json({
+            success: true,
+            data,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('[ERROR] Keyword-SKU Visibility Metrics:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch keyword-SKU visibility metrics',
+            message: error.message
+        });
+    }
+};
+
+/**
  * Get Filter Options for Advanced Filters modal (cascading filters)
  * Returns: Dynamic options based on selected filters
  */
@@ -193,3 +237,96 @@ export const getVisibilityFilterOptions = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', options: [] });
     }
 };
+
+/**
+ * Get Visibility Signals for Keyword & SKU (Drainers/Gainers)
+ * Returns: Signals with impact metrics, KPIs, and city-level data
+ */
+export const getVisibilitySignals = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            level: req.query.level || 'keyword',  // 'keyword' or 'sku'
+            signalType: req.query.signalType || 'drainer',  // 'drainer' or 'gainer'
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            startDate: req.query.startDate || null,
+            endDate: req.query.endDate || null,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null
+        };
+        console.log('\n========== VISIBILITY SIGNALS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getVisibilitySignals(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Signals count:', data.signals?.length);
+        console.log('[RESPONSE]: Summary -', JSON.stringify(data.summary, null, 2));
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('=============================================\n');
+
+        res.json({
+            success: true,
+            ...data,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('[ERROR] Visibility Signals:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch visibility signals',
+            message: error.message,
+            signals: []
+        });
+    }
+};
+
+/**
+ * Get city-level KPI details for a specific keyword or SKU visibility signal
+ * Returns: City-level metrics from both rb_kw and rb_pdp_olap tables
+ */
+export const getVisibilitySignalCityDetails = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const params = {
+            keyword: req.query.keyword || null,
+            skuName: req.query.skuName || null,
+            level: req.query.level || 'keyword',
+            platform: req.query.platform || 'All',
+            startDate: req.query.startDate || null,
+            endDate: req.query.endDate || null
+        };
+        console.log('\n========== VISIBILITY SIGNAL CITY DETAILS API ==========');
+        console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const data = await visibilityService.getVisibilitySignalCityDetails(params);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Cities count:', data.cities?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('=========================================================\n');
+
+        res.json({
+            success: true,
+            ...data,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('[ERROR] Visibility Signal City Details:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch visibility signal city details',
+            message: error.message,
+            cities: []
+        });
+    }
+};
+
+
