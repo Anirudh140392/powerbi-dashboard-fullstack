@@ -200,7 +200,7 @@ export default function MainPerformanceMarketings() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        <MainPerformanceMarketing />;
+        <MainPerformanceMarketing />
       </CommonContainer>
 
       {/* Trend Drawer */}
