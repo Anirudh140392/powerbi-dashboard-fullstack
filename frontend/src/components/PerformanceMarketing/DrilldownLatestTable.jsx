@@ -402,6 +402,12 @@ export default function DrilldownLatestTable() {
     inorganic: true,
   })
   const [expandedRows, setExpandedRows] = useState(new Set())
+
+  // Debug log to verify Day column visibility logic removed for cleaner code in final version
+  // console.log('🔍 [DrilldownTable] expandedRows.size:', expandedRows.size, 'Should show Day column:', expandedRows.size > 0);
+
+  const [expandedQuarters, setExpandedQuarters] = useState(new Set()) // Collapsed by default
+
   const visibleKpiKeys = useMemo(
     () => Object.keys(KPI_LABELS).filter((k) => visibleKpis[k]),
     [visibleKpis]
@@ -492,14 +498,7 @@ export default function DrilldownLatestTable() {
     return { quarters: sortedQuarters, quarterMonths: sortedQuarterMonths };
   }, [apiData]);
 
-  const [expandedQuarters, setExpandedQuarters] = useState(new Set(quarters))
-
-  // Make sure to update expanded quarters when quarters change (e.g. initial load)
-  useEffect(() => {
-    if (quarters.length > 0) {
-      setExpandedQuarters(new Set(quarters));
-    }
-  }, [quarters.join(',')]);
+  // Removed useEffect that auto-expanded quarters to provide a cleaner initial view as requested
 
   // Fetch Filter Options (Initial)
   useEffect(() => {
@@ -949,6 +948,7 @@ export default function DrilldownLatestTable() {
                           rowSpan={expandedQuarters.size ? 3 : 2}
                           className="px-2 py-2 text-left font-bold align-bottom border-b border-r border-slate-200 text-slate-800"
                           style={{
+                            position: 'sticky',
                             left: LEFT_DAY,
                             top: 0,
                             background: 'white',
@@ -983,8 +983,8 @@ export default function DrilldownLatestTable() {
                               }
                               className={`inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-700 transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95`}
                             >
-                              <span className={`flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-[8px] transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
-                                ▶
+                              <span className={`flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-[8px] transition-transform duration-200`}>
+                                {isExpanded ? '▼' : '▶'}
                               </span>
                               {q}
                             </button>
