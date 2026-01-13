@@ -476,6 +476,43 @@ const performanceMarketingService = {
                 raw: true
             });
 
+            // Log what dates we got from database
+            console.log(`\n📊 [getFormatPerformance] Retrieved ${dailyData.length} rows from database`);
+
+            const datesByCategory = {};
+            dailyData.forEach(row => {
+                if (!datesByCategory[row.Category]) {
+                    datesByCategory[row.Category] = [];
+                }
+                datesByCategory[row.Category].push(row.date);
+            });
+
+            Object.entries(datesByCategory).forEach(([category, dates]) => {
+                console.log(`\n  📁 ${category}: ${dates.length} dates total`);
+
+                // Check for December dates
+                const decemberDates = dates.filter(d => d && d.startsWith('2024-12')).sort();
+                if (decemberDates.length > 0) {
+                    console.log(`    December dates found: ${decemberDates.join(', ')}`);
+
+                    // Show ACTUAL RAW DATA for December 28-31
+                    decemberDates.filter(d => {
+                        const day = parseInt(d.split('-')[2]);
+                        return day >= 28;
+                    }).forEach(date => {
+                        const dataRow = dailyData.find(r => r.Category === category && r.date === date);
+                        if (dataRow) {
+                            console.log(`\n    ✅ ${date} - RAW DATABASE VALUES:`);
+                            console.log(`       Impressions: ${dataRow.impressions || 0}`);
+                            console.log(`       Clicks: ${dataRow.clicks || 0}`);
+                            console.log(`       Orders: ${dataRow.orders || 0}`);
+                            console.log(`       Spend: ${dataRow.spend || 0}`);
+                            console.log(`       Sales: ${dataRow.sales || 0}`);
+                        }
+                    });
+                }
+            });
+
             return dailyData;
 
         } catch (error) {

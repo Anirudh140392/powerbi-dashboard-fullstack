@@ -605,6 +605,8 @@ export default function DrilldownLatestTable() {
     byCategory.forEach((items, category) => {
       const catId = category; // unique ID
 
+      console.log(`📊 [DrilldownTable] Processing category: ${category}, Items count: ${items.length}`);
+
       // We need to bucket items by Quarter/Month/Day
       const transformedItems = items.map(item => {
         const d = dayjs(item.date);
@@ -618,8 +620,9 @@ export default function DrilldownLatestTable() {
         const orders = Number(item.orders) || 0; // Get orders
         const revenue = Number(item.sales) || Number(item.total_sales) || 0; // revenue column
 
-        return {
+        const transformed = {
           format: category,
+          date: item.date,  // Store actual date string
           day: d.date(), // 1-31
           month: m,
           year: d.year(),
@@ -634,6 +637,9 @@ export default function DrilldownLatestTable() {
             }
           }
         };
+
+        console.log(`  📅 Date: ${item.date} → Day: ${d.date()}, Q: ${q}, Imps: ${imps}, Spend: ${spend}`);
+        return transformed;
       });
 
       rows.push({
@@ -649,19 +655,21 @@ export default function DrilldownLatestTable() {
 
       // Direct drilldown: expand Category -> Individual Dates
       if (expandedRows.has(catId)) {
+        console.log(`🔽 [DrilldownTable] Expanding category: ${category}`);
+
         // Aggregate by day to prevent duplicates, BUT keep quarters separate
         const dayAggs = new Map();
 
-        // Initialize all days 1-31 first
-        for (let d = 1; d <= 31; d++) {
-          dayAggs.set(d, {
-            day: d,
-            quarters: {}
-          });
-        }
-
         transformedItems.forEach(item => {
           if (item.day < 1 || item.day > 31) return;
+
+          if (!dayAggs.has(item.day)) {
+            dayAggs.set(item.day, {
+              day: item.day,
+              date: item.date,  // Store actual date
+              quarters: {}
+            });
+          }
 
           const agg = dayAggs.get(item.day);
           const q = Object.keys(item.quarters)[0];
@@ -676,14 +684,23 @@ export default function DrilldownLatestTable() {
             agg.quarters[q].impressions += getSafe(metrics.impressions);
             agg.quarters[q].spend += getSafe(metrics.spend);
             agg.quarters[q].clicks += getSafe(metrics.clicks);
-            agg.quarters[q].orders += getSafe(metrics.orders); // Sum orders
+            agg.quarters[q].orders += getSafe(metrics.orders);
             agg.quarters[q].adSales += getSafe(metrics.adSales);
             agg.quarters[q].totalSales += getSafe(metrics.totalSales);
           }
         });
 
-        // Create rows from aggregated day data
+        console.log(`  📊 Days with data for ${category}:`, Array.from(dayAggs.keys()).sort((a, b) => a - b));
+
+        // Create rows from aggregated day data - only for days with actual data
         Array.from(dayAggs.values())
+          .filter(aggItem => {
+            const hasData = Object.keys(aggItem.quarters).length > 0;
+            if (!hasData) {
+              console.log(`  ⚠️ Day ${aggItem.day} has no quarter data, skipping`);
+            }
+            return hasData;
+          })
           .sort((a, b) => a.day - b.day)
           .forEach((aggItem) => {
             const dayId = `${catId}-d-${aggItem.day}`;
@@ -694,29 +711,31 @@ export default function DrilldownLatestTable() {
               const imps = raw.impressions;
               const clicks = raw.clicks;
               const spend = raw.spend;
-              const orders = raw.orders; // Get summed orders
-              const sales = raw.totalSales; // Total Sales
-              const adSales = raw.adSales;  // Ad Sales
+              const orders = raw.orders;
+              const sales = raw.totalSales;
+              const adSales = raw.adSales;
 
               quartersData[q] = {
                 impressions: imps,
                 spend: spend,
-                conversion: clicks ? (orders / clicks) : 0, // Orders / Clicks
+                conversion: clicks ? (orders / clicks) * 100 : 0, // Multiply by 100 for percentage
                 cpm: imps ? ((spend / imps) * 1000) : 0,
                 roas: spend ? (adSales / spend) : 0,
                 sales: sales,
                 inorganic: adSales
               };
+
+              console.log(`    ✅ Day ${aggItem.day} (${aggItem.date}) - Q${q}: Imps=${imps}, Spend=${spend}, Sales=${sales}`);
             });
 
             rows.push({
               id: dayId,
               depth: 1,
-              label: '',
+              label: aggItem.date || '',  // Show actual date as label
               level: 'day',
               format: category,
               day: aggItem.day,
-              quarters: quartersData, // Now has Q3, Q4 keys
+              quarters: quartersData,
               months: {},
               hasChildren: false
             });
@@ -1099,7 +1118,22 @@ export default function DrilldownLatestTable() {
                           if (isExpanded) {
                             return quarterMonths[q].flatMap((m, mi) =>
                               visibleKpiKeys.map((k) => {
-                                const v = row.months[m]?.[k] ?? NaN
+                                // For day-level rows, use quarter data mapped to the row's month
+                                // For category rows, use aggregated month data
+                                let v;
+                                if (row.level === 'day') {
+                                  // Day rows: check if THIS month matches the row's month property
+                                  // If yes, use the quarter data. If no, show dash.
+                                  if (row.month === m) {
+                                    v = row.quarters[q]?.[k] ?? NaN;
+                                  } else {
+                                    v = NaN; // This day doesn't belong to this month
+                                  }
+                                } else {
+                                  // Category rows: use aggregated months data
+                                  v = row.months[m]?.[k] ?? NaN;
+                                }
+
                                 const meta = kpiModes[k]
                                 const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
                                 const display = Number.isFinite(v) ? meta.formatter(v) : '—'
