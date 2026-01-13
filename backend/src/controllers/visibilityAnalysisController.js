@@ -1,4 +1,5 @@
 import visibilityService from '../services/visibilityService.js';
+import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 
 /**
  * Legacy endpoint - kept for backward compatibility
@@ -40,7 +41,10 @@ export const getVisibilityOverview = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getVisibilityOverview(filters);
+        const cacheKey = generateCacheKey('visibility_overview', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityOverview(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Cards count:', data.cards?.length);
@@ -76,7 +80,10 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getPlatformKpiMatrix(filters);
+        const cacheKey = generateCacheKey('visibility_matrix', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getPlatformKpiMatrix(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Platform rows:', data.platformData?.rows?.length, 'Format rows:', data.formatData?.rows?.length, 'City rows:', data.cityData?.rows?.length);
@@ -112,7 +119,10 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getKeywordsAtGlance(filters);
+        const cacheKey = generateCacheKey('visibility_keywords', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getKeywordsAtGlance(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Hierarchy items:', data.hierarchy?.length);
@@ -147,7 +157,10 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getTopSearchTerms(filters);
+        const cacheKey = generateCacheKey('visibility_search_terms', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getTopSearchTerms(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Terms count:', data.terms?.length);
@@ -180,7 +193,10 @@ export const getVisibilityFilterOptions = async (req, res) => {
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
-        const data = await visibilityService.getVisibilityFilterOptions(params);
+        const cacheKey = generateCacheKey('visibility_filters', params);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityFilterOptions(params);
+        }, CACHE_TTL.STATIC);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Options count:', data.options?.length);
@@ -218,7 +234,10 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
         console.log('[REQUEST] Keyword:', filters.keyword);
         console.log('[REQUEST] Platform:', filters.platform);
 
-        const data = await visibilityService.getBrandDrilldown(filters);
+        const cacheKey = generateCacheKey('visibility_brand_drill', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getBrandDrilldown(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Brands count:', data.brands?.length);
@@ -242,7 +261,10 @@ export const getVisibilityLatestAvailableDates = async (req, res) => {
         console.log('\n========== VISIBILITY LATEST AVAILABLE DATES API ==========');
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getLatestAvailableDates();
+        const cacheKey = generateCacheKey('visibility_dates', {});
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getLatestAvailableDates();
+        }, CACHE_TTL.SHORT);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Available:', data.available, 'Date range:', data.startDate, 'to', data.endDate);
@@ -277,7 +299,10 @@ export const getVisibilityKpiTrends = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getVisibilityKpiTrends(filters);
+        const cacheKey = generateCacheKey('visibility_trends', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityKpiTrends(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Data points:', data.timeSeries?.length);
@@ -312,7 +337,10 @@ export const getVisibilityCompetition = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getVisibilityCompetition(filters);
+        const cacheKey = generateCacheKey('visibility_competition', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityCompetition(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Brands:', data.brands?.length, 'SKUs:', data.skus?.length);
@@ -359,7 +387,10 @@ export const getBrandComparisonTrends = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getBrandComparisonTrends(filters);
+        const cacheKey = generateCacheKey('visibility_brand_trends', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getBrandComparisonTrends(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Brands:', Object.keys(data.brands || {}).length, 'Days:', data.days?.length);

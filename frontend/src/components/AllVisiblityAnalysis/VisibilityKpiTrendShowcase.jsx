@@ -17,7 +17,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { Box } from "@mui/material";
+import { Box, Skeleton } from "@mui/material";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -1072,8 +1072,29 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
   if (loading) {
     return (
       <Card className="mt-4">
-        <CardContent className="flex items-center justify-center h-64">
-          <div className="text-slate-500">Loading brand comparison trends...</div>
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={180} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={60} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={70} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={65} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+          </div>
+          <Skeleton variant="rounded" width={100} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+        </CardHeader>
+        <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
+          {/* 4 Chart skeletons for Overall SOS, Sponsored SOS, Organic SOS, Display SOS */}
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="border-slate-200 bg-slate-50/80 shadow-none">
+              <CardHeader className="pb-2">
+                <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+              </CardHeader>
+              <CardContent className="h-48 pt-0">
+                <Skeleton variant="rectangular" width="100%" height="100%" animation="wave" sx={{ borderRadius: 2 }} />
+              </CardContent>
+            </Card>
+          ))}
         </CardContent>
       </Card>
     );
@@ -1581,6 +1602,54 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
     return rows;
   }, [city, filters]);
+
+  // Skeleton loader for initial load and filter changes
+  if (loading) {
+    return (
+      <div className="flex-col bg-slate-50 text-slate-900 p-4">
+        {/* Header skeleton */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={120} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+            <Skeleton variant="text" width={200} height={32} animation="wave" sx={{ borderRadius: 1 }} />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton variant="rounded" width={90} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+            <Skeleton variant="rounded" width={80} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+        </div>
+
+        {/* Tabs skeleton */}
+        <div className="mb-4 flex gap-2">
+          <Skeleton variant="rounded" width={80} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" width={60} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" width={80} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+        </div>
+
+        {/* Table skeleton */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          {/* Table header */}
+          <div className="flex gap-4 mb-4 pb-3 border-b border-slate-100">
+            <Skeleton variant="text" width="20%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+          </div>
+          {/* Table rows */}
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex gap-4 py-3 border-b border-slate-50">
+              <Skeleton variant="text" width="20%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">

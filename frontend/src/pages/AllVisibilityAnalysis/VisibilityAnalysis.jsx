@@ -209,8 +209,15 @@ export default function VisibilityAnalysis() {
           })
           .catch(err => console.error('❌ [Visibility] Overview fetch error:', err));
 
-        // Platform KPI Matrix
-        fetch(`/api/visibility-analysis/platform-kpi-matrix?${queryParams}`)
+        // Platform KPI Matrix - DON'T filter by platform dropdown, always show ALL platforms for comparison
+        const matrixParams = new URLSearchParams({
+          platform: 'All',  // Always show all platforms in the matrix
+          brand: filters.brand || 'All',
+          location: filters.location || 'All',
+          startDate: filters.startDate,
+          endDate: filters.endDate
+        }).toString();
+        fetch(`/api/visibility-analysis/platform-kpi-matrix?${matrixParams}`)
           .then(res => res.json())
           .then(matrix => {
             setApiData(prev => ({ ...prev, matrix }));
