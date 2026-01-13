@@ -55,6 +55,19 @@ const MONTHS = [
 const parsePercent = (v) =>
   typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
 
+// Format numbers in Indian format (K, Lacs, Crores)
+const formatIndianNumber = (num) => {
+  if (num === null || num === undefined || num === "–" || num === "-") return "–";
+  const val = typeof num === "string" ? parseFloat(num.replace(/,/g, "")) : Number(num);
+  if (isNaN(val)) return "–";
+
+  const absVal = Math.abs(val);
+  if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+  if (absVal >= 100000) return `${(val / 100000).toFixed(2)} L`;
+  if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+  return val.toLocaleString('en-IN');
+};
+
 const aggregateForMonthFilter = (keywordObj, monthFilter) => {
   const sourceMonths = Array.isArray(keywordObj.months)
     ? keywordObj.months
@@ -453,7 +466,7 @@ export default function KeywordAnalysisTable() {
           })}
 
 
-          <TableCell align="center">{node.agg.impressions}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.impressions)}</TableCell>
 
           <TableCell align="center">
             <Box
@@ -471,8 +484,8 @@ export default function KeywordAnalysisTable() {
               {node.agg.conversion.toFixed(1)}%
             </Box>
           </TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.spend}</TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.cpm.toFixed(0)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.spend)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.cpm)}</TableCell>
           <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.roas.toFixed(1)}</TableCell>
         </TableRow>
 
