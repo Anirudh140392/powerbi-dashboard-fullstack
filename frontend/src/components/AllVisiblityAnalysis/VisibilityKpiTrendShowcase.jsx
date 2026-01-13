@@ -1444,6 +1444,37 @@ const KeywordTable = ({ rows }) => {
   );
 };
 
+/* Table Skeleton - Used when filters are being applied */
+const TableSkeleton = () => (
+  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+    <CardHeader className="border-b pb-2">
+      <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+    </CardHeader>
+    <CardContent className="pt-3">
+      <div className="rounded-md border">
+        {/* Table header skeleton */}
+        <div className="flex gap-4 px-3 py-2 bg-slate-50 border-b">
+          <Skeleton variant="text" width="25%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+        </div>
+        {/* Table rows skeleton */}
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex gap-4 px-3 py-3 border-b border-slate-100">
+            <Skeleton variant="text" width="25%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+          </div>
+        ))}
+      </div>
+    </CardContent>
+  </Card>
+);
+
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
@@ -1768,7 +1799,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <BrandTable rows={brandRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -1791,7 +1822,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <SkuTable rows={skuRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -1813,7 +1844,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* KEYWORD TAB */}
         <TabsContent value="keyword" className="mt-3">
-          {viewMode === "table" && <KeywordTable rows={keywordRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <KeywordTable rows={keywordRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="keyword"
