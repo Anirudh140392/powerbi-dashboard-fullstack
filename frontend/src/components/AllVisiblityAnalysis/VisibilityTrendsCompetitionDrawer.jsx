@@ -27,6 +27,7 @@ import {
   TableRow,
   Select,
   MenuItem,
+  Skeleton,
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
@@ -621,9 +622,9 @@ export default function VisibilityTrendsCompetitionDrawer({
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
-  const [competitionLoading, setCompetitionLoading] = useState(false);
+  const [competitionLoading, setCompetitionLoading] = useState(true);
 
   // ===================== DYNAMIC FILTER OPTIONS STATE =====================
   const [filterOptions, setFilterOptions] = useState({
@@ -1175,11 +1176,23 @@ export default function VisibilityTrendsCompetitionDrawer({
 
               {/* Chart */}
               <Box sx={{ height: 340 }}>
-                <ReactECharts
-                  style={{ height: "100%", width: "100%" }}
-                  option={trendOption}
-                  notMerge
-                />
+                {loading ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%', justifyContent: 'center' }}>
+                    <Skeleton variant="rectangular" width="100%" height={280} animation="wave" sx={{ borderRadius: 2 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                    </Box>
+                  </Box>
+                ) : (
+                  <ReactECharts
+                    style={{ height: "100%", width: "100%" }}
+                    option={trendOption}
+                    notMerge
+                  />
+                )}
               </Box>
             </Paper>
           </Box>

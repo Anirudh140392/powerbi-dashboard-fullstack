@@ -10,7 +10,9 @@ import {
     getAvailabilityKpiTrends,
     getAvailabilityCompetition,
     getAvailabilityCompetitionFilterOptions,
-    getAvailabilityCompetitionBrandTrends
+    getAvailabilityCompetitionBrandTrends,
+    getSignalLabData,
+    getCityDetailsForProduct
 } from '../controllers/availabilityAnalysisController.js';
 
 export default (app) => {
@@ -314,5 +316,74 @@ export default (app) => {
      *     description: Returns time-series data for comparing multiple brands
      */
     app.get('/api/availability-analysis/competition-brand-trends', getAvailabilityCompetitionBrandTrends);
+
+    /**
+     * @swagger
+     * /api/availability-analysis/signal-lab:
+     *   get:
+     *     summary: Get Signal Lab Data for Availability Analysis
+     *     description: Returns SKU-level OSA and DOI metrics with formulas - OSA = sum(neno_osa)/sum(deno_osa), DOI = Inventory/(sum(Qty_Sold in 30 days)/30)
+     *     parameters:
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: brand
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: type
+     *         schema:
+     *           type: string
+     *           enum: [availability, sales, inventory, performance, visibility]
+     *     responses:
+     *       200:
+     *         description: Successful response with SKU data
+     */
+    app.get('/api/availability-analysis/signal-lab', getSignalLabData);
+
+    /**
+     * @swagger
+     * /api/availability-analysis/signal-lab/city-details:
+     *   get:
+     *     summary: Get City Details for a Specific Product
+     *     description: Returns city-level metrics for a specific product in Signal Lab
+     *     parameters:
+     *       - in: query
+     *         name: webPid
+     *         schema:
+     *           type: string
+     *         required: true
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: type
+     *         schema:
+     *           type: string
+     *           enum: [availability, sales, inventory, performance, visibility]
+     *     responses:
+     *       200:
+     *         description: Successful response with city data
+     */
+    app.get('/api/availability-analysis/signal-lab/city-details', getCityDetailsForProduct);
 };
 

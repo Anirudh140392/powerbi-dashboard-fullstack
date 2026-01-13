@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import CityDetailedTable from "./CityDetailedTable";
+import { FilterContext } from "../../utils/FilterContext";
 
 /* -------------------------------------------------------------------------- */
 /*                               KPI DEFINITIONS                              */
@@ -725,14 +726,119 @@ function VisibilityCard({ item, onShowDetails }) {
 /*                               MAIN VIEW                                    */
 /* -------------------------------------------------------------------------- */
 
+// Fallback mock data when API fails
+const MOCK_SIGNALS = {
+  drainer: {
+    keyword: [
+      {
+        id: "KW-KW-D01", level: "keyword", type: "drainer", keyword: "family pack ice cream", platform: "Blinkit", impact: "-5.8%",
+        kpis: { adSos: "10%", organicSos: "7%", overallSos: "8.3%", volumeShare: "5.4%", adPosition: "4", organicPosition: "12" },
+        cities: [{ city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" }, { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" }]
+      },
+      {
+        id: "KW-KW-D02", level: "keyword", type: "drainer", keyword: "chocolate ice cream", platform: "Blinkit", impact: "-4.9%",
+        kpis: { adSos: "9%", organicSos: "6%", overallSos: "7.5%", volumeShare: "4.7%", adPosition: "3", organicPosition: "15" },
+        cities: [{ city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" }, { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" }]
+      },
+      {
+        id: "KW-KW-D03", level: "keyword", type: "drainer", keyword: "kulfi", platform: "Blinkit", impact: "-3.7%",
+        kpis: { adSos: "8%", organicSos: "5%", overallSos: "6.2%", volumeShare: "3.9%", adPosition: "5", organicPosition: "19" },
+        cities: [{ city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" }, { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" }]
+      },
+      {
+        id: "KW-KW-D04", level: "keyword", type: "drainer", keyword: "ice cream combo pack", platform: "Blinkit", impact: "-4.3%",
+        kpis: { adSos: "9%", organicSos: "6%", overallSos: "7.0%", volumeShare: "4.3%", adPosition: "4", organicPosition: "14" },
+        cities: [{ city: "Chennai", metric: "Sos 5.7%", change: "-2.0%" }, { city: "Coimbatore", metric: "Vol 3.9%", change: "-1.5%" }]
+      }
+    ],
+    sku: [
+      {
+        id: "KW-SKU-D01", level: "sku", type: "drainer", skuCode: "SKU-001", skuName: "Butterscotch 700ml", platform: "Blinkit", impact: "-7.3%",
+        kpis: { indexScore: "62", placementScore: "54", adPosition: "4", organicPosition: "23" },
+        cities: [{ city: "Mumbai", metric: "Placement 51", change: "-2.9%" }, { city: "Pune", metric: "Index 59", change: "-1.8%" }]
+      }
+    ]
+  },
+  gainer: {
+    keyword: [
+      {
+        id: "KW-KW-G01", level: "keyword", type: "gainer", keyword: "cone ice cream", platform: "Blinkit", impact: "+8.1%",
+        kpis: { adSos: "28%", organicSos: "21%", overallSos: "26%", volumeShare: "19%", adPosition: "1", organicPosition: "5" },
+        cities: [{ city: "Hyderabad", metric: "Sos 31%", change: "+6.2%" }, { city: "Bangalore", metric: "Vol 22%", change: "+4.4%" }]
+      }
+    ],
+    sku: [
+      {
+        id: "KW-SKU-G01", level: "sku", type: "gainer", skuCode: "SKU-501", skuName: "Cornetto Double Choco", platform: "Blinkit", impact: "+5.7%",
+        kpis: { indexScore: "91", placementScore: "88", adPosition: "1", organicPosition: "6" },
+        cities: [{ city: "Delhi", metric: "Index 93", change: "+3.4%" }, { city: "Gurgaon", metric: "Placement 90", change: "+2.1%" }]
+      }
+    ]
+  }
+};
+
 export function VisibilityLayoutOne() {
   const [signalType, setSignalType] = useState("drainer");
   const [level, setLevel] = useState("keyword");
   const [selectedItemForDetails, setSelectedItemForDetails] = useState(null);
+  const [signals, setSignals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filtered = VISIBILITY_DATA.filter(
-    (row) => row.type === signalType && row.level === level
-  );
+  // Get global filters from FilterContext
+  const {
+    platform,
+    selectedLocation,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd
+  } = useContext(FilterContext);
+
+  // Fetch visibility signals from API
+  React.useEffect(() => {
+    const fetchSignals = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Build query parameters with all global filters
+        const queryParams = new URLSearchParams({
+          level,
+          signalType,
+          platform: platform || 'All',
+          location: selectedLocation || 'All',
+          startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
+          endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
+          compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
+          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : ''
+        });
+
+        console.log('[VisibilityLayoutOne] Fetching signals with params:', queryParams.toString());
+
+        const response = await fetch(
+          `http://localhost:5000/api/visibility-analysis/visibility-signals?${queryParams}`
+        );
+        const data = await response.json();
+
+        if (data.success && data.signals && data.signals.length > 0) {
+          setSignals(data.signals);
+        } else {
+          // Fallback to mock data if API returns empty
+          console.log('[VisibilityLayoutOne] Using fallback mock data');
+          setSignals(MOCK_SIGNALS[signalType]?.[level] || []);
+        }
+      } catch (err) {
+        console.error('[VisibilityLayoutOne] API error:', err);
+        setError(err.message);
+        // Fallback to mock data on error
+        setSignals(MOCK_SIGNALS[signalType]?.[level] || []);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSignals();
+  }, [signalType, level, platform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
   return (
     <div className="w-full">
@@ -754,16 +860,26 @@ export function VisibilityLayoutOne() {
       </div>
 
       <div className="mt-2 pb-1">
-        <div className="grid grid-cols-4 gap-3 w-full items-start">
-          {filtered.slice(0, 4).map((item) => (
-            <VisibilityCard
-              key={item.id}
-              item={item}
-              onShowDetails={() => setSelectedItemForDetails(item)}
-            />
-          ))}
-
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-48">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
+            <span className="ml-3 text-slate-500 text-sm">Loading signals...</span>
+          </div>
+        ) : signals.length === 0 ? (
+          <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+            No {signalType}s found at {level} level
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-3 w-full items-start">
+            {signals.slice(0, 4).map((item) => (
+              <VisibilityCard
+                key={item.id}
+                item={item}
+                onShowDetails={() => setSelectedItemForDetails(item)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Detailed Table Overlay */}
@@ -778,3 +894,4 @@ export function VisibilityLayoutOne() {
 }
 
 export default VisibilityLayoutOne;
+

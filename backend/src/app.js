@@ -8,6 +8,7 @@ import AllRoutes from "./routes.js";
 import { connectDB } from "./config/db.js";
 import redisClient from "./config/redis.js";
 import cacheRoutes from "./routes/cache.js";
+import "./models/associations.js";
 
 // ===== PERFORMANCE OPTIMIZATION: Suppress console.log in production =====
 // This dramatically improves performance by eliminating I/O overhead from debug logs

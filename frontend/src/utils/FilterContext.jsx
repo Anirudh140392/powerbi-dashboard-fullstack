@@ -63,7 +63,7 @@ export const FilterProvider = ({ children }) => {
 
     // Platform state
     const [platforms, setPlatforms] = useState(Object.keys(platformData));
-    const [platform, setPlatform] = useState("Zepto");
+    const [platform, setPlatform] = useState("Blinkit");
 
     // Brand state
     const [brands, setBrands] = useState([]);
@@ -106,29 +106,65 @@ export const FilterProvider = ({ children }) => {
 
         const fetchLatestMonth = async () => {
             try {
-                const response = await axiosInstance.get("/watchtower/latest-available-month");
+                // If we have a selected brand, try to get its specific latest month
+                // Otherwise (or if it fails), get the global latest month
+                const response = await axiosInstance.get("/watchtower/latest-available-month", {
+                    params: {
+                        platform: platform !== 'All' ? platform : undefined,
+                        brand: selectedBrand !== 'All' ? selectedBrand : undefined
+                    }
+                });
+
                 if (!cancelled && response.data?.available) {
-                    // Use defaultStartDate (1st of month) and latestDate (actual max date)
                     const startDate = response.data.defaultStartDate || response.data.startDate;
                     const endDate = response.data.latestDate || response.data.defaultEndDate || response.data.endDate;
 
-                    setTimeStart(dayjs(startDate));
-                    setTimeEnd(dayjs(endDate));
-                    setMaxDate(dayjs(endDate)); // Set max date for date picker
-                    setDatesInitialized(true);
+                    const s = dayjs(startDate);
+                    const e = dayjs(endDate);
 
-                    console.log('📅 Date range initialized:', {
-                        startDate,
-                        endDate,
-                        maxDate: endDate
-                    });
+                    setTimeStart(s);
+                    setTimeEnd(e);
+                    setMaxDate(e);
+
+                    // Initialize comparison dates to preceding period
+                    const diffDays = e.diff(s, 'day') + 1;
+                    const cEnd = s.subtract(1, 'day');
+                    const cStart = cEnd.subtract(diffDays - 1, 'day');
+                    setCompareStart(cStart);
+                    setCompareEnd(cEnd);
+
+                    setDatesInitialized(true);
                     return;
+                } else if (!cancelled && selectedBrand && selectedBrand !== 'All') {
+                    // Fallback to global latest month if brand-specific failed
+                    console.log(`[FilterContext] No data for ${selectedBrand}, falling back to global latest month`);
+                    const globalResponse = await axiosInstance.get("/watchtower/latest-available-month");
+                    if (globalResponse.data?.available) {
+                        const gStart = globalResponse.data.defaultStartDate;
+                        const gEnd = globalResponse.data.defaultEndDate;
+                        setTimeStart(dayjs(gStart));
+                        setTimeEnd(dayjs(gEnd));
+                        setMaxDate(dayjs(gEnd));
+                        setDatesInitialized(true);
+                        return;
+                    }
                 }
             } catch (error) {
                 console.warn("⚠️ Unable to fetch latest available month, keeping default dates:", error.message);
             }
 
             if (!cancelled) {
+                // Hard fallback to last known good data (since table ends at 2025-12-31)
+                const s = dayjs("2025-12-01");
+                const e = dayjs("2025-12-31");
+                setTimeStart(s);
+                setTimeEnd(e);
+
+                const cEnd = s.subtract(1, 'day');
+                const cStart = cEnd.subtract(e.diff(s, 'day'), 'day');
+                setCompareStart(cStart);
+                setCompareEnd(cEnd);
+
                 setDatesInitialized(true);
             }
         };

@@ -449,82 +449,34 @@ const cards = [
 // ---------------- TabbedHeatmapTable Component (Unnested) ----------------
 const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
   const [activeTab, setActiveTab] = useState("platform");
-  const [dynamicColumns, setDynamicColumns] = useState({
-    platform: [],
-    format: [],
-    city: [],
-    loading: true
-  });
 
-  // Fetch dynamic columns once on mount
-  useEffect(() => {
-    const fetchDynamicColumns = async () => {
-      setDynamicColumns(prev => ({ ...prev, loading: true }));
-      try {
-        const [platformsRes, formatsRes, citiesRes] = await Promise.all([
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=cities')
-        ]);
-
-        setDynamicColumns({
-          platform: platformsRes.data?.options || [],
-          format: formatsRes.data?.options || [],
-          city: (citiesRes.data?.options || []).slice(0, 10),
-          loading: false
-        });
-      } catch (error) {
-        console.error('[TabbedHeatmapTable] Error fetching dynamic columns:', error);
-        setDynamicColumns({
-          platform: FORMAT_MATRIX_Visibility.PlatformColumns,
-          format: FORMAT_MATRIX_Visibility.formatColumns,
-          city: FORMAT_MATRIX_Visibility.CityColumns,
-          loading: false
-        });
-      }
-    };
-    fetchDynamicColumns();
-  }, []);
-
-  // If loading prop is true, show skeleton instead of hardcoded data
+  // If loading prop is true, show skeleton
   if (loading) {
     return <TabbedHeatmapTableSkeleton />;
   }
 
-  const buildRows = (dataArray = [], columnList = []) => {
-    return dataArray.map((item) => {
-      const primaryTrendSeries = item?.trend?.["Spend"] || [];
-      const valid = primaryTrendSeries.length >= 2;
-      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
-      const globalDelta = Number((lastVal - prevVal).toFixed(1));
 
-      const trendObj = {};
-      const seriesObj = {};
-      const valuesObj = { ...item.values };
-
-      columnList.forEach((col) => {
-        trendObj[col] = globalDelta;
-        seriesObj[col] = primaryTrendSeries;
-        if (valuesObj[col] === undefined) {
-          const kpiLower = (item.kpi || '').toLowerCase();
-          if (kpiLower.includes('sos')) valuesObj[col] = Math.round(70 + Math.random() * 25);
-          else if (kpiLower.includes('display')) valuesObj[col] = Math.round(60 + Math.random() * 30);
-          else valuesObj[col] = Math.round(50 + Math.random() * 40);
-        }
-      });
-
-      return { kpi: item.kpi, ...valuesObj, trend: trendObj, series: seriesObj };
-    });
+  // Use API data from matrixData prop - it already contains platformData, formatData, cityData
+  // Fallback to static data if API data is not available
+  const platformData = matrixData?.platformData || {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+    rows: []
   };
 
-  const platformCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.PlatformColumns : dynamicColumns.platform;
-  const formatCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.formatColumns : dynamicColumns.format;
-  const cityCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.CityColumns : dynamicColumns.city;
+  const formatData = matrixData?.formatData || {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+    rows: []
+  };
 
-  const platformData = { columns: ["kpi", ...platformCols], rows: buildRows(FORMAT_MATRIX_Visibility.PlatformData, platformCols) };
-  const formatData = { columns: ["kpi", ...formatCols], rows: buildRows(FORMAT_MATRIX_Visibility.FormatData, formatCols) };
-  const cityData = { columns: ["kpi", ...cityCols], rows: buildRows(FORMAT_MATRIX_Visibility.CityData, cityCols) };
+  const cityData = matrixData?.cityData || {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+    rows: []
+  };
+
+  // Get column counts for tab display
+  const platformCols = (platformData.columns || []).filter(c => c !== "kpi");
+  const formatCols = (formatData.columns || []).filter(c => c !== "kpi");
+  const cityCols = (cityData.columns || []).filter(c => c !== "kpi");
 
   const active = activeTab === "platform" ? platformData : activeTab === "format" ? formatData : cityData;
 
@@ -538,7 +490,7 @@ const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
             className={`px-4 py-1.5 text-sm rounded-full transition-all ${activeTab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             <span className="capitalize">{key}</span>
-            {dynamicColumns.loading ? '' : ` (${key === 'platform' ? platformCols.length : key === 'format' ? formatCols.length : cityCols.length})`}
+            {` (${key === 'platform' ? platformCols.length : key === 'format' ? formatCols.length : cityCols.length})`}
           </button>
         ))}
       </div>
