@@ -35,6 +35,19 @@ import PaginationFooter from "../CommonLayout/PaginationFooter";
 const parsePercent = (v) =>
   typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
 
+// Format numbers in Indian format (K, Lacs, Crores)
+const formatIndianNumber = (num) => {
+  if (num === null || num === undefined || num === "–" || num === "-") return "–";
+  const val = typeof num === "string" ? parseFloat(num.replace(/,/g, "")) : Number(num);
+  if (isNaN(val)) return "–";
+
+  const absVal = Math.abs(val);
+  if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+  if (absVal >= 100000) return `${(val / 100000).toFixed(2)} L`;
+  if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+  return val.toLocaleString('en-IN');
+};
+
 const rowConvAvg = (values) => {
   const convIndices = [3, 4, 5];
   const nums = convIndices
@@ -444,15 +457,18 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     );
 
     const nums = vals
-      .map((v) => parseFloat(String(v).replace("%", "")))
+      .map((v) => parseFloat(String(v).replace("%", "").replace(/,/g, "")))
       .filter((x) => !isNaN(x));
 
     if (!nums.length) return "–";
     const isPercent = idx >= 3;
+    const total = nums.reduce((a, b) => a + b, 0);
 
-    return isPercent
-      ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + "%"
-      : nums.reduce((a, b) => a + b, 0).toLocaleString();
+    if (isPercent) {
+      return (total / nums.length).toFixed(1) + "%";
+    }
+    // Format spend columns (0, 1, 2) with Indian number format
+    return formatIndianNumber(total);
   });
 
   // --------- Expand / Collapse all ----------
@@ -700,6 +716,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
           {qVals.map((v, i) => {
             const heat = i >= 3 ? getHeatStyle(v) : {};
+            // Format spend columns (0, 1, 2) with Indian number format
+            const displayValue = i < 3 ? formatIndianNumber(v) : (v || "–");
             return (
               <TableCell key={i} align="center" sx={{ minWidth: 100, width: 100 }}>
                 <Box
@@ -714,7 +732,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     color: i >= 3 ? heat.color : "#475569",
                   }}
                 >
-                  {v || "–"}
+                  {displayValue}
                 </Box>
               </TableCell>
             );

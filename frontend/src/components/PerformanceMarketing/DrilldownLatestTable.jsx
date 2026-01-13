@@ -20,11 +20,24 @@ const KPI_LABELS = {
 
 
 
+// Format numbers in Indian format (K, Lacs, Crores)
+const formatIndianNumber = (num) => {
+  if (num === null || num === undefined) return '–';
+  const val = typeof num === 'string' ? parseFloat(num.replace(/,/g, '')) : Number(num);
+  if (!Number.isFinite(val)) return '–';
+
+  const absVal = Math.abs(val);
+  if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+  if (absVal >= 100000) return `${(val / 100000).toFixed(2)} L`;
+  if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+  return val.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+};
+
 const kpiModes = {
   impressions: {
     label: 'Impressions',
     description: 'Total impressions. Higher is better vs benchmark.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(0) : ''),
+    formatter: (v) => formatIndianNumber(v),
     heat: (v) =>
       v >= 200
         ? 'bg-emerald-50 text-emerald-700'
@@ -35,7 +48,7 @@ const kpiModes = {
   conversion: {
     label: 'Conversion',
     description: 'Conversion rate or count.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
+    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) + '%' : ''),
     heat: (v) =>
       v >= 0.05
         ? 'bg-emerald-50 text-emerald-700'
@@ -46,13 +59,13 @@ const kpiModes = {
   spend: {
     label: 'Spend',
     description: 'Ad spend for the period.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
+    formatter: (v) => formatIndianNumber(v),
     heat: () => 'bg-white text-slate-700',
   },
   cpm: {
     label: 'CPM',
     description: 'Cost per 1000 impressions.',
-    formatter: (v) => (Number.isFinite(v) ? v.toFixed(2) : ''),
+    formatter: (v) => formatIndianNumber(v),
     heat: (v) =>
       v <= 300
         ? 'bg-emerald-50 text-emerald-700'
@@ -74,13 +87,13 @@ const kpiModes = {
   sales: {
     label: 'Sales',
     description: 'Total Sales (Organic + Ad)',
-    formatter: (v) => (Number.isFinite(v) ? v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : ''),
-    heat: (v) => 'bg-white text-slate-700', // Remove heat map coloring for raw values or adjust threshold
+    formatter: (v) => formatIndianNumber(v),
+    heat: (v) => 'bg-white text-slate-700',
   },
   inorganic: {
     label: 'Inorganic Sales',
     description: 'Ad Sales (Sum of Ad_Sales)',
-    formatter: (v) => (Number.isFinite(v) ? v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : ''),
+    formatter: (v) => formatIndianNumber(v),
     heat: () => 'bg-white text-slate-700',
   },
 }
