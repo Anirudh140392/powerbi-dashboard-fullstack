@@ -96,8 +96,8 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {loading ? (
-            // Render 4 Skeletons when loading
+          {(loading && cards.length === 0) ? (
+            // Render 4 Skeletons only if no data yet
             Array.from(new Array(4)).map((_, index) => (
               <Box key={index} sx={{ flex: 1, minWidth: 200 }}>
                 <Skeleton variant="rectangular" height={150} sx={{ borderRadius: 3 }} />
