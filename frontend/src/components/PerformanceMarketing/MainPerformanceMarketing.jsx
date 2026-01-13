@@ -157,7 +157,10 @@ export default function MainPerformanceMarketings() {
             if (!trendChart.length) return { values: [], labels: [] };
             return {
               values: trendChart.map(item => Number(item[key]) || 0),
-              labels: trendChart.map(item => dayjs(item.date).format("MMM DD"))
+              labels: trendChart.map(item => {
+                const datePart = dayjs(item.date).format("MMM DD");
+                return item.label ? `${datePart} (${item.label})` : datePart;
+              })
             };
           };
 

@@ -136,7 +136,7 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
         )}
 
         {/* Sparkline */}
-        <MiniSparkline months={months} values={values} color={color} />
+        <MiniSparkline months={months} values={values} color={color} title={card.title} />
       </CardContent>
     </Card>
   );

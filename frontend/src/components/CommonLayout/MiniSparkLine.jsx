@@ -1,8 +1,23 @@
 import { Box, Typography } from "@mui/material";
 import { useState, useMemo } from "react";
 
-export default function MiniSparkline({ months, values, color }) {
+export default function MiniSparkline({ months, values, color, title = "" }) {
   const [hover, setHover] = useState(null);
+
+  // Helper to format values in Indian format (K, Lacs, Cr) or with units
+  const formatTooltipValue = (val) => {
+    if (val === null || val === undefined) return "0";
+    const label = title.toLowerCase();
+
+    if (label.includes("conversion")) return val.toFixed(1) + "%";
+    if (label.includes("roas")) return val.toFixed(2);
+
+    const absVal = Math.abs(val);
+    if (absVal >= 10000000) return (val / 10000000).toFixed(2) + " Cr";
+    if (absVal >= 100000) return (val / 100000).toFixed(2) + " Lacs";
+    if (absVal >= 1000) return (val / 1000).toFixed(1) + " K";
+    return val.toLocaleString("en-IN");
+  };
 
   // Normalize values to fit within 20-80 range to prevent extreme positions
   const normalizedValues = useMemo(() => {
@@ -99,7 +114,7 @@ export default function MiniSparkline({ months, values, color }) {
                 }}
               >
                 <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.65rem" }}>
-                  {months[i]}: {values[i]?.toFixed?.(1) || values[i]}
+                  {months[i]}: {formatTooltipValue(values[i])}
                 </Typography>
               </Box>
             )}

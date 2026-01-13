@@ -780,8 +780,8 @@ export default function DrilldownLatestTable() {
     <div className="rounded-3xl flex-col bg-slate-50 relative">
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {filterPanelOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-16 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[600px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -882,7 +882,7 @@ export default function DrilldownLatestTable() {
                       key={k}
                       onClick={() => toggleKpiVisibility(k)}
                       className={`
-                        flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold transition-all
+                        flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold transition-all cursor-pointer
                         ${isActive
                           ? "bg-slate-200 text-slate-900 border-slate-300"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -907,7 +907,7 @@ export default function DrilldownLatestTable() {
               {/* FILTER BUTTON MOVED HERE */}
               <button
                 onClick={() => setFilterPanelOpen(true)}
-                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all"
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all cursor-pointer"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 <span>Filters</span>
@@ -981,7 +981,7 @@ export default function DrilldownLatestTable() {
                                   return next
                                 })
                               }
-                              className={`inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-700 transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95`}
+                              className={`inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold text-slate-700 transition-all hover:bg-slate-50 hover:shadow-sm active:scale-95 cursor-pointer`}
                             >
                               <span className={`flex h-4 w-4 items-center justify-center rounded-full bg-slate-100 text-[8px] transition-transform duration-200`}>
                                 {isExpanded ? '▼' : '▶'}
@@ -1080,8 +1080,8 @@ export default function DrilldownLatestTable() {
                                 })
                               }
                               className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${row.hasChildren
-                                ? 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50'
-                                : 'border-transparent text-transparent'
+                                ? 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50 cursor-pointer'
+                                : 'border-transparent text-transparent cursor-default'
                                 }`}
                               disabled={!row.hasChildren}
                             >
