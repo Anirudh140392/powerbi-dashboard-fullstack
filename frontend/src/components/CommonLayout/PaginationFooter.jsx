@@ -19,7 +19,7 @@ const PaginationFooter = ({
                 <button
                     onClick={() => onPageChange(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
-                    className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                    className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 cursor-pointer"
                 >
                     Prev
                 </button>
@@ -29,7 +29,7 @@ const PaginationFooter = ({
                 <button
                     onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
-                    className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                    className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 cursor-pointer"
                 >
                     Next
                 </button>
@@ -38,7 +38,7 @@ const PaginationFooter = ({
             <div className="flex items-center gap-2">
                 <span className="text-[10px] font-medium text-slate-400">{itemsLabel}</span>
                 <select
-                    className="h-6 rounded border border-slate-200 bg-white text-xs text-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="h-6 rounded border border-slate-200 bg-white text-xs text-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 cursor-pointer"
                     value={pageSize}
                     onChange={(e) => onPageSizeChange(Number(e.target.value))}
                 >

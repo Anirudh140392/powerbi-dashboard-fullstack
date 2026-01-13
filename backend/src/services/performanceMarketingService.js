@@ -182,10 +182,11 @@ const performanceMarketingService = {
             const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
             const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(29, 'days');
 
-            // Calculate previous period (same duration, immediately preceding)
+            // Calculate previous period - Month-over-Month (MoM)
+            const prevStartDate = startDate.subtract(1, 'month');
+            const prevEndDate = endDate.subtract(1, 'month');
             const duration = endDate.diff(startDate, 'day') + 1;
-            const prevEndDate = startDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(duration - 1, 'day');
+            const prevDuration = prevEndDate.diff(prevStartDate, 'day') + 1;
 
             // 2. Build Query Conditions
             const whereClause = {};
@@ -371,9 +372,29 @@ const performanceMarketingService = {
                 }
             ];
 
+            // 8. Prepend Comparison Baseline to Trend Chart
+            // This ensures sparklines show a trend line even for a single day selection (vs previous period)
+            const finalTrendData = [...trendData];
+            if (prevMetrics) {
+                // Use daily average for sum-based metrics to maintain scale consistency in daily sparklines
+                const avgImpressions = prevMetrics.impressions / prevDuration;
+                const avgSpend = prevMetrics.spend / prevDuration;
+                const aggregateRoas = prevMetrics.spend > 0 ? prevMetrics.adSales / prevMetrics.spend : 0;
+                const aggregateConversion = prevMetrics.clicks > 0 ? (prevMetrics.orders / prevMetrics.clicks) * 100 : 0;
+
+                finalTrendData.unshift({
+                    date: prevStartDate.format('YYYY-MM-DD'), // Show as comparison start date
+                    label: "Prev. Month",
+                    impressions: avgImpressions,
+                    spend: avgSpend,
+                    roas_roas: aggregateRoas,
+                    cr_percentage: aggregateConversion
+                });
+            }
+
             return {
                 kpi_cards,
-                trend_chart: trendData
+                trend_chart: finalTrendData
             };
         } catch (error) {
             console.error("Error in getKpisOverview:", error);

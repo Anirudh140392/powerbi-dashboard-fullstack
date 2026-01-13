@@ -445,6 +445,7 @@ export default function KeywordAnalysisTable() {
                           height: 20,
                           borderRadius: 2,
                           backgroundColor: "white",
+                          cursor: "pointer",
                           "&:hover": { backgroundColor: "#f8fafc" },
                         }}
                       >
@@ -501,8 +502,8 @@ export default function KeywordAnalysisTable() {
     <Card sx={{ p: 3, borderRadius: 3 }}>
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {filterPanelOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-16 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[600px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -511,7 +512,7 @@ export default function KeywordAnalysisTable() {
               </div>
               <button
                 onClick={() => setFilterPanelOpen(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -547,13 +548,13 @@ export default function KeywordAnalysisTable() {
             <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
               <button
                 onClick={() => setFilterPanelOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setFilterPanelOpen(false)}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200 cursor-pointer"
               >
                 Apply Filters
               </button>
@@ -583,6 +584,7 @@ export default function KeywordAnalysisTable() {
                 backgroundColor: "#f1f5f9",
                 color: "#334155",
                 border: "1px solid #e2e8f0",
+                cursor: "pointer",
                 "&:hover": { backgroundColor: "#e2e8f0" },
                 "& .MuiSelect-select": {
                   paddingRight: "24px !important",
@@ -626,6 +628,7 @@ export default function KeywordAnalysisTable() {
               backgroundColor: "#f1f5f9",
               color: "#334155",
               border: "1px solid #e2e8f0",
+              cursor: "pointer",
               "&:hover": { backgroundColor: "#e2e8f0" }
             }}
           >
