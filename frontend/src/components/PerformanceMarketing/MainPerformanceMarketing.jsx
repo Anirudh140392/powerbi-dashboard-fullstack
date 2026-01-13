@@ -232,5 +232,5 @@ export default function MainPerformanceMarketings() {
         <DrilldownLatestTable />
       </Box>
     </Box>
-  );
-};
+  )
+}
