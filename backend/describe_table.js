@@ -1,26 +1,15 @@
-
-import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const config = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT
-};
+import 'dotenv/config';
+import sequelize from './src/config/db.js';
 
 async function describeTable() {
     try {
-        const connection = await mysql.createConnection(config);
-        const [rows] = await connection.execute('DESCRIBE rca_monthly_ms');
-        console.log('Columns in rca_monthly_ms:');
-        rows.forEach(row => console.log(`${row.Field} (${row.Type})`));
-        await connection.end();
-    } catch (err) {
-        console.error('Error describing table:', err);
+        await sequelize.authenticate();
+        const [results, metadata] = await sequelize.query("DESCRIBE tb_zepto_ads_keyword_data");
+        console.log("TABLE_SCHEMA:", JSON.stringify(results, null, 2));
+    } catch (error) {
+        console.error('ERROR:', error);
+    } finally {
+        await sequelize.close();
     }
 }
 

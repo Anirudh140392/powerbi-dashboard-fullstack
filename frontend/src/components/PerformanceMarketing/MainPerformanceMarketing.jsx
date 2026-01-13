@@ -14,8 +14,102 @@ import KeywordAnalysisTable from "./KeywordAnalysisTable";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 
 export default function MainPerformanceMarketings() {
-  const { timeStart, timeEnd, comparisonLabel } = useContext(FilterContext);
+  const {
+    timeStart, timeEnd, comparisonLabel,
+    zones, selectedZone, setZones, setSelectedZone,
+    pmPlatforms, pmSelectedPlatform, setPmPlatforms, setPmSelectedPlatform,
+    pmBrands, pmSelectedBrand, setPmBrands, setPmSelectedBrand
+  } = useContext(FilterContext);
+
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
+  const [loading, setLoading] = useState(false); // Loading state for cards
+
+  // Fetch PM-specific Platforms on mount
+  useEffect(() => {
+    const fetchPmPlatforms = async () => {
+      try {
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM platforms...");
+        const response = await axiosInstance.get("/performance-marketing/platforms");
+        console.log("✅ [MainPerformanceMarketing] PM Platforms:", response.data);
+
+        if (response.data && response.data.length > 0) {
+          const platformList = ["All", ...response.data];
+          setPmPlatforms(platformList);
+          if (!platformList.includes(pmSelectedPlatform)) {
+            setPmSelectedPlatform("All");
+          }
+        } else {
+          setPmPlatforms(["All"]);
+        }
+      } catch (error) {
+        console.error("❌ [MainPerformanceMarketing] Error fetching PM platforms:", error);
+        setPmPlatforms(["All"]);
+      }
+    };
+    fetchPmPlatforms();
+  }, [setPmPlatforms, setPmSelectedPlatform]);
+
+  // Fetch PM-specific Brands when platform changes
+  useEffect(() => {
+    const fetchPmBrands = async () => {
+      try {
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", pmSelectedPlatform);
+        const response = await axiosInstance.get("/performance-marketing/brands", {
+          params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform }
+        });
+        console.log("✅ [MainPerformanceMarketing] PM Brands:", response.data);
+
+        if (response.data && response.data.length > 0) {
+          const brandList = ["All", ...response.data];
+          setPmBrands(brandList);
+          if (!brandList.includes(pmSelectedBrand)) {
+            setPmSelectedBrand("All");
+          }
+        } else {
+          setPmBrands(["All"]);
+          setPmSelectedBrand("All");
+        }
+      } catch (error) {
+        console.error("❌ [MainPerformanceMarketing] Error fetching PM brands:", error);
+        setPmBrands(["All"]);
+      }
+    };
+    fetchPmBrands();
+  }, [pmSelectedPlatform, setPmBrands, setPmSelectedBrand]);
+
+  // Fetch Zones when brand changes (Performance Marketing page specific)
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", pmSelectedBrand);
+        const response = await axiosInstance.get("/performance-marketing/zones", {
+          params: { brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand }
+        });
+        console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
+
+        if (response.data && response.data.length > 0) {
+          const zoneList = ["All", ...response.data];
+          setZones(zoneList);
+
+          // Reset selection if current zone is not in new list
+          if (!zoneList.includes(selectedZone)) {
+            setSelectedZone("All");
+          }
+        } else {
+          console.warn("⚠️ [MainPerformanceMarketing] No zones found, setting ['All'].");
+          setZones(["All"]);
+          setSelectedZone("All");
+        }
+      } catch (error) {
+        console.error("❌ [MainPerformanceMarketing] Error fetching zones:", error);
+        setZones(["All"]);
+      }
+    };
+
+    fetchZones();
+  }, [pmSelectedBrand, setZones, setSelectedZone]);
+
+
 
   // Default to the mock data for initial render
   const [kpiCards, setKpiCards] = useState([
@@ -41,13 +135,16 @@ export default function MainPerformanceMarketings() {
 
   useEffect(() => {
     const fetchPerformanceData = async () => {
+      setLoading(true); // Start loading
       try {
         const response = await axiosInstance.get("/performance-marketing", {
           params: {
-            platform: "Blinkit",
+            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
+            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
+            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
-          },
+          }
         });
         console.log("Performance Marketing Data:", response.data);
 
@@ -55,20 +152,27 @@ export default function MainPerformanceMarketings() {
           const trendChart = response.data.trend_chart || [];
 
           // Helper to extract numeric values for sparkline
-          // We'll take the last 12 points or all if less
-          const getSparklineData = (key) => {
-            if (!trendChart.length) return null;
-            return trendChart.slice(-12).map(item => Number(item[key]) || 0);
+          // We'll take all points to show the selected range accurately
+          const getTrendSeries = (key) => {
+            if (!trendChart.length) return { values: [], labels: [] };
+            return {
+              values: trendChart.map(item => Number(item[key]) || 0),
+              labels: trendChart.map(item => {
+                const datePart = dayjs(item.date).format("MMM DD");
+                return item.label ? `${datePart} (${item.label})` : datePart;
+              })
+            };
           };
 
           const mappedCards = response.data.kpi_cards.map(card => {
             let sparkKey = "";
             // Map label to data key in trend_chart if possible
-            // Assuming trend_chart has keys like: impressions, spend, cpm, ctr, etc.
             if (card.label.toLowerCase().includes("impression")) sparkKey = "impressions";
             else if (card.label.toLowerCase().includes("spend")) sparkKey = "spend";
             else if (card.label.toLowerCase().includes("roas")) sparkKey = "roas_roas";
             else if (card.label.toLowerCase().includes("conversion")) sparkKey = "cr_percentage";
+
+            const trendData = getTrendSeries(sparkKey);
 
             return {
               title: card.label,
@@ -76,7 +180,8 @@ export default function MainPerformanceMarketings() {
               change: `${card.positive ? "▲" : "▼"} ${card.change}`, // Add arrow
               changeColor: card.positive ? "#28a745" : "#dc3545", // Green/Red
               sub: "", // Optional subtitle
-              sparklineData: getSparklineData(sparkKey),
+              sparklineData: trendData.values,
+              months: trendData.labels,
               prevTextStyle: {
                 fontSize: 10,
                 fontWeight: "bold",
@@ -91,13 +196,15 @@ export default function MainPerformanceMarketings() {
         }
       } catch (error) {
         console.error("Error fetching Performance Marketing data:", error);
+      } finally {
+        setLoading(false); // Stop loading
       }
     };
 
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd]);
+  }, [timeStart, timeEnd, pmSelectedPlatform, pmSelectedBrand, selectedZone]); // Updated dependencies
 
   return (
     <Box>
@@ -108,6 +215,7 @@ export default function MainPerformanceMarketings() {
             ...card,
             prevText: comparisonLabel
           }))}
+          loading={loading} // Pass loading state
         />
       </Box>
       <Box sx={{ mt: 4 }}>
@@ -127,5 +235,5 @@ export default function MainPerformanceMarketings() {
         <DrilldownLatestTable />
       </Box>
     </Box>
-  );
-};
+  )
+}

@@ -61,29 +61,42 @@ export const FilterProvider = ({ children }) => {
     const location = useLocation();
     const currentPath = location.pathname;
 
+    // Load saved filters from localStorage
+    const savedFilters = JSON.parse(localStorage.getItem('savedFilters') || '{}');
+
     // Platform state
     const [platforms, setPlatforms] = useState(Object.keys(platformData));
-    const [platform, setPlatform] = useState("Blinkit");
+    const [platform, setPlatform] = useState(savedFilters.platform || "Zepto");
 
     // Brand state
     const [brands, setBrands] = useState([]);
-    const [selectedBrand, setSelectedBrand] = useState(null);
+    const [selectedBrand, setSelectedBrand] = useState(savedFilters.selectedBrand || null);
 
     // Location state
     const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [selectedLocation, setSelectedLocation] = useState(savedFilters.selectedLocation || null);
 
     // Keyword state (for visibility analysis)
     const [keywords, setKeywords] = useState([]);
-    const [selectedKeyword, setSelectedKeyword] = useState(null);
+    const [selectedKeyword, setSelectedKeyword] = useState(savedFilters.selectedKeyword || null);
+
+    // Zone state (for Performance Marketing page only)
+    const [zones, setZones] = useState([]);
+    const [selectedZone, setSelectedZone] = useState("All");
+
+    // PM-specific Platform and Brand state (for Performance Marketing page only)
+    const [pmPlatforms, setPmPlatforms] = useState([]);
+    const [pmSelectedPlatform, setPmSelectedPlatform] = useState("All");
+    const [pmBrands, setPmBrands] = useState([]);
+    const [pmSelectedBrand, setPmSelectedBrand] = useState("All");
 
     // Date Ranges
     // Default date range: 1st of current month to today
-    const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
-    const [timeEnd, setTimeEnd] = useState(dayjs());
-    const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
-    const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
-    const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
+    const [timeStart, setTimeStart] = useState(savedFilters.timeStart ? dayjs(savedFilters.timeStart) : dayjs().startOf('month'));
+    const [timeEnd, setTimeEnd] = useState(savedFilters.timeEnd ? dayjs(savedFilters.timeEnd) : dayjs());
+    const [compareStart, setCompareStart] = useState(savedFilters.compareStart ? dayjs(savedFilters.compareStart) : dayjs("2025-09-01"));
+    const [compareEnd, setCompareEnd] = useState(savedFilters.compareEnd ? dayjs(savedFilters.compareEnd) : dayjs("2025-09-06"));
+    const [comparisonLabel, setComparisonLabel] = useState(savedFilters.comparisonLabel || "VS PREV. 30 DAYS");
 
     const [datesInitialized, setDatesInitialized] = useState(false);
 
@@ -93,7 +106,7 @@ export const FilterProvider = ({ children }) => {
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
 
-    // Log route changes for debugging
+    // Log route changes for debugging and reset location for Performance Marketing
     useEffect(() => {
         console.log('📍 Route changed to:', currentPath);
     }, [currentPath]);
@@ -313,6 +326,8 @@ export const FilterProvider = ({ children }) => {
         };
 
         const fetchLocations = async () => {
+
+
             if (backendAvailable) {
                 try {
                     // Check if on Availability Analysis or Visibility Analysis page - include all locations
@@ -390,7 +405,19 @@ export const FilterProvider = ({ children }) => {
             comparisonLabel,
             setComparisonLabel,
             datesInitialized,
-            maxDate
+            maxDate,
+            zones,
+            selectedZone,
+            setZones,
+            setSelectedZone,
+            pmPlatforms,
+            pmSelectedPlatform,
+            setPmPlatforms,
+            setPmSelectedPlatform,
+            pmBrands,
+            pmSelectedBrand,
+            setPmBrands,
+            setPmSelectedBrand
         }}>
 
             {children}
