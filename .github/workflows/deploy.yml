@@ -1,0 +1,94 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - enhancement_01122025_backend_kenil
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  APP_DIR: /home/ubuntu/powerbi-dashboard-fullstack
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env file on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            cd ${{ env.APP_DIR }}
+            cat > .env << 'EOF'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          REDIS_PASSWORD=
+          REDIS_DB=${{ secrets.REDIS_DB }}
+          REDIS_ENABLED=${{ secrets.REDIS_ENABLED }}
+          REDIS_DEFAULT_TTL=${{ secrets.REDIS_DEFAULT_TTL }}
+          EOF
+            echo "✅ .env file created"
+          ENDSSH
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            set -e
+            
+            echo "📁 Navigating to app directory..."
+            cd ${{ env.APP_DIR }} || { echo "❌ App directory not found"; exit 1; }
+            
+            echo "📥 Pulling latest code from branch: ${{ github.ref_name }}..."
+            git fetch origin ${{ github.ref_name }}
+            git checkout ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            
+            echo "🛑 Stopping existing containers..."
+            sudo docker compose down --remove-orphans || true
+            
+            echo "🧹 Cleaning up old images..."
+            sudo docker image prune -f || true
+            
+            echo "🔨 Building and starting containers..."
+            sudo docker compose build --no-cache
+            sudo docker compose up -d
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 10
+            
+            echo "🔍 Checking container status..."
+            sudo docker compose ps
+            
+            echo "✅ Health check..."
+            curl -sf http://localhost:5000/health || { echo "❌ Backend health check failed"; exit 1; }
+            
+            echo "🎉 Deployment successful!"
+          ENDSSH
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployed to: \`${{ secrets.EC2_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 Frontend: http://${{ secrets.EC2_HOST }}:9000" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 Backend: http://${{ secrets.EC2_HOST }}:5000" >> $GITHUB_STEP_SUMMARY
