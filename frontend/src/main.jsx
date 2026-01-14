@@ -6,10 +6,10 @@ import AppThemeProvider from "./utils/ThemeContext";
 import "./index.css";
 
 createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <CssBaseline />
+  <>
     <AppThemeProvider>
+      <CssBaseline />
       <App />
     </AppThemeProvider>
-  </React.StrictMode>
+  </>
 );

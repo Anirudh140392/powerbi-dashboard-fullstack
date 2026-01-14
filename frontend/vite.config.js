@@ -1,11 +1,25 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwind from "@tailwindcss/vite";
-// https://vite.dev/config/
+import path from "path";
+
 export default defineConfig({
-  plugins: [react(), tailwind(),],
+  plugins: [react(), tailwind()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   server: {
     port: 9000,
     host: true,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://13.200.212.219',
+        changeOrigin: true,
+        secure: false, // In case of self-signed certs, though this is http
+      },
+
+    },
   },
 });

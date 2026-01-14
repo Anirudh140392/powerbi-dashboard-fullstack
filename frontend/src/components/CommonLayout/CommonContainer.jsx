@@ -10,6 +10,9 @@ export default function CommonContainer({
   children,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const sidebarWidth = isCollapsed ? "72px" : "250px";
 
   return (
     <Box
@@ -32,6 +35,8 @@ export default function CommonContainer({
         }
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
         sx={{
           overflowX: "hidden", // <-- sidebar safe
         }}
@@ -41,10 +46,11 @@ export default function CommonContainer({
         sx={{
           flex: 1,
 
-          marginLeft: { xs: 0, sm: "250px" },
-          width: { xs: "100%", sm: "calc(100% - 250px)" },
+          marginLeft: { xs: 0, sm: sidebarWidth },
+          width: { xs: "100%", sm: `calc(100% - ${sidebarWidth})` },
           display: "flex",
           flexDirection: "column",
+          transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
 
           // 🔥 Remove horizontal scroll here also
           overflowX: "hidden",

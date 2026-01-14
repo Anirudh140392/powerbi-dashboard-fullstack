@@ -37,15 +37,15 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
     estCategoryShare: true,
     osa: true,
     discount: true,
-    overallSOV: false
+    overallSos: false
   });
 
   const controller = new TrendController();
 
   const months =
     selectedPeriod === "1M" ? 1 :
-    selectedPeriod === "3M" ? 3 :
-    selectedPeriod === "6M" ? 6 : 12;
+      selectedPeriod === "3M" ? 3 :
+        selectedPeriod === "6M" ? 6 : 12;
 
   const data = hasRemoteData ? trendData.timeSeries : controller.generateData(months, timeStep);
   const metrics = hasRemoteData ? (trendData.metrics || {}) : controller.getMetrics(data);
@@ -88,8 +88,8 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: theme.palette.error.main }}></Box>
                 <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>Offtake</Typography>
               </Box>
-                <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                ₹ {payload[0].payload.offtake.toFixed(2)} Cr 
+              <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                ₹ {payload[0].payload.offtake.toFixed(2)} Cr
                 <span style={{ color: theme.palette.success.main, marginLeft: 6, fontSize: '0.7rem' }}>(+6.6%)</span>
               </Typography>
             </Box>
@@ -116,11 +116,11 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
     { key: 'estCategoryShare', label: 'Est. Category Share', color: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7' },
     { key: 'osa', label: 'OSA%', color: theme.palette.success.main },
     { key: 'discount', label: 'Wt. Discount%', color: theme.palette.primary.main },
-    { key: 'overallSOV', label: 'Overall SOV', color: theme.palette.info ? theme.palette.info.main : '#ec4899' }
+    { key: 'overallSos', label: 'Overall SOS', color: theme.palette.info ? theme.palette.info.main : '#ec4899' }
   ];
 
   return (
-        <Drawer
+    <Drawer
       anchor="right"
       open={open}
       onClose={onClose}
@@ -129,26 +129,26 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
           width: '65vw',
           maxWidth: '1000px',
           minWidth: '800px',
-              bgcolor: theme.palette.background.paper
+          bgcolor: theme.palette.background.paper
         }
       }}
     >
       <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <Box sx={{ 
-          px: 3, 
-          pt: 2.5, 
+        <Box sx={{
+          px: 3,
+          pt: 2.5,
           pb: 2,
           borderBottom: `1px solid ${theme.palette.divider}`,
-          display: 'flex', 
-          alignItems: 'center', 
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between'
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ 
-              width: 10, 
-              height: 10, 
-              borderRadius: '50%', 
+            <Box sx={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
               bgcolor: theme.palette.primary.main,
               boxShadow: theme.palette.mode === 'dark' ? '0 0 0 3px rgba(255,255,255,0.04)' : '0 0 0 3px rgba(59, 130, 246, 0.08)'
             }}></Box>
@@ -158,38 +158,38 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
             <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', mx: 0.5 }}>
               at
             </Typography>
-            <Chip 
-              label="MRP" 
-              size="small" 
-              sx={{ 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#ccfbf1', 
-                color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#0f766e', 
+            <Chip
+              label="MRP"
+              size="small"
+              sx={{
+                bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#ccfbf1',
+                color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#0f766e',
                 height: 24,
                 fontSize: '0.75rem',
                 fontWeight: 600,
                 '& .MuiChip-label': { px: 1.5 }
-              }} 
+              }}
             />
             <Typography sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', mx: 0.5 }}>
               for
             </Typography>
-            <Chip 
-              label={platform} 
-              size="small" 
-              sx={{ 
-                bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#dbeafe', 
+            <Chip
+              label={platform}
+              size="small"
+              sx={{
+                bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.selected : '#dbeafe',
                 color: theme.palette.mode === 'dark' ? theme.palette.text.primary : '#1e40af',
                 height: 24,
                 fontSize: '0.75rem',
                 fontWeight: 600,
                 '& .MuiChip-label': { px: 1.5 }
-              }} 
+              }}
             />
           </Box>
-          <IconButton 
-            onClick={onClose} 
-            size="small" 
-            sx={{ 
+          <IconButton
+            onClick={onClose}
+            size="small"
+            sx={{
               color: theme.palette.text.secondary,
               '&:hover': { bgcolor: theme.palette.action.hover }
             }}
@@ -202,14 +202,14 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
         <Box sx={{ px: 3, pt: 2.5, pb: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
           {/* Period Selection Row */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <FormControlLabel
+            <FormControlLabel
               control={
-                <Checkbox 
-                  size="small" 
-                  sx={{ 
+                <Checkbox
+                  size="small"
+                  sx={{
                     py: 0,
                     '& .MuiSvgIcon-root': { fontSize: 18 }
-                  }} 
+                  }}
                 />
               }
               label={
@@ -219,7 +219,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
               }
               sx={{ mr: 1, mb: 0 }}
             />
-            
+
             <Box sx={{ display: 'flex', gap: 1 }}>
               {['1M', '3M', '6M', '1Y'].map(period => (
                 <Button
@@ -238,7 +238,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                     ...(selectedPeriod === period ? {
                       bgcolor: theme.palette.primary.main,
                       boxShadow: 'none',
-                      '&:hover': { 
+                      '&:hover': {
                         bgcolor: theme.palette.primary.dark,
                         boxShadow: 'none'
                       }
@@ -246,8 +246,8 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                       color: theme.palette.text.secondary,
                       borderColor: theme.palette.divider,
                       bgcolor: 'transparent',
-                      '&:hover': { 
-                        bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f9fafb', 
+                      '&:hover': {
+                        bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f9fafb',
                         borderColor: theme.palette.divider
                       }
                     })
@@ -258,7 +258,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
               ))}
             </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 'auto' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, ml: 'auto' }}>
               <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.secondary, fontWeight: 500 }}>
                 Time Step:
               </Typography>
@@ -271,15 +271,15 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                     fontSize: '0.8rem',
                     height: '32px',
                     minWidth: '110px',
-                    '& .MuiSelect-select': { 
-                      py: 0.75, 
+                    '& .MuiSelect-select': {
+                      py: 0.75,
                       pr: 3.5,
                       fontWeight: 500
                     },
-                    '& .MuiOutlinedInput-notchedOutline': { 
+                    '& .MuiOutlinedInput-notchedOutline': {
                       borderColor: theme.palette.divider
                     },
-                    '&:hover .MuiOutlinedInput-notchedOutline': { 
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
                       borderColor: theme.palette.divider
                     }
                   }}
@@ -302,8 +302,8 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                     size="small"
                     checked={selectedMetrics[metric.key]}
                     onChange={() => handleMetricToggle(metric.key)}
-                    sx={{ 
-                      py: 0, 
+                    sx={{
+                      py: 0,
                       pr: 0.75,
                       '& .MuiSvgIcon-root': { fontSize: 18 }
                     }}
@@ -311,11 +311,11 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                 }
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <Box sx={{ 
-                      width: 10, 
-                      height: 10, 
-                      borderRadius: '50%', 
-                      bgcolor: metric.color 
+                    <Box sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      bgcolor: metric.color
                     }}></Box>
                     <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.primary, fontWeight: 500 }}>
                       {metric.label}
@@ -329,7 +329,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
         </Box>
 
         {/* Chart Area */}
-        <Box sx={{ 
+        <Box sx={{
           flex: 1,
           px: 2,
           py: 2.5,
@@ -340,19 +340,19 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
         }}>
           <Box sx={{ width: '100%', height: '100%', maxHeight: '500px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart 
+              <LineChart
                 data={data}
                 margin={{ top: 10, right: 40, left: 20, bottom: 20 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} vertical={false} />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
                   tickLine={false}
                   axisLine={{ stroke: theme.palette.divider }}
                   dy={10}
                 />
-                <YAxis 
+                <YAxis
                   yAxisId="left"
                   tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
                   tickLine={false}
@@ -361,7 +361,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                   tickFormatter={(value) => `₹ ${value} Cr`}
                   dx={-5}
                 />
-                <YAxis 
+                <YAxis
                   yAxisId="right"
                   orientation="right"
                   tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
@@ -373,55 +373,55 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                 />
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: theme.palette.divider, strokeWidth: 1 }} />
                 {selectedMetrics.offtake && (
-                  <Line 
+                  <Line
                     yAxisId="left"
-                    type="monotone" 
-                    dataKey="offtake" 
-                    stroke={theme.palette.error.main} 
+                    type="monotone"
+                    dataKey="offtake"
+                    stroke={theme.palette.error.main}
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.error.main, strokeWidth: 0 }}
                     activeDot={{ r: 5, fill: theme.palette.error.main, strokeWidth: 2, stroke: theme.palette.background.paper }}
                   />
                 )}
                 {selectedMetrics.estCategoryShare && (
-                  <Line 
+                  <Line
                     yAxisId="right"
-                    type="monotone" 
-                    dataKey="categoryShare" 
-                    stroke={theme.palette.secondary ? theme.palette.secondary.main : '#a855f7'} 
+                    type="monotone"
+                    dataKey="categoryShare"
+                    stroke={theme.palette.secondary ? theme.palette.secondary.main : '#a855f7'}
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7', strokeWidth: 0 }}
                     activeDot={{ r: 5, fill: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7', strokeWidth: 2, stroke: theme.palette.background.paper }}
                   />
                 )}
                 {selectedMetrics.osa && (
-                  <Line 
+                  <Line
                     yAxisId="right"
-                    type="monotone" 
-                    dataKey="osa" 
-                    stroke={theme.palette.success.main} 
+                    type="monotone"
+                    dataKey="osa"
+                    stroke={theme.palette.success.main}
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.success.main, strokeWidth: 0 }}
                     activeDot={{ r: 5, fill: theme.palette.success.main, strokeWidth: 2, stroke: theme.palette.background.paper }}
                   />
                 )}
                 {selectedMetrics.discount && (
-                  <Line 
+                  <Line
                     yAxisId="right"
-                    type="monotone" 
-                    dataKey="discount" 
-                    stroke={theme.palette.primary.main} 
+                    type="monotone"
+                    dataKey="discount"
+                    stroke={theme.palette.primary.main}
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.primary.main, strokeWidth: 0 }}
                     activeDot={{ r: 5, fill: theme.palette.primary.main, strokeWidth: 2, stroke: theme.palette.background.paper }}
                   />
                 )}
-                {selectedMetrics.overallSOV && (
-                  <Line 
+                {selectedMetrics.overallSos && (
+                  <Line
                     yAxisId="right"
-                    type="monotone" 
-                    dataKey="sov" 
-                    stroke={theme.palette.info ? theme.palette.info.main : '#ec4899'} 
+                    type="monotone"
+                    dataKey="Sos"
+                    stroke={theme.palette.info ? theme.palette.info.main : '#ec4899'}
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.info ? theme.palette.info.main : '#ec4899', strokeWidth: 0 }}
                     activeDot={{ r: 5, fill: theme.palette.info ? theme.palette.info.main : '#ec4899', strokeWidth: 2, stroke: theme.palette.background.paper }}

@@ -2,7 +2,7 @@
 //  NEXT-GEN CONTENT ANALYSIS UI — LIGHT THEME (React JS + MUI)
 // --------------------------------------------------------------
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Grid,
@@ -32,6 +32,7 @@ import {
   RadialBar,
   PolarAngleAxis,
 } from "recharts";
+import axiosInstance from "../../api/axiosInstance";
 
 // --------------------------------------------------------------
 // SAMPLE DATA
@@ -452,6 +453,25 @@ export default function ContentScoreAnalysis() {
   const [brand, setBrand] = useState("All");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [tab, setTab] = useState(0);
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchContentData = async () => {
+      try {
+        const response = await axiosInstance.get('/content-analysis', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Content Analysis Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Content Analysis data:", error);
+      }
+    };
+
+    fetchContentData();
+  }, []);
 
   const formats = ["All", ...new Set(MOCK_ROWS.map((r) => r.format))];
   const brands = ["All", ...new Set(MOCK_ROWS.map((r) => r.brand))];
