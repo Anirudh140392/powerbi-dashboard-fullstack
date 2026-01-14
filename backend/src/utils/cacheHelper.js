@@ -9,8 +9,10 @@ import redisClient from '../config/redis.js';
 export function generateCacheKey(section, filters) {
     // 1. Extract and Normalize Parent Filters
     const rawPlatform = filters['platform[]'] || filters.platform || 'all';
-    const rawBrand = filters['brand[]'] || filters.brand || 'all';
+    // Support both 'brand' (singular) and 'brands' (plural - used by brand-comparison-trends)
+    const rawBrand = filters['brand[]'] || filters.brand || filters.brands || 'all';
     const rawLocation = filters['location[]'] || filters.location || 'all';
+
 
     const normalize = (val) => {
         if (!val || val === 'all' || val === 'All') return 'all';
