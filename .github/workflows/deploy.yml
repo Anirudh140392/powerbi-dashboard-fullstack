@@ -75,7 +75,7 @@ jobs:
             sudo docker compose ps
             
             echo "✅ Health check..."
-            curl -sf http://localhost:5000/health || { echo "❌ Backend health check failed"; exit 1; }
+            curl -sf http://localhost/health || { echo "❌ Health check failed"; exit 1; }
             
             echo "🎉 Deployment successful!"
           ENDSSH
@@ -90,5 +90,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ Deployed to: \`${{ secrets.EC2_HOST }}\`" >> $GITHUB_STEP_SUMMARY
           echo "📦 Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 Frontend: http://${{ secrets.EC2_HOST }}:9000" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 Backend: http://${{ secrets.EC2_HOST }}:5000" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 App: http://${{ secrets.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 API: http://${{ secrets.EC2_HOST }}/api" >> $GITHUB_STEP_SUMMARY
