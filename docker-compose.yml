@@ -92,10 +92,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 700M
-          cpus: '0.75'
-        reservations:
           memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
 
 networks:
   app-network:

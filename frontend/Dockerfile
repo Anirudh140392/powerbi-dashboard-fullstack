@@ -1,5 +1,5 @@
-# Frontend Dockerfile
-FROM node:20-alpine
+# Frontend Dockerfile - Production Build
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -13,8 +13,27 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Expose Vite dev server port
+# Build for production
+RUN npm run build
+
+# Production stage - serve with nginx
+FROM nginx:alpine
+
+# Copy built files to nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy custom nginx config for SPA routing
+RUN echo 'server { \
+    listen 9000; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+# Expose port
 EXPOSE 9000
 
-# Start Vite dev server with host binding for Docker
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
