@@ -15,6 +15,7 @@ async function findZoneColumn() {
             ORDER BY TABLE_NAME
         `);
 
+        
         if (results.length > 0) {
             console.log("FOUND TABLES:", JSON.stringify(results, null, 2));
         } else {
