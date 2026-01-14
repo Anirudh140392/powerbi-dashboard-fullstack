@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 env:
-  APP_DIR: /home/ubuntu/powerbi-dashboard-fullstack
+  APP_DIR: /Dashboard
 
 jobs:
   deploy:
