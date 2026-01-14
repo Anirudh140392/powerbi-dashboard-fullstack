@@ -13,9 +13,6 @@ RUN npm ci --only=production
 # Copy source code
 COPY src/ ./src/
 
-# Copy environment file (will be overridden by docker-compose)
-COPY .env ./
-
 # Expose port
 EXPOSE 5000
 
