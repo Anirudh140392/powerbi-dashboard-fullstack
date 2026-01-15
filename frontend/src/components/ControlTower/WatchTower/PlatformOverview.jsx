@@ -318,7 +318,7 @@ const PlatformOverview = ({
       {activeKpisTab !== "Skus Overview" ? (
         <Card
           sx={{
-            p: 3,
+            p: { xs: 1.5, sm: 3 },
             borderRadius: 4,
             boxShadow: 3,
             background: theme.palette.background.paper,
@@ -352,7 +352,7 @@ const PlatformOverview = ({
               <Typography
                 ml={1.2}
                 fontWeight={700}
-                fontSize="1.2rem"
+                sx={{ fontSize: { xs: "1rem", sm: "1.2rem" } }}
                 fontFamily="Roboto, sans-serif"
               >
                 {activeKpisTab}
@@ -360,14 +360,20 @@ const PlatformOverview = ({
             </Box>
 
             {/* FILTERS + SEARCH + SORT */}
-            <Box display="flex" alignItems="center" gap={1.2}>
+            <Box
+              display="flex"
+              alignItems="center"
+              gap={1.2}
+              flexWrap="wrap"
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+            >
               {activeKpisTab !== "Platform Overview" && (
                 <Select
                   size="small"
                   value={getCurrentPlatform()}
                   onChange={(e) => handlePlatformChange(e.target.value)}
                   sx={{
-                    minWidth: 130,
+                    minWidth: { xs: "100%", sm: 130 },
                     height: 36,
                     fontSize: "0.85rem",
                     background: "#f3f4f6",
@@ -387,7 +393,7 @@ const PlatformOverview = ({
                   value={brandsOverviewCategory}
                   onChange={(e) => onBrandsCategoryChange(e.target.value)}
                   sx={{
-                    minWidth: 130,
+                    minWidth: { xs: "100%", sm: 130 },
                     height: 36,
                     fontSize: "0.85rem",
                     background: "#f3f4f6",
@@ -401,55 +407,13 @@ const PlatformOverview = ({
                 </Select>
               )}
 
-              {activeKpisTab === "Skus Overview" && (
-                <>
-                  <Select
-                    size="small"
-                    value={platformFilter.category}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        category: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "1.85rem",
-                      background: "#f3f4f6",
-                    }}
-                  >
-                    <MenuItem value="Core Tub">Core Tub</MenuItem>
-                  </Select>
-
-                  <Select
-                    size="small"
-                    value={platformFilter.brand}
-                    onChange={(e) =>
-                      setPlatformFilter((p) => ({
-                        ...p,
-                        brand: e.target.value,
-                      }))
-                    }
-                    sx={{
-                      minWidth: 130,
-                      height: 36,
-                      fontSize: "0.85rem",
-                      background: "#f3f4f6",
-                    }}
-                  >
-                    <MenuItem value="Amul">Amul</MenuItem>
-                  </Select>
-                </>
-              )}
-
               {/* SEARCH */}
               <Box
                 display="flex"
                 alignItems="center"
                 px={1.5}
                 sx={{
-                  width: 220,
+                  width: { xs: "100%", sm: 220 },
                   height: 36,
                   background: "#f3f4f6",
                   borderRadius: 5,

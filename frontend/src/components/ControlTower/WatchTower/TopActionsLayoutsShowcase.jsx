@@ -450,7 +450,7 @@ const DetailPanel = ({ selected }) => {
             <Header />
 
             {/* KPI GRID */}
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3">
                 {kpis.slice(0, 6).map((kpi) => {
                     const negative = kpi.delta.trim().startsWith("-") || kpi.delta.includes("↓");
                     return (
@@ -551,8 +551,8 @@ const DetailPanel = ({ selected }) => {
             </div>
 
             {showModal && modalConfigs[selected.id] && (
-                <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-                    <div className="max-h-[80vh] w-full max-w-4xl rounded-3xl bg-white p-5 shadow-xl">
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="max-h-[90vh] w-full max-w-4xl rounded-3xl bg-white p-4 sm:p-5 shadow-xl flex flex-col">
                         <div className="mb-3 flex items-center justify-between">
                             <div>
                                 <h3 className="text-sm font-semibold text-slate-900" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "1.2rem" }}>
@@ -564,8 +564,8 @@ const DetailPanel = ({ selected }) => {
                             </div>
                             <button onClick={() => setShowModal(false)} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-600 hover:border-sky-200 hover:text-sky-700">Close</button>
                         </div>
-                        <div className="overflow-auto rounded-2xl border border-slate-100" style={{ maxHeight: "260px" }}>
-                            <table className="min-w-full text-left text-[11px]">
+                        <div className="overflow-auto rounded-2xl border border-slate-100 flex-1 no-scrollbar">
+                            <table className="min-w-[600px] sm:min-w-full text-left text-[11px]">
                                 <thead>
                                     <tr className="border-b border-slate-100 bg-slate-50/80">
                                         {modalConfigs[selected.id].headers.map(h => (
@@ -592,7 +592,7 @@ const LayoutOne = () => {
     const selected = issues.find((x) => x.id === selectedId) || null;
 
     return (
-        <section className="grid gap-4 rounded-3xl bg-gradient-to-br bg-white p-5 shadow-sm md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
+        <section className="grid gap-4 rounded-3xl bg-gradient-to-br bg-white p-4 sm:p-5 shadow-sm grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
             <div className="flex flex-col gap-3 bg-white">
 
                 <div className="flex items-center justify-between">

@@ -961,8 +961,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     <Card className={`border-slate-200 bg-white shadow-sm ${showPagination ? 'pb-0' : ''}`}>
 
       {/* ------------------ HEADER (City Style) ------------------ */}
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+      <CardHeader className="p-4 pb-2 md:p-6 md:pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
           <div>
             <CardTitle className="text-base text-slate-900">
               {title} KPI Matrix
@@ -974,7 +974,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           </div>
 
           {/* City-style Heatmap Legend */}
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
             {/* KpiFilterPanel Integration */}
             <button
               onClick={() => setShowFilterPanel(true)}
@@ -983,7 +983,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Filters</span>
             </button>
-            <div className="h-4 w-px bg-slate-200 mx-1"></div>
+            <div className="hidden sm:block h-4 w-px bg-slate-200 mx-1"></div>
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               <span className="ml-2 text-slate-700">Healthy</span>
