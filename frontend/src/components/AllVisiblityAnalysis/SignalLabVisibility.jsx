@@ -943,7 +943,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
     return (
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px]">
+        <div className="flex-shrink-0 flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px] snap-center">
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -1061,7 +1061,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
             </div>
 
             <div className="mt-5">
-                <div className="grid grid-cols-4 gap-4 items-start">
+                <div className="flex overflow-x-auto pb-4 gap-4 snap-x md:grid md:grid-cols-4 md:gap-4 md:items-start md:overflow-visible">
                     {pageRows.map((s) => (
                         <SignalCard
                             key={s.id}

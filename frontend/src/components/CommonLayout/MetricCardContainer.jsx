@@ -62,7 +62,7 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4, position: "relative" }}>
+      <Card sx={{ p: { xs: 2, md: 3 }, borderRadius: 4, boxShadow: 4, position: "relative" }}>
         {/* Floating loader overlay - only when cards exist and refreshing */}
         {loading && cards.length > 0 && (
           <FloatingLoader loading={true} label="Updating overview..." />
@@ -98,9 +98,13 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           sx={{
             display: "flex",
             gap: 2,
-            overflowX: scrollNeeded ? "auto" : "visible",
+            overflowX: "auto",
             pb: 1,
-            scrollSnapType: scrollNeeded ? "x mandatory" : "none",
+            px: { xs: 2, sm: 0 },
+            scrollSnapType: "x mandatory",
+            "&::-webkit-scrollbar": { display: "none" },
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
           }}
         >
           {showSkeletonCards ? (
@@ -109,8 +113,8 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
               <Box
                 key={i}
                 sx={{
-                  flex: 1,
-                  minWidth: 200,
+                  flexShrink: 0,
+                  width: { xs: 260, sm: 250 },
                   p: 2,
                   borderRadius: 3,
                   border: '1px solid #e2e8f0',

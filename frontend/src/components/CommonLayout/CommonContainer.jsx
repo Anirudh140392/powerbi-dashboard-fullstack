@@ -18,7 +18,8 @@ export default function CommonContainer({
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
+        height: "100dvh",
+        width: "100vw",
 
         // 🔥 REMOVE ALL HORIZONTAL SCROLL
         overflowX: "hidden",
@@ -55,6 +56,7 @@ export default function CommonContainer({
           // 🔥 Remove horizontal scroll here also
           overflowX: "hidden",
           overflowY: "hidden",
+          minHeight: 0, // Ensure flex child shrinking works
         }}
       >
         <Header
@@ -73,6 +75,8 @@ export default function CommonContainer({
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden", // 🔥 IMPORTANT
+            minHeight: 0, // Ensure flex scrolling works
+            "-webkit-overflow-scrolling": "touch", // Smooth scroll on iOS
           }}
         >
           <Container

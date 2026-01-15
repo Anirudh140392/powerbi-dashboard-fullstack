@@ -913,13 +913,13 @@ const VisiblityAnalysisData = ({
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max max-w-full overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {["All", "Branded", "Competition", "Generic"].map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setTopSearchFilter(tab)}
-                className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                className={`flex-shrink-0 px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
               >
                 {tab}

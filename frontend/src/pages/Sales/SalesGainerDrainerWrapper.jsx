@@ -8,10 +8,10 @@ export default function SalesGainerDrainerWrapper() {
 
     return (
         <div className="w-full">
-            <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
+            <div className="w-full bg-white border rounded-3xl px-3 py-3 md:px-6 md:py-5 shadow">
                 {/* Toggle at the top start of the card */}
-                <div className="flex justify-start mb-6">
-                    <div className="flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
+                <div className="flex justify-start mb-4 md:mb-6 overflow-x-auto no-scrollbar">
+                    <div className="flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500 whitespace-nowrap">
                         {[
                             { key: "availability", label: "Availability" },
                             { key: "sales", label: "Sales" },

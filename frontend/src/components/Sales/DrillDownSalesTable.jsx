@@ -540,13 +540,13 @@ export default function DrillDownSalesTable() {
 
     return (
         <div className="flex w-full flex-col rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 pt-4 pb-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-3 pt-3 md:px-6 md:pt-4 pb-2">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-900">Sales at a glance</h1>
                     <p className="text-sm text-slate-500">Hierarchical drilldown with daily and cumulative sales metrics.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="h-6 w-px bg-slate-200"></div>
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="hidden md:block h-6 w-px bg-slate-200"></div>
                     <button
                         onClick={() => setShowFilterPanel(true)}
                         className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
@@ -554,8 +554,8 @@ export default function DrillDownSalesTable() {
                         <SlidersHorizontal className="h-3.5 w-3.5" />
                         <span>Filters</span>
                     </button>
-                    <div className="h-6 w-px bg-slate-200"></div>
-                    <div className="flex items-center gap-2">
+                    <div className="hidden md:block h-6 w-px bg-slate-200"></div>
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50/50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                             Healthy
@@ -573,7 +573,7 @@ export default function DrillDownSalesTable() {
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-                <div className="flex items-center justify-between mb-3 px-2">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-3 px-2">
                     <div className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">
                         Platform → Region → City → Keyword
                     </div>
@@ -603,8 +603,8 @@ export default function DrillDownSalesTable() {
                     </Box>
                 </div>
 
-                <TableContainer sx={{ maxHeight: 600, border: 'none' }}>
-                    <Table stickyHeader size="small">
+                <TableContainer sx={{ maxHeight: 600, border: 'none', overflowX: 'auto' }}>
+                    <Table stickyHeader size="small" sx={{ minWidth: 800 }}>
                         <TableHead>
                             <TableRow>
                                 {visibleHierarchyCols.map((label, i) => (

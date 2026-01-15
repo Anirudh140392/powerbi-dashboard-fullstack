@@ -426,9 +426,9 @@ export default function OsaDetailTableLight({ filters = {} }) {
         <div className="rounded-3xl flex-col bg-slate-50 relative">
             <div className="flex flex-1 overflow-hidden">
                 <div className="flex-1 overflow-auto p-0 pr-0">
-                    <div className="rounded-3xl border bg-white p-4 shadow relative">
+                    <div className="rounded-3xl border bg-white p-2 sm:p-4 shadow relative">
                         {/* Title + Legend */}
-                        <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
+                        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between font-bold text-slate-900 gap-4 sm:gap-0">
                             <div className="flex flex-col gap-0.5">
                                 <div className="text-base font-semibold text-slate-900">
                                     OSA % Detail View
@@ -441,25 +441,25 @@ export default function OsaDetailTableLight({ filters = {} }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                 {/* Filter Button */}
                                 <button
                                     onClick={() => setShowFilterPanel(true)}
-                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all"
+                                    className="flex-shrink-0 flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all"
                                 >
                                     <SlidersHorizontal className="h-3.5 w-3.5" />
                                     <span>Filters</span>
                                 </button>
 
-                                {/* Status Legend - Moved from body */}
-                                <div className="flex items-center gap-2 ml-2">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
+                                {/* Status Legend - Scrollable on mobile */}
+                                <div className="flex items-center gap-2 ml-0 sm:ml-2 overflow-x-auto pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full sm:w-auto">
+                                    <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
+                                    <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
                                         <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
+                                    <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
                                         <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
                                     </span>
                                 </div>
@@ -480,8 +480,7 @@ export default function OsaDetailTableLight({ filters = {} }) {
                                         <tr>
                                             {/* Sticky first column header */}
                                             <th
-                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
-                                                style={{ minWidth: 280 }}
+                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] min-w-[140px] sm:min-w-[280px]"
                                             >
                                                 <div className="flex items-center h-full">PRODUCT / SKU</div>
                                             </th>
@@ -532,12 +531,11 @@ export default function OsaDetailTableLight({ filters = {} }) {
                                             return (
                                                 <tr key={r.sku} className={"group " + st.rowAccent}>
                                                     <td
-                                                        className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
-                                                        style={{ minWidth: 280 }}
+                                                        className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100 min-w-[140px] sm:min-w-[280px] max-w-[140px] sm:max-w-[280px]"
                                                         title={r.name} // Show full name on hover
                                                     >
-                                                        <div className="font-bold text-slate-900 leading-5 text-xs">
-                                                            {truncateName(r.name, 6)}
+                                                        <div className="font-bold text-slate-900 leading-tight text-xs line-clamp-2">
+                                                            {r.name}
                                                         </div>
                                                     </td>
 
@@ -594,8 +592,8 @@ export default function OsaDetailTableLight({ filters = {} }) {
                             </div>
 
                             {/* Pagination - Performance Marketing Style */}
-                            <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
-                                <div className="flex items-center gap-2">
+                            <div className="mt-3 flex flex-col sm:flex-row items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200 gap-3 sm:gap-0">
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
                                     <button
                                         disabled={safePage === 1}
                                         onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -617,7 +615,7 @@ export default function OsaDetailTableLight({ filters = {} }) {
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                                     <div className="text-slate-600">
                                         Rows/page
                                         <select

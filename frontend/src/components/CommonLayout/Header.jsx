@@ -79,12 +79,11 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
       <Box
         sx={{
           display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
           justifyContent: "space-between",
-          flexWrap: "nowrap",
-          gap: 1,
-          alignItems: "center",
-          overflowX: "auto",
-          pb: 0.5, // slightly partial scrolling buffer
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: { xs: 2, sm: 1 },
+          pb: 0.5,
         }}
       >
         {/* LEFT SIDE */}
@@ -114,7 +113,11 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <Typography
                 variant="h6"
                 fontWeight="700"
-                sx={{ whiteSpace: "nowrap", lineHeight: 1.2 }}
+                sx={{
+                  whiteSpace: "nowrap",
+                  lineHeight: 1.2,
+                  fontSize: { xs: "1.1rem", sm: "1.25rem" }
+                }}
               >
                 {title}
               </Typography>
@@ -169,36 +172,48 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 1,
+                gap: 1.5,
                 flexWrap: "nowrap",
-                overflow: "visible",
+                overflowX: "auto",
+                width: { xs: "100%", sm: "auto" },
+                justifyContent: { xs: "flex-start", sm: "flex-end" },
+                paddingBottom: 1,
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
               }}
             >
 
               {/* PLATFORM SELECTION */}
-              <CustomHeaderDropdown
-                label="PLATFORM"
-                options={platforms}
-                value={platform}
-                onChange={(newValue) => setPlatform(newValue)}
-                width={150}
-              />
+              <Box sx={{ flexShrink: 0 }}>
+                <CustomHeaderDropdown
+                  label="PLATFORM"
+                  options={platforms}
+                  value={platform}
+                  onChange={(newValue) => setPlatform(newValue)}
+                  width={150}
+                />
+              </Box>
 
-              <CustomHeaderDropdown
-                label="BRAND"
-                options={brands}
-                value={selectedBrand}
-                onChange={(newValue) => setSelectedBrand(newValue)}
-                width={150}
-              />
+              <Box sx={{ flexShrink: 0 }}>
+                <CustomHeaderDropdown
+                  label="BRAND"
+                  options={brands}
+                  value={selectedBrand}
+                  onChange={(newValue) => setSelectedBrand(newValue)}
+                  width={150}
+                />
+              </Box>
 
-              <CustomHeaderDropdown
-                label="LOCATION"
-                options={locations}
-                value={selectedLocation}
-                onChange={(newValue) => setSelectedLocation(newValue)}
-                width={150}
-              />
+              <Box sx={{ flexShrink: 0 }}>
+                <CustomHeaderDropdown
+                  label="LOCATION"
+                  options={locations}
+                  value={selectedLocation}
+                  onChange={(newValue) => setSelectedLocation(newValue)}
+                  width={150}
+                />
+              </Box>
 
 
 

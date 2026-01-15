@@ -591,31 +591,47 @@ function WatchTower() {
             mb: 4,
           }}
         >
-          <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
-            <Box sx={{ display: "flex", gap: 4 }}>
-              <TabButton
-                label="By Platfrom"
-                active={activeKpisTab === "Platform Overview"}
-                onClick={() => { setActiveKpisTab("Platform Overview"); setCurrentPage(0); }}
-              />
+          <Box sx={{ borderBottom: 1, borderColor: "divider", px: { xs: 2, sm: 3 } }}>
+            <Box sx={{
+              display: "flex",
+              gap: { xs: 2, sm: 4 },
+              overflowX: "auto",
+              pb: 0.5,
+              "&::-webkit-scrollbar": { display: "none" },
+              msOverflowStyle: "none",
+              scrollbarWidth: "none",
+            }}>
+              <Box sx={{ flexShrink: 0 }}>
+                <TabButton
+                  label="By Platform"
+                  active={activeKpisTab === "Platform Overview"}
+                  onClick={() => { setActiveKpisTab("Platform Overview"); setCurrentPage(0); }}
+                />
+              </Box>
 
-              <TabButton
-                label="By Month"
-                active={activeKpisTab === "Month Overview"}
-                onClick={() => { setActiveKpisTab("Month Overview"); setCurrentPage(0); }}
-              />
+              <Box sx={{ flexShrink: 0 }}>
+                <TabButton
+                  label="By Month"
+                  active={activeKpisTab === "Month Overview"}
+                  onClick={() => { setActiveKpisTab("Month Overview"); setCurrentPage(0); }}
+                />
+              </Box>
 
-              <TabButton
-                label="By Category"
-                active={activeKpisTab === "Category Overview"}
-                onClick={() => { setActiveKpisTab("Category Overview"); setCurrentPage(0); }}
-              />
+              <Box sx={{ flexShrink: 0 }}>
+                <TabButton
+                  label="By Category"
+                  active={activeKpisTab === "Category Overview"}
+                  onClick={() => { setActiveKpisTab("Category Overview"); setCurrentPage(0); }}
+                />
+              </Box>
 
-              <TabButton
-                label="By Brands"
-                active={activeKpisTab === "Brands Overview"}
-                onClick={() => { setActiveKpisTab("Brands Overview"); setCurrentPage(0); }}
-              />
+              <Box sx={{ flexShrink: 0 }}>
+                <TabButton
+                  label="By Brands"
+                  active={activeKpisTab === "Brands Overview"}
+                  onClick={() => { setActiveKpisTab("Brands Overview"); setCurrentPage(0); }}
+                />
+              </Box>
 
             </Box>
           </Box>
