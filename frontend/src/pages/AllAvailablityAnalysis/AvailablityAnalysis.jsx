@@ -100,6 +100,8 @@ export default function AvailablityAnalysis() {
   };
 
   const [apiData, setApiData] = useState({});
+  // Dedicated loading state - true when API calls are in progress
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Create a stable key to detect actual filter changes
@@ -120,7 +122,8 @@ export default function AvailablityAnalysis() {
     // Mark these filters as being fetched
     lastFetchedFiltersRef.current = filterKey;
 
-    // Reset all data to trigger skeleton loaders
+    // Set loading true and reset all data to trigger skeleton loaders
+    setIsLoading(true);
     setApiData({});
 
     const fetchData = async () => {
@@ -139,14 +142,18 @@ export default function AvailablityAnalysis() {
         // Fetch each section independently - update state as each completes
         // This allows sections to render as soon as their data is available
 
-        // Availability Overview (Stock Availability)
+        // Availability Overview (Stock Availability) - Sets isLoading=false when done
         fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`)
           .then(res => res.json())
           .then(overview => {
             console.log('✅ Overview fetched');
             setApiData(prev => ({ ...prev, overview }));
+            setIsLoading(false); // Hide skeleton after primary data loads
           })
-          .catch(err => console.error('❌ Overview fetch error:', err));
+          .catch(err => {
+            console.error('❌ Overview fetch error:', err);
+            setIsLoading(false); // Hide skeleton on error too
+          });
 
         // Platform KPI Matrix (viewMode=Platform)
         fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`)
@@ -217,7 +224,7 @@ export default function AvailablityAnalysis() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        <AvailablityAnalysisData apiData={apiData} filters={filters} loading={!apiData.overview} />
+        <AvailablityAnalysisData apiData={apiData} filters={filters} loading={isLoading} />
       </CommonContainer>
     </>
   );

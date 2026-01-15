@@ -764,7 +764,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                     minWidth: FROZEN_WIDTHS.city
                                                 }}
                                             >
-                                                City
+                                                Region
                                             </th>
                                         )}
                                         <th
@@ -1004,7 +1004,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                         minWidth: FROZEN_WIDTHS.city,
                                                     }}
                                                 >
-                                                    {row.level === 'city' && <div className="font-semibold text-slate-900">{row.label}</div>}
+                                                    {row.level === 'city' && <div className="font-semibold text-slate-900">Pan India</div>}
                                                 </td>
                                             )}
                                             <td

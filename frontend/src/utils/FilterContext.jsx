@@ -61,29 +61,42 @@ export const FilterProvider = ({ children }) => {
     const location = useLocation();
     const currentPath = location.pathname;
 
+    // Load saved filters from localStorage
+    const savedFilters = JSON.parse(localStorage.getItem('savedFilters') || '{}');
+
     // Platform state
     const [platforms, setPlatforms] = useState(Object.keys(platformData));
-    const [platform, setPlatform] = useState("Zepto");
+    const [platform, setPlatform] = useState(savedFilters.platform || "Zepto");
 
     // Brand state
     const [brands, setBrands] = useState([]);
-    const [selectedBrand, setSelectedBrand] = useState(null);
+    const [selectedBrand, setSelectedBrand] = useState(savedFilters.selectedBrand || null);
 
     // Location state
     const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [selectedLocation, setSelectedLocation] = useState(savedFilters.selectedLocation || null);
 
     // Keyword state (for visibility analysis)
     const [keywords, setKeywords] = useState([]);
-    const [selectedKeyword, setSelectedKeyword] = useState(null);
+    const [selectedKeyword, setSelectedKeyword] = useState(savedFilters.selectedKeyword || null);
+
+    // Zone state (for Performance Marketing page only)
+    const [zones, setZones] = useState([]);
+    const [selectedZone, setSelectedZone] = useState("All");
+
+    // PM-specific Platform and Brand state (for Performance Marketing page only)
+    const [pmPlatforms, setPmPlatforms] = useState([]);
+    const [pmSelectedPlatform, setPmSelectedPlatform] = useState("All");
+    const [pmBrands, setPmBrands] = useState([]);
+    const [pmSelectedBrand, setPmSelectedBrand] = useState("All");
 
     // Date Ranges
     // Default date range: 1st of current month to today
-    const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
-    const [timeEnd, setTimeEnd] = useState(dayjs());
-    const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
-    const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
-    const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
+    const [timeStart, setTimeStart] = useState(savedFilters.timeStart ? dayjs(savedFilters.timeStart) : dayjs().startOf('month'));
+    const [timeEnd, setTimeEnd] = useState(savedFilters.timeEnd ? dayjs(savedFilters.timeEnd) : dayjs());
+    const [compareStart, setCompareStart] = useState(savedFilters.compareStart ? dayjs(savedFilters.compareStart) : dayjs("2025-09-01"));
+    const [compareEnd, setCompareEnd] = useState(savedFilters.compareEnd ? dayjs(savedFilters.compareEnd) : dayjs("2025-09-06"));
+    const [comparisonLabel, setComparisonLabel] = useState(savedFilters.comparisonLabel || "VS PREV. 30 DAYS");
 
     const [datesInitialized, setDatesInitialized] = useState(false);
 
@@ -93,7 +106,7 @@ export const FilterProvider = ({ children }) => {
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
 
-    // Log route changes for debugging
+    // Log route changes for debugging and reset location for Performance Marketing
     useEffect(() => {
         console.log('📍 Route changed to:', currentPath);
     }, [currentPath]);
@@ -106,29 +119,65 @@ export const FilterProvider = ({ children }) => {
 
         const fetchLatestMonth = async () => {
             try {
-                const response = await axiosInstance.get("/watchtower/latest-available-month");
+                // If we have a selected brand, try to get its specific latest month
+                // Otherwise (or if it fails), get the global latest month
+                const response = await axiosInstance.get("/watchtower/latest-available-month", {
+                    params: {
+                        platform: platform !== 'All' ? platform : undefined,
+                        brand: selectedBrand !== 'All' ? selectedBrand : undefined
+                    }
+                });
+
                 if (!cancelled && response.data?.available) {
-                    // Use defaultStartDate (1st of month) and latestDate (actual max date)
                     const startDate = response.data.defaultStartDate || response.data.startDate;
                     const endDate = response.data.latestDate || response.data.defaultEndDate || response.data.endDate;
 
-                    setTimeStart(dayjs(startDate));
-                    setTimeEnd(dayjs(endDate));
-                    setMaxDate(dayjs(endDate)); // Set max date for date picker
-                    setDatesInitialized(true);
+                    const s = dayjs(startDate);
+                    const e = dayjs(endDate);
 
-                    console.log('📅 Date range initialized:', {
-                        startDate,
-                        endDate,
-                        maxDate: endDate
-                    });
+                    setTimeStart(s);
+                    setTimeEnd(e);
+                    setMaxDate(e);
+
+                    // Initialize comparison dates to preceding period
+                    const diffDays = e.diff(s, 'day') + 1;
+                    const cEnd = s.subtract(1, 'day');
+                    const cStart = cEnd.subtract(diffDays - 1, 'day');
+                    setCompareStart(cStart);
+                    setCompareEnd(cEnd);
+
+                    setDatesInitialized(true);
                     return;
+                } else if (!cancelled && selectedBrand && selectedBrand !== 'All') {
+                    // Fallback to global latest month if brand-specific failed
+                    console.log(`[FilterContext] No data for ${selectedBrand}, falling back to global latest month`);
+                    const globalResponse = await axiosInstance.get("/watchtower/latest-available-month");
+                    if (globalResponse.data?.available) {
+                        const gStart = globalResponse.data.defaultStartDate;
+                        const gEnd = globalResponse.data.defaultEndDate;
+                        setTimeStart(dayjs(gStart));
+                        setTimeEnd(dayjs(gEnd));
+                        setMaxDate(dayjs(gEnd));
+                        setDatesInitialized(true);
+                        return;
+                    }
                 }
             } catch (error) {
                 console.warn("⚠️ Unable to fetch latest available month, keeping default dates:", error.message);
             }
 
             if (!cancelled) {
+                // Hard fallback to last known good data (since table ends at 2025-12-31)
+                const s = dayjs("2025-12-01");
+                const e = dayjs("2025-12-31");
+                setTimeStart(s);
+                setTimeEnd(e);
+
+                const cEnd = s.subtract(1, 'day');
+                const cStart = cEnd.subtract(e.diff(s, 'day'), 'day');
+                setCompareStart(cStart);
+                setCompareEnd(cEnd);
+
                 setDatesInitialized(true);
             }
         };
@@ -277,6 +326,8 @@ export const FilterProvider = ({ children }) => {
         };
 
         const fetchLocations = async () => {
+
+
             if (backendAvailable) {
                 try {
                     // Check if on Availability Analysis or Visibility Analysis page - include all locations
@@ -354,7 +405,19 @@ export const FilterProvider = ({ children }) => {
             comparisonLabel,
             setComparisonLabel,
             datesInitialized,
-            maxDate
+            maxDate,
+            zones,
+            selectedZone,
+            setZones,
+            setSelectedZone,
+            pmPlatforms,
+            pmSelectedPlatform,
+            setPmPlatforms,
+            setPmSelectedPlatform,
+            pmBrands,
+            pmSelectedBrand,
+            setPmBrands,
+            setPmSelectedBrand
         }}>
 
             {children}

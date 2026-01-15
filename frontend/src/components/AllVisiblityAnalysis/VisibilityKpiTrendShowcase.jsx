@@ -17,7 +17,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { Box } from "@mui/material";
+import { Box, Skeleton } from "@mui/material";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -824,66 +824,109 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competitionBrands = [] }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("overall_sos");
+  const [loading, setLoading] = useState(true);
+  const [trendData, setTrendData] = useState({ brands: {}, days: [] });
 
   const metricMeta =
     KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
 
   const isBrandMode = mode === "brand";
 
-  /* ---------------- SELECTED IDS ---------------- */
-  const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      let rows = DATA_MODEL.brandSummaryByCity[city] || [];
+  // Determine which brands to fetch trends for
+  const selectedBrands = useMemo(() => {
+    console.log('[TrendView] Calculating selectedBrands...');
+    console.log('[TrendView] filters.brands:', filters.brands);
+    console.log('[TrendView] competitionBrands:', competitionBrands.map(b => b.name || b.brand || b));
 
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.name));
-
-      return rows.length ? rows.slice(0, 4).map((r) => r.id) : [];
+    // Priority 1: Use brands explicitly selected in filter dialog
+    if (filters.brands && filters.brands.length > 0) {
+      console.log('[TrendView] Using filters.brands:', filters.brands);
+      return filters.brands;
     }
 
-    let rows = DATA_MODEL.skuSummaryByCity[city] || [];
+    // Priority 2: Use top brands from competition table data (already filtered by user's other filters)
+    if (competitionBrands.length > 0) {
+      const brands = competitionBrands.slice(0, 5).map(b => b.name || b.brand || b);
+      console.log('[TrendView] Using competitionBrands (top 5):', brands);
+      return brands;
+    }
 
-    if (filters.categories.length)
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    if (filters.brands.length)
-      rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    if (filters.skus.length)
-      rows = rows.filter((r) => filters.skus.includes(r.name));
+    console.log('[TrendView] No brands available');
+    return [];
+  }, [filters.brands, competitionBrands]);
 
-    return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
-  }, [isBrandMode, filters, city]);
+  // Convert to string for stable dependency tracking
+  const selectedBrandsKey = JSON.stringify(selectedBrands);
 
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
-  );
+  // Fetch brand comparison trends from API
+  useEffect(() => {
+    console.log('[TrendView] useEffect triggered');
+    console.log('[TrendView] isBrandMode:', isBrandMode);
+    console.log('[TrendView] selectedBrands.length:', selectedBrands.length);
+    console.log('[TrendView] selectedBrands values:', selectedBrandsKey);
 
-  /* ---------------- CHART DATA ---------------- */
+    if (!isBrandMode || selectedBrands.length === 0) {
+      console.log('[TrendView] Early return - no brands to fetch');
+      setLoading(false);
+      return;
+    }
+
+    const fetchTrendData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          brands: selectedBrands.join(','),
+          platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
+          location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          period: '1M'
+        };
+
+        // Remove undefined values
+        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+        console.log('[TrendView] 🚀 Calling API with params:', JSON.stringify(params));
+        const response = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
+
+        if (response.data) {
+          console.log('[TrendView] ✅ Received trend data for brands:', Object.keys(response.data.brands || {}));
+          console.log('[TrendView] Days count:', response.data.days?.length);
+          setTrendData(response.data);
+        }
+      } catch (error) {
+        console.error('[TrendView] Error fetching brand trends:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrendData();
+  }, [isBrandMode, selectedBrandsKey, filters.platforms, filters.cities]);
+
+
+
+  // Build chart data for the active metric
   const chartData = useMemo(() => {
-    const days = DATA_MODEL.days;
+    const { brands, days } = trendData;
+    if (!days || days.length === 0) return [];
 
-    return days.map((date, idx) => {
+    return days.map((date) => {
       const row = { date };
-
-      selectedIds.forEach((id) => {
-        const series = isBrandMode
-          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
-          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-
-        if (series) row[id] = series[idx]?.[activeMetric] ?? null;
+      Object.keys(brands).forEach((brandName) => {
+        const brandData = brands[brandName];
+        const dayData = brandData.timeSeries?.find(d => d.date === date);
+        if (dayData) {
+          row[brandName] = dayData[activeMetric] || 0;
+        }
       });
-
       return row;
     });
-  }, [selectedIds, city, isBrandMode, activeMetric]);
+  }, [trendData, activeMetric]);
+
+  // Get brand names and colors for rendering
+  const brandEntries = Object.entries(trendData.brands || {});
 
   const formatValue = (v) => {
     if (metricMeta.unit) return `${v}${metricMeta.unit}`;
@@ -891,6 +934,62 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
     if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
     return v;
   };
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <Card className="mt-4">
+        <CardHeader className="flex items-start justify-between border-b pb-3">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={60} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={70} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={65} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton variant="rounded" width={120} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+            <Skeleton variant="rounded" width={100} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Skeleton variant="rectangular" width="100%" height={280} animation="wave" sx={{ borderRadius: 2 }} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No brands selected
+  if (selectedBrands.length === 0) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-slate-500">
+            No brands selected. Please select brands from the Filters to compare.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No data available
+  if (brandEntries.length === 0) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-slate-500">
+            No trend data available for the selected brands.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mt-4">
@@ -910,9 +1009,19 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
           </Box>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
-            {selectedLabels.map((label) => (
-              <Badge key={label}>{label}</Badge>
+            <span>Brands:</span>
+            {brandEntries.map(([brandName, brandData]) => (
+              <Badge
+                key={brandName}
+                style={{
+                  backgroundColor: brandData.color + '20',
+                  borderColor: brandData.color,
+                  color: brandData.color
+                }}
+                className="border"
+              >
+                {brandName}
+              </Badge>
             ))}
             <Separator orientation="vertical" className="mx-1 h-4" />
             <span>{city}</span>
@@ -944,14 +1053,14 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
               <Tooltip formatter={formatValue} />
               <Legend />
 
-              {selectedIds.map((id) => (
+              {brandEntries.map(([brandName, brandData]) => (
                 <Line
-                  key={id}
+                  key={brandName}
                   type="monotone"
-                  dataKey={id}
-                  name={isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]}
+                  dataKey={brandName}
+                  name={brandName}
                   dot={false}
-                  stroke={metricMeta.color}
+                  stroke={brandData.color}
                   strokeWidth={2}
                 />
               ))}
@@ -962,6 +1071,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
     </Card>
   );
 };
+
 
 /* -------------------------------------------------------------------------- */
 /*                             KPI Compare View (4 tiles)                     */
@@ -1072,8 +1182,29 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
   if (loading) {
     return (
       <Card className="mt-4">
-        <CardContent className="flex items-center justify-center h-64">
-          <div className="text-slate-500">Loading brand comparison trends...</div>
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={180} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={60} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={70} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={65} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+          </div>
+          <Skeleton variant="rounded" width={100} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+        </CardHeader>
+        <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
+          {/* 4 Chart skeletons for Overall SOS, Sponsored SOS, Organic SOS, Display SOS */}
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="border-slate-200 bg-slate-50/80 shadow-none">
+              <CardHeader className="pb-2">
+                <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+              </CardHeader>
+              <CardContent className="h-48 pt-0">
+                <Skeleton variant="rectangular" width="100%" height="100%" animation="wave" sx={{ borderRadius: 2 }} />
+              </CardContent>
+            </Card>
+          ))}
         </CardContent>
       </Card>
     );
@@ -1423,6 +1554,37 @@ const KeywordTable = ({ rows }) => {
   );
 };
 
+/* Table Skeleton - Used when filters are being applied */
+const TableSkeleton = () => (
+  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+    <CardHeader className="border-b pb-2">
+      <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+    </CardHeader>
+    <CardContent className="pt-3">
+      <div className="rounded-md border">
+        {/* Table header skeleton */}
+        <div className="flex gap-4 px-3 py-2 bg-slate-50 border-b">
+          <Skeleton variant="text" width="25%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+        </div>
+        {/* Table rows skeleton */}
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex gap-4 px-3 py-3 border-b border-slate-100">
+            <Skeleton variant="text" width="25%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+          </div>
+        ))}
+      </div>
+    </CardContent>
+  </Card>
+);
+
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
@@ -1582,6 +1744,54 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
     return rows;
   }, [city, filters]);
 
+  // Skeleton loader for initial load and filter changes
+  if (loading) {
+    return (
+      <div className="flex-col bg-slate-50 text-slate-900 p-4">
+        {/* Header skeleton */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={120} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+            <Skeleton variant="text" width={200} height={32} animation="wave" sx={{ borderRadius: 1 }} />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton variant="rounded" width={90} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+            <Skeleton variant="rounded" width={80} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+        </div>
+
+        {/* Tabs skeleton */}
+        <div className="mb-4 flex gap-2">
+          <Skeleton variant="rounded" width={80} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" width={60} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" width={80} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+        </div>
+
+        {/* Table skeleton */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          {/* Table header */}
+          <div className="flex gap-4 mb-4 pb-3 border-b border-slate-100">
+            <Skeleton variant="text" width="20%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+          </div>
+          {/* Table rows */}
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex gap-4 py-3 border-b border-slate-50">
+              <Skeleton variant="text" width="20%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
       {/* Header */}
@@ -1699,7 +1909,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <BrandTable rows={brandRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -1707,6 +1917,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              competitionBrands={brandRows}
             />
           )}
           {viewMode === "kpi" && (
@@ -1722,7 +1933,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <SkuTable rows={skuRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -1744,7 +1955,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* KEYWORD TAB */}
         <TabsContent value="keyword" className="mt-3">
-          {viewMode === "table" && <KeywordTable rows={keywordRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <KeywordTable rows={keywordRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="keyword"

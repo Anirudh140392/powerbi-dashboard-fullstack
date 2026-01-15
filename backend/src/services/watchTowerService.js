@@ -1695,7 +1695,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 };
 
                 const calculateConversion = (data) => {
-                    return data.orders > 0 ? data.clicks / data.orders : 0; // Clicks / Orders
+                    return data.clicks > 0 ? data.orders / data.clicks : 0; // Orders / Clicks
                 };
 
                 const calculateRoas = (data) => {
@@ -4584,7 +4584,7 @@ const getMonthOverview = async (filters) => {
 
                 const availability = deno > 0 ? (neno / deno) * 100 : 0;
                 const roas = spend > 0 ? adSales / spend : 0;
-                const conversion = orders > 0 ? clicks / orders : 0;  // Conversion = Clicks / Orders (matching Platform Overview)
+                const conversion = clicks > 0 ? orders / clicks : 0;  // Conversion = Orders / Clicks (matching Platform Overview)
                 const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
                 const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -4780,7 +4780,7 @@ const getCategoryOverview = async (filters) => {
 
                 const availability = deno > 0 ? (neno / deno) * 100 : 0;
                 const roas = spend > 0 ? adSales / spend : 0;
-                const conversion = orders > 0 ? clicks / orders : 0;  // Conversion = Clicks / Orders (matching Platform Overview)
+                const conversion = clicks > 0 ? orders / clicks : 0;  // Conversion = Orders / Clicks (matching Platform Overview)
                 const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
                 const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -4998,7 +4998,7 @@ const getBrandsOverview = async (filters) => {
 
                 const availability = deno > 0 ? (neno / deno) * 100 : 0;
                 const roas = spend > 0 ? adSales / spend : 0;
-                const conversion = orders > 0 ? clicks / orders : 0;  // Conversion = Clicks / Orders (matching Platform Overview)
+                const conversion = clicks > 0 ? orders / clicks : 0;  // Conversion = Orders / Clicks (matching Platform Overview)
                 const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
                 const cpc = clicks > 0 ? spend / clicks : 0;
                 const inorgPct = sales > 0 ? (adSales / sales) * 100 : 0;

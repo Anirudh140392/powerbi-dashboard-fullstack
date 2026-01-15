@@ -16,8 +16,8 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById("root")).render(
   <>
-    <CssBaseline />
     <AppThemeProvider>
+      <CssBaseline />
       <App />
     </AppThemeProvider>
   </>
