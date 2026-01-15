@@ -4,9 +4,11 @@
 //  + ECP by Brand + Weekday/Weekend + Discount Trend Drilldown
 //  + GLOBAL BRAND FILTER (Option A) + SKU CLICK FILTER
 //  + TREND / RPI TABS with Dual RPI Charts
+//  + ECP COMPARISON API INTEGRATION
 // --------------------------------------------------------------
 
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import {
   Box,
   Grid,
@@ -1173,25 +1175,106 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
 
 export default function PricingAnalysisData() {
   const [chartTab, setChartTab] = useState("discount");
-  const calledOnce = useRef(false);
 
+  // Get global filters from FilterContext
+  const {
+    platform: globalPlatform,
+    selectedLocation,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+    datesInitialized,
+  } = useContext(FilterContext);
+
+  // ECP Comparison state
+  const [ecpData, setEcpData] = useState([]);
+  const [ecpLoading, setEcpLoading] = useState(true); // Start with loading state
+
+  // ECP by Brand state
+  const [ecpByBrandData, setEcpByBrandData] = useState([]);
+  const [ecpByBrandLoading, setEcpByBrandLoading] = useState(true);
+
+  // Fetch ECP comparison data when filters change
   useEffect(() => {
-    if (calledOnce.current) return;
-    calledOnce.current = true;
+    if (!datesInitialized) return;
 
-    const fetchPricingData = async () => {
+    const fetchEcpComparison = async () => {
+      setEcpLoading(true);
       try {
-        const response = await axiosInstance.get('/pricing-analysis', {
-          params: { platform: 'Blinkit' } // Default filter
-        });
-        console.log("Pricing Analysis Data:", response.data);
+        const params = {
+          startDate: timeStart?.format('YYYY-MM-DD'),
+          endDate: timeEnd?.format('YYYY-MM-DD'),
+          compareStartDate: compareStart?.format('YYYY-MM-DD'),
+          compareEndDate: compareEnd?.format('YYYY-MM-DD'),
+        };
+
+        if (globalPlatform && globalPlatform !== 'All') {
+          params.platform = globalPlatform;
+        }
+        if (selectedLocation && selectedLocation !== 'All') {
+          params.location = selectedLocation;
+        }
+
+        console.log("[PricingAnalysisData] Fetching ECP comparison with params:", params);
+        const response = await axiosInstance.get('/pricing-analysis/ecp-comparison', { params });
+
+        if (response.data?.success && response.data?.data) {
+          console.log("[PricingAnalysisData] ECP data received:", response.data.data.length, "items");
+          setEcpData(response.data.data);
+        } else {
+          setEcpData([]);
+        }
       } catch (error) {
-        console.error("Error fetching Pricing Analysis data:", error);
+        console.error("Error fetching ECP comparison data:", error);
+        setEcpData([]);
+      } finally {
+        setEcpLoading(false);
       }
     };
 
-    fetchPricingData();
-  }, []);
+    fetchEcpComparison();
+  }, [globalPlatform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized]);
+
+  // Fetch ECP by Brand data when filters change
+  useEffect(() => {
+    if (!datesInitialized) return;
+
+    const fetchEcpByBrand = async () => {
+      setEcpByBrandLoading(true);
+      try {
+        const params = {
+          startDate: timeStart?.format('YYYY-MM-DD'),
+          endDate: timeEnd?.format('YYYY-MM-DD'),
+        };
+
+        if (globalPlatform && globalPlatform !== 'All') {
+          params.platform = globalPlatform;
+        }
+        if (selectedLocation && selectedLocation !== 'All') {
+          params.location = selectedLocation;
+        }
+
+        console.log("[PricingAnalysisData] Fetching ECP by Brand with params:", params);
+        const response = await axiosInstance.get('/pricing-analysis/ecp-by-brand', { params });
+
+        if (response.data?.success && response.data?.data) {
+          console.log("[PricingAnalysisData] ECP by Brand data received:", response.data.data.length, "items");
+          setEcpByBrandData(response.data.data);
+        } else {
+          setEcpByBrandData([]);
+        }
+      } catch (error) {
+        console.error("Error fetching ECP by Brand data:", error);
+        setEcpByBrandData([]);
+      } finally {
+        setEcpByBrandLoading(false);
+      }
+    };
+
+    fetchEcpByBrand();
+  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized]);
+
   const [filters, setFilters] = useState(defaultFilters);
   const [openPopup, setOpenPopup] = useState(false);
   const [tab, setTab] = useState("overview");
@@ -1241,10 +1324,17 @@ export default function PricingAnalysisData() {
     [filters]
   );
 
+  // Use API data for ECP by Brand table, fallback to mock data
   const filteredEcpBrandRows = useMemo(() => {
-    if (filters.brand === "All") return ECP_BRAND_ROWS;
-    return ECP_BRAND_ROWS.filter((r) => r.brand === filters.brand);
-  }, [filters.brand]);
+    // If loading or no API data, use mock data
+    if (ecpByBrandLoading || ecpByBrandData.length === 0) {
+      if (filters.brand === "All") return ECP_BRAND_ROWS;
+      return ECP_BRAND_ROWS.filter((r) => r.brand === filters.brand);
+    }
+    // Use API data
+    if (filters.brand === "All") return ecpByBrandData;
+    return ecpByBrandData.filter((r) => r.brand === filters.brand);
+  }, [filters.brand, ecpByBrandData, ecpByBrandLoading]);
 
   const activeBrand =
     selectedBrand || (filters.brand !== "All" ? filters.brand : null);
@@ -1873,35 +1963,76 @@ export default function PricingAnalysisData() {
         </Typography>
       </Card>
 
-      {/* KPI Row */}
+      {/* KPI Row - ECP Comparison from API */}
       <Grid container spacing={2} mb={2}>
-        {PRICE_ROWS.slice(0, 3).map((row) => (
-          <Grid item xs={12} md={4} key={row.id}>
-            <Card
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                boxShadow: 4,
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,240,255,0.9))",
-                cursor: "pointer",
-              }}
-              onClick={() => applyGlobalBrandSelection(row.brand)}
-            >
-              <Typography variant="subtitle2" color="text.secondary">
-                {row.brand}
-              </Typography>
-              <Typography variant="h5" fontWeight={700} mt={1}>
-                ₹{row.ecp}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Platform: {row.platform}
-              </Typography>
-              <Box mt={1}>{renderTrendChip(row.trend)}</Box>
-            </Card>
-          </Grid>
-        ))}
+        {ecpLoading ? (
+          // Loading state
+          [1, 2, 3].map((i) => (
+            <Grid item xs={12} md={4} key={i}>
+              <Card sx={{ p: 2, borderRadius: 3, boxShadow: 4, bgcolor: "#f8fafc" }}>
+                <Typography color="text.secondary" fontSize={12}>Loading...</Typography>
+              </Card>
+            </Grid>
+          ))
+        ) : ecpData.length > 0 ? (
+          // API data
+          ecpData.slice(0, 3).map((row, idx) => (
+            <Grid item xs={12} md={4} key={idx}>
+              <Card
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  boxShadow: 4,
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,240,255,0.9))",
+                  cursor: "pointer",
+                }}
+                onClick={() => applyGlobalBrandSelection(row.brand)}
+              >
+                <Typography variant="subtitle2" color="text.secondary">
+                  {row.brand}
+                </Typography>
+                <Typography variant="h5" fontWeight={700} mt={1}>
+                  ₹{row.ecp_curr?.toFixed(1)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Platform: {row.platform}
+                </Typography>
+                <Box mt={1}>{renderTrendChip(row.trend)}</Box>
+              </Card>
+            </Grid>
+          ))
+        ) : (
+          // Fallback to mock data
+          PRICE_ROWS.slice(0, 3).map((row) => (
+            <Grid item xs={12} md={4} key={row.id}>
+              <Card
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  boxShadow: 4,
+                  background:
+                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,240,255,0.9))",
+                  cursor: "pointer",
+                }}
+                onClick={() => applyGlobalBrandSelection(row.brand)}
+              >
+                <Typography variant="subtitle2" color="text.secondary">
+                  {row.brand}
+                </Typography>
+                <Typography variant="h5" fontWeight={700} mt={1}>
+                  ₹{row.ecp}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Platform: {row.platform}
+                </Typography>
+                <Box mt={1}>{renderTrendChip(row.trend)}</Box>
+              </Card>
+            </Grid>
+          ))
+        )}
       </Grid>
+
 
       {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
       <Grid container spacing={2} mb={2}>
