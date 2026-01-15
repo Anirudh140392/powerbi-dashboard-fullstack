@@ -15,6 +15,11 @@ import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import OsaHeatmapTable from "./OsaDetailView";
 import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
+import {
+  AvailabilityOverviewSkeleton,
+  PlatformKpiMatrixSkeleton,
+  OsaDetailViewSkeleton,
+} from "./AvailabilitySkeletons";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -105,12 +110,13 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {} }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loading = false }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
-  // Check loading state - data is loading if apiData doesn't have the required property yet
-  const isFormatLoading = !apiData?.formatKpi;
-  const isCityLoading = !apiData?.cityKpi;
+  // Check loading state - data is loading if apiData doesn't have the required property yet OR parent is loading
+  const isPlatformLoading = loading || !apiData?.platformKpi;
+  const isFormatLoading = loading || !apiData?.formatKpi;
+  const isCityLoading = loading || !apiData?.cityKpi;
 
   // Transform API platformKpi data to component's expected format
   const transformApiData = (kpiData) => {
@@ -207,12 +213,17 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {} }) => 
 
   // ---------------- TABS ----------------
   const tabs = [
-    { key: "platform", label: "Platform", data: platformData, loading: !apiData?.platformKpi },
+    { key: "platform", label: "Platform", data: platformData, loading: isPlatformLoading },
     { key: "format", label: "Format", data: formatData, loading: isFormatLoading },
     { key: "city", label: "City", data: cityData, loading: isCityLoading },
   ];
 
   const active = tabs.find((t) => t.key === activeTab);
+
+  // If loading and no data, show skeleton (same pattern as Visibility page)
+  if (loading && !apiData?.platformKpi) {
+    return <PlatformKpiMatrixSkeleton />;
+  }
 
   return (
     <div className="relative rounded-3xl bg-white border shadow p-3 sm:p-5 flex flex-col gap-4">
@@ -233,7 +244,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {} }) => 
         ))}
       </div>
 
-      {/* -------- MATRIX TABLE (always render, loader overlays) -------- */}
+      {/* -------- MATRIX TABLE -------- */}
       <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
     </div>
   );
@@ -1308,10 +1319,22 @@ export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false
 
         {/* AVAILABILITY MODE - Only Absolute (Weighted option removed) */}
 
-        <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
+        {/* Availability Overview - show skeleton if loading and no data */}
+        {loading && !apiData?.overview ? (
+          <AvailabilityOverviewSkeleton />
+        ) : (
+          <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
+        )}
+
         {/* <SignalLabVisibility type="availability" /> */}
-        <TabbedHeatmapTable olaMode={availability} apiData={apiData} filters={filters} />
-        <OsaHeatmapTable olaMode={availability} filters={filters} />
+        <TabbedHeatmapTable olaMode={availability} apiData={apiData} filters={filters} loading={loading} />
+
+        {/* OSA Detail View - show skeleton if loading and no osaDetail data */}
+        {loading && !apiData?.osaDetail ? (
+          <OsaDetailViewSkeleton />
+        ) : (
+          <OsaHeatmapTable olaMode={availability} filters={filters} initialLoading={loading} />
+        )}
 
       </div>
     </div>

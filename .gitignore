@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Environment files (contain secrets)
+.env
+*.env.local
+
+# Build outputs
+dist/
+!frontend/dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug files
+*.log
+npm-debug.log*
+
+# Redis dump
+dump.rdb
+
+# Test outputs
+*.json
+!package.json
+!package-lock.json
+!components.json
+!jsconfig.json
+!tsconfig.json
+
+# Temporary files
+*.tmp
+*.temp

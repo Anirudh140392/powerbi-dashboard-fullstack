@@ -89,8 +89,6 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             <Typography variant="h6" fontWeight={600}>{title}</Typography>
             <Chip label="All" size="small" variant="outlined" />
           </Box>
-
-          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
         {/* Cards Row - Show skeleton or actual cards */}

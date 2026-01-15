@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import axios from "axios";
 import {
     X,
     ChevronLeft,
@@ -23,6 +24,8 @@ function getHeatmapClass(value) {
 export default function CityDetailedTable({ sku, onClose }) {
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [cityData, setCityData] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     // Normalize data fields for display if they vary between visibility types
     const displaySkuName = sku.skuName || sku.keyword || "Unknown";
@@ -30,29 +33,87 @@ export default function CityDetailedTable({ sku, onClose }) {
     const displayPackSize = sku.packSize || "N/A";
     const displayPlatform = sku.platform || "N/A";
 
-    // Mock large dataset for this SKU
+    // Fetch real city data from API
+    useEffect(() => {
+        const fetchCityData = async () => {
+            try {
+                setLoading(true);
+
+                // Determine if this is a visibility signal (has keyword or level property)
+                const isVisibilitySignal = sku.level === 'keyword' || sku.level === 'sku' || sku.keyword || sku.skuName;
+
+                if (isVisibilitySignal) {
+                    // Call visibility city details API with keyword or SKU name
+                    const params = {
+                        level: sku.level || (sku.keyword ? 'keyword' : 'sku'),
+                        keyword: sku.keyword || null,
+                        skuName: sku.skuName || displaySkuName,
+                        platform: sku.platform || 'All',
+                        startDate: sku.startDate || '2025-12-01',
+                        endDate: sku.endDate || '2025-12-31'
+                    };
+
+                    console.log('[CityDetailedTable] Fetching visibility city data with params:', params);
+
+                    const response = await axios.get('/api/visibility-analysis/visibility-signals/city-details', {
+                        params
+                    });
+
+                    console.log('[CityDetailedTable] Visibility API Response:', response.data);
+
+                    if (response.data && response.data.cities) {
+                        console.log('[CityDetailedTable] Found', response.data.cities.length, 'cities');
+                        setCityData(response.data.cities);
+                    }
+                } else {
+                    // Fallback to availability API for non-visibility signals
+                    const params = {
+                        webPid: sku.webPid || sku.id,
+                        startDate: sku.startDate || '2025-12-01',
+                        endDate: sku.endDate || '2025-12-31',
+                        compareStartDate: sku.compareStartDate || '2025-11-01',
+                        compareEndDate: sku.compareEndDate || '2025-11-30',
+                        type: sku.metricType || 'availability'
+                    };
+
+                    console.log('[CityDetailedTable] Fetching availability city data with params:', params);
+
+                    const response = await axios.get('/api/availability-analysis/signal-lab/city-details', {
+                        params
+                    });
+
+                    if (response.data && response.data.cities) {
+                        setCityData(response.data.cities);
+                    }
+                }
+            } catch (error) {
+                console.error('[CityDetailedTable] Error fetching city data:', error);
+                console.error('[CityDetailedTable] Error response:', error.response?.data);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchCityData();
+    }, [sku, displaySkuName]);
+
+    // Prepare display data
     const allCities = useMemo(() => {
-        const cities = [
-            "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata", "Surat",
-            "Pune", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal",
-            "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra",
-            "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan-Dombivli", "Vasai-Virar", "Varanasi"
-        ];
-        return cities.map((city, idx) => ({
+        return cityData.map((row, idx) => ({
             id: idx,
-            city,
-            estOfftake: `₹ ${(Math.random() * 5 + 0.5).toFixed(1)} K`,
-            offtakeChange: Math.random() > 0.5 ? `+${(Math.random() * 10).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%`,
-            catShare: `${(Math.random() * 5).toFixed(1)}%`,
-            shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
-            wtOsa: `${(70 + Math.random() * 30).toFixed(1)}%`,
-            osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
-            overallSos: `${(Math.random() * 5).toFixed(1)}%`,
-            adSos: `${(Math.random() * 15).toFixed(1)}%`,
-            wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
+            city: row.city,
+            estOfftake: `₹ ${row.estOfftake.toFixed(1)} K`,
+            offtakeChange: `${row.estOfftakeChange >= 0 ? '+' : ''}${row.estOfftakeChange.toFixed(1)}%`,
+            catShare: `${row.estCatShare.toFixed(1)}%`,
+            shareChange: `${row.estCatShareChange >= 0 ? '+' : ''}${row.estCatShareChange.toFixed(1)}%`,
+            wtOsa: `${row.wtOsa.toFixed(1)}%`,
+            osaChange: `${row.wtOsaChange >= 0 ? '+' : ''}${row.wtOsaChange.toFixed(1)}%`,
+            overallSos: `${row.overallSos.toFixed(1)}%`,
+            adSos: `${row.adSos.toFixed(1)}%`,
+            wtDisc: `${row.wtDisc.toFixed(1)}%`,
             discChange: `+${(Math.random() * 2).toFixed(1)}%`,
         }));
-    }, [sku]);
+    }, [cityData]);
 
     const totalPages = Math.ceil(allCities.length / rowsPerPage);
     const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);
@@ -111,53 +172,70 @@ export default function CityDetailedTable({ sku, onClose }) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
-                                {displayedData.map((row) => (
-                                    <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
-                                        <td className="px-4 py-3 font-medium text-slate-900">{row.city}</td>
-
-                                        {/* Est Offtake */}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="font-semibold text-slate-700">{row.estOfftake}</div>
-                                            <div className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {row.offtakeChange}
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-12 text-center">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="w-8 h-8 border-4 border-slate-200 border-t-sky-500 rounded-full animate-spin"></div>
+                                                <div className="text-sm text-slate-500">Loading city data...</div>
                                             </div>
-                                        </td>
-
-                                        {/* Cat Share */}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="font-semibold">{row.catShare}</div>
-                                            <div className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {row.shareChange}
-                                            </div>
-                                        </td>
-
-                                        {/* OSA - Heatmap */}
-                                        <td className="px-4 py-3 text-right">
-                                            <span className={`inline-block px-2 py-0.5 rounded ${getHeatmapClass(row.wtOsa)}`}>
-                                                {row.wtOsa}
-                                            </span>
-                                            <div className={`text-[10px] mt-0.5 ${row.osaChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {row.osaChange}
-                                            </div>
-                                        </td>
-
-                                        {/* Overall Sos */}
-                                        <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.overallSos}
-                                        </td>
-
-                                        {/* Ad Sos */}
-                                        <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.adSos}
-                                        </td>
-
-                                        {/* Disc % */}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="font-semibold text-slate-700">{row.wtDisc}</div>
-                                            <div className="text-[10px] text-emerald-600">{row.discChange}</div>
                                         </td>
                                     </tr>
-                                ))}
+                                ) : allCities.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-12 text-center text-slate-500">
+                                            No city data available
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    displayedData.map((row) => (
+                                        <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="px-4 py-3 font-medium text-slate-900">{row.city}</td>
+
+                                            {/* Est Offtake */}
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="font-semibold text-slate-700">{row.estOfftake}</div>
+                                                <div className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.offtakeChange}
+                                                </div>
+                                            </td>
+
+                                            {/* Cat Share */}
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="font-semibold">{row.catShare}</div>
+                                                <div className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.shareChange}
+                                                </div>
+                                            </td>
+
+                                            {/* OSA - Heatmap */}
+                                            <td className="px-4 py-3 text-right">
+                                                <span className={`inline-block px-2 py-0.5 rounded ${getHeatmapClass(row.wtOsa)}`}>
+                                                    {row.wtOsa}
+                                                </span>
+                                                <div className={`text-[10px] mt-0.5 ${row.osaChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.osaChange}
+                                                </div>
+                                            </td>
+
+                                            {/* Overall Sos */}
+                                            <td className="px-4 py-3 text-right font-medium text-slate-600">
+                                                {row.overallSos}
+                                            </td>
+
+                                            {/* Ad Sos */}
+                                            <td className="px-4 py-3 text-right font-medium text-slate-600">
+                                                {row.adSos}
+                                            </td>
+
+                                            {/* Disc % */}
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="font-semibold text-slate-700">{row.wtDisc}</div>
+                                                <div className="text-[10px] text-emerald-600">{row.discChange}</div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

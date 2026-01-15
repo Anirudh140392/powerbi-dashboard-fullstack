@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+
 const { default: sequelize } = await import('./src/config/db.js');
 
 async function checkData() {
