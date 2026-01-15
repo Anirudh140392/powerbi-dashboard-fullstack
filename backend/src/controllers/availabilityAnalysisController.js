@@ -1,4 +1,4 @@
-import * as availabilityService from '../services/availabilityService.js';
+import availabilityService from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 
 export const AvailabilityControlTower = async (req, res) => {

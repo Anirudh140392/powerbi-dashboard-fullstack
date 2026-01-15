@@ -17,7 +17,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { Box } from "@mui/material";
+import { Box, Skeleton } from "@mui/material";
 
 /* -------------------------------------------------------------------------- */
 /*                               Utility helper                               */
@@ -536,16 +536,18 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
-  // initial tab: format for visibility mode
-  const [activeTab, setActiveTab] = useState("format");
+const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
+  // initial tab: platform for visibility mode (Platform KPI Matrix)
+  const [activeTab, setActiveTab] = useState("platform");
   const [search, setSearch] = useState("");
 
   // Dynamic filter options from API (rb_kw table)
   const [filterOptions, setFilterOptions] = useState({
+    platforms: [],    // from platform_name
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
+    brands: [],       // from brand_crawl where is_competitor_product=1
     loading: false,
     error: null
   });
@@ -558,24 +560,30 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
       setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
       try {
-        // Fetch all filter types in parallel
-        const [formatsRes, citiesRes, productNamesRes] = await Promise.all([
+        // Fetch all filter types in parallel (including platforms from rb_kw)
+        const [platformsRes, formatsRes, citiesRes, productNamesRes, brandsRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
           axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
           axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities${value.formats.length ? `&format=${value.formats[0]}` : ''}`),
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=productName')
+          axiosInstance.get('/visibility-analysis/filter-options?filterType=productName'),
+          axiosInstance.get('/visibility-analysis/filter-options?filterType=brands')
         ]);
 
         setFilterOptions({
+          platforms: (platformsRes.data?.options || []).filter(p => p && p !== 'All'),
           formats: (formatsRes.data?.options || []).filter(f => f && f !== 'All'),
           cities: (citiesRes.data?.options || []).filter(c => c && c !== 'All'),
           productNames: (productNamesRes.data?.options || []).filter(p => p && p !== 'All'),
+          brands: (brandsRes.data?.options || []).filter(b => b && b !== 'All'),
           loading: false,
           error: null
         });
         console.log('[FilterDialog Visibility] Loaded filter options:', {
+          platforms: platformsRes.data?.options?.length || 0,
           formats: formatsRes.data?.options?.length || 0,
           cities: citiesRes.data?.options?.length || 0,
-          productNames: productNamesRes.data?.options?.length || 0
+          productNames: productNamesRes.data?.options?.length || 0,
+          brands: brandsRes.data?.options?.length || 0
         });
       } catch (error) {
         console.error('[FilterDialog Visibility] Error fetching filter options:', error);
@@ -590,12 +598,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     fetchFilterOptions();
   }, [open, value.formats]); // Refetch when formats change (cascading for cities)
 
-  // Filter tabs - mapped to rb_kw columns
-  const tabOptions = ["format", "city", "productName"];
+  // Filter tabs - mapped to rb_kw columns (platform first for Platform KPI Matrix)
+  const tabOptions = ["platform", "format", "city", "productName", "brand"];
 
   const getListForTab = () => {
+    if (activeTab === "platform") return filterOptions.platforms;
     if (activeTab === "format") return filterOptions.formats;
     if (activeTab === "city") return filterOptions.cities;
+    if (activeTab === "brand") return filterOptions.brands;
     return filterOptions.productNames;
   };
 
@@ -607,11 +617,15 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   }, [activeTab, search, filterOptions]);
 
   const currentKey =
-    activeTab === "format"
-      ? "formats"
-      : activeTab === "city"
-        ? "cities"
-        : "productNames";
+    activeTab === "platform"
+      ? "platforms"
+      : activeTab === "format"
+        ? "formats"
+        : activeTab === "city"
+          ? "cities"
+          : activeTab === "brand"
+            ? "brands"
+            : "productNames";
 
   // Handle toggle with cascading filter reset
   const handleToggle = (type, item) => {
@@ -679,9 +693,11 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
                     value={t}
                     className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
                   >
+                    {t === "platform" && "Platform"}
                     {t === "format" && "Format"}
                     {t === "city" && "City"}
                     {t === "productName" && "Product Name"}
+                    {t === "brand" && "Brand"}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -748,7 +764,10 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onClose}>Apply</Button>
+          <Button onClick={() => {
+            if (onApply) onApply();
+            onClose();
+          }}>Apply</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -805,66 +824,109 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competitionBrands = [] }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("overall_sos");
+  const [loading, setLoading] = useState(true);
+  const [trendData, setTrendData] = useState({ brands: {}, days: [] });
 
   const metricMeta =
     KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
 
   const isBrandMode = mode === "brand";
 
-  /* ---------------- SELECTED IDS ---------------- */
-  const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      let rows = DATA_MODEL.brandSummaryByCity[city] || [];
+  // Determine which brands to fetch trends for
+  const selectedBrands = useMemo(() => {
+    console.log('[TrendView] Calculating selectedBrands...');
+    console.log('[TrendView] filters.brands:', filters.brands);
+    console.log('[TrendView] competitionBrands:', competitionBrands.map(b => b.name || b.brand || b));
 
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.name));
-
-      return rows.length ? rows.slice(0, 4).map((r) => r.id) : [];
+    // Priority 1: Use brands explicitly selected in filter dialog
+    if (filters.brands && filters.brands.length > 0) {
+      console.log('[TrendView] Using filters.brands:', filters.brands);
+      return filters.brands;
     }
 
-    let rows = DATA_MODEL.skuSummaryByCity[city] || [];
+    // Priority 2: Use top brands from competition table data (already filtered by user's other filters)
+    if (competitionBrands.length > 0) {
+      const brands = competitionBrands.slice(0, 5).map(b => b.name || b.brand || b);
+      console.log('[TrendView] Using competitionBrands (top 5):', brands);
+      return brands;
+    }
 
-    if (filters.categories.length)
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    if (filters.brands.length)
-      rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    if (filters.skus.length)
-      rows = rows.filter((r) => filters.skus.includes(r.name));
+    console.log('[TrendView] No brands available');
+    return [];
+  }, [filters.brands, competitionBrands]);
 
-    return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
-  }, [isBrandMode, filters, city]);
+  // Convert to string for stable dependency tracking
+  const selectedBrandsKey = JSON.stringify(selectedBrands);
 
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
-  );
+  // Fetch brand comparison trends from API
+  useEffect(() => {
+    console.log('[TrendView] useEffect triggered');
+    console.log('[TrendView] isBrandMode:', isBrandMode);
+    console.log('[TrendView] selectedBrands.length:', selectedBrands.length);
+    console.log('[TrendView] selectedBrands values:', selectedBrandsKey);
 
-  /* ---------------- CHART DATA ---------------- */
+    if (!isBrandMode || selectedBrands.length === 0) {
+      console.log('[TrendView] Early return - no brands to fetch');
+      setLoading(false);
+      return;
+    }
+
+    const fetchTrendData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          brands: selectedBrands.join(','),
+          platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
+          location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          period: '1M'
+        };
+
+        // Remove undefined values
+        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+        console.log('[TrendView] 🚀 Calling API with params:', JSON.stringify(params));
+        const response = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
+
+        if (response.data) {
+          console.log('[TrendView] ✅ Received trend data for brands:', Object.keys(response.data.brands || {}));
+          console.log('[TrendView] Days count:', response.data.days?.length);
+          setTrendData(response.data);
+        }
+      } catch (error) {
+        console.error('[TrendView] Error fetching brand trends:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrendData();
+  }, [isBrandMode, selectedBrandsKey, filters.platforms, filters.cities]);
+
+
+
+  // Build chart data for the active metric
   const chartData = useMemo(() => {
-    const days = DATA_MODEL.days;
+    const { brands, days } = trendData;
+    if (!days || days.length === 0) return [];
 
-    return days.map((date, idx) => {
+    return days.map((date) => {
       const row = { date };
-
-      selectedIds.forEach((id) => {
-        const series = isBrandMode
-          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
-          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-
-        if (series) row[id] = series[idx]?.[activeMetric] ?? null;
+      Object.keys(brands).forEach((brandName) => {
+        const brandData = brands[brandName];
+        const dayData = brandData.timeSeries?.find(d => d.date === date);
+        if (dayData) {
+          row[brandName] = dayData[activeMetric] || 0;
+        }
       });
-
       return row;
     });
-  }, [selectedIds, city, isBrandMode, activeMetric]);
+  }, [trendData, activeMetric]);
+
+  // Get brand names and colors for rendering
+  const brandEntries = Object.entries(trendData.brands || {});
 
   const formatValue = (v) => {
     if (metricMeta.unit) return `${v}${metricMeta.unit}`;
@@ -872,6 +934,62 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
     if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
     return v;
   };
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <Card className="mt-4">
+        <CardHeader className="flex items-start justify-between border-b pb-3">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={100} height={28} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={60} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={70} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={65} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton variant="rounded" width={120} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+            <Skeleton variant="rounded" width={100} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Skeleton variant="rectangular" width="100%" height={280} animation="wave" sx={{ borderRadius: 2 }} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No brands selected
+  if (selectedBrands.length === 0) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-slate-500">
+            No brands selected. Please select brands from the Filters to compare.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // No data available
+  if (brandEntries.length === 0) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-slate-500">
+            No trend data available for the selected brands.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mt-4">
@@ -891,9 +1009,19 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
           </Box>
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
-            {selectedLabels.map((label) => (
-              <Badge key={label}>{label}</Badge>
+            <span>Brands:</span>
+            {brandEntries.map(([brandName, brandData]) => (
+              <Badge
+                key={brandName}
+                style={{
+                  backgroundColor: brandData.color + '20',
+                  borderColor: brandData.color,
+                  color: brandData.color
+                }}
+                className="border"
+              >
+                {brandName}
+              </Badge>
             ))}
             <Separator orientation="vertical" className="mx-1 h-4" />
             <span>{city}</span>
@@ -925,14 +1053,14 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
               <Tooltip formatter={formatValue} />
               <Legend />
 
-              {selectedIds.map((id) => (
+              {brandEntries.map(([brandName, brandData]) => (
                 <Line
-                  key={id}
+                  key={brandName}
                   type="monotone"
-                  dataKey={id}
-                  name={isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]}
+                  dataKey={brandName}
+                  name={brandName}
                   dot={false}
-                  stroke={metricMeta.color}
+                  stroke={brandData.color}
                   strokeWidth={2}
                 />
               ))}
@@ -943,6 +1071,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
     </Card>
   );
 };
+
 
 /* -------------------------------------------------------------------------- */
 /*                             KPI Compare View (4 tiles)                     */
@@ -975,100 +1104,135 @@ const KPI_KEYS = [
   },
 ];
 
-const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
-  const isBrandMode = mode === "brand";
+const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands = [] }) => {
+  const [loading, setLoading] = useState(true);
+  const [trendData, setTrendData] = useState({ brands: {}, days: [] });
 
-  const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
-      let rows = allRows;
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.name));
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 4);
-      return allRows.slice(0, 3).map((r) => r.id);
-    } else if (mode === "sku") {
-      const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
-      let rows = allRows;
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.brandName));
-      if (filters.skus.length)
-        rows = rows.filter((r) => filters.skus.includes(r.name));
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 5);
-      return allRows.slice(0, 5).map((r) => r.id);
-    } else {
-      const allRows = DATA_MODEL.keywordSummaryByCity[city] || [];
-      let rows = allRows;
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.brandName));
-      if (filters.keywords.length)
-        rows = rows.filter((r) => filters.keywords.includes(r.keyword));
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 6);
-      return allRows.slice(0, 6).map((r) => r.id);
+  // Determine which brands to compare
+  const selectedBrands = useMemo(() => {
+    // Priority: 1) Selected in filters, 2) Competition table brands, 3) Empty
+    if (filters.brands && filters.brands.length > 0) {
+      return filters.brands;
     }
-  }, [isBrandMode, mode, filters, city]);
+    // Use top brands from competition data if available
+    if (competitionBrands.length > 0) {
+      return competitionBrands.slice(0, 5).map(b => b.name || b.brand || b);
+    }
+    return [];
+  }, [filters.brands, competitionBrands]);
 
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        mode === "brand"
-          ? BRAND_ID_TO_NAME[id]
-          : mode === "sku"
-            ? SKU_ID_TO_NAME[id]
-            : KEYWORD_ID_TO_NAME[id]
-      ),
-    [selectedIds, mode]
-  );
+  // Fetch brand comparison trends from API
+  useEffect(() => {
+    if (mode !== "brand" || selectedBrands.length === 0) {
+      setLoading(false);
+      return;
+    }
 
-  const chartDataFor = (metricKey) => {
-    const days = DATA_MODEL.days;
-    if (mode === "brand") {
-      return days.map((date, idx) => {
-        const row = { date };
-        selectedIds.forEach((id) => {
-          const series =
-            DATA_MODEL.brandTrendsByCity[city] &&
-            DATA_MODEL.brandTrendsByCity[city][id];
-          if (!series) return;
-          row[id] = series[idx][metricKey];
-        });
-        return row;
-      });
-    }
-    if (mode === "sku") {
-      return days.map((date, idx) => {
-        const row = { date };
-        selectedIds.forEach((id) => {
-          const series =
-            DATA_MODEL.skuTrendsByCity[city] &&
-            DATA_MODEL.skuTrendsByCity[city][id];
-          if (!series) return;
-          row[id] = series[idx][metricKey];
-        });
-        return row;
-      });
-    }
-    // keywords
-    return days.map((date, idx) => {
+    const fetchTrendData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          brands: selectedBrands.join(','),
+          platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
+          location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          period: '1M'
+        };
+
+        // Remove undefined values
+        Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+        console.log('[KpiCompareView] Fetching brand trends with params:', params);
+        const response = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
+
+        if (response.data) {
+          console.log('[KpiCompareView] Received trend data for', Object.keys(response.data.brands || {}).length, 'brands');
+          setTrendData(response.data);
+        }
+      } catch (error) {
+        console.error('[KpiCompareView] Error fetching brand trends:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrendData();
+  }, [mode, selectedBrands, filters.platforms, filters.cities]);
+
+  // Build chart data for a specific KPI
+  const chartDataFor = (kpiKey) => {
+    const { brands, days } = trendData;
+    if (!days || days.length === 0) return [];
+
+    return days.map((date) => {
       const row = { date };
-      selectedIds.forEach((id) => {
-        const series =
-          DATA_MODEL.keywordTrendsByCity[city] &&
-          DATA_MODEL.keywordTrendsByCity[city][id];
-        if (!series) return;
-        row[id] = series[idx][metricKey];
+      Object.keys(brands).forEach((brandName) => {
+        const brandData = brands[brandName];
+        const dayData = brandData.timeSeries?.find(d => d.date === date);
+        if (dayData) {
+          row[brandName] = dayData[kpiKey] || 0;
+        }
       });
       return row;
     });
   };
+
+  // Get brand names and colors for rendering
+  const brandEntries = Object.entries(trendData.brands || {});
+
+  if (loading) {
+    return (
+      <Card className="mt-4">
+        <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={180} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+            <div className="flex gap-2">
+              <Skeleton variant="rounded" width={60} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={70} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+              <Skeleton variant="rounded" width={65} height={22} animation="wave" sx={{ borderRadius: 2 }} />
+            </div>
+          </div>
+          <Skeleton variant="rounded" width={100} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+        </CardHeader>
+        <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
+          {/* 4 Chart skeletons for Overall SOS, Sponsored SOS, Organic SOS, Display SOS */}
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="border-slate-200 bg-slate-50/80 shadow-none">
+              <CardHeader className="pb-2">
+                <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+              </CardHeader>
+              <CardContent className="h-48 pt-0">
+                <Skeleton variant="rectangular" width="100%" height="100%" animation="wave" sx={{ borderRadius: 2 }} />
+              </CardContent>
+            </Card>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (selectedBrands.length === 0) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-slate-500">
+            No brands selected. Please select brands from the Filters to compare.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (brandEntries.length === 0) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-slate-500">
+            No trend data available for the selected brands.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mt-4">
@@ -1078,20 +1242,20 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
             Compare by SOS KPIs
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>
-              {mode === "brand"
-                ? "Brands:"
-                : mode === "sku"
-                  ? "SKUs:"
-                  : "Keywords:"}
-            </span>
-            {selectedLabels.map((label) => (
-              <Badge key={label} className="border-slate-200 bg-slate-50">
-                {label}
+            <span>Brands:</span>
+            {brandEntries.map(([brandName, brandData]) => (
+              <Badge
+                key={brandName}
+                style={{
+                  backgroundColor: brandData.color + '20',
+                  borderColor: brandData.color,
+                  color: brandData.color
+                }}
+                className="border"
+              >
+                {brandName}
               </Badge>
             ))}
-            <Separator orientation="vertical" className="mx-1 h-4" />
-            <span>{city}</span>
           </div>
         </div>
 
@@ -1118,19 +1282,15 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
                   <YAxis tickLine={false} fontSize={10} width={32} />
-                  <Tooltip />
-                  {selectedIds.map((id) => (
+                  <Tooltip formatter={(value) => `${value}%`} />
+                  <Legend />
+                  {brandEntries.map(([brandName, brandData]) => (
                     <Line
-                      key={id}
+                      key={brandName}
                       type="monotone"
-                      dataKey={id}
-                      name={
-                        mode === "brand"
-                          ? BRAND_ID_TO_NAME[id]
-                          : mode === "sku"
-                            ? SKU_ID_TO_NAME[id]
-                            : KEYWORD_ID_TO_NAME[id]
-                      }
+                      dataKey={brandName}
+                      name={brandName}
+                      stroke={brandData.color}
                       dot={false}
                       strokeWidth={2}
                     />
@@ -1150,16 +1310,14 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
 /* -------------------------------------------------------------------------- */
 
 const BrandTable = ({ rows }) => {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
-  const totalPages = Math.ceil(rows.length / pageSize);
-  const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
+  // Show only top 8 brands
+  const top8Rows = rows.slice(0, 8);
 
   return (
     <Card className="mt-3">
       <CardHeader className="border-b pb-2">
         <CardTitle className="text-sm font-medium text-slate-800">
-          Brands (Top {rows.length || 0})
+          Brands (Top {Math.min(rows.length, 8)})
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1177,7 +1335,7 @@ const BrandTable = ({ rows }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedRows.map((row, idx) => (
+              {top8Rows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={cn(
@@ -1217,17 +1375,6 @@ const BrandTable = ({ rows }) => {
           </table>
         </div>
       </CardContent>
-      <PaginationFooter
-        currentPage={page}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        onPageChange={setPage}
-        onPageSizeChange={(s) => {
-          setPageSize(s);
-          setPage(1);
-        }}
-        isVisible={rows.length > 0}
-      />
     </Card>
   );
 };
@@ -1407,28 +1554,139 @@ const KeywordTable = ({ rows }) => {
   );
 };
 
+/* Table Skeleton - Used when filters are being applied */
+const TableSkeleton = () => (
+  <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+    <CardHeader className="border-b pb-2">
+      <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
+    </CardHeader>
+    <CardContent className="pt-3">
+      <div className="rounded-md border">
+        {/* Table header skeleton */}
+        <div className="flex gap-4 px-3 py-2 bg-slate-50 border-b">
+          <Skeleton variant="text" width="25%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+          <Skeleton variant="text" width="15%" height={16} animation="wave" />
+        </div>
+        {/* Table rows skeleton */}
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex gap-4 px-3 py-3 border-b border-slate-100">
+            <Skeleton variant="text" width="25%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            <Skeleton variant="text" width="15%" height={18} animation="wave" />
+          </div>
+        ))}
+      </div>
+    </CardContent>
+  </Card>
+);
+
 /* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const VisibilityKpiTrendShowcase = () => {
+export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], skus: [] }, loading = false }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku" | "keyword"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
+    // API-based filter keys
+    platforms: [],    // from platform_name in rb_kw table
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
+    // Legacy filter keys (used by useMemo hooks)
+    categories: [],
+    brands: [],
+    skus: [],
+    keywords: [],
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
+  // State for filtered competition data (when user applies filters)
+  const [filteredCompetitionData, setFilteredCompetitionData] = useState(null);
+  const [isFilteredLoading, setIsFilteredLoading] = useState(false);
+
+  // Function to fetch competition data with selected filters
+  const fetchFilteredCompetitionData = async () => {
+    console.log('[Competition] Fetching filtered competition data with filters:', filters);
+    setIsFilteredLoading(true);
+    try {
+      const params = {
+        period: '1M',
+        platform: filters.platforms.length > 0 ? filters.platforms.join(',') : undefined,
+        format: filters.formats.length > 0 ? filters.formats.join(',') : undefined,
+        city: filters.cities.length > 0 ? filters.cities.join(',') : undefined,
+        productName: filters.productNames.length > 0 ? filters.productNames.join(',') : undefined,
+        brand: filters.brands.length > 0 ? filters.brands.join(',') : undefined,
+      };
+
+      // Remove undefined values
+      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
+
+      console.log('[Competition] API params:', params);
+      const response = await axiosInstance.get('/visibility-analysis/competition', { params });
+
+      if (response.data) {
+        console.log('[Competition] Received filtered data:', response.data.brands?.length, 'brands');
+        setFilteredCompetitionData({
+          brands: response.data.brands || [],
+          skus: response.data.skus || []
+        });
+      }
+    } catch (error) {
+      console.error('[Competition] Error fetching filtered data:', error);
+    } finally {
+      setIsFilteredLoading(false);
+    }
+  };
+
   const selectionCount =
+    filters.platforms.length +
     filters.formats.length +
     filters.cities.length +
-    filters.productNames.length;
+    filters.productNames.length +
+    filters.brands.length;
 
   // Dynamic filtered rows for table for the active tab + city
+  // Use filtered API data if user has applied filters, otherwise use parent-provided data
   const brandRows = useMemo(() => {
+    // Use filtered data if available (user applied filters), otherwise use parent-provided data
+    const dataToUse = filteredCompetitionData || competitionData;
+    console.log('[Competition] competitionData received:', JSON.stringify(dataToUse));
+    console.log('[Competition] Using filtered data:', !!filteredCompetitionData);
+
+    // If we have API competition data, use it instead of hardcoded DATA_MODEL
+    if (dataToUse.brands && dataToUse.brands.length > 0) {
+      console.log('[Competition] ✅ Using API data:', dataToUse.brands.length, 'brands');
+      // Sort by overall_sos descending and map to expected format
+      // Backend returns { overall_sos: { value: 25.0, delta: 1.5 } } format
+      return dataToUse.brands
+        .map(b => {
+          // Handle both nested {value, delta} format and flat number format
+          const getVal = (field) => {
+            if (field === null || field === undefined) return 0;
+            if (typeof field === 'object' && field.value !== undefined) return Number(field.value) || 0;
+            return Number(field) || 0;
+          };
+          return {
+            id: b.brand || b.id,
+            name: b.brand || b.name,
+            overall_sos: getVal(b.overall_sos),
+            sponsored_sos: getVal(b.sponsored_sos),
+            organic_sos: getVal(b.organic_sos),
+            display_sos: getVal(b.display_sos),
+          };
+        })
+        .sort((a, b) => b.overall_sos - a.overall_sos);
+    }
+
+    console.log('[Competition] ❌ FALLBACK to hardcoded mock data');
+    // Fallback to hardcoded mock data
     const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
     let rows = allRows;
 
@@ -1455,8 +1713,8 @@ export const VisibilityKpiTrendShowcase = () => {
       rows = rows.filter((r) => brandIdsWithSelectedKws.has(r.id));
     }
 
-    return rows;
-  }, [city, filters]);
+    return rows.sort((a, b) => b.overall_sos - a.overall_sos);
+  }, [city, filters, competitionData, filteredCompetitionData]);
 
   const skuRows = useMemo(() => {
     const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
@@ -1485,6 +1743,54 @@ export const VisibilityKpiTrendShowcase = () => {
 
     return rows;
   }, [city, filters]);
+
+  // Skeleton loader for initial load and filter changes
+  if (loading) {
+    return (
+      <div className="flex-col bg-slate-50 text-slate-900 p-4">
+        {/* Header skeleton */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={120} height={24} animation="wave" sx={{ borderRadius: 1 }} />
+            <Skeleton variant="text" width={200} height={32} animation="wave" sx={{ borderRadius: 1 }} />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton variant="rounded" width={90} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+            <Skeleton variant="rounded" width={80} height={36} animation="wave" sx={{ borderRadius: 2 }} />
+          </div>
+        </div>
+
+        {/* Tabs skeleton */}
+        <div className="mb-4 flex gap-2">
+          <Skeleton variant="rounded" width={80} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" width={60} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+          <Skeleton variant="rounded" width={80} height={32} animation="wave" sx={{ borderRadius: 2 }} />
+        </div>
+
+        {/* Table skeleton */}
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          {/* Table header */}
+          <div className="flex gap-4 mb-4 pb-3 border-b border-slate-100">
+            <Skeleton variant="text" width="20%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+            <Skeleton variant="text" width="15%" height={20} animation="wave" />
+          </div>
+          {/* Table rows */}
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex gap-4 py-3 border-b border-slate-50">
+              <Skeleton variant="text" width="20%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+              <Skeleton variant="text" width="15%" height={18} animation="wave" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -1543,19 +1849,6 @@ export const VisibilityKpiTrendShowcase = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={city} onValueChange={setCity}>
-            <SelectTrigger className="h-9 w-40 bg-white">
-              <SelectValue placeholder="Select city" />
-            </SelectTrigger>
-            <SelectContent>
-              {CITIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Button
             variant="outline"
             size="sm"
@@ -1616,7 +1909,7 @@ export const VisibilityKpiTrendShowcase = () => {
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <BrandTable rows={brandRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -1624,6 +1917,7 @@ export const VisibilityKpiTrendShowcase = () => {
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              competitionBrands={brandRows}
             />
           )}
           {viewMode === "kpi" && (
@@ -1632,13 +1926,14 @@ export const VisibilityKpiTrendShowcase = () => {
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
+              competitionBrands={brandRows}
             />
           )}
         </TabsContent>
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <SkuTable rows={skuRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -1660,7 +1955,7 @@ export const VisibilityKpiTrendShowcase = () => {
 
         {/* KEYWORD TAB */}
         <TabsContent value="keyword" className="mt-3">
-          {viewMode === "table" && <KeywordTable rows={keywordRows} />}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <KeywordTable rows={keywordRows} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="keyword"
@@ -1687,6 +1982,7 @@ export const VisibilityKpiTrendShowcase = () => {
         mode={tab}
         value={filters}
         onChange={setFilters}
+        onApply={fetchFilteredCompetitionData}
       />
     </div>
   );

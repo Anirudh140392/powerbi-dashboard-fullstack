@@ -15,7 +15,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: process.env.VITE_API_URL || 'http://13.200.212.219',
         changeOrigin: true,
         secure: false, // In case of self-signed certs, though this is http
       },
