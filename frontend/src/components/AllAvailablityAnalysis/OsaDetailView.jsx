@@ -111,7 +111,7 @@ const FloatingLoader = ({ loading = false, label = "Loading..." }) => {
     );
 };
 
-export default function OsaDetailTableLight({ filters = {} }) {
+export default function OsaDetailTableLight({ filters = {}, initialLoading = false }) {
     const [query, setQuery] = useState("");
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
@@ -140,6 +140,7 @@ export default function OsaDetailTableLight({ filters = {} }) {
 
     // State for dynamic category OSA data from API
     const [categoryData, setCategoryData] = useState([]);
+    // Combine parent initialLoading with internal isLoading for unified loading state
     const [isLoading, setIsLoading] = useState(true);
     const [apiDates, setApiDates] = useState([]);
 
@@ -468,11 +469,7 @@ export default function OsaDetailTableLight({ filters = {} }) {
 
 
 
-                        {/* Controls */}
-                        {/* Floating Loader - shows on top of table during refresh */}
-                        <FloatingLoader loading={isLoading} label="Loading OSA data..." />
-
-                        {/* Table - always render, loader overlays */}
+                        {/* Table */}
                         <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                             <div className="overflow-auto">
                                 <table className="min-w-[1200px] w-full border-separate border-spacing-0">

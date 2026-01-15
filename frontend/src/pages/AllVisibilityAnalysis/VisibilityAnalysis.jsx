@@ -10,37 +10,88 @@ export default function VisibilityAnalysis() {
     platform,
     selectedBrand,
     selectedLocation,
-    timeStart,
-    timeEnd
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
 
-  // Initialize filters from context
+  // Track if visibility-specific dates have been initialized from rb_kw table
+  const [visibilityDatesReady, setVisibilityDatesReady] = useState(false);
+
+  // Initialize filters with empty dates - will be set after fetching from backend
   const [filters, setFilters] = useState({
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     months: 6,
     timeStep: "Monthly",
-    startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().subtract(1, 'month').format('YYYY-MM-DD'),
-    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
+    startDate: null,  // Will be set after fetching latest available dates
+    endDate: null     // Will be set after fetching latest available dates
   });
 
   // Ref to track last fetched filters to prevent duplicate API calls
   const lastFetchedFiltersRef = useRef(null);
+  const lastMainFiltersRef = useRef(null); // Track only global filters
 
-  // Sync filters with FilterContext when context values change
+  // ============ CRITICAL: Fetch visibility-specific dates FIRST on mount ============
+  useEffect(() => {
+    // Only run once on mount
+    if (visibilityDatesReady) return;
+
+    const fetchVisibilityDates = async () => {
+      try {
+        console.log('🗓️ [Visibility] Fetching latest available dates from rb_kw table...');
+        const response = await fetch('/api/visibility-analysis/latest-available-dates');
+        const data = await response.json();
+
+        let startDate, endDate;
+        if (data.available) {
+          console.log('✅ [Visibility] Received date range:', data.startDate, 'to', data.endDate);
+          startDate = data.startDate;
+          endDate = data.endDate;
+        } else {
+          // Fallback to last month if no data available
+          console.log('⚠️ [Visibility] No data available, using fallback dates');
+          const fallbackEnd = dayjs();
+          const fallbackStart = fallbackEnd.subtract(1, 'month');
+          startDate = fallbackStart.format('YYYY-MM-DD');
+          endDate = fallbackEnd.format('YYYY-MM-DD');
+        }
+
+        // Set ready flag FIRST - so when filters update triggers re-render, ready is already true
+        setVisibilityDatesReady(true);
+        // Then set filters - this will trigger the data fetch effect with visibilityDatesReady=true
+        setFilters(prev => ({
+          ...prev,
+          startDate,
+          endDate
+        }));
+        console.log('🎯 [Visibility] Dates set, visibilityDatesReady set to true');
+      } catch (error) {
+        console.error('❌ [Visibility] Error fetching dates:', error);
+        // Fallback on error
+        const fallbackEnd = dayjs();
+        const fallbackStart = fallbackEnd.subtract(1, 'month');
+        setVisibilityDatesReady(true);
+        setFilters(prev => ({
+          ...prev,
+          startDate: fallbackStart.format('YYYY-MM-DD'),
+          endDate: fallbackEnd.format('YYYY-MM-DD')
+        }));
+      }
+    };
+
+    fetchVisibilityDates();
+  }, [visibilityDatesReady]);
+
+  // Sync only platform/brand/location with FilterContext (NOT dates - we manage those ourselves)
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
       location: selectedLocation || prev.location,
-      startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
-      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate
     }));
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -53,62 +104,122 @@ export default function VisibilityAnalysis() {
     metrics: {},
   });
 
+  // Tab for Top Search Terms
+  const [topSearchFilter, setTopSearchFilter] = useState("All");
+
   // API data state - fetched when filters change
   const [apiData, setApiData] = useState({});
 
   // Fetch visibility data when filters change
   useEffect(() => {
-    // Create a stable key to detect actual filter changes
-    const filterKey = JSON.stringify({
+    // Debug: log current state
+    console.log('🔍 [Visibility] Effect triggered - visibilityDatesReady:', visibilityDatesReady,
+      'startDate:', filters.startDate, 'endDate:', filters.endDate);
+
+    // Wait for visibility-specific dates to be initialized before making any API calls
+    if (!visibilityDatesReady) {
+      console.log('⏳ [Visibility] visibilityDatesReady is false, waiting...');
+      return;
+    }
+
+    if (!filters.startDate || !filters.endDate) {
+      console.log('⏳ [Visibility] Dates not yet set in filters, waiting...');
+      return;
+    }
+
+    // Create a stable key for main global filters only
+    const mainFiltersKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
       location: filters.location,
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
     });
 
-    // Skip if we already fetched with these same filters
+    // Create a stable key to detect actual filter changes (including tabs)
+    const filterKey = JSON.stringify({
+      ...JSON.parse(mainFiltersKey),
+      topSearchFilter: topSearchFilter // Add tab filter to dependency tracking
+    });
+
+    // Check if MAIN filters (platform, brand, location, dates) actually changed
+    const isMainFilterChange = lastMainFiltersRef.current !== mainFiltersKey;
+
+    // Skip if we already fetched with these same FINAL filters (including tabs)
     if (lastFetchedFiltersRef.current === filterKey) {
       console.log('⏭️ [Visibility] Skipping duplicate fetch: Filters unchanged');
       return;
     }
 
-    // Mark these filters as being fetched
+    console.log('✅ [Visibility] Proceeding with fetch - filterKey:', filterKey);
+
+    // Mark these filters as being fetched (to prevent immediate logical loop)
     lastFetchedFiltersRef.current = filterKey;
 
-    // Reset all data to trigger skeleton loaders
-    setApiData({});
+    // Only reset all data (triggering all skeleton loaders) if MAIN filters changed.
+    if (isMainFilterChange) {
+      console.log('🔄 [Visibility] Main filters changed, resetting all data');
+      setApiData({});
+      // Update the main ref here to mark this state change
+      lastMainFiltersRef.current = mainFiltersKey;
+    } else {
+      console.log('⚡ [Visibility] Only tab changed, isolating update');
+      // Optionally clear only searchTerms to show its specific loader
+      setApiData(prev => ({ ...prev, searchTerms: undefined }));
+    }
 
     const fetchData = async () => {
       try {
-        // Build query params from current filter state (synced with FilterContext)
-        const queryParams = new URLSearchParams({
+        const baseParams = {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
+        };
+
+        // 1. ALWAYS fetch Top Search Terms if tab OR main filters changed
+        const termsParams = new URLSearchParams({
+          ...baseParams,
+          filter: topSearchFilter
         }).toString();
 
-        console.log('📡 [Visibility] Fetching data with filters:', filters.platform, filters.brand, filters.location, filters.startDate, filters.endDate);
+        console.log('📡 [Visibility] Fetching Top Search Terms:', topSearchFilter);
+        fetch(`/api/visibility-analysis/top-search-terms?${termsParams}`)
+          .then(res => res.json())
+          .then(searchTerms => {
+            setApiData(prev => ({ ...prev, searchTerms }));
+          })
+          .catch(err => console.error('❌ [Visibility] Top Search Terms fetch error:', err));
 
-        // Fetch each section independently - update state as each completes
-        // This allows sections to render as soon as their data is available
+        // 2. Only fetch OTHER segments if it was a main filter change
+        if (!isMainFilterChange) {
+          console.log('⏭️ [Visibility] Skipping non-tab fetches (main filters unchanged)');
+          return;
+        }
+
+        const queryParams = new URLSearchParams(baseParams).toString();
+        console.log('📡 [Visibility] Fetching ALL segments (main filters changed)');
 
         // Visibility Overview (SOS cards)
         fetch(`/api/visibility-analysis/visibility-overview?${queryParams}`)
           .then(res => res.json())
           .then(overview => {
-            console.log('✅ [Visibility] Overview fetched');
             setApiData(prev => ({ ...prev, overview }));
           })
           .catch(err => console.error('❌ [Visibility] Overview fetch error:', err));
 
-        // Platform KPI Matrix
-        fetch(`/api/visibility-analysis/platform-kpi-matrix?${queryParams}`)
+        // Platform KPI Matrix - DON'T filter by platform dropdown, always show ALL platforms for comparison
+        const matrixParams = new URLSearchParams({
+          platform: 'All',  // Always show all platforms in the matrix
+          brand: filters.brand || 'All',
+          location: filters.location || 'All',
+          startDate: filters.startDate,
+          endDate: filters.endDate
+        }).toString();
+        fetch(`/api/visibility-analysis/platform-kpi-matrix?${matrixParams}`)
           .then(res => res.json())
           .then(matrix => {
-            console.log('✅ [Visibility] Platform KPI Matrix fetched');
             setApiData(prev => ({ ...prev, matrix }));
           })
           .catch(err => console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err));
@@ -117,19 +228,9 @@ export default function VisibilityAnalysis() {
         fetch(`/api/visibility-analysis/keywords-at-glance?${queryParams}`)
           .then(res => res.json())
           .then(keywords => {
-            console.log('✅ [Visibility] Keywords at Glance fetched');
             setApiData(prev => ({ ...prev, keywords }));
           })
           .catch(err => console.error('❌ [Visibility] Keywords at Glance fetch error:', err));
-
-        // Top Search Terms
-        fetch(`/api/visibility-analysis/top-search-terms?${queryParams}`)
-          .then(res => res.json())
-          .then(searchTerms => {
-            console.log('✅ [Visibility] Top Search Terms fetched');
-            setApiData(prev => ({ ...prev, searchTerms }));
-          })
-          .catch(err => console.error('❌ [Visibility] Top Search Terms fetch error:', err));
 
       } catch (error) {
         console.error("[Visibility] Error setting up data fetch:", error);
@@ -137,7 +238,7 @@ export default function VisibilityAnalysis() {
     };
 
     fetchData();
-  }, [filters]);
+  }, [filters, topSearchFilter, visibilityDatesReady]); // Wait for visibility dates before fetching
 
   const handleViewTrends = (card) => {
     console.log("card clicked", card);
@@ -192,7 +293,12 @@ export default function VisibilityAnalysis() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        <VisiblityAnalysisData apiData={apiData} filters={filters} />
+        <VisiblityAnalysisData
+          apiData={apiData}
+          filters={filters}
+          topSearchFilter={topSearchFilter}
+          setTopSearchFilter={setTopSearchFilter}
+        />
       </CommonContainer>
     </>
   );

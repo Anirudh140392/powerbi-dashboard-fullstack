@@ -6,7 +6,6 @@ import PaginationFooter from '../CommonLayout/PaginationFooter'
 import axiosInstance from '../../api/axiosInstance'
 
 const KPI_LABELS = {
-    catImpShare: 'Cat Imp Share',
     adSos: 'Ad Sos',
     orgSos: 'Organic Sos',
     overallSos: 'Overall Sos',
@@ -21,7 +20,7 @@ const PLATFORM_LABELS = {
     BigBasket: 'BigBasket',
 }
 
-const PERCENT_KPIS = ['catImpShare', 'adSos', 'orgSos', 'overallSos']
+const PERCENT_KPIS = ['adSos', 'orgSos', 'overallSos']
 
 const sampleHierarchy = [
     {
@@ -213,7 +212,6 @@ const sampleHierarchy = [
 ]
 
 const kpiFields = [
-    { id: 'catImpShare', label: 'Cat Imp Share', type: 'number' },
     { id: 'adSos', label: 'Ad Sos', type: 'number' },
     { id: 'orgSos', label: 'Organic Sos', type: 'number' },
     { id: 'overallSos', label: 'Overall Sos', type: 'number' },
@@ -224,7 +222,7 @@ const kpiFields = [
 const formatMetric = (kpi, value) => {
     if (value === null) return "-" // Explicitly dash for null
     if (value === undefined || Number.isNaN(value)) return '–'
-    if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}`
+    if (PERCENT_KPIS.includes(kpi)) return `${value.toFixed(1)}%`
     return value.toFixed(1)
 }
 
@@ -268,19 +266,7 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
                 }
             } else {
                 // Standard hierarchy: Type -> Keyword -> Brand -> SKU -> City
-                if (depth === 0) {
-                    // Keyword Type -> Keyword
-                    hasAppropriateChildren = node.children.some(c => c.level === 'keyword')
-                } else if (depth === 1 && node.level === 'keyword') {
-                    // Keyword -> Brand
-                    hasAppropriateChildren = node.children.some(c => c.level === 'brand')
-                } else if (node.level === 'brand') {
-                    // Brand -> SKU
-                    hasAppropriateChildren = node.children.some(c => c.level === 'sku')
-                } else if (node.level === 'sku') {
-                    // SKU -> City
-                    hasAppropriateChildren = node.children.some(c => c.level === 'city')
-                }
+                hasAppropriateChildren = node.children && node.children.length > 0;
             }
         }
 
@@ -370,7 +356,6 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
     const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
-
     // Dynamic filter options from rb_kw table
     const [filterOptions, setFilterOptions] = useState(FILTER_OPTIONS_CONFIG)
 
@@ -422,8 +407,9 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
         fetchFilterOptions()
     }, []) // Run once on mount
 
-    // Use API data if provided, otherwise fallback to sampleHierarchy
+    // Use prop data first, then fallback to sampleHierarchy
     const sourceData = data || sampleHierarchy;
+    console.log('[VisibilityDrilldownTable] Using sourceData:', data ? 'Prop data' : 'Fallback sampleHierarchy');
 
 
 
@@ -448,7 +434,6 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     level: 'sku',
                                     metrics: {
                                         ...sku.metrics,
-                                        catImpShare: null,
                                         adSos: null,
                                         orgSos: null,
                                         overallSos: null,
@@ -779,7 +764,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                     minWidth: FROZEN_WIDTHS.city
                                                 }}
                                             >
-                                                City
+                                                Region
                                             </th>
                                         )}
                                         <th
@@ -928,16 +913,19 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
                                             >
                                                 <div className="flex flex-row items-center justify-start text-left gap-2">
-                                                    {row.hasChildren && row.depth === 0 && (
+                                                    {(row.level === 'keyword-type' || row.depth === 0) && row.hasChildren && (
                                                         <button
                                                             onClick={() => toggleExpand(row.id)}
-                                                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                                                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 font-bold"
                                                         >
                                                             {expandedRows.has(row.id) ? '−' : '+'}
                                                         </button>
                                                     )}
+                                                    {(row.level === 'keyword-type' || row.depth === 0) && !row.hasChildren && (
+                                                        <div className="w-5 h-5 shrink-0" />
+                                                    )}
                                                     <div className="flex flex-col">
-                                                        <span className="font-semibold text-slate-900">{row.depth === 0 && row.level !== 'sku' ? row.label : (row.level === 'sku' && activeView === 'skus' ? row.label : '')}</span>
+                                                        <span className="font-semibold text-slate-900">{row.level === 'keyword-type' ? row.label : (row.level === 'sku' && activeView === 'skus' ? row.label : '')}</span>
                                                         {row.subtitle && <span className="text-[10px] text-slate-500">{row.subtitle}</span>}
                                                     </div>
                                                 </div>
@@ -950,7 +938,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 >
                                                     <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
                                                         <div className="shrink-0 w-4 h-4 flex items-center justify-center">
-                                                            {row.level === 'keyword' && (
+                                                            {row.level === 'keyword' && row.hasChildren && (
                                                                 <button
                                                                     onClick={() => toggleExpand(row.id)}
                                                                     className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
@@ -971,7 +959,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                 >
                                                     <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
                                                         <div className="shrink-0 w-4 h-4 flex items-center justify-center">
-                                                            {row.level === 'brand' && (
+                                                            {row.level === 'brand' && row.hasChildren && (
                                                                 <button
                                                                     onClick={() => toggleExpand(row.id)}
                                                                     className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
@@ -1016,7 +1004,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                         minWidth: FROZEN_WIDTHS.city,
                                                     }}
                                                 >
-                                                    {row.level === 'city' && <div className="font-semibold text-slate-900">{row.label}</div>}
+                                                    {row.level === 'city' && <div className="font-semibold text-slate-900">Pan India</div>}
                                                 </td>
                                             )}
                                             <td

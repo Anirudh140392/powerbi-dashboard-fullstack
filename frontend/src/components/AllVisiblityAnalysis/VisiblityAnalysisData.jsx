@@ -34,6 +34,11 @@ import VisibilityDrilldownTable from './VisibilityDrilldownTable';
 import TopSearchTerms from './TopSearchTerms';
 import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
+import {
+  TabbedHeatmapTableSkeleton,
+  VisibilityDrilldownSkeleton,
+  TopSearchTermsSkeleton,
+} from './VisibilitySkeletons';
 
 // API imports for parallel fetching
 import {
@@ -441,14 +446,71 @@ const cards = [
     extraChangeColor: "green",
   },
 ];
+// ---------------- TabbedHeatmapTable Component (Unnested) ----------------
+const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
+  const [activeTab, setActiveTab] = useState("platform");
 
-const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
+  // If loading prop is true, show skeleton
+  if (loading) {
+    return <TabbedHeatmapTableSkeleton />;
+  }
+
+
+  // Use API data from matrixData prop - it already contains platformData, formatData, cityData
+  // Fallback to static data if API data is not available
+  const platformData = matrixData?.platformData || {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+    rows: []
+  };
+
+  const formatData = matrixData?.formatData || {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+    rows: []
+  };
+
+  const cityData = matrixData?.cityData || {
+    columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+    rows: []
+  };
+
+  // Get column counts for tab display
+  const platformCols = (platformData.columns || []).filter(c => c !== "kpi");
+  const formatCols = (formatData.columns || []).filter(c => c !== "kpi");
+  const cityCols = (cityData.columns || []).filter(c => c !== "kpi");
+
+  const active = activeTab === "platform" ? platformData : activeTab === "format" ? formatData : cityData;
+
+  return (
+    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+        {["platform", "format", "city"].map((key) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-1.5 text-sm rounded-full transition-all ${activeTab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            <span className="capitalize">{key}</span>
+            {` (${key === 'platform' ? platformCols.length : key === 'format' ? formatCols.length : cityCols.length})`}
+          </button>
+        ))}
+      </div>
+      <CityKpiTrendShowcase dynamicKey="visibility" data={active} title={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} showPagination={true} />
+    </div>
+  );
+});
+
+
+const VisiblityAnalysisData = ({
+  apiData = {},
+  filters = {},
+  topSearchFilter = "All",
+  setTopSearchFilter
+}) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
-  const [topSearchFilter, setTopSearchFilter] = useState("All");
 
   // ==================== API DATA STATES ====================
   // Use data from parent props (apiData) when available
@@ -719,159 +781,6 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
     { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }] },
   ];
 
-  const TabbedHeatmapTable = () => {
-    const [activeTab, setActiveTab] = useState("platform");
-    const [dynamicColumns, setDynamicColumns] = useState({
-      platform: [],
-      format: [],
-      city: [],
-      loading: true
-    });
-
-    // Fetch dynamic columns from rca_sku_dim via API when tab changes
-    useEffect(() => {
-      const fetchDynamicColumns = async () => {
-        setDynamicColumns(prev => ({ ...prev, loading: true }));
-        try {
-          // Fetch all three column types in parallel
-          const [platformsRes, formatsRes, citiesRes] = await Promise.all([
-            axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
-            axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
-            axiosInstance.get('/visibility-analysis/filter-options?filterType=cities')
-          ]);
-
-          const platforms = platformsRes.data?.options || [];
-          const formats = formatsRes.data?.options || [];
-          const cities = citiesRes.data?.options || [];
-
-          console.log('[TabbedHeatmapTable] Dynamic columns loaded:', {
-            platforms: platforms.length,
-            formats: formats.length,
-            cities: cities.length
-          });
-
-          setDynamicColumns({
-            platform: platforms,
-            format: formats,
-            city: cities.slice(0, 10), // Limit cities to first 10 for display
-            loading: false
-          });
-        } catch (error) {
-          console.error('[TabbedHeatmapTable] Error fetching dynamic columns:', error);
-          // Fallback to static data if API fails
-          setDynamicColumns({
-            platform: FORMAT_MATRIX_Visibility.PlatformColumns,
-            format: FORMAT_MATRIX_Visibility.formatColumns,
-            city: FORMAT_MATRIX_Visibility.CityColumns,
-            loading: false
-          });
-        }
-      };
-
-      fetchDynamicColumns();
-    }, []); // Fetch once on mount
-
-    // 🔥 Utility to compute unified trend + series for ANY item
-    const buildRows = (dataArray = [], columnList = []) => {
-      return dataArray.map((item) => {
-        const primaryTrendSeries = item?.trend?.["Spend"] || [];
-        const valid = primaryTrendSeries.length >= 2;
-
-        const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-        const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
-
-        const globalDelta = Number((lastVal - prevVal).toFixed(1));
-
-        const trendObj = {};
-        const seriesObj = {};
-
-        columnList.forEach((col) => {
-          trendObj[col] = globalDelta;           // same delta for every column
-          seriesObj[col] = primaryTrendSeries;   // sparkline same for each column
-        });
-
-        return {
-          kpi: item.kpi,
-          ...item.values,
-          trend: trendObj,
-          series: seriesObj,
-        };
-      });
-    };
-
-    // Use dynamic columns from API, fallback to static if loading
-    const platformCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.PlatformColumns : dynamicColumns.platform;
-    const formatCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.formatColumns : dynamicColumns.format;
-    const cityCols = dynamicColumns.loading ? FORMAT_MATRIX_Visibility.CityColumns : dynamicColumns.city;
-
-    // ---------------- PLATFORM ----------------
-    const platformData = {
-      columns: ["kpi", ...platformCols],
-      rows: buildRows(
-        FORMAT_MATRIX_Visibility.PlatformData,
-        platformCols
-      ),
-    };
-
-    // ---------------- FORMAT ----------------
-    const formatData = {
-      columns: ["kpi", ...formatCols],
-      rows: buildRows(
-        FORMAT_MATRIX_Visibility.FormatData,
-        formatCols
-      ),
-    };
-
-    // ---------------- CITY ----------------
-    const cityData = {
-      columns: ["kpi", ...cityCols],
-      rows: buildRows(
-        FORMAT_MATRIX_Visibility.CityData,
-        cityCols
-      ),
-    };
-
-    // ---------------- TABS ----------------
-    const tabs = [
-      { key: "platform", label: "Platform", data: platformData },
-      { key: "format", label: "Format", data: formatData },
-      { key: "city", label: "City", data: cityData },
-    ];
-
-    const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
-
-    return (
-      <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
-
-        {/* -------- TABS -------- */}
-        <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={`px-4 py-1.5 text-sm rounded-full transition-all 
-              ${activeTab === t.key
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-                }`}
-            >
-              {t.label}
-              {dynamicColumns.loading ? '' : ` (${t.key === 'platform' ? platformCols.length : t.key === 'format' ? formatCols.length : cityCols.length})`}
-            </button>
-          ))}
-        </div>
-
-        {/* -------- MATRIX TABLE -------- */}
-        <CityKpiTrendShowcase
-          dynamicKey="visibility"
-          data={active.data}
-          title={active.label}
-          showPagination={true}
-          kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
-        />
-      </div>
-    );
-  };
 
   return (
 
@@ -894,12 +803,18 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
       </div>
 
       {/* MODAL SECTION */}
+      {/* Visibility Overview - show skeleton when loading and no data */}
       <MetricCardContainer
         title="Visibility Overview"
-        cards={overviewData?.cards || cards}
+        cards={overviewLoading ? [] : (overviewData?.cards || cards)}
         loading={overviewLoading}
       />
-      <TabbedHeatmapTable matrixData={matrixData} loading={matrixLoading} />
+      {/* Platform KPI Matrix - skeleton during loading, then show component with API data */}
+      {matrixLoading ? (
+        <TabbedHeatmapTableSkeleton />
+      ) : (
+        <TabbedHeatmapTable matrixData={matrixData} loading={matrixLoading} />
+      )}
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
@@ -940,15 +855,21 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
 
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
+      {/* Keywords at a Glance - skeleton during loading, then show component with API data */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <VisibilityDrilldownTable data={keywordsData?.hierarchy} loading={keywordsLoading} />
+        {keywordsLoading ? (
+          <VisibilityDrilldownSkeleton />
+        ) : (
+          <VisibilityDrilldownTable data={keywordsData?.hierarchy} loading={keywordsLoading} />
+        )}
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-            {["All", "Branded", "Competitor", "Generic"].map((tab) => (
+            {["All", "Branded", "Competition", "Generic"].map((tab) => (
               <button
                 key={tab}
+                type="button"
                 onClick={() => setTopSearchFilter(tab)}
                 className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
@@ -958,11 +879,16 @@ const VisiblityAnalysisData = ({ apiData = {}, filters = {} }) => {
             ))}
           </div>
         </div>
-        <TopSearchTerms
-          filter={topSearchFilter}
-          data={topSearchData?.terms}
-          loading={topSearchLoading}
-        />
+        {topSearchLoading && !topSearchData ? (
+          <TopSearchTermsSkeleton />
+        ) : (
+          <TopSearchTerms
+            filter={topSearchFilter}
+            data={topSearchData?.terms}
+            loading={topSearchLoading}
+            filters={filters}
+          />
+        )}
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

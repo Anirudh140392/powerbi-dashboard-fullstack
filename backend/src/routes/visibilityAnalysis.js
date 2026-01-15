@@ -4,11 +4,14 @@ import {
     getVisibilityPlatformKpiMatrix,
     getVisibilityKeywordsAtGlance,
     getVisibilityTopSearchTerms,
-    getKeywordSkuVisibilityMetrics,
     getVisibilityFilterOptions,
-    getVisibilitySignals,
-    getVisibilitySignalCityDetails
+    getVisibilityBrandDrilldown,
+    getVisibilityLatestAvailableDates,
+    getVisibilityKpiTrends,
+    getVisibilityCompetition,
+    getBrandComparisonTrends
 } from '../controllers/visibilityAnalysisController.js';
+
 
 export default (app) => {
     /**
@@ -28,6 +31,18 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/visibility-analysis', VisibilityWorkspace);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/latest-available-dates:
+     *   get:
+     *     summary: Get latest available dates for Visibility Analysis
+     *     description: Returns the date range of the latest month that has data in rb_kw table. Call this first before fetching visibility data.
+     *     responses:
+     *       200:
+     *         description: Date range for available visibility data
+     */
+    app.get('/api/visibility-analysis/latest-available-dates', getVisibilityLatestAvailableDates);
 
     // ==================== Visibility Analysis APIs ====================
 
@@ -143,51 +158,6 @@ export default (app) => {
 
     /**
      * @swagger
-     * /api/visibility-analysis/keyword-sku-metrics:
-     *   get:
-     *     summary: Get Keyword & SKU Visibility Metrics
-     *     description: Retrieve keyword and SKU level visibility metrics from rb_kw table
-     *     parameters:
-     *       - in: query
-     *         name: keyword
-     *         schema:
-     *           type: string
-     *         description: Filter by keyword (supports partial match)
-     *       - in: query
-     *         name: sku
-     *         schema:
-     *           type: string
-     *         description: Filter by SKU/keyword_search_product (supports partial match)
-     *       - in: query
-     *         name: platform
-     *         schema:
-     *           type: string
-     *         description: Filter by platform
-     *       - in: query
-     *         name: location
-     *         schema:
-     *           type: string
-     *         description: Filter by location
-     *       - in: query
-     *         name: startDate
-     *         schema:
-     *           type: string
-     *           format: date
-     *         description: Start date (YYYY-MM-DD)
-     *       - in: query
-     *         name: endDate
-     *         schema:
-     *           type: string
-     *           format: date
-     *         description: End date (YYYY-MM-DD)
-     *     responses:
-     *       200:
-     *         description: Successful response with keywords array and summary
-     */
-    app.get('/api/visibility-analysis/keyword-sku-metrics', getKeywordSkuVisibilityMetrics);
-
-    /**
-     * @swagger
      * /api/visibility-analysis/filter-options:
      *   get:
      *     summary: Get dynamic filter options for Advanced Filters modal
@@ -228,25 +198,35 @@ export default (app) => {
 
     /**
      * @swagger
-     * /api/visibility-analysis/visibility-signals:
+     * /api/visibility-analysis/brand-drilldown:
      *   get:
-     *     summary: Get Visibility Signals for Keyword & SKU (Drainers/Gainers)
-     *     description: Retrieve signals with impact metrics, SOS KPIs, and city-level data from rb_kw table
+     *     summary: Get Brand Visibility Drilldown for a keyword
+     *     description: Retrieve SOS metrics for all brands associated with a specific keyword, including delta changes.
      *     parameters:
      *       - in: query
-     *         name: level
+     *         name: keyword
+     *         required: true
      *         schema:
      *           type: string
-     *           enum: [keyword, sku]
-     *           default: keyword
-     *         description: Level to analyze - keyword (uses keyword column) or sku (uses keyword_search_product column)
+     *         description: The keyword to drill down into
      *       - in: query
-     *         name: signalType
+     *         name: platform
      *         schema:
      *           type: string
-     *           enum: [drainer, gainer]
-     *           default: drainer
-     *         description: Type of signal - drainer (declining) or gainer (improving)
+     *         description: Filter by platform
+     *     responses:
+     *       200:
+     *         description: Successful response with brands array and top losers
+     */
+    app.get('/api/visibility-analysis/brand-drilldown', getVisibilityBrandDrilldown);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/kpi-trends:
+     *   get:
+     *     summary: Get Visibility KPI Trends for chart display
+     *     description: Returns daily SOS trends for Overall, Sponsored, Organic, and Display metrics
+     *     parameters:
      *       - in: query
      *         name: platform
      *         schema:
@@ -258,66 +238,72 @@ export default (app) => {
      *           type: string
      *         description: Filter by location
      *       - in: query
-     *         name: startDate
+     *         name: period
      *         schema:
      *           type: string
-     *           format: date
-     *         description: Start date (YYYY-MM-DD)
-     *       - in: query
-     *         name: endDate
-     *         schema:
-     *           type: string
-     *           format: date
-     *         description: End date (YYYY-MM-DD)
+     *           enum: [1M, 3M, 6M, 1Y]
+     *         description: Time period for trends
      *     responses:
      *       200:
-     *         description: Successful response with signals array and summary
+     *         description: Successful response with timeSeries array
      */
-    app.get('/api/visibility-analysis/visibility-signals', getVisibilitySignals);
+    app.get('/api/visibility-analysis/kpi-trends', getVisibilityKpiTrends);
 
     /**
      * @swagger
-     * /api/visibility-analysis/visibility-signals/city-details:
+     * /api/visibility-analysis/competition:
      *   get:
-     *     summary: Get city-level KPI details for a visibility signal
-     *     description: Retrieve city-level metrics from rb_kw (visibility) and rb_pdp_olap (sales) for a specific keyword or SKU
+     *     summary: Get Visibility Competition data
+     *     description: Returns brand and SKU competition data with SOS metrics and delta values
      *     parameters:
-     *       - in: query
-     *         name: keyword
-     *         schema:
-     *           type: string
-     *         description: Keyword to get city details for (when level=keyword)
-     *       - in: query
-     *         name: skuName
-     *         schema:
-     *           type: string
-     *         description: SKU name to get city details for (when level=sku)
-     *       - in: query
-     *         name: level
-     *         schema:
-     *           type: string
-     *           enum: [keyword, sku]
-     *         description: Level of the signal (keyword or sku)
      *       - in: query
      *         name: platform
      *         schema:
      *           type: string
      *         description: Filter by platform
      *       - in: query
-     *         name: startDate
+     *         name: location
      *         schema:
      *           type: string
-     *           format: date
-     *         description: Start date (YYYY-MM-DD)
+     *         description: Filter by location
      *       - in: query
-     *         name: endDate
+     *         name: period
      *         schema:
      *           type: string
-     *           format: date
-     *         description: End date (YYYY-MM-DD)
+     *           enum: [1M, 3M, 6M, 1Y]
+     *         description: Time period for comparison
      *     responses:
      *       200:
-     *         description: Successful response with cities array containing KPIs
+     *         description: Successful response with brands and skus arrays
      */
-    app.get('/api/visibility-analysis/visibility-signals/city-details', getVisibilitySignalCityDetails);
+    app.get('/api/visibility-analysis/competition', getVisibilityCompetition);
+
+    /**
+     * @swagger
+     * /api/visibility-analysis/brand-comparison-trends:
+     *   get:
+     *     summary: Get Brand Comparison Trends
+     *     description: Returns daily SOS trends for multiple selected brands for chart comparison
+     *     parameters:
+     *       - in: query
+     *         name: brands
+     *         schema:
+     *           type: string
+     *         description: Comma-separated list of brand names to compare
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *         description: Filter by platform
+     *       - in: query
+     *         name: period
+     *         schema:
+     *           type: string
+     *           enum: [1M, 3M, 6M, 1Y]
+     *         description: Time period for trends
+     *     responses:
+     *       200:
+     *         description: Successful response with brands trends and days array
+     */
+    app.get('/api/visibility-analysis/brand-comparison-trends', getBrandComparisonTrends);
 };

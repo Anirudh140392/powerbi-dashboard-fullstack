@@ -1103,90 +1103,99 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody className="bg-white">
-                {paginatedRows.map((row) => (
-                  <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
+                {paginatedRows.map((row) => {
+                  const isDisplaySOS = row.kpi?.toLowerCase().includes("display sos");
+                  return (
+                    <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
-                    {/* Sticky KPI Column */}
-                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
-                                     text-xs font-bold text-slate-900 border-b border-slate-100 
-                                     shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                      {row.kpi.toUpperCase()}
-                    </td>
+                      {/* Sticky KPI Column */}
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
+                                       text-xs font-bold text-slate-900 border-b border-slate-100 
+                                       shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
+                        {row.kpi.toUpperCase()}
+                      </td>
 
-                    {visibleColumns.map((col) => {
-                      const value = row[col];
-                      const trend = row.trend?.[col];
-
-                      const cellClasses = getCellClasses(value);
-                      const trendMeta = getTrendMeta(trend);
-                      const Icon = trendMeta.icon;
-
-                      return (
-                        <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
-                          <Popover>
-                            <PopoverTrigger asChild>
-
-                              {/* CITY-STYLE CELL BUTTON */}
-                              <button
-                                className={`flex w-max mx-auto items-center justify-center gap-2 
-                                           rounded-md border border-transparent px-2 py-1.5 
-                                           text-xs font-semibold 
-                                           transition-all duration-200
-                                           hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
-                                           ${cellClasses}`}
-                              >
-                                <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value))
-                                    ? ((isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE')
-                                      ? `${value}%`
-                                      : `${value}`)
-                                    : "–"}
-                                </span>
-
-                                <span
-                                  className={`inline-flex items-center gap-[1px] rounded-full border 
-                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
-                                >
-                                  {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : `${trend}`}</span>
-                                </span>
-                              </button>
-                            </PopoverTrigger>
-
-                            {/* POPUP CONTENT */}
-                            <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
-                              <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                                <span className="font-semibold text-xs text-slate-900">
-                                  {row.kpi} · {col}
-                                </span>
-                                {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
-                              </div>
-
-                              <div className="p-4 space-y-3">
-                                <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{(isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE') ? `${value}%` : value}</span>
-                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                    {trend > 0 ? `+${trend}` : `${trend}`}
-                                  </span>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
-                                    <span>Last 4 periods</span>
-                                    <span>Trend</span>
-                                  </div>
-                                  <div className="h-12 w-full pt-1">
-                                    <TrendSparkline series={row.series?.[col] || []} />
-                                  </div>
-                                </div>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
+                      {isDisplaySOS ? (
+                        <td colSpan={visibleColumns.length} className="py-2 px-3 border-b border-slate-50 text-center italic text-slate-400 bg-slate-50/30 font-medium">
+                          Coming Soon...
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                      ) : (
+                        visibleColumns.map((col) => {
+                          const value = row[col];
+                          const trend = row.trend?.[col];
+
+                          const cellClasses = getCellClasses(value);
+                          const trendMeta = getTrendMeta(trend);
+                          const Icon = trendMeta.icon;
+
+                          return (
+                            <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
+                              <Popover>
+                                <PopoverTrigger asChild>
+
+                                  {/* CITY-STYLE CELL BUTTON */}
+                                  <button
+                                    className={`flex w-max mx-auto items-center justify-center gap-2 
+                                               rounded-md border border-transparent px-2 py-1.5 
+                                               text-xs font-semibold 
+                                               transition-all duration-200
+                                               hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
+                                               ${cellClasses}`}
+                                  >
+                                    <span className="font-mono tabular-nums tracking-tight">
+                                      {(showValue && value !== undefined && value !== null && checkValueCondition(value))
+                                        ? ((isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE')
+                                          ? `${value}%`
+                                          : `${value}`)
+                                        : "–"}
+                                    </span>
+
+                                    <span
+                                      className={`inline-flex items-center gap-[1px] rounded-full border 
+                                                    px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
+                                    >
+                                      {Icon && <Icon className="h-2 w-2" />}
+                                      <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : `${trend}`}</span>
+                                    </span>
+                                  </button>
+                                </PopoverTrigger>
+
+                                {/* POPUP CONTENT */}
+                                <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
+                                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                    <span className="font-semibold text-xs text-slate-900">
+                                      {row.kpi} · {col}
+                                    </span>
+                                    {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
+                                  </div>
+
+                                  <div className="p-4 space-y-3">
+                                    <div className="flex items-baseline justify-between">
+                                      <span className="text-2xl font-bold tracking-tight text-slate-900">{(isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE') ? `${value}%` : value}</span>
+                                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
+                                        {trend > 0 ? `+${trend}` : `${trend}`}
+                                      </span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                                        <span>Last 4 periods</span>
+                                        <span>Trend</span>
+                                      </div>
+                                      <div className="h-12 w-full pt-1">
+                                        <TrendSparkline series={row.series?.[col] || []} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </td>
+                          );
+                        })
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
 
             </table>

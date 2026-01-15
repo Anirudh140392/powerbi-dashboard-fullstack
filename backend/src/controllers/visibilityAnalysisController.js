@@ -1,4 +1,5 @@
 import visibilityService from '../services/visibilityService.js';
+import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 
 /**
  * Legacy endpoint - kept for backward compatibility
@@ -40,7 +41,10 @@ export const getVisibilityOverview = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getVisibilityOverview(filters);
+        const cacheKey = generateCacheKey('visibility_overview', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityOverview(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Cards count:', data.cards?.length);
@@ -76,7 +80,10 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getPlatformKpiMatrix(filters);
+        const cacheKey = generateCacheKey('visibility_matrix', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getPlatformKpiMatrix(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Platform rows:', data.platformData?.rows?.length, 'Format rows:', data.formatData?.rows?.length, 'City rows:', data.cityData?.rows?.length);
@@ -112,7 +119,10 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getKeywordsAtGlance(filters);
+        const cacheKey = generateCacheKey('visibility_keywords', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getKeywordsAtGlance(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Hierarchy items:', data.hierarchy?.length);
@@ -147,7 +157,10 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getTopSearchTerms(filters);
+        const cacheKey = generateCacheKey('visibility_search_terms', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getTopSearchTerms(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Terms count:', data.terms?.length);
@@ -160,50 +173,6 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
         console.error('[ERROR] Visibility Top Search Terms:', error);
         console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
         res.status(500).json({ error: 'Internal Server Error', terms: [] });
-    }
-};
-
-/**
- * Get Keyword & SKU Visibility Metrics from rb_kw table
- * Returns: Keyword and SKU level visibility metrics with filters
- */
-export const getKeywordSkuVisibilityMetrics = async (req, res) => {
-    const startTime = Date.now();
-    try {
-        console.log('\n========== KEYWORD-SKU VISIBILITY METRICS API ==========');
-        const filters = {
-            keyword: req.query.keyword || null,
-            sku: req.query.sku || null,
-            platform: req.query.platform || 'All',
-            location: req.query.location || 'All',
-            startDate: req.query.startDate || null,
-            endDate: req.query.endDate || null
-        };
-        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
-        console.log('[TIMING] Request received at:', new Date().toISOString());
-
-        const data = await visibilityService.getKeywordSkuVisibilityMetrics(filters);
-
-        const duration = Date.now() - startTime;
-        console.log('[RESPONSE]: Keywords count:', data.keywords?.length);
-        console.log('[RESPONSE]: Summary -', JSON.stringify(data.summary, null, 2));
-        console.log('[TIMING] Response time:', duration, 'ms');
-        console.log('========================================================\n');
-
-        res.json({
-            success: true,
-            data,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('[ERROR] Keyword-SKU Visibility Metrics:', error);
-        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch keyword-SKU visibility metrics',
-            message: error.message
-        });
     }
 };
 
@@ -224,7 +193,10 @@ export const getVisibilityFilterOptions = async (req, res) => {
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
-        const data = await visibilityService.getVisibilityFilterOptions(params);
+        const cacheKey = generateCacheKey('visibility_filters', params);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityFilterOptions(params);
+        }, CACHE_TTL.STATIC);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Options count:', data.options?.length);
@@ -239,94 +211,197 @@ export const getVisibilityFilterOptions = async (req, res) => {
 };
 
 /**
- * Get Visibility Signals for Keyword & SKU (Drainers/Gainers)
- * Returns: Signals with impact metrics, KPIs, and city-level data
+ * Get Brand Visibility Drilldown for a keyword
+ * Returns: Brand SOS metrics with delta and top losers
  */
-export const getVisibilitySignals = async (req, res) => {
+export const getVisibilityBrandDrilldown = async (req, res) => {
     const startTime = Date.now();
     try {
         const filters = {
-            level: req.query.level || 'keyword',  // 'keyword' or 'sku'
-            signalType: req.query.signalType || 'drainer',  // 'drainer' or 'gainer'
+            keyword: req.query.keyword,
             platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
             location: req.query.location || 'All',
-            startDate: req.query.startDate || null,
-            endDate: req.query.endDate || null,
-            compareStartDate: req.query.compareStartDate || null,
-            compareEndDate: req.query.compareEndDate || null
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
         };
-        console.log('\n========== VISIBILITY SIGNALS API ==========');
-        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
-        console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getVisibilitySignals(filters);
+        if (!filters.keyword) {
+            return res.status(400).json({ error: 'Keyword is required' });
+        }
+
+        console.log('\n========== VISIBILITY BRAND DRILLDOWN API ==========');
+        console.log('[REQUEST] Keyword:', filters.keyword);
+        console.log('[REQUEST] Platform:', filters.platform);
+
+        const cacheKey = generateCacheKey('visibility_brand_drill', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getBrandDrilldown(filters);
+        }, CACHE_TTL.METRICS);
 
         const duration = Date.now() - startTime;
-        console.log('[RESPONSE]: Signals count:', data.signals?.length);
-        console.log('[RESPONSE]: Summary -', JSON.stringify(data.summary, null, 2));
+        console.log('[RESPONSE]: Brands count:', data.brands?.length);
         console.log('[TIMING] Response time:', duration, 'ms');
-        console.log('=============================================\n');
+        console.log('====================================================\n');
 
-        res.json({
-            success: true,
-            ...data,
-            timestamp: new Date().toISOString()
-        });
-
+        res.json(data);
     } catch (error) {
-        console.error('[ERROR] Visibility Signals:', error);
-        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch visibility signals',
-            message: error.message,
-            signals: []
-        });
+        console.error('[ERROR] Visibility Brand Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error', brands: [], topLosers: [] });
     }
 };
 
 /**
- * Get city-level KPI details for a specific keyword or SKU visibility signal
- * Returns: City-level metrics from both rb_kw and rb_pdp_olap tables
+ * Get Latest Available Dates for Visibility Analysis
+ * Returns: Date range of the latest month with available data in rb_kw table
  */
-export const getVisibilitySignalCityDetails = async (req, res) => {
+export const getVisibilityLatestAvailableDates = async (req, res) => {
     const startTime = Date.now();
     try {
-        const params = {
-            keyword: req.query.keyword || null,
-            skuName: req.query.skuName || null,
-            level: req.query.level || 'keyword',
-            platform: req.query.platform || 'All',
-            startDate: req.query.startDate || null,
-            endDate: req.query.endDate || null
-        };
-        console.log('\n========== VISIBILITY SIGNAL CITY DETAILS API ==========');
-        console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
+        console.log('\n========== VISIBILITY LATEST AVAILABLE DATES API ==========');
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const data = await visibilityService.getVisibilitySignalCityDetails(params);
+        const cacheKey = generateCacheKey('visibility_dates', {});
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getLatestAvailableDates();
+        }, CACHE_TTL.SHORT);
 
         const duration = Date.now() - startTime;
-        console.log('[RESPONSE]: Cities count:', data.cities?.length);
+        console.log('[RESPONSE]: Available:', data.available, 'Date range:', data.startDate, 'to', data.endDate);
         console.log('[TIMING] Response time:', duration, 'ms');
-        console.log('=========================================================\n');
+        console.log('============================================================\n');
 
-        res.json({
-            success: true,
-            ...data,
-            timestamp: new Date().toISOString()
-        });
-
+        res.json(data);
     } catch (error) {
-        console.error('[ERROR] Visibility Signal City Details:', error);
+        console.error('[ERROR] Visibility Latest Available Dates:', error);
         console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch visibility signal city details',
-            message: error.message,
-            cities: []
-        });
+        res.status(500).json({ error: 'Internal Server Error', available: false });
     }
 };
 
+/**
+ * Get Visibility KPI Trends for trend chart display
+ * Returns: Time series data for Overall SOS, Sponsored SOS, Organic SOS, Display SOS
+ */
+export const getVisibilityKpiTrends = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || 'All',
+            period: req.query.period || '1M',
+            timeStep: req.query.timeStep || 'Daily',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== VISIBILITY KPI TRENDS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const cacheKey = generateCacheKey('visibility_trends', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityKpiTrends(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Data points:', data.timeSeries?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('[DATA SAMPLE]: First point:', data.timeSeries?.[0]?.date || 'N/A');
+        console.log('================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility KPI Trends:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', timeSeries: [] });
+    }
+};
+
+/**
+ * Get Visibility Competition data for brand/SKU comparison
+ * Returns: Brands and SKUs with SOS metrics and delta values
+ */
+export const getVisibilityCompetition = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
+            format: req.query.format || 'All',
+            productName: req.query.productName || 'All',
+            brand: req.query.brand || 'All',  // Filter by specific competitor brand
+            period: req.query.period || '1M'
+        };
+        console.log('\n========== VISIBILITY COMPETITION API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const cacheKey = generateCacheKey('visibility_competition', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getVisibilityCompetition(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands:', data.brands?.length, 'SKUs:', data.skus?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('[DATA SAMPLE]: First brand:', data.brands?.[0]?.brand || 'N/A');
+        console.log('=================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Competition:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', brands: [], skus: [] });
+    }
+};
+
+/**
+ * Get Brand Comparison Trends for chart display
+ * Returns: Daily SOS trends for multiple selected brands
+ */
+export const getBrandComparisonTrends = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        // Parse brands from query - can be comma-separated string or array
+        let brandsParam = req.query.brands;
+        let brands = [];
+        if (brandsParam) {
+            if (Array.isArray(brandsParam)) {
+                brands = brandsParam;
+            } else {
+                brands = brandsParam.split(',').map(b => b.trim()).filter(Boolean);
+            }
+        }
+
+        const filters = {
+            brands,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            period: req.query.period || '1M',
+            startDate: req.query.startDate || null,
+            endDate: req.query.endDate || null
+        };
+
+        console.log('\n========== BRAND COMPARISON TRENDS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const cacheKey = generateCacheKey('visibility_brand_trends', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getBrandComparisonTrends(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands:', Object.keys(data.brands || {}).length, 'Days:', data.days?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('==================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Brand Comparison Trends:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', brands: {}, days: [] });
+    }
+};
 

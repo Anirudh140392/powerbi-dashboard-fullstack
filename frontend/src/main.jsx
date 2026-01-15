@@ -7,8 +7,8 @@ import "./index.css";
 
 createRoot(document.getElementById("root")).render(
   <>
-    <CssBaseline />
     <AppThemeProvider>
+      <CssBaseline />
       <App />
     </AppThemeProvider>
   </>
