@@ -367,7 +367,7 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
     return (
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-white/50">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-100 px-4 md:px-6 py-4 bg-white/50 gap-3 md:gap-0">
                 <div className="flex items-center gap-2">
                     <TrendingUp className="text-blue-600" size={20} />
                     <h3 className="text-lg font-bold text-slate-800">Top Search Terms</h3>
@@ -379,16 +379,16 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
 
             {/* Table */}
             <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[600px] md:min-w-full">
                     <thead>
                         <tr className="border-b border-slate-100 bg-slate-50/80">
-                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 w-[20%]">Keywords</th>
-                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 w-[15%]">
+                            <th className="px-4 md:px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 w-[20%]">Keywords</th>
+                            <th className="px-4 md:px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-600 w-[15%]">
                                 Leading Brand <span className="normal-case font-medium text-[10px] text-slate-400 block mt-0.5">(by Overall Share of Search)</span>
                             </th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Overall Share of Search</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Organic Share of Search</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Paid Share of Search</th>
+                            <th className="px-4 md:px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Overall Share of Search</th>
+                            <th className="px-4 md:px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Organic Share of Search</th>
+                            <th className="px-4 md:px-6 py-4 text-xs font-bold text-slate-600 w-[20%] text-center uppercase">Paid Share of Search</th>
                         </tr>
                     </thead>
                     <motion.tbody
@@ -403,10 +403,10 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                 variants={itemVariants}
                                 className="hover:bg-blue-50/20 transition-colors group border-b border-slate-50 last:border-0"
                             >
-                                <td className="px-6 py-4 text-xs text-slate-700 font-bold capitalize">
+                                <td className="px-4 md:px-6 py-4 text-xs text-slate-700 font-bold capitalize">
                                     {row.keyword}
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 md:px-6 py-4">
                                     <button
                                         onClick={() => handleBrandClick(row.keyword)}
                                         className="text-[11px] font-bold text-slate-700 bg-slate-100/50 group-hover:bg-blue-50 px-2 py-1 rounded border border-slate-200/50 transition-all hover:border-blue-200"
@@ -414,19 +414,19 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                         {row.topBrand}
                                     </button>
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 md:px-6 py-4">
                                     <div className="mx-auto flex w-fit items-center gap-2">
                                         <span className="text-[13px] font-black text-slate-900">{row.overallSos}%</span>
                                         <span className="text-[11px] font-bold text-slate-400">({row.overallPos})</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 md:px-6 py-4">
                                     <div className="mx-auto flex w-fit items-center gap-2">
                                         <span className="text-[13px] font-black text-slate-900">{row.organicSos}%</span>
                                         <span className="text-[11px] font-bold text-slate-400">({row.organicPos})</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 md:px-6 py-4">
                                     <div className="mx-auto flex w-fit items-center gap-2">
                                         <span className="text-[13px] font-black text-slate-900">{row.paidSos}%</span>
                                         <span className="text-[11px] font-bold text-slate-400">({row.paidPos})</span>
@@ -458,16 +458,16 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                             initial={{ opacity: 0, scale: 0.95, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+                            className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col"
                         >
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50 gap-3 md:gap-0">
                                 <div>
                                     <h4 className="text-base font-bold text-slate-800">
                                         Brand Visibility Analysis
                                     </h4>
                                     <p className="text-xs text-slate-500 mt-0.5">Keyword: <span className="text-blue-600 font-semibold">"{selectedKeyword}"</span></p>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
                                     <FilterDropdown
                                         options={availableBrands}
                                         selected={selectedBrands}

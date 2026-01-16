@@ -827,12 +827,12 @@ export default function SalesTrendsDrawer({
         >
             <Box
                 sx={{
-                    mt: 4,
+                    mt: { xs: 2, md: 4 },
                     width: "min(1200px, 100%)",
                     bgcolor: "white",
                     borderRadius: 3,
                     boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
-                    p: 3,
+                    p: { xs: 2, md: 3 },
                     display: "flex",
                     flexDirection: "column",
                     gap: 2,
