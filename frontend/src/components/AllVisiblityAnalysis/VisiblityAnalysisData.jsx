@@ -481,18 +481,20 @@ const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
   const active = activeTab === "platform" ? platformData : activeTab === "format" ? formatData : cityData;
 
   return (
-    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
-      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-        {["platform", "format", "city"].map((key) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`px-4 py-1.5 text-sm rounded-full transition-all ${activeTab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            <span className="capitalize">{key}</span>
-            {` (${key === 'platform' ? platformCols.length : key === 'format' ? formatCols.length : cityCols.length})`}
-          </button>
-        ))}
+    <div className="rounded-3xl bg-white border shadow p-3 md:p-5 flex flex-col gap-4">
+      <div className="overflow-x-auto">
+        <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+          {["platform", "format", "city"].map((key) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`px-4 py-1.5 text-sm rounded-full transition-all ${activeTab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              <span className="capitalize">{key}</span>
+              {` (${key === 'platform' ? platformCols.length : key === 'format' ? formatCols.length : cityCols.length})`}
+            </button>
+          ))}
+        </div>
       </div>
       <CityKpiTrendShowcase dynamicKey="visibility" data={active} title={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} showPagination={true} />
     </div>

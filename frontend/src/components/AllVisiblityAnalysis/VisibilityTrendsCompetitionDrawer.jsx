@@ -939,19 +939,19 @@ export default function VisibilityTrendsCompetitionDrawer({
         display: "flex",
         justifyContent: "center",
         alignItems: "flex-start",
-        p: 2,
+        p: { xs: 1, md: 2 },
         zIndex: 1300,
         overflow: "auto",
       }}
     >
       <Box
         sx={{
-          mt: 4,
+          mt: { xs: 2, md: 4 },
           width: "min(1200px, 100%)",
           bgcolor: "white",
           borderRadius: 3,
           boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
-          p: 3,
+          p: { xs: 2, md: 3 },
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -1045,7 +1045,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                     display="flex"
                     gap={0.5}
                     sx={{
-                      maxWidth: '500px',
+                      maxWidth: { xs: '100%', md: '500px' },
                       overflowX: 'auto',
                       overflowY: 'hidden',
                       flexWrap: 'nowrap',
@@ -1130,7 +1130,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5,
+                p: { xs: 1.5, md: 2.5 },
               }}
             >
               {/* Metric Row */}

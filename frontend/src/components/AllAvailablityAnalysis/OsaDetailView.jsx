@@ -635,10 +635,10 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                     </div>
                     {/* ------------------ KPI FILTER MODAL ------------------ */}
                     {showFilterPanel && (
-                        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
+                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                 {/* Modal Header */}
-                                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                                <div className="flex items-center justify-between border-b border-slate-100 px-4 md:px-6 py-4">
                                     <div>
                                         <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
                                         <p className="text-sm text-slate-500">Configure data visibility and rules</p>
@@ -653,7 +653,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
 
                                 {/* Panel Content */}
                                 {/* Panel Content */}
-                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
+                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-4 md:px-6 pt-0 pb-6">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
                                         sectionValues={filterSelections}
@@ -708,7 +708,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                 </div>
 
                                 {/* Modal Footer */}
-                                <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                                <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-4 md:px-6 py-4">
                                     <button
                                         onClick={() => setShowFilterPanel(false)}
                                         className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"

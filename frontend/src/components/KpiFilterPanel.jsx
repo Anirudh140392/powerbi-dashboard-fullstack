@@ -60,13 +60,13 @@ export function KpiFilterPanel({
   }, [sectionConfig, activeSection]);
 
   return (
-    <div className="flex h-full gap-6 text-slate-900">
+    <div className="flex h-full flex-col md:flex-row gap-4 md:gap-6 text-slate-900">
       {/* Left navigation rail */}
-      <div className="flex w-64 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <div className="flex w-full md:w-64 flex-col rounded-xl border border-slate-200 bg-white shadow-sm shrink-0">
+        <div className="hidden md:block px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500 border-b md:border-b-0 border-slate-100">
           Filters
         </div>
-        <nav className="flex-1 space-y-1 px-2 pb-2 overflow-y-auto">
+        <nav className="flex md:flex-col overflow-x-auto md:overflow-y-auto px-2 pb-2 pt-2 md:pt-0 gap-2 md:gap-1 no-scrollbar">
           {sectionConfig.map((section) => {
             const isActive = section.id === activeSection;
             return (
@@ -75,7 +75,8 @@ export function KpiFilterPanel({
                 type="button"
                 onClick={() => setActiveSection(section.id)}
                 className={[
-                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition",
+                  "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition whitespace-nowrap shrink-0",
+                  "w-auto md:w-full",
                   isActive
                     ? "bg-sky-50 text-sky-700 border border-sky-200"
                     : "text-slate-700 hover:bg-slate-100",
@@ -83,7 +84,7 @@ export function KpiFilterPanel({
               >
                 <span>{section.label}</span>
                 {Array.isArray(sectionValues[section.id]) && sectionValues[section.id].length > 0 && (
-                  <span className="rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
+                  <span className="ml-2 rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
                     {sectionValues[section.id].length}
                   </span>
                 )}
@@ -94,7 +95,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm min-h-[400px]">
+      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -343,12 +344,12 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
 
   return (
     <div className="flex h-full flex-col">
-      <header className="mb-2 flex items-center justify-between gap-3">
+      <header className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500">{description}</p>
         </div>
-        <div className="rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-600">
+        <div className="rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-600 self-start sm:self-auto">
           {pageBadge}
         </div>
       </header>
@@ -415,7 +416,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
       )}
 
       {/* Search & Actions - Simplify for small lists */}
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-col sm:flex-row sm:items-center gap-2">
         {options.length >= 15 && (
           <input
             value={search}
@@ -424,23 +425,25 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
               setPage(1);
             }}
             placeholder="Search..."
-            className="h-8 flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="h-8 w-full sm:flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         )}
-        <button
-          type="button"
-          onClick={selectAllFiltered}
-          className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-100 ml-auto"
-        >
-          Select all
-        </button>
-        <button
-          type="button"
-          onClick={clearAll}
-          className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-50"
-        >
-          Clear
-        </button>
+        <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={selectAllFiltered}
+            className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+          >
+            Select all
+          </button>
+          <button
+            type="button"
+            onClick={clearAll}
+            className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {options.length >= 15 && (
@@ -460,7 +463,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-y-auto" style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
+      <div className="rounded-lg border border-slate-200 bg-white overflow-y-auto flex-1" style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
         {pageItems.map((opt) => (
           <label
             key={opt.id}
@@ -497,11 +500,11 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
 
       {/* Pagination footer - always visible */}
       {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-          <span className="text-xs text-slate-600">
+        <div className="mt-3 flex flex-col sm:flex-row items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 gap-2 sm:gap-0">
+          <span className="text-xs text-slate-600 order-2 sm:order-1">
             {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} items
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
             <button
               type="button"
               disabled={page <= 1}
