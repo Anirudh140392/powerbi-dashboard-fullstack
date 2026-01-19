@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import React, { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
+// Removed framer-motion animations for performance
 
 /**
  * Horizontal RCA Card Lanes (Category → City → SKU)
@@ -68,10 +68,10 @@ const mkData = () => {
   const packs = ["80ml", "90ml", "100ml", "125ml", "500ml", "700ml", "1L"];
 
   const out = categories.map((c, i) => {
-    const cityCount = rand(8, 12);
+    const cityCount = rand(4, 6); // Reduced from 8-12 for performance
     const cityList = Array.from({ length: cityCount }).map((_, ci) => {
       const cityName = cities[(i * 3 + ci) % cities.length] + (Math.random() < 0.18 ? " (U)" : "");
-      const skuCount = rand(10, 18);
+      const skuCount = rand(4, 6); // Reduced from 10-18 for performance
       const skuList = Array.from({ length: skuCount }).map((__, si) => {
         const sName = `${c} ${pick(skuTypes)} ${pick(flavours)} ${pick(packs)}`;
         return {
@@ -107,39 +107,31 @@ const mkData = () => {
 
 const DATA = mkData();
 
-// ---------------------------
-// Motion Tokens
-// ---------------------------
-const spring = { type: "spring", stiffness: 240, damping: 22, mass: 0.85 };
-const fadeUp = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: 8 },
-};
+// Memoized outside component to avoid recreation
 
 // ---------------------------
-// Slow wheel-to-horizontal scroll hook
+// Wheel-to-horizontal scroll hook (improved)
 // ---------------------------
-function useSlowHScroll(ref) {
+function useSlowHScroll(ref, deps = []) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
     const onWheel = (e) => {
-      if (e.deltaY === 0) return;
-      // If we are scrolling vertically, we convert it to horizontal
-      // but only if there's no significant horizontal intent
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        el.scrollLeft += e.deltaY;
-        // Don't preventDefault here to allow page scroll if at the end of the lane
-        // but it might feel better for lanes to "capture" the wheel
+      // Skip if user is scrolling horizontally with trackpad
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+      // Convert vertical scroll to horizontal
+      if (e.deltaY !== 0) {
         e.preventDefault();
+        el.scrollLeft += e.deltaY * 1.5; // Faster scroll multiplier
       }
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [ref]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref, ...deps]);
 }
 
 // ---------------------------
@@ -258,9 +250,9 @@ function Breadcrumb({ category, city, onReset }) {
 }
 
 // ---------------------------
-// Premium Card
+// Premium Card - Memoized for performance
 // ---------------------------
-function PremiumCard({
+const PremiumCard = memo(function PremiumCard({
   kind,
   title,
   sub,
@@ -284,25 +276,17 @@ function PremiumCard({
   const a = accentMap[accent] || accentMap.indigo;
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 14, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={spring}
-      whileHover={!disabled ? { y: -8, scale: 1.02 } : undefined}
-      whileTap={!disabled ? { scale: 0.995 } : undefined}
+    <div
       onClick={!disabled ? onClick : undefined}
       style={{
         flexShrink: 0,
         borderRadius: 26,
         background: "#ffffff",
-        border: selected ? `2px solid ${a}` : "1px solid rgba(15,23,42,0.10)",
-        boxShadow: selected
-          ? `0 26px 64px -36px rgba(79,70,229,0.55), 0 18px 40px -28px rgba(15,23,42,0.35)`
-          : "0 20px 55px -42px rgba(15,23,42,0.32)",
+        border: "1px solid rgba(15,23,42,0.10)",
+        boxShadow: "0 20px 55px -42px rgba(15,23,42,0.32)",
         overflow: "hidden",
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.35 : selected ? 1 : 0.92,
+        opacity: disabled ? 0.35 : 1,
         position: "relative",
       }}
     >
@@ -441,79 +425,75 @@ function PremiumCard({
         </div>
 
         {/* Expanded body */}
-        <AnimatePresence initial={false}>
-          {expanded ? (
-            <motion.div
-              key="expanded"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={spring}
-              style={{ overflow: "hidden" }}
+        {expanded ? (
+          <div
+            style={{ overflow: "hidden" }}
+          >
+            <div
+              style={{
+                marginTop: 12,
+                padding: 14,
+                borderRadius: 18,
+                border: "1px solid rgba(15,23,42,0.08)",
+                background: "rgba(255,255,255,0.92)",
+              }}
             >
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: 14,
-                  borderRadius: 18,
-                  border: "1px solid rgba(15,23,42,0.08)",
-                  background: "rgba(255,255,255,0.92)",
-                }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase", color: "#64748b" }}>
-                  Details
-                </div>
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <MiniKpi label="Insight" value={kpis.osa.d < 0 ? "OSA drag detected" : "Efficiency healthy"} />
-                  <MiniKpi label="Suggested action" value={kpis.sos.d < 0 ? "Boost SOS in top keywords" : "Hold, optimize spend"} />
-                  <div style={{ gridColumn: "span 2" }}>
-                    <MiniKpi label="Notes" value={footerRight || "Open trends for deeper RCA"} />
-                  </div>
+              <div style={{ fontSize: 11, fontWeight: 950, letterSpacing: "0.16em", textTransform: "uppercase", color: "#64748b" }}>
+                Details
+              </div>
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <MiniKpi label="Insight" value={kpis.osa.d < 0 ? "OSA drag detected" : "Efficiency healthy"} />
+                <MiniKpi label="Suggested action" value={kpis.sos.d < 0 ? "Boost SOS in top keywords" : "Hold, optimize spend"} />
+                <div style={{ gridColumn: "span 2" }}>
+                  <MiniKpi label="Notes" value={footerRight || "Open trends for deeper RCA"} />
                 </div>
               </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+            </div>
+          </div>
+        ) : null}
       </div>
-    </motion.div>
+    </div>
   );
-}
+});
 
 // ---------------------------
 // Lane container
 // ---------------------------
-function Lane({ title, subtitle, hint, children, laneRef }) {
+function Lane({ title, subtitle, hint, children, laneRef, cardCount = 0 }) {
+  const enableScroll = cardCount > 3;
   return (
     <div
       style={{
-        padding: "18px 18px 8px 18px", // Reduced bottom padding since scrollbar will take space
+        padding: "18px 0 8px 18px",
         borderRadius: 26,
         border: "1px solid rgba(15,23,42,0.10)",
         background: "rgba(255,255,255,0.82)",
         boxShadow: "0 30px 70px -55px rgba(15,23,42,0.40)",
         backdropFilter: "blur(10px)",
+        overflow: "hidden",
       }}
     >
       <style>{`
         .lane-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(79, 70, 229, 0.4) rgba(15, 23, 42, 0.03);
+          scrollbar-width: auto;
+          scrollbar-color: rgba(79, 70, 229, 0.6) rgba(15, 23, 42, 0.08);
         }
         .lane-scroll::-webkit-scrollbar {
-          height: 8px; /* Slightly thicker */
+          height: 12px;
+          display: block !important;
         }
         .lane-scroll::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.03);
+          background: rgba(15, 23, 42, 0.08);
           border-radius: 10px;
         }
         .lane-scroll::-webkit-scrollbar-thumb {
-          background: rgba(79, 70, 229, 0.4);
+          background: rgba(79, 70, 229, 0.6);
           border-radius: 10px;
           border: 2px solid transparent;
           background-clip: content-box;
         }
         .lane-scroll::-webkit-scrollbar-thumb:hover {
-          background: rgba(79, 70, 229, 0.7);
+          background: rgba(79, 70, 229, 0.9);
           background-clip: content-box;
         }
       `}</style>
@@ -525,22 +505,27 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
 
       <div
         ref={laneRef}
-        className="lane-scroll"
+        className={enableScroll ? "lane-scroll" : ""}
         style={{
           display: "flex",
           alignItems: "flex-start",
           gap: 14,
-          overflowX: "scroll",
-          paddingBottom: 18, // Space for scrollbar
+          overflowX: enableScroll ? "auto" : "visible",
+          overflowY: "hidden",
+          paddingBottom: 18,
           paddingTop: 12,
           paddingLeft: 4,
-          paddingRight: 4,
+          paddingRight: enableScroll ? 50 : 4,
+          minHeight: 100,
+          flexWrap: enableScroll ? "nowrap" : "wrap",
         }}
       >
         {children}
+        {/* Spacer to ensure last card is fully visible */}
+        {enableScroll && <div style={{ minWidth: 20, flexShrink: 0 }} />}
       </div>
 
-      {/* Edge fade */}
+      {/* Edge fade - left only */}
       <div
         style={{
           position: "relative",
@@ -552,24 +537,14 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
           style={{
             position: "absolute",
             left: 0,
-            top: -120, // Moved up to avoid scrollbar
+            top: -120,
             width: 46,
             height: 100,
             background: "linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0))",
             pointerEvents: "none",
           }}
         />
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: -120, // Moved up to avoid scrollbar
-            width: 46,
-            height: 100,
-            background: "linear-gradient(270deg, rgba(255,255,255,1), rgba(255,255,255,0))",
-            pointerEvents: "none",
-          }}
-        />
+        {/* Right fade removed to show last card fully */}
       </div>
     </div>
   );
@@ -594,15 +569,25 @@ export default function RcaCardTable() {
   const skuLaneRef = useRef(null);
 
   useSlowHScroll(catLaneRef);
-  useSlowHScroll(cityLaneRef);
-  useSlowHScroll(skuLaneRef);
+  useSlowHScroll(cityLaneRef, [selectedCatId]); // Re-attach when category changes
+  useSlowHScroll(skuLaneRef, [selectedCityId]); // Re-attach when city changes
 
-  const toggleExpand = (key) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
+  // Memoized handlers to prevent child re-renders
+  const toggleExpand = useCallback((key) => setExpanded((p) => ({ ...p, [key]: !p[key] })), []);
 
-  const reset = () => {
+  const handleCatClick = useCallback((catId) => {
+    setSelectedCatId(catId);
+    setSelectedCityId(null);
+  }, []);
+
+  const handleCityClick = useCallback((cityId) => {
+    setSelectedCityId(cityId);
+  }, []);
+
+  const reset = useCallback(() => {
     setSelectedCatId(DATA[0].id);
     setSelectedCityId(null);
-  };
+  }, []);
 
   return (
     <div
@@ -649,6 +634,7 @@ export default function RcaCardTable() {
           subtitle="Lane 1"
           hint="Scroll slowly (wheel) →"
           laneRef={catLaneRef}
+          cardCount={DATA.length}
         >
           {DATA.map((c) => {
             const key = `cat:${c.id}`;
@@ -665,10 +651,7 @@ export default function RcaCardTable() {
                 kpis={c.kpis}
                 expanded={!!expanded[key]}
                 onToggleExpand={() => toggleExpand(key)}
-                onClick={() => {
-                  setSelectedCatId(c.id);
-                  setSelectedCityId(null);
-                }}
+                onClick={() => handleCatClick(c.id)}
                 footerLeft={`${fmtNum(c.cities.length)} cities`}
                 footerRight="Double-click card for trends (demo)"
               />
@@ -677,90 +660,87 @@ export default function RcaCardTable() {
         </Lane>
 
         {/* CITY LANE */}
-        <AnimatePresence mode="popLayout">
-          <motion.div key={selectedCatId} {...fadeUp} transition={spring}>
-            <Lane title="Cities" subtitle="Lane 2" hint={cat ? `Filtered by: ${cat.name}` : "Select a category"} laneRef={cityLaneRef}>
-              {cities.map((c) => {
-                const key = `city:${selectedCatId}:${c.id}`;
-                const selected = selectedCityId === c.id;
-                return (
-                  <PremiumCard
-                    key={c.id}
-                    kind="city"
-                    title={c.name}
-                    sub={`City • ${cat?.name}`}
-                    accent="violet"
-                    selected={selected}
-                    disabled={false}
-                    kpis={c.kpis}
-                    expanded={!!expanded[key]}
-                    onToggleExpand={() => toggleExpand(key)}
-                    onClick={() => setSelectedCityId(c.id)}
-                    footerLeft={`${fmtNum(c.skus.length)} skus`}
-                    footerRight="Top SKUs are below"
-                  />
-                );
-              })}
+        <div key={selectedCatId}>
+          <Lane title="Cities" subtitle="Lane 2" hint={cat ? `Filtered by: ${cat.name}` : "Select a category"} laneRef={cityLaneRef} cardCount={cities.length}>
+            {cities.map((c) => {
+              const key = `city:${selectedCatId}:${c.id}`;
+              const selected = selectedCityId === c.id;
+              return (
+                <PremiumCard
+                  key={c.id}
+                  kind="city"
+                  title={c.name}
+                  sub={`City • ${cat?.name}`}
+                  accent="violet"
+                  selected={selected}
+                  disabled={false}
+                  kpis={c.kpis}
+                  expanded={!!expanded[key]}
+                  onToggleExpand={() => toggleExpand(key)}
+                  onClick={() => handleCityClick(c.id)}
+                  footerLeft={`${fmtNum(c.skus.length)} skus`}
+                  footerRight="Top SKUs are below"
+                />
+              );
+            })}
 
-              {/* If no city selected show a helper card */}
-              {!cities.length ? (
-                <div style={{ padding: 18, fontSize: 14, fontWeight: 900, color: "#64748b" }}>No cities</div>
-              ) : null}
-            </Lane>
-          </motion.div>
-        </AnimatePresence>
+            {/* If no city selected show a helper card */}
+            {!cities.length ? (
+              <div style={{ padding: 18, fontSize: 14, fontWeight: 900, color: "#64748b" }}>No cities</div>
+            ) : null}
+          </Lane>
+        </div>
 
         {/* SKU LANE */}
-        <AnimatePresence mode="popLayout">
-          <motion.div key={selectedCityId || "none"} {...fadeUp} transition={spring}>
-            <Lane
-              title="SKUs"
-              subtitle="Lane 3"
-              hint={city ? `Filtered by: ${cat?.name} • ${city?.name}` : "Select a city"}
-              laneRef={skuLaneRef}
-            >
-              {skus.map((s) => {
-                const key = `sku:${selectedCatId}:${selectedCityId}:${s.id}`;
-                return (
-                  <PremiumCard
-                    key={s.id}
-                    kind="sku"
-                    title={s.name}
-                    sub={`SKU • ${city?.name || ""}`}
-                    accent="cyan"
-                    selected={false}
-                    disabled={!city}
-                    kpis={s.kpis}
-                    expanded={!!expanded[key]}
-                    onToggleExpand={() => toggleExpand(key)}
-                    onClick={() => { }}
-                    footerLeft={`⭐ ${s.meta.rating} • ${s.meta.reviews} reviews`}
-                    footerRight="Tap for SKU details"
-                  />
-                );
-              })}
+        <div key={selectedCityId || "none"}>
+          <Lane
+            title="SKUs"
+            subtitle="Lane 3"
+            hint={city ? `Filtered by: ${cat?.name} • ${city?.name}` : "Select a city"}
+            laneRef={skuLaneRef}
+            cardCount={skus.length}
+          >
+            {skus.map((s) => {
+              const key = `sku:${selectedCatId}:${selectedCityId}:${s.id}`;
+              return (
+                <PremiumCard
+                  key={s.id}
+                  kind="sku"
+                  title={s.name}
+                  sub={`SKU • ${city?.name || ""}`}
+                  accent="cyan"
+                  selected={false}
+                  disabled={!city}
+                  kpis={s.kpis}
+                  expanded={!!expanded[key]}
+                  onToggleExpand={() => toggleExpand(key)}
+                  onClick={() => { }}
+                  footerLeft={`⭐ ${s.meta.rating} • ${s.meta.reviews} reviews`}
+                  footerRight="Tap for SKU details"
+                />
+              );
+            })}
 
-              {!city ? (
-                <div
-                  style={{
-                    minWidth: 360,
-                    borderRadius: 26,
-                    border: "1px dashed rgba(15,23,42,0.18)",
-                    background: "rgba(255,255,255,0.7)",
-                    padding: 18,
-                    color: "#64748b",
-                    fontWeight: 950,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  Select a city to load SKUs
-                </div>
-              ) : null}
-            </Lane>
-          </motion.div>
-        </AnimatePresence>
+            {!city ? (
+              <div
+                style={{
+                  minWidth: 360,
+                  borderRadius: 26,
+                  border: "1px dashed rgba(15,23,42,0.18)",
+                  background: "rgba(255,255,255,0.7)",
+                  padding: 18,
+                  color: "#64748b",
+                  fontWeight: 950,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                Select a city to load SKUs
+              </div>
+            ) : null}
+          </Lane>
+        </div>
 
         {/* Footer hint */}
         <div style={{ marginTop: 4, fontSize: 12.5, fontWeight: 850, color: "#64748b" }}>

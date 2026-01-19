@@ -126,7 +126,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       bgcolor: "#22C55E",
                     }}
                   />
-                  <Typography
+                  {/* <Typography
                     sx={{
                       fontSize: "0.75rem",
                       fontWeight: 600,
@@ -137,19 +137,38 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       const darkStorePlatforms = ["Blinkit", "Zepto", "Instamart"];
                       const marketplacePlatforms = ["Flipkart", "Amazon"];
 
+                      // Dark store counts per platform
+                      const darkStoreCounts = {
+                        "Blinkit": 1860,
+                        "Zepto": 1250,
+                        "Instamart": 1210,
+                      };
+
                       const selectedList = platform === "All"
                         ? [...darkStorePlatforms, ...marketplacePlatforms]
                         : (Array.isArray(platform) ? platform : [platform]);
 
-                      const dCount = selectedList.filter(p => darkStorePlatforms.includes(p)).length;
+                      const darkStoreTotal = selectedList
+                        .filter(p => darkStorePlatforms.includes(p))
+                        .reduce((sum, p) => sum + (darkStoreCounts[p] || 0), 0);
+
                       const mCount = selectedList.filter(p => marketplacePlatforms.includes(p)).length;
 
                       const parts = [];
-                      if (dCount > 0) parts.push(`${dCount} Active Dark Store${dCount > 1 ? 's' : ''}`);
+                      if (darkStoreTotal > 0) parts.push(`${darkStoreTotal.toLocaleString()} Dark Stores`);
                       if (mCount > 0) parts.push(`${mCount} Active Marketplace${mCount > 1 ? 's' : ''}`);
 
                       return parts.length > 0 ? parts.join(" & ") : "0 Active Platforms";
                     })()}
+                  </Typography> */}
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#64748b",
+                    }}
+                  >
+                    Darkstores # (Blinkit - 1860, Instamart - 1210, Zepto - 1250)
                   </Typography>
                 </Box>
               )}
