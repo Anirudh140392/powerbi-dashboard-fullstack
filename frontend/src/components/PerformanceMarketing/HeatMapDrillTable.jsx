@@ -814,25 +814,40 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 Filters
               </Button>
 
-              {/* QUARTERS */}
+              {/* QUARTERS - Dynamic based on selected insight */}
               <Box display="flex" gap={1}>
-                {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                  <Button
-                    key={q}
-                    onClick={() => setSelectedQuarter(q)}
-                    sx={{
-                      fontSize: 12,
-                      textTransform: "none",
-                      borderRadius: 999,
-                      px: 1.6,
-                      backgroundColor:
-                        selectedQuarter === q ? "#0f172a" : "transparent",
-                      color: selectedQuarter === q ? "white" : "#6b7280",
-                    }}
-                  >
-                    {q}
-                  </Button>
-                ))}
+                {(() => {
+                  // Determine which quarters to show based on selectedInsight
+                  let quartersToShow = ["Q1", "Q2", "Q3", "Q4"]; // Default: show all
+
+                  if (selectedInsight?.includes("Q1")) {
+                    quartersToShow = ["Q1"];
+                  } else if (selectedInsight?.includes("Q2")) {
+                    quartersToShow = ["Q2"];
+                  } else if (selectedInsight?.includes("Q3")) {
+                    quartersToShow = ["Q3"];
+                  } else if (selectedInsight?.includes("Q4")) {
+                    quartersToShow = ["Q4"];
+                  }
+
+                  return quartersToShow.map((q) => (
+                    <Button
+                      key={q}
+                      onClick={() => setSelectedQuarter(q)}
+                      sx={{
+                        fontSize: 12,
+                        textTransform: "none",
+                        borderRadius: 999,
+                        px: 1.6,
+                        backgroundColor:
+                          selectedQuarter === q ? "#0f172a" : "transparent",
+                        color: selectedQuarter === q ? "white" : "#6b7280",
+                      }}
+                    >
+                      {q}
+                    </Button>
+                  ));
+                })()}
               </Box>
             </Box>
 
