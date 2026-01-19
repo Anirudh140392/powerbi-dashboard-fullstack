@@ -44,12 +44,11 @@ const performanceData = {
     { label: "Q4 · Opportunity – Scale Up Spends", value: 181 },
   ],
 
-  // ---- YOUR HEATMAP DATA (converted to JSX-friendly) ----
   heatmapData: {
     title: "Format Performance (Heatmap)",
     duration: "Last 3 Months",
     headers: [
-      "Format / Region / City",
+      "Keyword Type / Keyword / City",
       "Spend",
       "M-1 Spend",
       "M-2 Spend",
@@ -57,298 +56,188 @@ const performanceData = {
       "M-1 Conv",
       "M-2 Conv",
     ],
+
     rows: [
+      /* --------------------------------------------------------------------------------------
+       MAGNUM
+    -------------------------------------------------------------------------------------- */
       {
-        label: "Magnum",
+        label: "Branded",
         values: [164, 203.2, 256.3, "3%", "3.3%", "3.2%"],
         children: [
           {
-            label: "North",
-            values: [60, 72, 81, "3%", "3.1%", "3.2%"],
+            label: "ice cream",
+            isKeyword: true,
+            values: [80, 95, 110, "3%", "3.2%", "3.1%"],
             children: [
-              {
-                label: "Delhi",
-                values: [25, 30, 34, "3%", "3.1%", "3.2%"],
-                children: [],
-              },
-              {
-                label: "Lucknow",
-                values: [20, 24, 27, "3%", "3.0%", "3.1%"],
-                children: [],
-              },
-              {
-                label: "Jaipur",
-                values: [15, 18, 20, "3%", "3.1%", "3.2%"],
-                children: [],
-              },
+              { label: "Delhi", values: [30, 35, 40, "3.1%", "3.3%", "3.2%"] },
+              { label: "Mumbai", values: [25, 30, 35, "2.9%", "3.1%", "3.0%"] },
+              { label: "Bangalore", values: [25, 30, 35, "3.0%", "3.2%", "3.1%"] },
             ],
           },
           {
-            label: "South",
-            values: [45, 62, 70, "2%", "2.4%", "2.3%"],
+            label: "Gourmet",
+            isKeyword: true,
+            values: [50, 60, 70, "3.5%", "3.6%", "3.4%"],
             children: [
-              {
-                label: "Bengaluru",
-                values: [18, 24, 27, "2%", "2.3%", "2.2%"],
-                children: [],
-              },
-              {
-                label: "Chennai",
-                values: [14, 20, 23, "2%", "2.5%", "2.4%"],
-                children: [],
-              },
-              {
-                label: "Hyderabad",
-                values: [13, 18, 20, "2%", "2.4%", "2.3%"],
-                children: [],
-              },
+              { label: "Delhi", values: [20, 25, 30, "3.6%", "3.7%", "3.5%"] },
+              { label: "Mumbai", values: [15, 18, 20, "3.4%", "3.5%", "3.3%"] },
+              { label: "Bangalore", values: [15, 17, 20, "3.5%", "3.6%", "3.4%"] },
             ],
           },
           {
-            label: "East",
-            values: [30, 41, 55, "4%", "3.9%", "4.1%"],
+            label: "cassata ice cream",
+            isKeyword: true,
+            values: [34, 48.2, 76.3, "2.8%", "3.0%", "2.9%"],
             children: [
-              {
-                label: "Kolkata",
-                values: [15, 20, 27, "4%", "3.8%", "4.0%"],
-                children: [],
-              },
-              {
-                label: "Patna",
-                values: [8, 11, 15, "4%", "4.0%", "4.2%"],
-                children: [],
-              },
-              {
-                label: "Bhubaneswar",
-                values: [7, 10, 13, "4%", "3.9%", "4.1%"],
-                children: [],
-              },
-            ],
-          },
-          {
-            label: "West",
-            values: [29, 28, 50, "3%", "3.4%", "3.3%"],
-            children: [
-              {
-                label: "Mumbai",
-                values: [12, 11, 20, "3%", "3.4%", "3.3%"],
-                children: [],
-              },
-              {
-                label: "Pune",
-                values: [10, 9, 16, "3%", "3.5%", "3.4%"],
-                children: [],
-              },
-              {
-                label: "Ahmedabad",
-                values: [7, 8, 14, "3%", "3.3%", "3.2%"],
-                children: [],
-              },
+              { label: "Delhi", values: [14, 18, 26, "2.9%", "3.1%", "3.0%"] },
+              { label: "Mumbai", values: [10, 15, 25, "2.7%", "2.9%", "2.8%"] },
+              { label: "Bangalore", values: [10, 15.2, 25.3, "2.8%", "3.0%", "2.9%"] },
             ],
           },
         ],
       },
+
+      /* --------------------------------------------------------------------------------------
+       CORE TUB
+    -------------------------------------------------------------------------------------- */
       {
-        label: "Core Tub",
+        label: "Browse",
         values: [151, 199, 224.1, "2%", "2.4%", "2.9%"],
         children: [
           {
-            label: "North",
-            values: [55, 76, 85, "2%", "2.3%", "2.5%"],
+            label: "Tubs",
+            isKeyword: true,
+            values: [100, 120, 140, "2.2%", "2.6%", "3.1%"],
             children: [
-              {
-                label: "Delhi",
-                values: [22, 30, 34, "2%", "2.3%", "2.5%"],
-                children: [],
-              },
-              {
-                label: "Chandigarh",
-                values: [18, 25, 28, "2%", "2.4%", "2.6%"],
-                children: [],
-              },
-              {
-                label: "Jaipur",
-                values: [15, 21, 23, "2%", "2.2%", "2.4%"],
-                children: [],
-              },
+              { label: "Delhi", values: [40, 50, 60, "2.3%", "2.7%", "3.2%"] },
+              { label: "Pune", values: [30, 35, 40, "2.1%", "2.5%", "3.0%"] },
+              { label: "Hyderabad", values: [30, 35, 40, "2.2%", "2.6%", "3.1%"] },
             ],
           },
           {
-            label: "South",
-            values: [40, 56, 63, "1%", "1.4%", "1.7%"],
+            label: "Family Pack",
+            isKeyword: true,
+            values: [51, 79, 84.1, "1.8%", "2.2%", "2.7%"],
             children: [
-              {
-                label: "Chennai",
-                values: [16, 22, 25, "1%", "1.4%", "1.6%"],
-                children: [],
-              },
-              {
-                label: "Bengaluru",
-                values: [14, 20, 22, "1%", "1.5%", "1.7%"],
-                children: [],
-              },
-              {
-                label: "Hyderabad",
-                values: [10, 14, 16, "1%", "1.3%", "1.6%"],
-                children: [],
-              },
+              { label: "Delhi", values: [21, 30, 34, "1.9%", "2.3%", "2.8%"] },
+              { label: "Pune", values: [15, 25, 25, "1.7%", "2.1%", "2.6%"] },
+              { label: "Hyderabad", values: [15, 24, 25.1, "1.8%", "2.2%", "2.7%"] },
             ],
           },
         ],
       },
       {
-        label: "Premium Tub",
-        values: [134, 178.9, 208.9, "1%", "0.7%", "0.7%"],
+        label: "Competition",
+        values: [90, 110, 130, "3.5%", "3.8%", "4.0%"],
         children: [
           {
-            label: "National",
-            values: [134, 178.9, 208.9, "1%", "0.7%", "0.7%"],
+            label: "Double Chocolate",
+            isKeyword: true,
+            values: [40, 50, 60, "3.6%", "3.9%", "4.1%"],
             children: [
-              {
-                label: "Metro Cities",
-                values: [80, 108, 124, "1%", "0.7%", "0.7%"],
-                children: [],
-              },
-              {
-                label: "Tier 1",
-                values: [34, 45, 53, "1%", "0.8%", "0.7%"],
-                children: [],
-              },
-              {
-                label: "Tier 2 & 3",
-                values: [20, 25, 31, "1%", "0.7%", "0.7%"],
-                children: [],
-              },
+              { label: "Delhi", values: [15, 20, 25, "3.7%", "4.0%", "4.2%"] },
+              { label: "Mumbai", values: [12, 15, 18, "3.5%", "3.8%", "4.0%"] },
+              { label: "Bangalore", values: [13, 15, 17, "3.6%", "3.9%", "4.1%"] },
+            ],
+          },
+          {
+            label: "Disc",
+            isKeyword: true,
+            values: [50, 60, 70, "3.4%", "3.7%", "3.9%"],
+            children: [
+              { label: "Delhi", values: [20, 25, 30, "3.5%", "3.8%", "4.0%"] },
+              { label: "Mumbai", values: [15, 18, 20, "3.3%", "3.6%", "3.8%"] },
+              { label: "Bangalore", values: [15, 17, 20, "3.4%", "3.7%", "3.9%"] },
             ],
           },
         ],
       },
       {
-        label: "Cornetto",
-        values: [87, 117.6, 151, "2%", "1.7%", "1.8%"],
+        label: "Generic",
+        values: [60, 75, 85, "2.5%", "2.8%", "3.0%"],
         children: [
           {
-            label: "North",
-            values: [34, 48, 57, "2%", "1.6%", "1.7%"],
+            label: "Mini Sticks",
+            isKeyword: true,
+            values: [40, 50, 55, "2.6%", "2.9%", "3.1%"],
             children: [
-              {
-                label: "Delhi",
-                values: [15, 22, 26, "2%", "1.6%", "1.7%"],
-                children: [],
-              },
-              {
-                label: "Lucknow",
-                values: [10, 14, 17, "2%", "1.7%", "1.8%"],
-                children: [],
-              },
-              {
-                label: "Jaipur",
-                values: [9, 12, 14, "2%", "1.5%", "1.7%"],
-                children: [],
-              },
+              { label: "Delhi", values: [15, 20, 22, "2.7%", "3.0%", "3.2%"] },
+              { label: "Mumbai", values: [12, 15, 16, "2.5%", "2.8%", "3.0%"] },
+              { label: "Bangalore", values: [13, 15, 17, "2.6%", "2.9%", "3.1%"] },
             ],
           },
           {
-            label: "South",
-            values: [22, 33, 45, "1%", "1.2%", "1.3%"],
+            label: "Mini Cups",
+            isKeyword: true,
+            values: [20, 25, 30, "2.4%", "2.7%", "2.9%"],
             children: [
-              {
-                label: "Bengaluru",
-                values: [9, 14, 19, "1%", "1.2%", "1.3%"],
-                children: [],
-              },
-              {
-                label: "Chennai",
-                values: [7, 10, 14, "1%", "1.2%", "1.3%"],
-                children: [],
-              },
-              {
-                label: "Hyderabad",
-                values: [6, 9, 12, "1%", "1.1%", "1.2%"],
-                children: [],
-              },
-            ],
-          },
-          {
-            label: "West",
-            values: [31, 36, 49, "3%", "2.9%", "3.2%"],
-            children: [
-              {
-                label: "Mumbai",
-                values: [14, 16, 23, "3%", "2.9%", "3.1%"],
-                children: [],
-              },
-              {
-                label: "Pune",
-                values: [9, 11, 14, "3%", "3.0%", "3.2%"],
-                children: [],
-              },
-              {
-                label: "Surat",
-                values: [8, 9, 12, "3%", "2.8%", "3.1%"],
-                children: [],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        label: "Slow Churn",
-        values: [35, 42.4, 40.3, "2%", "1.5%", "1.5%"],
-        children: [
-          {
-            label: "National",
-            values: [35, 42.4, 40.3, "2%", "1.5%", "1.5%"],
-            children: [
-              {
-                label: "Metro Cities",
-                values: [18, 22, 20, "2%", "1.5%", "1.5%"],
-                children: [],
-              },
-              {
-                label: "Tier 1",
-                values: [10, 12, 11, "2%", "1.5%", "1.5%"],
-                children: [],
-              },
-              {
-                label: "Tier 2 & 3",
-                values: [7, 8.4, 9.3, "2%", "1.4%", "1.5%"],
-                children: [],
-              },
-            ],
-          },
-        ],
-      },
-      {
-        label: "Cassata",
-        values: [8, 15.6, 24.2, "3%", "2.4%", "2.6%"],
-        children: [
-          {
-            label: "North",
-            values: [4, 8, 10, "3%", "2.6%", "2.7%"],
-            children: [
-              {
-                label: "Delhi",
-                values: [2, 4, 5, "3%", "2.6%", "2.7%"],
-                children: [],
-              },
-              {
-                label: "Lucknow",
-                values: [1.2, 2.4, 3, "3%", "2.5%", "2.6%"],
-                children: [],
-              },
-              {
-                label: "Jaipur",
-                values: [0.8, 1.6, 2, "3%", "2.7%", "2.8%"],
-                children: [],
-              },
+              { label: "Delhi", values: [8, 10, 12, "2.5%", "2.8%", "3.0%"] },
+              { label: "Mumbai", values: [6, 8, 9, "2.3%", "2.6%", "2.8%"] },
+              { label: "Bangalore", values: [6, 7, 9, "2.4%", "2.7%", "2.9%"] },
             ],
           },
         ],
       },
     ],
-    total: ["Total", 587, 771, 924.4, "3%", "3.1%", "3.5%"],
   },
+  
+  heatmapDataSecond: {
+      title: "Q1 - Performing Well",
+      duration: "Last 3 Months",
+      headers: [
+        "Keyword Type / Keyword / City",
+        "Spend",
+        "M-1 Spend",
+        "M-2 Spend",
+        "Conversion",
+        "M-1 Conv",
+        "M-2 Conv",
+      ],
+      rows: [],
+    },
+    heatmapDataThird: {
+      title: "Q2 - Need Attention",
+      duration: "Last 3 Months",
+      headers: [
+        "Keyword Type / Keyword / City",
+        "Spend",
+        "M-1 Spend",
+        "M-2 Spend",
+        "Conversion",
+        "M-1 Conv",
+        "M-2 Conv",
+      ],
+      rows: [],
+    },
+    heatmapDataFourth: {
+      title: "Q3 - Experiment",
+      duration: "Last 3 Months",
+      headers: [
+        "Keyword Type / Keyword / City",
+        "Spend",
+        "M-1 Spend",
+        "M-2 Spend",
+        "Conversion",
+        "M-1 Conv",
+        "M-2 Conv",
+      ],
+      rows: [],
+    },
+    heatmapDataFifth: {
+      title: "Q4 - Opportunity",
+      duration: "Last 3 Months",
+      headers: [
+        "Keyword Type / Keyword / City",
+        "Spend",
+        "M-1 Spend",
+        "M-2 Spend",
+        "Conversion",
+        "M-1 Conv",
+        "M-2 Conv",
+      ],
+      rows: [],
+    },
 
   mom_analysis: {
     title: "MOM Analysis",
@@ -384,7 +273,6 @@ const performanceData = {
 
   trend_chart: {
     title: "MOM Trend",
-    x_key: "month",
     bars: ["cpm"],
     lines: ["conv", "roas"],
     rows: [
@@ -394,6 +282,29 @@ const performanceData = {
       { month: "Oct", cpm: 560, conv: 3.4, roas: 2.8 },
       { month: "Nov", cpm: 530, conv: 3.1, roas: 2.5 },
     ],
+  },
+
+  // ⭐ NEW: Insight mapping → filters
+  insightFilters: {
+    "All Campaign Summary": "all",
+    "Q1 · Perform Well – Continue": "performing",
+    "Q2 · Need Attention – Optimize": "attention",
+    "Q3 · Experiment – Optimize then Scale": "experiment",
+    "Q4 · Opportunity – Scale Up Spends": "opportunity",
+  },
+
+  // ⭐ NEW: Filtering logic
+  filterRules: {
+    all: () => true,
+
+    performing: (row) => parseFloat(row.values[3]) >= 3.0,
+
+    attention: (row) => parseFloat(row.values[3]) < 2.0,
+
+    experiment: (row) =>
+      parseFloat(row.values[3]) >= 2.0 && parseFloat(row.values[3]) < 3.0,
+
+    opportunity: (row) => Number(row.values[0]) > 50, // spend > 50
   },
 };
 

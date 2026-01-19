@@ -1,56 +1,85 @@
-import { DataTypes } from "sequelize";
-import sequelize from "../config/db.js";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/db.js';
 
-const RbPdpOlap = sequelize.define("RbPdpOlap", {
-  DATE: { type: DataTypes.DATE, allowNull: true, primaryKey: true},
-  Platform_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  Platform: { type: DataTypes.STRING, allowNull: true },
-  Location_id: { type: DataTypes.STRING(1), allowNull: false, defaultValue: '' },
-  Location: { type: DataTypes.STRING, allowNull: true },
-  Brand_id: { type: DataTypes.INTEGER, allowNull: true },
-  Brand: { type: DataTypes.STRING, allowNull: true },
-  Sub_Brand: { type: DataTypes.STRING(30), allowNull: true },
-  Category: { type: DataTypes.STRING(30), allowNull: true },
-  MSL: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
-  Comp_flag: { type: DataTypes.INTEGER, allowNull: true },
-  Web_Pid: { type: DataTypes.STRING, allowNull: true },
-  Product: { type: DataTypes.STRING, allowNull: true },
-  URL: { type: DataTypes.STRING(500), allowNull: true },
-  Weight: { type: DataTypes.STRING, allowNull: true },
-  Reseller_Name: { type: DataTypes.TEXT('long'), allowNull: true },
-  buy_box_neno_osa: { type: DataTypes.DECIMAL(23, 0), allowNull: true },
-  neno_osa: { type: DataTypes.DECIMAL(25, 0), allowNull: true },
-  deno_osa: { type: DataTypes.BIGINT, allowNull: false, defaultValue: 0 },
-  MRP: { type: DataTypes.DECIMAL(12, 6), allowNull: true },
-  Selling_Price: { type: DataTypes.DECIMAL(12, 6), allowNull: true },
-  Discount: { type: DataTypes.DECIMAL(12, 6), allowNull: true },
-  Rating: { type: DataTypes.DECIMAL(11, 1), allowNull: true },
-  Common_Id: { type: DataTypes.STRING(30), allowNull: true },
-  Item_Id: { type: DataTypes.STRING, allowNull: true },
-  Premium: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  Qty_Sold: { type: DataTypes.DOUBLE, allowNull: true },
-  Sales: { type: DataTypes.DECIMAL(59, 2), allowNull: true },
-  Qty_Sold_MRP: { type: DataTypes.DECIMAL(58, 4), allowNull: true },
-  Inventory: { type: DataTypes.DECIMAL(65, 4), allowNull: true },
-  DIH: { type: DataTypes.DECIMAL(65, 4), allowNull: true },
-  Ad_Clicks: { type: DataTypes.STRING(64), allowNull: true },
-  Ad_Impressions: { type: DataTypes.DECIMAL(65, 4), allowNull: true },
-  Ad_Quanity_sold: { type: DataTypes.STRING(66), allowNull: true },
-  Ad_sales: { type: DataTypes.STRING(60), allowNull: true },
-  Ad_Spend: { type: DataTypes.STRING(58), allowNull: true },
-  Organic_SOS: { type: DataTypes.STRING(60), allowNull: true },
-  Ad_SOS: { type: DataTypes.STRING(53), allowNull: true },
-  Organic_Impressions: { type: DataTypes.DECIMAL(65, 12), allowNull: true },
-  Min_Rank: { type: DataTypes.INTEGER, allowNull: true },
-  SOS_rank_organic_10: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  SOS_rank_ad_10: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  SOS_rank_organic_20as: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  SOS_rank_ad_20: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  market_share: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
-  Brand_market_share: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
+const RbPdpOlap = sequelize.define('rb_pdp_olap', {
+  Brand: {
+    type: DataTypes.STRING,
+  },
+  Brand_id: {
+    type: DataTypes.INTEGER,
+  },
+  Category: {
+    type: DataTypes.STRING,
+  },
+  Comp_flag: {
+    type: DataTypes.INTEGER,
+  },
+  DATE: {
+    type: DataTypes.DATE,
+  },
+  deno_osa: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  Discount: {
+    type: DataTypes.STRING,
+  },
+  inventory: {
+    type: DataTypes.INTEGER,
+  },
+  Location: {
+    type: DataTypes.STRING,
+  },
+  Location_id: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  MRP: {
+    type: DataTypes.STRING,
+  },
+  MSL: {
+    type: DataTypes.STRING,
+  },
+  neno_osa: {
+    type: DataTypes.STRING,
+  },
+  Platform: {
+    type: DataTypes.STRING,
+  },
+  Platform_id: {
+    type: DataTypes.BIGINT,
+  },
+  Product: {
+    type: DataTypes.STRING,
+  },
+  Qty_Sold: {
+    type: DataTypes.DECIMAL,
+  },
+  Rating: {
+    type: DataTypes.STRING,
+  },
+  Sales: {
+    type: DataTypes.DECIMAL,
+  },
+  Selling_Price: {
+    type: DataTypes.STRING,
+  },
+  Sub_Category: {
+    type: DataTypes.STRING,
+  },
+  URL: {
+    type: DataTypes.STRING,
+  },
+  Web_Pid: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+  },
+  Weight: {
+    type: DataTypes.STRING,
+  },
 }, {
-  tableName: "rb_pdp_olap",
-  timestamps: false
+  tableName: 'rb_pdp_olap',
+  timestamps: false,
 });
 
 export default RbPdpOlap;

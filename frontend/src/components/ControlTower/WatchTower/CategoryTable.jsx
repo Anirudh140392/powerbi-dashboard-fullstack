@@ -19,7 +19,7 @@ import {
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
 
-export default function CategoryTable({ categories, activeTab }) {
+export default function CategoryTable({ categories, activeTab = "" }) {
   const platforms = Object.keys(categories[0]).filter((k) => k !== "name");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -43,45 +43,45 @@ export default function CategoryTable({ categories, activeTab }) {
   const [selectedMetric, setSelectedMetric] = useState(metricOptions[0]);
   const theme = useTheme();
 
-  /* ---------------------------------------------------------
-     🔽 FILTER DATA FOR DOWNLOAD + DISPLAY
-  --------------------------------------------------------- */
+  /* --------------------- FILTER --------------------- */
   const filteredCategories = useMemo(() => {
     return categories.filter((c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm, categories]);
 
-  /* ---------------------------------------------------------
-     🔽 CSV DOWNLOAD FUNCTION
-  --------------------------------------------------------- */
+  /* -------------------- PAGINATION -------------------- */
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [page, setPage] = useState(0);
+
+  const paginatedRows = useMemo(() => {
+    return filteredCategories.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [filteredCategories, page, rowsPerPage]);
+
+  const totalPages = Math.ceil(filteredCategories.length / rowsPerPage);
+
+  /* --------------------- CSV DOWNLOAD --------------------- */
   const handleDownload = () => {
     let csv = [];
-
-    // Header row
     csv.push(["Category/SKU", ...platforms.map((p) => p.toUpperCase())].join(","));
-
-    // Single metric label row
     csv.push(["", selectedMetric.label]);
 
-    // Values rows
     filteredCategories.forEach((cat) => {
       const row = [cat.name];
-
       platforms.forEach((p) => {
         const main = cat[p][selectedMetric.key] || "-";
         const change = cat[p][selectedMetric.key + "_change"] || "-";
         row.push(`${main} (${change})`);
       });
-
       csv.push(row.join(","));
     });
 
-    // Convert to Blob
     const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
-    // Auto-download
     const a = document.createElement("a");
     a.href = url;
     a.download = `table_export_${selectedMetric.key}.csv`;
@@ -92,7 +92,6 @@ export default function CategoryTable({ categories, activeTab }) {
   const renderChange = (value) => {
     if (!value) return "-";
     const positive = value.startsWith("+");
-
     return (
       <span
         style={{
@@ -140,42 +139,49 @@ export default function CategoryTable({ categories, activeTab }) {
             >
               <TableChartIcon sx={{ color: theme.palette.primary.main }} />
             </Box>
-            <Typography fontSize="1.25rem" fontWeight={700}>
+
+            <Typography fontSize="1.2rem" fontWeight={700} fontFamily="Roboto, sans-serif">
               {activeTab}
             </Typography>
           </Box>
 
+          {/* RIGHT CONTROLS */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <Typography
-              variant="body2"
-              sx={{ color: "#6b7280", fontWeight: 600 }}
-            >
+            {/* <Typography variant="body2" sx={{ color: "#6b7280", fontWeight: 600, fontFamily: "Roboto, sans-serif" }}>
               Metrics:
-            </Typography>
+            </Typography> */}
 
             <Select
               size="small"
               value={selectedMetric.key}
-              sx={{ minWidth: 120 }}
               onChange={(e) =>
                 setSelectedMetric(
                   metricOptions.find((m) => m.key === e.target.value)
                 )
               }
+              sx={{
+                minWidth: 130,
+                height: 36,
+                fontSize: "0.85rem",
+                background: "#f3f4f6",
+              }}
             >
               {metricOptions.map((opt) => (
                 <MenuItem key={opt.key} value={opt.key}>
-                  {opt.label}
+                  {opt.label.toLowerCase().charAt(0).toUpperCase() + opt.label.toLowerCase().slice(1)}
                 </MenuItem>
               ))}
             </Select>
 
-            {/* Search */}
+            {/* SEARCH */}
             <TextField
               size="small"
               placeholder="Search"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(0); // reset page on search
+              }}
               sx={{ width: 200 }}
             />
 
@@ -198,7 +204,6 @@ export default function CategoryTable({ categories, activeTab }) {
         >
           <Table stickyHeader>
             <TableHead>
-              {/* ROW 1 */}
               <TableRow>
                 <TableCell
                   sx={{
@@ -206,14 +211,20 @@ export default function CategoryTable({ categories, activeTab }) {
                       theme.palette.mode === "dark"
                         ? theme.palette.background.default
                         : "#f9fafb",
-                    fontWeight: 700,
                     position: "sticky",
                     left: 0,
                     zIndex: 10,
+                    textAlign: "center",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                    fontFamily: "Roboto, sans-serif",
                   }}
                 >
-                  {activeTab === "Split by Category" ? "Category" : "Sku"}
+                  {activeTab === "Split by Category" ? "Category" : "SKU"}
                 </TableCell>
+
+
 
                 {platforms.map((p) => (
                   <TableCell
@@ -225,14 +236,17 @@ export default function CategoryTable({ categories, activeTab }) {
                           ? theme.palette.background.default
                           : "#f9fafb",
                       fontWeight: 700,
+                      fontSize: "0.95rem",
+                      fontFamily: "Roboto, sans-serif",
                     }}
                   >
-                    {p.toUpperCase()}
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </Typography>
                   </TableCell>
                 ))}
               </TableRow>
 
-              {/* ROW 2 */}
               <TableRow>
                 <TableCell
                   sx={{
@@ -252,29 +266,33 @@ export default function CategoryTable({ categories, activeTab }) {
                         ? theme.palette.background.default
                         : "#f9fafb",
                     color: theme.palette.text.primary,
-                    fontWeight: 900,
-                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    fontFamily: "Roboto, sans-serif",
                   }}
                 >
-                  {selectedMetric.label}
+                  {selectedMetric.label.toLowerCase().charAt(0).toUpperCase() + selectedMetric.label.toLowerCase().slice(1)}
                 </TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
-              {filteredCategories.map((cat, i) => (
+              {paginatedRows.map((cat, i) => (
                 <TableRow key={i} hover>
                   <TableCell
                     sx={{
                       position: "sticky",
                       left: 0,
                       background: theme.palette.background.paper,
+                      fontSize: "0.95rem",
                       fontWeight: 700,
+                      lineHeight: 1.4,
+                      fontFamily: "Roboto, sans-serif",
+                      textAlign: "center",
                     }}
                   >
-                    {cat.name}
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
                   </TableCell>
-
                   {platforms.map((p) => {
                     const main = cat[p][selectedMetric.key];
                     const change = cat[p][selectedMetric.key + "_change"];
@@ -285,8 +303,16 @@ export default function CategoryTable({ categories, activeTab }) {
                           flexDirection="column"
                           alignItems="center"
                         >
-                          <Typography fontWeight={600}>{main}</Typography>
-                          <Typography fontSize="0.75rem">
+                          <Typography
+                            fontSize="0.95rem"
+                            fontWeight={700}
+                            fontFamily="Roboto, sans-serif"
+                          >
+                            <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                              {main}
+                            </Typography>
+                          </Typography>
+                          <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
                             {renderChange(change)}
                           </Typography>
                         </Box>
@@ -298,6 +324,50 @@ export default function CategoryTable({ categories, activeTab }) {
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* PAGINATION */}
+        <div className="mt-3 flex items-center justify-between text-[11px]" style={{ fontFamily: 'Roboto, sans-serif' }}>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
+            >
+              Prev
+            </button>
+
+            <span>
+              Page <b>{page + 1}</b> / {totalPages}
+            </span>
+
+            <button
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div>
+              Rows/page
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0); // Reset to first page when changing rows per page
+                }}
+                className="ml-1 rounded-full border px-2 py-1"
+              >
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </Card>
     </Box>
   );
