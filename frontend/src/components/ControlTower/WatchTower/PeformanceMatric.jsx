@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import { Typography } from "@mui/material";
+import { defaultBrands } from "@/utils/DataCenter";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -215,6 +216,7 @@ export default function PerformanceMatric({
         selectedColumn={selectedTrendName}
         selectedLevel={selectedTrendLevel}
         dynamicKey="performance_dashboard_tower"
+        brandOptions={defaultBrands.map(b => b.label)}
       />
     </div>
   );

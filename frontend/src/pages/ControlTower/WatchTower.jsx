@@ -369,6 +369,7 @@ defaultCategory */}
         selectedColumn={selectedTrendName}
         selectedLevel={selectedTrendLevel}
         dynamicKey="platform_overview_tower"
+        brandOptions={defaultBrands.map(b => b.label)}
       />
 
       <RCAModal
