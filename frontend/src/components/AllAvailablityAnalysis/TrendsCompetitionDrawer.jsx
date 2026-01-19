@@ -395,12 +395,25 @@ export default function TrendsCompetitionDrawer({
   onClose = () => { },
   selectedColumn,
   selectedLevel,
+  brandOptions,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: "Platform", // default value
     },
   });
+
+  const PLATFORM_OPTIONS = [
+    "Blinkit",
+    "Zepto",
+    "Instamart",
+    "Swiggy",
+    "Amazon",
+  ];
+  const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
+  const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+  const BRAND_OPTIONS = brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"];
+
   let DASHBOARD_DATA = {};
   if (dynamicKey === "performance_dashboard_tower") {
     DASHBOARD_DATA = {
@@ -615,24 +628,14 @@ export default function TrendsCompetitionDrawer({
           { id: "BmiSalesRatio", label: "BMI / Sales Ratio", type: "metric" },
         ],
 
-        brands: [
-          {
-            brand: "Colgate",
-            ShareOfSearch: { value: 32.4, delta: -2.1 },
-            InorganicSales: { value: 18.7, delta: 1.2 },
-            Conversion: { value: 2.6, delta: -0.2 },
-            Roas: { value: 3.1, delta: -0.3 },
-            BmiSalesRatio: { value: 0.59, delta: -0.04 },
-          },
-          {
-            brand: "Sensodyne",
-            ShareOfSearch: { value: 28.9, delta: 1.6 },
-            InorganicSales: { value: 21.4, delta: 2.8 },
-            Conversion: { value: 3.0, delta: 0.4 },
-            Roas: { value: 3.8, delta: 0.5 },
-            BmiSalesRatio: { value: 0.68, delta: 0.06 },
-          },
-        ],
+        brands: BRAND_OPTIONS.map((b, i) => ({
+          brand: b,
+          ShareOfSearch: { value: 30 + i * 2, delta: i % 2 === 0 ? 1.5 : -1.2 },
+          InorganicSales: { value: 20 + i, delta: i % 2 === 0 ? 2.1 : -0.8 },
+          Conversion: { value: 2.5 + i * 0.1, delta: 0.2 },
+          Roas: { value: 3.5 + i * 0.2, delta: 0.4 },
+          BmiSalesRatio: { value: 0.6 + i * 0.01, delta: -0.05 },
+        })),
       },
     };
   } else if (dynamicKey === "availability") {
@@ -766,38 +769,14 @@ export default function TrendsCompetitionDrawer({
           { id: "Assortment", label: "Assortment", type: "metric" },
         ],
 
-        brands: [
-          {
-            brand: "Colgate",
-            Osa: { value: 32.9, delta: -4.5 },
-            Doi: { value: 74.6, delta: -16.3 },
-            Fillrate: { value: 20.0, delta: -8.5 },
-            Listing: { value: 85.4, delta: 1.2 },
-            Assortment: { value: 18.8, delta: 0.4 },
-          },
-          {
-            brand: "Sensodyne",
-            Osa: { value: 19.6, delta: 2.2 },
-            Doi: { value: 94.2, delta: 3.9 },
-            Fillrate: { value: 19.3, delta: 2.7 },
-            Listing: { value: 91.2, delta: -0.5 },
-            Assortment: { value: 18.5, delta: -3.1 },
-          },
-          {
-            brand: "Oral-B",
-            Osa: { value: 11.7, delta: -0.9 },
-            Doi: { value: 86.7, delta: -4.2 },
-            Fillrate: { value: 16.2, delta: -2.9 },
-            Assortment: { value: 20.8, delta: -5.6 },
-          },
-          {
-            brand: "Dabur",
-            Osa: { value: 8.6, delta: 0.2 },
-            Doi: { value: 90.6, delta: -1.2 },
-            Fillrate: { value: 7.2, delta: 0.3 },
-            Assortment: { value: 7.4, delta: 2.9 },
-          },
-        ],
+        brands: BRAND_OPTIONS.map((b, i) => ({
+          brand: b,
+          Osa: { value: 20 + i * 5, delta: i % 2 === 0 ? 2.5 : -1.5 },
+          Doi: { value: 80 + i, delta: 5 },
+          Fillrate: { value: 15 + i, delta: 2 },
+          Listing: { value: 90 + i, delta: 1.5 },
+          Assortment: { value: 15 + i * 2, delta: 0.5 },
+        })),
 
         skus: [
           {
@@ -1180,26 +1159,15 @@ export default function TrendsCompetitionDrawer({
           { id: "MarketShare", label: "Market Share", type: "metric" },
         ],
 
-        brands: [
-          {
-            brand: "Colgate",
-            Offtakes: { value: 32.9, delta: -4.5 },
-            Spend: { value: 6.8, delta: 0.4 },
-            ROAS: { value: 7.3, delta: 0.2 },
-            SOS: { value: 44, delta: 1.2 },
-            CategoryShare: { value: 24.6, delta: 0.8 },
-            MarketShare: { value: 18.8, delta: 0.4 },
-          },
-          {
-            brand: "Sensodyne",
-            Offtakes: { value: 19.6, delta: 2.2 },
-            Spend: { value: 5.1, delta: -0.3 },
-            ROAS: { value: 6.9, delta: -0.1 },
-            SOS: { value: 39, delta: -0.8 },
-            CategoryShare: { value: 22.3, delta: -0.5 },
-            MarketShare: { value: 18.5, delta: -0.3 },
-          },
-        ],
+        brands: BRAND_OPTIONS.map((b, i) => ({
+          brand: b,
+          Offtakes: { value: 25 + i * 4, delta: i % 2 === 0 ? 3.5 : -2.5 },
+          Spend: { value: 5 + i * 0.5, delta: 0.5 },
+          ROAS: { value: 7 + i * 0.2, delta: 0.3 },
+          SOS: { value: 40 + i * 2, delta: 1.5 },
+          CategoryShare: { value: 20 + i, delta: 1.2 },
+          MarketShare: { value: 15 + i, delta: 0.8 },
+        })),
       },
     };
   }
@@ -1392,17 +1360,6 @@ export default function TrendsCompetitionDrawer({
     setSelectedCompareSkus(finalList);
     setAddSkuOpen(false);
   };
-
-  const PLATFORM_OPTIONS = [
-    "Blinkit",
-    "Zepto",
-    "Instamart",
-    "Swiggy",
-    "Amazon",
-  ];
-  const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
-  const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = ["Amul", "Mother Dairy", "Nestle", "Hatsun"];
 
   if (!open) return null;
 
