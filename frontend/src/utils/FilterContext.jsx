@@ -7,46 +7,57 @@ export const FilterContext = createContext();
 // Static platform-brand-location mapping
 const platformData = {
     "Blinkit": {
-        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
         locations: {
             "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Amul": ["Delhi", "Pune", "Hyderabad"],
-            "Mother Dairy": ["Delhi", "Noida", "Gurgaon"]
+            "Cornetto": ["Delhi", "Mumbai", "Bangalore", "Pune"],
+            "Magnum": ["Delhi", "Mumbai", "Hyderabad"],
+            "Feast": ["Delhi", "Bangalore", "Chennai"],
+            "Twister": ["Delhi", "Mumbai", "Kolkata"]
         }
     },
     "Zepto": {
-        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
         locations: {
             "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Amul": ["Mumbai", "Delhi"],
-            "Mother Dairy": ["Delhi", "Bangalore", "Chennai"]
+            "Cornetto": ["Mumbai", "Delhi", "Pune"],
+            "Magnum": ["Delhi", "Mumbai", "Chennai"],
+            "Feast": ["Delhi", "Bangalore"],
+            "Twister": ["Delhi", "Mumbai"]
         }
     },
     "Instamart": {
-        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
         locations: {
             "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Amul": ["Hyderabad", "Pune"],
-            "Mother Dairy": ["Delhi", "Noida", "Gurgaon"]
+            "Cornetto": ["Hyderabad", "Pune", "Delhi"],
+            "Magnum": ["Delhi", "Bangalore", "Mumbai"],
+            "Feast": ["Delhi", "Noida", "Gurgaon"],
+            "Twister": ["Delhi", "Chennai"]
         }
     },
     "Flipkart": {
-        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
         locations: {
             "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Amul": ["Delhi", "Bangalore"],
-            "Mother Dairy": ["Mumbai", "Delhi", "Chennai"]
+            "Cornetto": ["Delhi", "Bangalore", "Pune"],
+            "Magnum": ["Mumbai", "Delhi", "Chennai"],
+            "Feast": ["Delhi", "Kolkata"],
+            "Twister": ["Delhi", "Mumbai", "Bangalore"]
         }
     },
     "Amazon": {
-        brands: ["Kwality Walls", "Amul", "Mother Dairy"],
+        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
         locations: {
             "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Amul": ["Mumbai", "Delhi", "Bangalore"],
-            "Mother Dairy": ["Delhi", "Pune"]
+            "Cornetto": ["Mumbai", "Delhi", "Bangalore"],
+            "Magnum": ["Delhi", "Pune", "Hyderabad"],
+            "Feast": ["Delhi", "Mumbai"],
+            "Twister": ["Delhi", "Chennai", "Bangalore"]
         }
     }
 };
+
 
 export const FilterProvider = ({ children }) => {
     // Platform state
