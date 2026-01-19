@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, Info, BarChart2 } from 'lucide-react';
-import { Typography } from '@mui/material';
+import { Typography, Box } from '@mui/material';
+import RCATree from './RCATree';
 
 const RCADashboard = () => {
   const [platform, setPlatform] = useState('Blinkit');
@@ -24,8 +25,8 @@ const RCADashboard = () => {
       <div style={{ fontSize: small ? '18px' : '20px', fontWeight: 700, color: '#111827', marginBottom: '4px' }}>
         {value}
       </div>
-      <div style={{ 
-        fontSize: '13px', 
+      <div style={{
+        fontSize: '13px',
         fontWeight: 600,
         color: isPositive ? '#16a34a' : '#dc2626',
         display: 'flex',
@@ -44,7 +45,7 @@ const RCADashboard = () => {
         {label}
       </div>
       <div style={{ position: 'relative', width }}>
-        <select 
+        <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
           style={{
@@ -68,25 +69,28 @@ const RCADashboard = () => {
   );
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      minHeight: '160vh',
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
       backgroundColor: '#f9fafb',
-      mb: '40px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      marginBottom: '40px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      border: '1px solid #e5e7eb',
+      borderRadius: '16px',
+      overflow: 'hidden'
     }}>
       {/* Left Sidebar */}
-      <div style={{ 
-        width: '300px', 
+      <div style={{
+        width: '300px',
         backgroundColor: 'white',
         borderRight: '1px solid #e5e7eb',
         padding: '30px 20px',
         flexShrink: 0
       }}>
         {/* Header */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
           gap: '10px',
           marginBottom: '32px',
           paddingBottom: '20px',
@@ -106,10 +110,10 @@ const RCADashboard = () => {
           }}>
             ∞
           </div>
-          
-           <Typography ml={1.2} fontWeight={600} fontSize="1.1rem">
-              Root Cause Analysis
-            </Typography>
+
+          <Typography ml={1.2} fontWeight={600} fontSize="1.1rem">
+            Root Cause Analysis
+          </Typography>
         </div>
 
         {/* Time Period */}
@@ -146,7 +150,7 @@ const RCADashboard = () => {
         <SelectBox label="SOS TOP N:" value={sosTopN} onChange={setSosTopN} />
 
         {/* Note */}
-        <div style={{ 
+        <div style={{
           marginTop: '60px',
           padding: '12px',
           backgroundColor: '#fef3c7',
@@ -160,16 +164,17 @@ const RCADashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '32px 40px', position: 'relative' }}>
+      <div style={{ flex: 1, padding: '32px 40px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div style={{ 
+        <div style={{
           display: 'inline-flex',
           alignItems: 'center',
           backgroundColor: 'white',
           border: '2px solid #3b82f6',
           borderRadius: '8px',
           padding: '6px 8px',
-          marginBottom: '28px'
+          marginBottom: '28px',
+          width: 'fit-content'
         }}>
           <button style={{
             padding: '6px 20px',
@@ -185,352 +190,20 @@ const RCADashboard = () => {
           </button>
         </div>
 
-        {/* Tree Structure Container */}
-        <div style={{ position: 'relative', paddingLeft: '140px' }}>
-          {/* Offtake - Root Node */}
-          <div style={{ 
-            position: 'absolute',
-            left: 0,
-            top: '480px',
-            transform: 'translateY(-50%)'
-          }}>
-            <div style={{
-              backgroundColor: '#111827',
-              borderRadius: '12px',
-              padding: '20px 24px',
-              width: '220px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-            }}>
-              <div style={{ fontSize: '15px', color: 'white', fontWeight: 600, marginBottom: '8px' }}>
-                Offtake
-              </div>
-              <div style={{ fontSize: '28px', color: 'white', fontWeight: 700, marginBottom: '4px' }}>
-                51.53M
-              </div>
-              <div style={{ fontSize: '14px', color: '#ef4444', fontWeight: 700, marginBottom: '16px' }}>
-                ▼ -48.92%
-              </div>
-              <div style={{ borderTop: '1px solid #374151', paddingTop: '12px' }}>
-                <div style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '4px' }}>
-                  Market Share
-                </div>
-                <div style={{ fontSize: '18px', color: 'white', fontWeight: 700, marginBottom: '2px' }}>
-                  52.33%
-                </div>
-                <div style={{ fontSize: '12px', color: '#9ca3af' }}>
-                  Week: 04-May to 10-May
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Horizontal line from Offtake */}
-          <div style={{
-            position: 'absolute',
-            left: '220px',
-            top: '480px',
-            width: '40px',
-            height: '2px',
-            backgroundColor: '#3b82f6'
-          }} />
-
-          {/* Vertical connector line */}
-          <div style={{
-            position: 'absolute',
-            left: '260px',
-            top: '230px',
-            width: '2px',
-            height: '450px',
-            backgroundColor: '#3b82f6'
-          }} />
-
-          {/* Tree branches and nodes */}
-          <div style={{ position: 'relative', paddingLeft: '80px' }}>
-            {/* Row 1: Impression */}
-            <div style={{ position: 'absolute', left: '200px', top: '90px' }}>
-              <div style={{
-                position: 'absolute',
-                left: '-80px',
-                top: '50%',
-                width: '80px',
-                height: '2px',
-                backgroundColor: '#3b82f6'
-              }} />
-              <div style={{ 
-                backgroundColor: 'white',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '14px 16px',
-                width: '200px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
-                  <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Impression</span>
-                  <Info size={16} color="#9ca3af" />
-                </div>
-                <MetricCard title="Overall Impression" value="6.13M" change="-49.04%" isPositive={false} small />
-                <div style={{ marginTop: '12px' }}>
-                  <MetricCard title="Overall SOS" value="27.25%" change="-0.04%" isPositive={false} small />
-                </div>
-              </div>
-            </div>
-
-            {/* Impression child branches */}
-            <div style={{ position: 'absolute', left: '500px', top: '10px' }}>
-             <div style={{
-                position: 'absolute',
-                left: '-100px',
-                top: '250px',
-                width: '110px',
-                height: '2px',
-                backgroundColor: '#3b82f6'
-              }} />
-              <div style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: '2px',
-                height: '620px',
-                backgroundColor: '#3b82f6'
-              }} />
-
-              {/* Organic Impressions */}
-              <div style={{ position: 'absolute', left: 0, top: '620px' }}>
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '50%',
-                  width: '40px',
-                  height: '2px',
-                  backgroundColor: '#3b82f6'
-                }} />
-                <div style={{ 
-                  position: 'absolute',
-                  left: '40px',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                  width: '200px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Organic Impressions</span>
-                    <Info size={16} color="#9ca3af" />
-                  </div>
-                  <MetricCard title="Organic Impressions" value="4.93M" change="-44.48%" isPositive={false} small />
-                  <div style={{ marginTop: '12px' }}>
-                    <MetricCard title="Organic SOS" value="24.23%" change="-0.05%" isPositive={false} small />
-                  </div>
-                </div>
-              </div>
-
-              {/* Availability */}
-              <div style={{ position: 'absolute', left: 0, top: 0 }}>
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  width: '40px',
-                  height: '2px',
-                  backgroundColor: '#3b82f6'
-                }} />
-                <div style={{ 
-                  position: 'absolute',
-                  left: '40px',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                  width: '200px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Availability</span>
-                    <Info size={16} color="#9ca3af" />
-                  </div>
-                  <MetricCard title="OSA %" value="54.10%" change="-0.41%" isPositive={false} small />
-                  <div style={{
-                    fontSize: '11px',
-                    color: '#3b82f6',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    marginTop: '12px'
-                  }}>
-                    *Click Here To Navigate<br/>To Availability Analysis
-                  </div>
-                </div>
-              </div>
-
-              {/* Ad Impressions */}
-              <div style={{ position: 'absolute', left: 0, top: '250px' }}>
-                <div style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '50%',
-                  width: '40px',
-                  height: '2px',
-                  backgroundColor: '#3b82f6'
-                }} />
-                <div style={{ 
-                  position: 'absolute',
-                  left: '40px',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                  width: '200px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
-                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Ad Impressions</span>
-                    <Info size={16} color="#9ca3af" />
-                  </div>
-                  <MetricCard title="Ad Impressions" value="1.20M" change="-61.92%" isPositive={false} small />
-                  <div style={{ marginTop: '12px' }}>
-                    <MetricCard title="Ad SOS" value="3.02%" change="0.01%" isPositive={true} small />
-                  </div>
-                  <div style={{
-                    fontSize: '11px',
-                    color: '#3b82f6',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    marginTop: '12px'
-                  }}>
-                    *Click Here To Navigate<br/>To SOS Analysis
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Row 2: Conversion */}
-            <div style={{ position: 'absolute', left: '200px', top: '650px' }}>
-              <div style={{
-                position: 'absolute',
-                left: '-80px',
-                top: '30px',
-                width: '80px',
-                height: '2px',
-                backgroundColor: '#3b82f6'
-              }} />
-              <div style={{ 
-                backgroundColor: 'white',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '14px 16px',
-                width: '200px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Conversion</span>
-                  <Info size={16} color="#9ca3af" />
-                </div>
-                <MetricCard title="Conversion" value="4.72%" change="-0.12%" isPositive={false} small />
-              </div>
-            </div>
-            
-
-            {/* Conversion children */}
-            <div style={{ position: 'absolute', left: '230px', top: '570px' }}>
-              <div style={{
-                position: 'absolute',
-                left: 0,
-                top: '242px',
-                width: '2px',
-                height: '50px',
-                backgroundColor: '#3b82f6'
-              }} />
-              <div style={{
-                position: 'absolute',
-                left: '-100px',
-                top: '290px',
-                width: '200px',
-                height: '2px',
-                backgroundColor: '#3b82f6'
-              }} />
-
-              {/* Discounting */}
-              <div style={{ position: 'absolute', left: '-250px', top: '350px' }}>
-                <div style={{
-                  position: 'absolute',
-                  left: '150px',
-                  top: '-60px',
-                  width: '2px',
-                  height: '60px',
-                  backgroundColor: '#3b82f6'
-                }} />
-                <div style={{ 
-                  position: 'absolute',
-                  left: '40px',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                  width: '200px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Discounting</span>
-                    <Info size={16} color="#9ca3af" />
-                  </div>
-                  <MetricCard title="Discount%" value="24.22%" change="2.60%" isPositive={true} small />
-                </div>
-              </div>
-           
-            <div style={{ position: 'absolute', left: 0, top: '350px' }}>
-                <div style={{
-                  position: 'absolute',
-                  left: '100px',
-                  top: '-60px',
-                  width: '2px',
-                  height: '60px',
-                  backgroundColor: '#3b82f6'
-                }} />
-                <div style={{ 
-                  position: 'absolute',
-                  left: '40px',
-                  backgroundColor: 'white',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  padding: '14px 16px',
-                  width: '200px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Price Segment</span>
-                    <Info size={16} color="#9ca3af" />
-                  </div>
-                  <MetricCard title="PPU*100" value="₹ 145.18" change="-2.87%" isPositive={false} small />
-                </div>
-                </div>
-                 </div>
-           
-
-            {/* Row 3: Price */}
-            <div style={{ position: 'absolute', left: '200px', top: '450px' }}>
-              <div style={{
-                position: 'absolute',
-                left: '-80px',
-                top: '30px',
-                width: '80px',
-                height: '2px',
-                backgroundColor: '#3b82f6'
-              }} />
-              <div style={{ 
-                backgroundColor: 'white',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '14px 16px',
-                width: '200px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '15px', color: '#111827', fontWeight: 700 }}>Price</span>
-                  <Info size={16} color="#9ca3af" />
-                </div>
-                <MetricCard title="ASP" value="₹ 217.19" change="12.32%" isPositive={true} small />
-              </div>
-            </div>
-
-           
-            
-          </div>
-        </div>
-
-      
-    
+        {/* Tree Structure Container - Replaced with Interactive RCATree */}
+        <Box sx={{
+          flex: 1,
+          width: '100%',
+          minHeight: '800px',
+          position: 'relative',
+          border: '1px solid #e5e7eb',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          backgroundColor: '#fff',
+          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+        }}>
+          <RCATree />
+        </Box>
       </div>
     </div>
   );
