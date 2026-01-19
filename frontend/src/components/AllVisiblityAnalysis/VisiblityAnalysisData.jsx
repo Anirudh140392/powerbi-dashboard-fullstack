@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
   AreaChart,
@@ -14,10 +15,24 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import CustomPivotWorkbench from './CustomPivotWorkbench'
-import SearchIcon from '@mui/icons-material/Search'
+import {
+  DRILL_COLUMNS,
+  FORMAT_MATRIX,
+  FORMAT_MATRIX_Visibility,
+  FORMAT_ROWS,
+  OLA_Detailed,
+  ONE_VIEW_DRILL_DATA,
+  PRODUCT_MATRIX
+} from "../AllAvailablityAnalysis/availablityDataCenter";
 import CloseIcon from '@mui/icons-material/Close'
+import DrillHeatTable from '../CommonLayout/DrillHeatTable'
+import MetricCardContainer from '../CommonLayout/MetricCardContainer'
 
+import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
+import VisibilityDrilldownTable from './VisibilityDrilldownTable';
+import TopSearchTerms from './TopSearchTerms';
+import { SignalLabVisibility } from './SignalLabVisibility';
+import VisibilityLayoutOne from './VisibilityLayoutOne';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -141,10 +156,10 @@ const ChannelStackedChart = ({ data, metric, onMetricChange }) => {
     metric === 'visibility'
       ? data
       : data.map((d) => ({
-          ...d,
-          organic: metric === 'units' ? d.units * 0.65 : d.impressions * 0.6,
-          sponsored: metric === 'units' ? d.units * 0.35 : d.impressions * 0.4,
-        }))
+        ...d,
+        organic: metric === 'units' ? d.units * 0.65 : d.impressions * 0.6,
+        sponsored: metric === 'units' ? d.units * 0.35 : d.impressions * 0.4,
+      }))
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -219,9 +234,8 @@ const ProductHeatTable = ({ data }) => {
             <button
               key={key}
               onClick={() => setSortKey(key)}
-              className={`text-xs font-semibold px-2 py-1 rounded-full border ${
-                sortKey === key ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500'
-              }`}
+              className={`text-xs font-semibold px-2 py-1 rounded-full border ${sortKey === key ? 'border-slate-900 text-slate-900' : 'border-slate-200 text-slate-500'
+                }`}
             >
               {key}
             </button>
@@ -348,50 +362,6 @@ const VisibilityPulseCard = ({
   )
 }
 
-// ------------------------------
-// DATA (unchanged)
-// ------------------------------
-
-const kpiData = {
-  filters: 'Category Hair Care · Country India · FY 2025 Q1',
-  tiles: [
-    { title: 'Overall Visibility Share', value: 63.2, trend: [58.2, 59.8, 60.1, 61.0, 62.4, 63.2], delta: 1.4, target: 65, status: 'at-risk' },
-    { title: 'Sponsored Visibility Share', value: 28.4, trend: [24.2, 25.4, 26.8, 27.1, 27.9, 28.4], delta: 0.9, target: 30, status: 'on-track' },
-    { title: 'Organic Visibility Share', value: 34.8, trend: [32.0, 32.5, 32.9, 33.4, 34.0, 34.8], delta: 0.7, target: 35, status: 'on-track' },
-  ],
-}
-
-const yearTrendData = [
-  { year: 'FY 2020', actual: 51.2, target: 50, yoy: 1.2 },
-  { year: 'FY 2021', actual: 54.6, target: 53, yoy: 3.4 },
-  { year: 'FY 2022', actual: 57.1, target: 56, yoy: 2.5 },
-  { year: 'FY 2023', actual: 60.3, target: 60, yoy: 3.2 },
-  { year: 'FY 2024', actual: 62.0, target: 63, yoy: 1.7 },
-  { year: 'FY 2025', actual: 63.2, target: 65, yoy: 1.2 },
-]
-
-const countryData = [
-  { code: 'IN', name: 'India', value: 63.2, deltaLy: 1.2 },
-  { code: 'GB', name: 'United Kingdom', value: 58.4, deltaLy: -0.6 },
-  { code: 'DE', name: 'Germany', value: 55.8, deltaLy: 0.8 },
-  { code: 'FR', name: 'France', value: 53.1, deltaLy: -1.1 },
-  { code: 'US', name: 'United States', value: 50.2, deltaLy: 1.5 },
-]
-
-const channelData = [
-  { channel: 'Distributor', organic: 20, sponsored: 18, units: 1800, impressions: 12000, lastOrganic: 19, lastSponsored: 17 },
-  { channel: 'Store', organic: 22, sponsored: 14, units: 1650, impressions: 11000, lastOrganic: 21, lastSponsored: 14 },
-  { channel: 'Web', organic: 18, sponsored: 12, units: 1400, impressions: 9000, lastOrganic: 17, lastSponsored: 11 },
-]
-
-const productData = [
-  { product: 'Shampoo', distributor: 18.2, store: 21.4, web: 15.3, last: { distributor: 17.1, store: 20.2, web: 14.1 } },
-  { product: 'Lotion', distributor: 16.4, store: 18.1, web: 13.7, last: { distributor: 15.6, store: 17.4, web: 13.2 } },
-  { product: 'Hand Wash', distributor: 12.8, store: 14.5, web: 10.3, last: { distributor: 12.0, store: 13.9, web: 9.8 } },
-  { product: 'Face Wash', distributor: 10.5, store: 12.7, web: 8.6, last: { distributor: 9.9, store: 12.1, web: 8.1 } },
-  { product: 'Ice Cream', distributor: 11.7, store: 13.8, web: 9.2, last: { distributor: 10.9, store: 13.2, web: 8.9 } },
-]
-
 const pulseData = [
   { city: 'Pan India', region: 'National', value: 0.9, delta: -0.6, trend: [1.1, 1.0, 0.98, 0.96, 0.93, 0.9], rank: 5, total: 32, severity: 'warning' },
   { city: 'Delhi NCR', region: 'North', value: 1.0, delta: -0.3, trend: [1.1, 1.05, 1.03, 1.01, 1.0, 1.0], rank: 8, total: 32, severity: 'normal' },
@@ -416,6 +386,52 @@ const competitorSeries = [
 // ------------------------------
 // MAIN COMPONENT — JSX ONLY
 // ------------------------------
+const cards = [
+  {
+    title: "Mother Dairy",
+    value: "96 on 30 Nov'25",
+    sub: "Active SKUs in store",
+    change: "▲4.3% (+4 SKUs)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "New launches this month: 7",
+    extraChange: "▲12.5%",
+    extraChangeColor: "green",
+  },
+  {
+    title: "Amul",
+    value: "52.4%",
+    sub: "MTD on-shelf coverage",
+    change: "▼8.6 pts (from 61.0%)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "High risk stores: 18",
+    extraChange: "▲5 stores",
+    extraChangeColor: "red",
+  },
+  {
+    title: "Godrej",
+    value: "68.3",
+    sub: "Network average days of cover",
+    change: "▲19.5% (from 57.1)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Slightly above target",
+    extraChangeColor: "orange",
+  },
+  {
+    title: "ITC",
+    value: "76.9%",
+    sub: "Weighted on-shelf availability (MTD)",
+    change: "▲1.2 pts (from 75.7%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Top 50 SKUs: 82.3%",
+    extraChange: "▲0.9 pts",
+    extraChangeColor: "green",
+  },
+];
 
 const VisiblityAnalysisData = () => {
   const [metric, setMetric] = useState('visibility')
@@ -423,402 +439,584 @@ const VisiblityAnalysisData = () => {
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
+  const [topSearchFilter, setTopSearchFilter] = useState("All");
 
+  // const sampleData = [
+  //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
+  //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Web', UnitsSold: 410, InStock: 620, SoldAmount: 260 },
+  //   { Country: 'France', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 280, InStock: 480, SoldAmount: 190 },
+  //   { Country: 'France', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Distributor', UnitsSold: 360, InStock: 510, SoldAmount: 240 },
+  //   { Country: 'Germany', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 390, InStock: 580, SoldAmount: 240 },
+  //   { Country: 'Germany', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Distributor', UnitsSold: 430, InStock: 640, SoldAmount: 270 },
+  //   { Country: 'Germany', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 300, InStock: 520, SoldAmount: 210 },
+  //   { Country: 'Germany', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 360, InStock: 550, SoldAmount: 230 },
+  //   { Country: 'United Kingdom', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 350, InStock: 600, SoldAmount: 230 },
+  //   { Country: 'United Kingdom', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Distributor', UnitsSold: 400, InStock: 630, SoldAmount: 260 },
+  //   { Country: 'United Kingdom', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 310, InStock: 540, SoldAmount: 220 },
+  //   { Country: 'United Kingdom', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 360, InStock: 560, SoldAmount: 240 },
+  //   { Country: 'United States', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 420, InStock: 650, SoldAmount: 280 },
+  //   { Country: 'United States', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Distributor', UnitsSold: 460, InStock: 700, SoldAmount: 310 },
+  //   { Country: 'United States', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 340, InStock: 580, SoldAmount: 240 },
+  //   { Country: 'United States', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 390, InStock: 600, SoldAmount: 260 },
+  // ]
+  // const sampleData = [
+  //   {
+  //     label: "Format A",
+  //     values: [1200, 1100, 1300, "2.5%", "2.8%", "3.1%"],
+  //     children: [
+  //       {
+  //         label: "Region North",
+  //         values: [400, 350, 500, "2.8%", "3.1%", "3.4%"],
+  //         children: [
+  //           {
+  //             label: "City Delhi",
+  //             values: [200, 180, 260, "3.0%", "3.4%", "3.8%"],
+  //             children: [],
+  //           },
+  //         ],
+  //       },
+  //     ],
+  //   },
+  // ];
   const sampleData = [
-    { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
-    { Country: 'France', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Web', UnitsSold: 410, InStock: 620, SoldAmount: 260 },
-    { Country: 'France', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 280, InStock: 480, SoldAmount: 190 },
-    { Country: 'France', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Distributor', UnitsSold: 360, InStock: 510, SoldAmount: 240 },
-    { Country: 'Germany', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 390, InStock: 580, SoldAmount: 240 },
-    { Country: 'Germany', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Distributor', UnitsSold: 430, InStock: 640, SoldAmount: 270 },
-    { Country: 'Germany', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 300, InStock: 520, SoldAmount: 210 },
-    { Country: 'Germany', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 360, InStock: 550, SoldAmount: 230 },
-    { Country: 'United Kingdom', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 350, InStock: 600, SoldAmount: 230 },
-    { Country: 'United Kingdom', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Distributor', UnitsSold: 400, InStock: 630, SoldAmount: 260 },
-    { Country: 'United Kingdom', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 310, InStock: 540, SoldAmount: 220 },
-    { Country: 'United Kingdom', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 360, InStock: 560, SoldAmount: 240 },
-    { Country: 'United States', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 420, InStock: 650, SoldAmount: 280 },
-    { Country: 'United States', Products: 'Shampoo', Year: 'FY 2023', OrderSource: 'Distributor', UnitsSold: 460, InStock: 700, SoldAmount: 310 },
-    { Country: 'United States', Products: 'Lotion', Year: 'FY 2024', OrderSource: 'Store', UnitsSold: 340, InStock: 580, SoldAmount: 240 },
-    { Country: 'United States', Products: 'Lotion', Year: 'FY 2025', OrderSource: 'Web', UnitsSold: 390, InStock: 600, SoldAmount: 260 },
-  ]
+    {
+      label: "Grocery",
+      values: {
+        spend: 120000,
+        m1: 105000,
+        m2: 98000,
+        conv: 0.082,
+        m1c: 0.075,
+        m2c: 0.071,
+      },
+      children: [
+        {
+          label: "North",
+          values: {
+            spend: 48000,
+            m1: 43000,
+            m2: 41000,
+            conv: 0.091,
+            m1c: 0.085,
+            m2c: 0.079,
+          },
+          children: [
+            {
+              label: "Delhi",
+              values: {
+                spend: 22000,
+                m1: 20000,
+                m2: 19000,
+                conv: 0.094,
+                m1c: 0.088,
+                m2c: 0.083,
+              },
+              children: []
+            },
+            {
+              label: "Chandigarh",
+              values: {
+                spend: 18000,
+                m1: 16000,
+                m2: 15000,
+                conv: 0.087,
+                m1c: 0.081,
+                m2c: 0.076,
+              },
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+  ];
 
-  const pivotRows = useMemo(
-    () =>
-      sampleData.map((d) => ({
-        country: d.Country,
-        product: d.Products,
-        year: d.Year,
-        orderSource: d.OrderSource,
-        unitsSold: d.UnitsSold,
-        inStock: d.InStock,
-        soldAmount: d.SoldAmount,
-      })),
-    []
-  )
 
-  const pivotFields = useMemo(
-    () => [
-      { key: 'country', label: 'Country', type: 'dimension' },
-      { key: 'product', label: 'Product', type: 'dimension' },
-      { key: 'orderSource', label: 'Order Source', type: 'dimension' },
-      { key: 'year', label: 'Year', type: 'dimension' },
-      { key: 'unitsSold', label: 'Units Sold', type: 'measure' },
-      { key: 'inStock', label: 'In Stock', type: 'measure' },
-      { key: 'soldAmount', label: 'Sold Amount', type: 'measure' },
-    ],
-    []
-  )
+
+  const cards = [
+    {
+      title: "Overall Weighted SOS",
+      value: "19.6%",
+      sub: "Share of shelf across all active SKUs",
+      change: "▲4.3 pts (from 15.3%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "New launches contributing: 7 SKUs",
+      extraChange: "▲12.5%",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Sponsored Weighted SOS",
+      value: "17.6%",
+      sub: "Share of shelf for sponsored placements",
+      change: "▼8.6 pts (from 26.2%)",
+      changeColor: "red",
+      prevText: "vs Previous Period",
+      extra: "High risk keywords: 5",
+      extraChange: "",
+      extraChangeColor: "red",
+    },
+    {
+      title: "Organic Weighted SOS",
+      value: "20.7%",
+      sub: "Natural shelf share without sponsorship",
+      change: "▲19.5% (from 17.3%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Benchmark range: 18–22%",
+      extraChange: "Slightly above benchmark",
+      extraChangeColor: "orange",
+    },
+    {
+      title: "Display SOS",
+      value: "26.9%",
+      sub: "Share of shelf from display-led visibility",
+      change: "▲1.2 pts (from 25.7%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Top 50 SKUs Display SOS: 82.3%",
+      extraChange: "▲0.9 pts",
+      extraChangeColor: "green",
+    },
+  ];
+  const cellHeat = (value) => {
+    if (value >= 95) return "bg-emerald-100 text-emerald-900";
+    if (value >= 85) return "bg-emerald-50 text-emerald-800";
+    if (value >= 75) return "bg-amber-50 text-amber-800";
+    return "bg-rose-50 text-rose-800";
+  };
+  // const TabbedHeatmapTable = () => {
+  //   const [activeTab, setActiveTab] = useState("platform");
+
+  //   // 🔥 Utility to compute unified trend + series for ANY item
+  //   const buildRows = (dataArray = [], columnList = []) => {
+  //     return dataArray.map((item) => {
+  //       const primaryTrendSeries = item?.trend?.["Spend"] || [];
+  //       const valid = primaryTrendSeries.length >= 2;
+
+  //       const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+  //       const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+  //       const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+  //       const trendObj = {};
+  //       const seriesObj = {};
+
+  //       columnList.forEach((col) => {
+  //         trendObj[col] = globalDelta;           // same delta for every column
+  //         seriesObj[col] = primaryTrendSeries;   // same sparkline for every column
+  //       });
+
+  //       return {
+  //         kpi: item.kpi,
+  //         ...item.values,
+  //         trend: trendObj,
+  //         series: seriesObj,
+  //       };
+  //     });
+  //   };
+
+  //   // ---------------- PLATFORM ----------------
+  //   const platformData = {
+  //     columns: ["kpi", ...FORMAT_MATRIX.PlatformColumns],
+  //     rows: buildRows(FORMAT_MATRIX.PlatformData, FORMAT_MATRIX.PlatformColumns),
+  //   };
+
+  //   // ---------------- FORMAT ----------------
+  //   const formatData = {
+  //     columns: ["kpi", ...FORMAT_MATRIX.formatColumns],
+  //     rows: buildRows(FORMAT_MATRIX.FormatData, FORMAT_MATRIX.formatColumns),
+  //   };
+
+  //   // ---------------- CITY ----------------
+  //   const cityData = {
+  //     columns: ["kpi", ...FORMAT_MATRIX.CityColumns],
+  //     rows: buildRows(FORMAT_MATRIX.CityData, FORMAT_MATRIX.CityColumns),
+  //   };
+
+  //   // ---------------- TABS ----------------
+  //   const tabs = [
+  //     { key: "platform", label: "Platform", data: platformData },
+  //     { key: "format", label: "Format", data: formatData },
+  //     { key: "city", label: "City", data: cityData },
+  //   ];
+
+  //   const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+  //   return (
+  //     <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+
+  //       {/* -------- TABS -------- */}
+  //       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+  //         {tabs.map((t) => (
+  //           <button
+  //             key={t.key}
+  //             onClick={() => setActiveTab(t.key)}
+  //             className={`px-4 py-1.5 text-sm rounded-full transition-all 
+  //               ${activeTab === t.key
+  //                 ? "bg-white text-slate-900 shadow-sm"
+  //                 : "text-slate-500 hover:text-slate-700"
+  //               }`}
+  //           >
+  //             {t.label}
+  //           </button>
+  //         ))}
+  //       </div>
+
+  //       {/* -------- MATRIX TABLE -------- */}
+  //       <CityKpiTrendShowcase 
+  //         data={active.data} 
+  //         title={active.label} 
+  //       />
+  //     </div>
+  //   );
+  // };
+
+  // ---------------- FILTER OPTIONS ----------------
+  const VISIBILITY_FILTER_OPTIONS = [
+    { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+    { id: "keywords", label: "Keyword" },
+    { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
+    { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+    {
+      id: "kpi",
+      label: "KPI",
+      options: [
+        { id: "Overall Weighted SOS", label: "OVERALL WEIGHTED SOS" },
+        { id: "Sponsored Weighted SOS", label: "SPONSORED WEIGHTED SOS" },
+        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" },
+        { id: "Display SOS", label: "DISPLAY SOS" }
+      ]
+    },
+    { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+    { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+    { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
+    { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
+    { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
+    { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
+    { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+  ];
+
+  const TabbedHeatmapTable = () => {
+    const [activeTab, setActiveTab] = useState("platform");
+
+    // 🔥 Utility to compute unified trend + series for ANY item
+    const buildRows = (dataArray = [], columnList = []) => {
+      return dataArray.map((item) => {
+        const primaryTrendSeries = item?.trend?.["Spend"] || [];
+        const valid = primaryTrendSeries.length >= 2;
+
+        const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
+        const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
+
+        const globalDelta = Number((lastVal - prevVal).toFixed(1));
+
+        const trendObj = {};
+        const seriesObj = {};
+
+        columnList.forEach((col) => {
+          trendObj[col] = globalDelta;           // same delta for every column
+          seriesObj[col] = primaryTrendSeries;   // sparkline same for each column
+        });
+
+        return {
+          kpi: item.kpi,
+          ...item.values,
+          trend: trendObj,
+          series: seriesObj,
+        };
+      });
+    };
+
+    // ---------------- PLATFORM ----------------
+    const platformData = {
+      columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+      rows: buildRows(
+        FORMAT_MATRIX_Visibility.PlatformData,
+        FORMAT_MATRIX_Visibility.PlatformColumns
+      ),
+    };
+
+    // ---------------- FORMAT ----------------
+    const formatData = {
+      columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+      rows: buildRows(
+        FORMAT_MATRIX_Visibility.FormatData,
+        FORMAT_MATRIX_Visibility.formatColumns
+      ),
+    };
+
+    // ---------------- CITY ----------------
+    const cityData = {
+      columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+      rows: buildRows(
+        FORMAT_MATRIX_Visibility.CityData,
+        FORMAT_MATRIX_Visibility.CityColumns
+      ),
+    };
+
+    // ---------------- TABS ----------------
+    const tabs = [
+      { key: "platform", label: "Platform", data: platformData },
+      { key: "format", label: "Format", data: formatData },
+      { key: "city", label: "City", data: cityData },
+    ];
+
+    const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+    return (
+      <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+
+        {/* -------- TABS -------- */}
+        <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-4 py-1.5 text-sm rounded-full transition-all 
+              ${activeTab === t.key
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* -------- MATRIX TABLE -------- */}
+        <CityKpiTrendShowcase
+          dynamicKey="visibility"
+          data={active.data}
+          title={active.label}
+          showPagination={true}
+          kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
+        />
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-6 text-slate-900">
-      <div className="mx-auto max-w-7xl space-y-4">
 
-        {/* HEADER */}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
+    <div className="mx-auto max-w-7xl space-y-4">
+
+      {/* HEADER */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        {/* <div>
             <p className="text-xs uppercase tracking-[0.25em] text-sky-600">Visibility KPI Studio</p>
             <h1 className="text-2xl font-bold">Visibility Workspace</h1>
             <p className="text-sm text-slate-500">Premium analytics studio for Visibility Share</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          </div> */}
+        {/* <div className="flex flex-wrap gap-2">
             {['Insights', 'Actionable', 'Live filters'].map((c) => (
               <span key={c} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
                 {c}
               </span>
             ))}
-          </div>
+          </div> */}
+      </div>
+
+      {/* MODAL SECTION */}
+      <MetricCardContainer title="Visibility Overview" cards={cards} />
+      <TabbedHeatmapTable />
+      {/* PULSEBOARD */}
+      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <DrillHeatTable
+            data={sampleData}
+            title="Keyword level Sos"
+            levels={["Format", "Region", "City"]}
+            columns={[
+              { key: "spend", label: "Spend", isPercent: false },
+              { key: "m1", label: "M-1", isPercent: false },
+              { key: "m2", label: "M-2", isPercent: false },
+              { key: "conv", label: "Conv", isPercent: true },
+              { key: "m1c", label: "M-1 Conv", isPercent: true },
+              { key: "m2c", label: "M-2 Conv", isPercent: true },
+            ]}
+            computeQuarterValues={(values, q) => values} // your custom logic
+            computeRowAvg={(vals) => "3.1%"}             // your custom logic
+            getHeatStyle={(v) => ({ bg: "#d1fae5", color: "#065f46" })}
+          />
+
         </div>
-
-        {/* FILTER BAR */}
-        <div className="sticky top-4 z-10 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
-          <div className="flex flex-wrap items-center gap-3">
-            <select className="h-10 rounded-xl border border-slate-200 px-3 text-sm focus:border-slate-400">
-              <option>Category: All</option>
-              <option>Hair Care</option>
-              <option>Personal Care</option>
-            </select>
-            <select className="h-10 rounded-xl border border-slate-200 px-3 text-sm focus:border-slate-400">
-              <option>Country: India</option>
-              <option>United Kingdom</option>
-              <option>Germany</option>
-            </select>
-            <select className="h-10 rounded-xl border border-slate-200 px-3 text-sm focus:border-slate-400">
-              <option>Channel: All</option>
-              <option>Distributor</option>
-              <option>Store</option>
-              <option>Web</option>
-            </select>
-
-            <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-600">
-              {['Overall', 'Sponsored', 'Organic'].map((m) => (
-                <button key={m} className="px-3 py-1 rounded-full bg-white shadow-sm text-slate-900">
-                  {m}
-                </button>
-              ))}
-            </div>
-
-            <div className="ml-auto flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-              <SearchIcon className="text-slate-400" fontSize="small" />
-              <input className="w-48 bg-transparent focus:outline-none" placeholder="Search city" />
-            </div>
-          </div>
-        </div>
-
-        {/* KPI TILES */}
-        <div className="grid gap-3 md:grid-cols-3">
-          {kpiData.tiles.map((tile) => (
-            <KpiTile key={tile.title} {...tile} filtersLabel={kpiData.filters} />
-          ))}
-        </div>
-
-        {/* CATEGORY CARDS */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2">
-              <p className="text-lg font-semibold text-slate-900">Category</p>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                Overall / Ad / Display Visibility Share
-              </span>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-              <SearchIcon className="text-slate-400" fontSize="small" />
-              <input className="w-48 bg-transparent focus:outline-none" placeholder="Search category" />
-            </div>
-          </div>
+          <DrillHeatTable
+            data={sampleData}
+            title="Sos Across Category"
+            levels={["Format", "Region", "City"]}
+            columns={[
+              { key: "spend", label: "Spend", isPercent: false },
+              { key: "m1", label: "M-1", isPercent: false },
+              { key: "m2", label: "M-2", isPercent: false },
+              { key: "conv", label: "Conv", isPercent: true },
+              { key: "m1c", label: "M-1 Conv", isPercent: true },
+              { key: "m2c", label: "M-2 Conv", isPercent: true },
+            ]}
+            computeQuarterValues={(values, q) => values} // your custom logic
+            computeRowAvg={(vals) => "3.1%"}             // your custom logic
+            getHeatStyle={(v) => ({ bg: "#d1fae5", color: "#065f46" })}
+          />
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            {categoryCards.map((cat) => (
+        // </div> */}
+      {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <VisibilityDrilldownTable />
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+            {["All", "Branded", "Competitor", "Generic"].map((tab) => (
               <button
-                key={cat.name}
-                onClick={() => setActiveCategory(cat)}
-                className={`group flex h-full flex-col gap-2 rounded-2xl border ${
-                  activeCategory.name === cat.name ? 'border-sky-400 bg-sky-50' : 'border-slate-200 bg-slate-50/60'
-                } p-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg`}
+                key={tab}
+                onClick={() => setTopSearchFilter(tab)}
+                className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-800">{cat.name}</div>
-                  <span className={`text-xs font-semibold ${cat.status === 'up' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {cat.status === 'up' ? '▲' : '▼'} {Math.abs(cat.deltaOverall).toFixed(1)}%
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600">
-                  <div>
-                    <div className="font-semibold text-slate-800">{cat.overall.toFixed(1)}%</div>
-                    <div className="text-rose-600">{cat.deltaOverall.toFixed(1)}%</div>
-                    <div className="text-slate-500">Overall</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-800">{cat.ad.toFixed(1)}%</div>
-                    <div className="text-rose-600">{cat.deltaAd.toFixed(1)}%</div>
-                    <div className="text-slate-500">Sponsored</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-800">{cat.display.toFixed(1)}%</div>
-                    <div className="text-rose-600">{cat.deltaDisplay.toFixed(1)}%</div>
-                    <div className="text-slate-500">Display</div>
-                  </div>
-                </div>
-
-                {/* SMALL SPARKLINE */}
-                <div className="h-12 w-full">
-                  <ResponsiveContainer>
-                    <AreaChart data={cat.trend.map((v, i) => ({ idx: i, value: v }))} margin={{ top: 4, right: 6, left: -10, bottom: 0 }}>
-                      <XAxis dataKey="idx" hide />
-                      <YAxis hide domain={['auto', 'auto']} />
-                      <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
-                      <Area type="monotone" dataKey="value" stroke="#0ea5e9" strokeWidth={2} fill="rgba(14,165,233,0.15)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* CATEGORY ACTIONS */}
-                {/* <div className="mt-auto flex flex-wrap gap-1">
-                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'trends', context: cat.name }) }}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    My Trends
-                  </button>
-
-                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'competition', context: cat.name }) }}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    Competition Trends
-                  </button>
-
-                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'insights', context: cat.name }) }}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    Key Insights
-                  </button>
-
-                  <button onClick={(e) => { e.stopPropagation(); setModal({ type: 'cross', context: cat.name }) }}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    Cross Platform
-                  </button>
-                </div> */}
-
-                                <div className="mt-auto flex flex-wrap gap-1">
-                  <button onClick={{}}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    My Trends
-                  </button>
-
-                  <button onClick={{}}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    Competition Trends
-                  </button>
-
-                  <button onClick={{}}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    Key Insights
-                  </button>
-
-                  <button onClick={{}}
-                    className="rounded-full border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                    Cross Platform
-                  </button>
-                </div>
+                {tab}
               </button>
             ))}
           </div>
         </div>
-
-        {/* TREND + COUNTRY */}
-        <div className="grid gap-3 lg:grid-cols-2">
-          <YearTrendChart data={yearTrendData} />
-          <CountryBarChart data={countryData} avg={56.2} onCountrySelect={(code) => console.log('select country', code)} />
-        </div>
-
-        {/* CHANNEL STACK + PRODUCT TABLE */}
-        <div className="grid gap-3 lg:grid-cols-[2fr_1.2fr]">
-          <ChannelStackedChart data={channelData} metric={metric} onMetricChange={setMetric} />
-          <ProductHeatTable data={productData} />
-        </div>
-
-        {/* PULSEBOARD */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3">
-            <p className="text-sm font-semibold text-slate-800">Visibility Pulseboards</p>
-            <p className="text-xs text-slate-500">City level momentum</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            {pulseData.map((p) => (
-              <VisibilityPulseCard
-                key={p.city}
-                {...p}
-                onDrilldown={() => setActiveCity(p)}
-                onInsights={() => setModal({ type: 'insights', context: p.city })}
-                onTrends={() => setModal({ type: 'trends', context: p.city })}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* PIVOT STUDIO */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-2">
-            <p className="text-sm font-semibold text-slate-800">Pivot Studio</p>
-            <p className="text-xs text-slate-500">Drag fields, build ratios, and switch view.</p>
-          </div>
-          <CustomPivotWorkbench data={pivotRows} fields={pivotFields} />
-        </div>
-
-        {/* MODAL SECTION */}
-        {modal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-            <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
-                  <p className="text-xs text-slate-500">Interactive view</p>
-                </div>
-                <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
-                  <CloseIcon fontSize="small" />
-                </button>
+        <TopSearchTerms filter={topSearchFilter} />
+      </div>
+      {/* <SignalLabVisibility type="visibility" /> */}
+      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <VisibilityLayoutOne />
+        </div> */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
+                <p className="text-xs text-slate-500">Interactive view</p>
               </div>
+              <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
+                <CloseIcon fontSize="small" />
+              </button>
+            </div>
 
-              {/* COMPETITION MODAL */}
-              {modal.type === 'competition' && (
-                <div className="space-y-3">
-                  {/* TAG SELECTOR */}
-                  <div className="flex flex-wrap gap-2">
-                    {competitorSeries.map((c) => {
-                      const active = selectedCompetitors.includes(c.name)
-                      return (
-                        <button
-                          key={c.name}
-                          onClick={() => {
-                            const set = new Set(selectedCompetitors)
-                            if (set.has(c.name)) set.delete(c.name)
-                            else set.add(c.name)
-                            setSelectedCompetitors(Array.from(set))
-                          }}
-                          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                            active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
+            {/* COMPETITION MODAL */}
+            {modal.type === 'competition' && (
+              <div className="space-y-3">
+                {/* TAG SELECTOR */}
+                <div className="flex flex-wrap gap-2">
+                  {competitorSeries.map((c) => {
+                    const active = selectedCompetitors.includes(c.name)
+                    return (
+                      <button
+                        key={c.name}
+                        onClick={() => {
+                          const set = new Set(selectedCompetitors)
+                          if (set.has(c.name)) set.delete(c.name)
+                          else set.add(c.name)
+                          setSelectedCompetitors(Array.from(set))
+                        }}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
                           }`}
-                        >
-                          {c.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* COMPETITOR LINE CHART */}
-                  <div className="h-80">
-                    <ResponsiveContainer>
-                      <LineChart
-                        data={competitorSeries[0].values.map((_, idx) => {
-                          const point = { date: competitorSeries[0].values[idx].date }
-                          competitorSeries.forEach((c) => {
-                            point[c.name] = c.values[idx]?.value ?? 0
-                          })
-                          return point
-                        })}
                       >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
-                        <Legend />
-                        {competitorSeries
-                          .filter((c) => selectedCompetitors.includes(c.name))
-                          .map((c) => (
-                            <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
-                          ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                        {c.name}
+                      </button>
+                    )
+                  })}
                 </div>
-              )}
 
-              {/* CATEGORY TREND MODAL */}
-              {modal.type === 'trends' && (
+                {/* COMPETITOR LINE CHART */}
                 <div className="h-80">
                   <ResponsiveContainer>
                     <LineChart
-                      data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
+                      data={competitorSeries[0].values.map((_, idx) => {
+                        const point = { date: competitorSeries[0].values[idx].date }
+                        competitorSeries.forEach((c) => {
+                          point[c.name] = c.values[idx]?.value ?? 0
+                        })
+                        return point
+                      })}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="idx" />
-                      <YAxis />
-                      <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
                       <Legend />
-                      <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
+                      {competitorSeries
+                        .filter((c) => selectedCompetitors.includes(c.name))
+                        .map((c) => (
+                          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
+                        ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* INSIGHTS MODAL */}
-              {modal.type === 'insights' && (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Gainers</p>
-                    <ul className="mt-2 space-y-1 text-xs">
-                      {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
-                        <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
-                          <span>{b}</span>
-                          <span className="font-semibold text-emerald-600">+0.8%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            {/* CATEGORY TREND MODAL */}
+            {modal.type === 'trends' && (
+              <div className="h-80">
+                <ResponsiveContainer>
+                  <LineChart
+                    data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="idx" />
+                    <YAxis />
+                    <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
+                    <Legend />
+                    <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Drainers</p>
-                    <ul className="mt-2 space-y-1 text-xs">
-                      {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
-                        <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
-                          <span>{b}</span>
-                          <span className="font-semibold text-rose-600">-0.6%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            {/* INSIGHTS MODAL */}
+            {modal.type === 'insights' && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Gainers</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
+                      <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
+                        <span>{b}</span>
+                        <span className="font-semibold text-emerald-600">+0.8%</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              )}
 
-              {/* CROSS PLATFORM MODAL */}
-              {modal.type === 'cross' && (
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Date comparison</p>
-                    <p className="text-xs text-slate-500">Custom vs Previous month</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
-                    <p className="text-xs text-slate-500">Distributor · Store · Web</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Customer selection</p>
-                    <p className="text-xs text-slate-500">All customers · Custom segments</p>
-                  </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Drainers</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
+                      <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
+                        <span>{b}</span>
+                        <span className="font-semibold text-rose-600">-0.6%</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* CROSS PLATFORM MODAL */}
+            {modal.type === 'cross' && (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Date comparison</p>
+                  <p className="text-xs text-slate-500">Custom vs Previous month</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
+                  <p className="text-xs text-slate-500">Distributor · Store · Web</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-800">Customer selection</p>
+                  <p className="text-xs text-slate-500">All customers · Custom segments</p>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-      </div>
     </div>
   )
 }

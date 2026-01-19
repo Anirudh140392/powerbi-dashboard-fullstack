@@ -616,9 +616,8 @@ const OlaLightThemeDashboard = () => {
                   setLevel('Platform')
                   selectItem(p.name)
                 }}
-                className={`relative h-36 rounded-2xl border bg-white flex flex-col items-center justify-center gap-1 px-2 transition-colors ${
-                  activeItem === p.name ? 'border-slate-900/80' : 'border-slate-100 hover:border-slate-300'
-                }`}
+                className={`relative h-36 rounded-2xl border bg-white flex flex-col items-center justify-center gap-1 px-2 transition-colors ${activeItem === p.name ? 'border-slate-900/80' : 'border-slate-100 hover:border-slate-300'
+                  }`}
               >
                 <ResponsiveContainer width="100%" height="70%">
                   <RadialBarChart
@@ -659,18 +658,16 @@ const OlaLightThemeDashboard = () => {
               <button
                 disabled={!canGoBack}
                 onClick={goBack}
-                className={`rounded-full border px-2 py-1 ${
-                  canGoBack ? 'border-slate-300 text-slate-600 hover:bg-slate-50' : 'border-slate-100 text-slate-300 cursor-not-allowed'
-                }`}
+                className={`rounded-full border px-2 py-1 ${canGoBack ? 'border-slate-300 text-slate-600 hover:bg-slate-50' : 'border-slate-100 text-slate-300 cursor-not-allowed'
+                  }`}
               >
                 ← Back
               </button>
               <button
                 disabled={!canGoForward}
                 onClick={goForward}
-                className={`rounded-full border px-2 py-1 ${
-                  canGoForward ? 'border-slate-900 text-slate-900 bg-slate-900/5 hover:bg-slate-900/10' : 'border-slate-100 text-slate-300 cursor-not-allowed'
-                }`}
+                className={`rounded-full border px-2 py-1 ${canGoForward ? 'border-slate-900 text-slate-900 bg-slate-900/5 hover:bg-slate-900/10' : 'border-slate-100 text-slate-300 cursor-not-allowed'
+                  }`}
               >
                 Forward →
               </button>
@@ -682,13 +679,12 @@ const OlaLightThemeDashboard = () => {
               <button
                 key={b}
                 onClick={() => setLevel(b)}
-                className={`rounded-full px-3 py-1 border transition-all flex items-center gap-1 ${
-                  b === level
-                    ? 'border-slate-900 bg-slate-900 text-slate-50'
-                    : idx < currentIndex
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-slate-200 bg-slate-50 text-slate-500'
-                }`}
+                className={`rounded-full px-3 py-1 border transition-all flex items-center gap-1 ${b === level
+                  ? 'border-slate-900 bg-slate-900 text-slate-50'
+                  : idx < currentIndex
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-500'
+                  }`}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 <span>{b}</span>
@@ -820,14 +816,68 @@ const MatrixPlatformFormat = () => {
   const [expandedRegions, setExpandedRegions] = useState({})
   const [expandedQuarters, setExpandedQuarters] = useState({ Q1: true, Q2: true })
 
+  // Pagination state
+  const [rowsPerPage, setRowsPerPage] = useState(5)
+  const [page, setPage] = useState(1)
+
   const platforms = useMemo(
     () => Array.from(new Set(cityMonthData.map((r) => r.platform))),
     [],
   )
+
   const regionsFor = (p) =>
     Array.from(new Set(cityMonthData.filter((r) => r.platform === p).map((r) => r.region)))
   const citiesFor = (p, r) =>
     cityMonthData.filter((row) => row.platform === p && row.region === r)
+
+  // Build flattened list of all visible rows based on expansion state
+  const visibleRows = useMemo(() => {
+    const rows = []
+    platforms.forEach((p) => {
+      // Add platform row
+      rows.push({ type: 'platform', platform: p })
+
+      // Add region rows if platform is expanded
+      if (expandedPlatforms[p]) {
+        const regions = regionsFor(p)
+        regions.forEach((r) => {
+          rows.push({ type: 'region', platform: p, region: r })
+
+          // Add city rows if region is expanded
+          if (expandedRegions[`${p}|${r}`]) {
+            const cities = citiesFor(p, r)
+            cities.forEach((c) => {
+              rows.push({ type: 'city', platform: p, region: r, city: c.city })
+            })
+          }
+        })
+      }
+    })
+    return rows
+  }, [platforms, expandedPlatforms, expandedRegions])
+
+  // Pagination calculations based on total visible rows
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / rowsPerPage))
+  const safePage = Math.max(1, Math.min(page, totalPages))
+
+  // Get paginated rows
+  const paginatedRows = useMemo(() => {
+    const start = (safePage - 1) * rowsPerPage
+    const end = start + rowsPerPage
+    return visibleRows.slice(start, end)
+  }, [visibleRows, safePage, rowsPerPage])
+
+  // Get unique platforms from paginated rows to render
+  const paginatedPlatforms = useMemo(() => {
+    return Array.from(new Set(paginatedRows.map(row => row.platform)))
+  }, [paginatedRows])
+
+  // Reset page when visible rows change (due to expand/collapse)
+  React.useEffect(() => {
+    if (page > totalPages) {
+      setPage(1)
+    }
+  }, [visibleRows.length])
 
   const rowKey = (platform, region, city) =>
     [platform, region || '-', city || '-'].join('|')
@@ -896,9 +946,8 @@ const MatrixPlatformFormat = () => {
 
     return {
       value,
-      label: `${selection.platform}${
-        selection.region ? ' · ' + selection.region : ''
-      }${selection.city ? ' · ' + selection.city : ''}`,
+      label: `${selection.platform}${selection.region ? ' · ' + selection.region : ''
+        }${selection.city ? ' · ' + selection.city : ''}`,
       bucket: `${quarterLabel} · ${monthLabel}`,
       quarterAvg,
       networkAvg,
@@ -1187,20 +1236,28 @@ const MatrixPlatformFormat = () => {
           </thead>
           <tbody>
             <AnimatePresence initial={false}>
-              {platforms.map((p) => {
+              {paginatedPlatforms.map((p) => {
                 const pExpanded = expandedPlatforms[p]
+                // Check if this platform row is in the paginated set
+                const showPlatformRow = paginatedRows.some(row => row.type === 'platform' && row.platform === p)
+
                 return (
                   <React.Fragment key={p}>
-                    {renderRow(p)}
+                    {showPlatformRow && renderRow(p)}
                     {pExpanded &&
                       regionsFor(p).map((r) => {
                         const rKey = `${p}|${r}`
                         const rExpanded = expandedRegions[rKey]
+                        // Check if this region row is in the paginated set
+                        const showRegionRow = paginatedRows.some(row => row.type === 'region' && row.platform === p && row.region === r)
+
                         return (
                           <React.Fragment key={rKey}>
-                            {renderRow(p, r)}
+                            {showRegionRow && renderRow(p, r)}
                             {rExpanded &&
-                              citiesFor(p, r).map((c) => renderRow(p, r, c.city))}
+                              citiesFor(p, r)
+                                .filter((c) => paginatedRows.some(row => row.type === 'city' && row.platform === p && row.region === r && row.city === c.city))
+                                .map((c) => renderRow(p, r, c.city))}
                           </React.Fragment>
                         )
                       })}
@@ -1210,6 +1267,50 @@ const MatrixPlatformFormat = () => {
             </AnimatePresence>
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination - Performance Marketing Style */}
+      <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+        <div className="flex items-center gap-2">
+          <button
+            disabled={safePage === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+          >
+            Prev
+          </button>
+
+          <span className="text-slate-600">
+            Page <b className="text-slate-900">{safePage}</b> / {totalPages}
+          </span>
+
+          <button
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+          >
+            Next
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-slate-600">
+            Rows/page
+            <select
+              value={rowsPerPage}
+              onChange={(e) => {
+                setPage(1)
+                setRowsPerPage(Number(e.target.value))
+              }}
+              className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs mt-3">
@@ -1445,9 +1546,8 @@ const QuarterlyDrilldownGrid = () => {
               <motion.button
                 key={key}
                 onClick={() => setActiveKpi(key)}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${
-                  isActive ? 'text-slate-900' : 'text-slate-500'
-                }`}
+                className={`relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isActive ? 'text-slate-900' : 'text-slate-500'
+                  }`}
                 whileHover={{ y: -1 }}
               >
                 {isActive && (
@@ -1631,9 +1731,8 @@ const FormatPerformanceStudio = () => {
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
-                  isActive ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white/70 hover:bg-slate-50'
-                }`}
+                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white/70 hover:bg-slate-50'
+                  }`}
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: 'spring', stiffness: 260, damping: 20 }}
               >
@@ -1793,9 +1892,8 @@ const FormatPerformanceStudio = () => {
                   <motion.button
                     key={f.name}
                     onClick={() => setCompareName((prev) => (prev === f.name ? null : f.name))}
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
-                      isCompare ? 'border-violet-500 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
-                    }`}
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare ? 'border-violet-500 bg-violet-50 shadow-sm' : 'border-slate-200 bg-white/80 hover:bg-slate-50'
+                      }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
@@ -1866,11 +1964,10 @@ const FormatDrillDownTable = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 text-sm rounded-xl border transition-all ${
-                activeTab === tab
-                  ? 'border-slate-900 text-slate-900 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]'
-                  : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300'
-              }`}
+              className={`px-3 py-2 text-sm rounded-xl border transition-all ${activeTab === tab
+                ? 'border-slate-900 text-slate-900 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]'
+                : 'border-slate-200 text-slate-600 bg-white hover:border-slate-300'
+                }`}
             >
               {tab}
             </button>
@@ -2051,9 +2148,8 @@ export const PowerBiDashboard = () => {
                     key={option.key}
                     type="button"
                     onClick={() => setMarketShareMode(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${
-                      marketShareMode === option.key ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${marketShareMode === option.key ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                      }`}
                     aria-pressed={marketShareMode === option.key}
                   >
                     {option.label}

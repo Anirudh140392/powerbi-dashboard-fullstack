@@ -7,13 +7,12 @@ import {
 } from "@mui/material";
 
 import {
-  
+
   Menu as MenuIcon,
 } from "@mui/icons-material";
 
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
+import DateRangeComparePicker from "../../CommonLayout/DateRangeComparePicker";
 
 const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
   const [timeStart, setTimeStart] = React.useState(dayjs("2025-10-01"));
@@ -58,7 +57,7 @@ const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
           </IconButton>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          
+
 
             <Typography variant="h6" sx={{ fontWeight: 700, color: "#111827" }}>
               {title}
@@ -67,49 +66,29 @@ const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
         </Box>
 
         {/* DATE PICKERS SECTION */}
-        <Box sx={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {/* TIME PERIOD */}
+        <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "flex-end" }}>
+          {/* INTEGRATED DATE PICKER */}
           <Box>
             <Typography sx={{ fontSize: "0.7rem", fontWeight: 600, color: "#6b7280", mb: 0.5 }}>
               TIME PERIOD
             </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DatePicker
-                format="DD MMM YY"
-                value={timeStart}
-                onChange={(v) => setTimeStart(v)}
-                slotProps={{ textField: { size: "small", sx: { width: 135 } } }}
-              />
-              <ArrowForwardIcon sx={{ color: "#6b7280", fontSize: 18 }} />
-              <DatePicker
-                format="DD MMM YY"
-                value={timeEnd}
-                onChange={(v) => setTimeEnd(v)}
-                slotProps={{ textField: { size: "small", sx: { width: 135 } } }}
-              />
-            </Box>
-          </Box>
-
-          {/* COMPARE WITH */}
-          <Box>
-            <Typography sx={{ fontSize: "0.7rem", fontWeight: 600, color: "#6b7280", mb: 0.5 }}>
-              COMPARE WITH
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DatePicker
-                format="DD MMM YY"
-                value={compareStart}
-                onChange={(v) => setCompareStart(v)}
-                slotProps={{ textField: { size: "small", sx: { width: 135 } } }}
-              />
-              <ArrowForwardIcon sx={{ color: "#6b7280", fontSize: 18 }} />
-              <DatePicker
-                format="DD MMM YY"
-                value={compareEnd}
-                onChange={(v) => setCompareEnd(v)}
-                slotProps={{ textField: { size: "small", sx: { width: 135 } } }}
-              />
-            </Box>
+            <DateRangeComparePicker
+              timeStart={timeStart}
+              timeEnd={timeEnd}
+              compareStart={compareStart}
+              compareEnd={compareEnd}
+              onApply={(start, end, cStart, cEnd, compareOn) => {
+                setTimeStart(start);
+                setTimeEnd(end);
+                if (compareOn) {
+                  setCompareStart(cStart);
+                  setCompareEnd(cEnd);
+                } else {
+                  setCompareStart(null);
+                  setCompareEnd(null);
+                }
+              }}
+            />
           </Box>
         </Box>
       </Box>
@@ -143,7 +122,7 @@ const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
 
         {/* MRP / SP Toggle */}
         <Box sx={{ display: "flex", gap: 1 }}>
-          
+
           <Button
             variant={priceMode === "MRP" ? "contained" : "outlined"}
             onClick={() => setPriceMode("MRP")}
