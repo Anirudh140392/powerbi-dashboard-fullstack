@@ -6,7 +6,7 @@
 //  + TREND / RPI TABS with Dual RPI Charts
 // --------------------------------------------------------------
 
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   Box,
   Grid,
@@ -79,7 +79,8 @@ import {
   StackedBarChart,
 } from "@mui/icons-material";
 
-import ReactECharts from "echarts-for-react";
+import EChartsWrapper from "../EChartsWrapper";
+import axiosInstance from "../../api/axiosInstance";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -152,9 +153,8 @@ const SKU_ROWS = Array.from({ length: 60 }).map((_, i) => ({
   date: `2${(i % 9) + 1} Nov 2025`,
   platform: PLATFORMS[i % PLATFORMS.length],
   brand: BRANDS[i % BRANDS.length],
-  product: `${BRANDS[i % BRANDS.length]} ${
-    ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
-  } Tub`,
+  product: `${BRANDS[i % BRANDS.length]} ${["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
+    } Tub`,
   skuType: i % 2 === 0 ? "Own" : "Competition",
   format: FORMATS[i % FORMATS.length],
   flavour: ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4],
@@ -313,9 +313,8 @@ const OWN_VS_COMP_ROWS = Array.from({ length: 10 }).map((_, i) => ({
   id: i + 1,
   brandOwn: BRANDS[i % BRANDS.length],
   brandComp: BRANDS.slice().reverse()[i % BRANDS.length],
-  product: `${BRANDS[i % BRANDS.length]} ${
-    ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
-  } Tub`,
+  product: `${BRANDS[i % BRANDS.length]} ${["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
+    } Tub`,
   platform: PLATFORMS[i % PLATFORMS.length],
   ownECP: makeRandom(120, 240),
   compECP: makeRandom(130, 260),
@@ -352,12 +351,14 @@ const SuperTable = ({
     }, {})
   );
   const [sortConfig, setSortConfig] = useState(null); // { id, direction }
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1); // 1-indexed instead of 0
   const [rowsPerPage, setRowsPerPage] = useState(7);
   const [density, setDensity] = useState(initialDensity);
   const [anchorElColumns, setAnchorElColumns] = useState(null);
   const [selected, setSelected] = useState([]);
   const [expanded, setExpanded] = useState({});
+
+
 
   const handleSort = (col) => {
     if (!col.sortable) return;
@@ -377,13 +378,9 @@ const SuperTable = ({
     }));
   };
 
-  const handleChangePage = (_, newPage) => {
-    setPage(newPage);
-  };
-
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    setPage(1); // Reset to page 1 when changing rows per page
   };
 
   const handleSelectAllClick = (event, processedRows) => {
@@ -478,13 +475,16 @@ const SuperTable = ({
   }, [rows, globalSearch, sortConfig, columns, visibleColumns]);
 
   const paginatedRows = useMemo(() => {
-    const start = page * rowsPerPage;
+    const start = (page - 1) * rowsPerPage; // 1-indexed page
     return processedRows.slice(start, start + rowsPerPage);
   }, [processedRows, page, rowsPerPage]);
 
   const numSelected = selected.length;
   const rowCount = processedRows.length;
   const visibleCols = columns.filter((c) => visibleColumns[c.id]);
+
+  const totalPages = Math.max(1, Math.ceil(rowCount / rowsPerPage));
+  const safePage = Math.max(1, Math.min(page, totalPages));
 
   return (
     <Card
@@ -761,10 +761,11 @@ const SuperTable = ({
         </Table>
       </TableContainer>
 
+      {/* Pagination - OSA% Detail View Style */}
       <Box
         sx={{
           px: 2,
-          py: 1,
+          py: 1.5,
           borderTop: "1px solid",
           borderColor: "divider",
           display: "flex",
@@ -773,18 +774,86 @@ const SuperTable = ({
           bgcolor: "rgba(250,250,252,0.9)",
         }}
       >
-        <Typography variant="caption" color="text.secondary">
-          Showing {paginatedRows.length} of {rowCount} rows
-        </Typography>
-        <TablePagination
-          component="div"
-          count={rowCount}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[7, 10, 25, 50]}
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <button
+            disabled={safePage === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            style={{
+              fontSize: "11px",
+              padding: "4px 12px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              cursor: safePage === 1 ? "not-allowed" : "pointer",
+              opacity: safePage === 1 ? 0.4 : 1,
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              safePage !== 1 && (e.target.style.background = "rgb(248, 250, 252)")
+            }
+            onMouseLeave={(e) => (e.target.style.background = "white")}
+          >
+            Prev
+          </button>
+
+          <Typography variant="caption" sx={{ fontSize: "11px", color: "rgb(100, 116, 139)" }}>
+            Page <strong style={{ color: "rgb(15, 23, 42)" }}>{safePage}</strong> /{" "}
+            {totalPages}
+          </Typography>
+
+          <button
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            style={{
+              fontSize: "11px",
+              padding: "4px 12px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              cursor: safePage >= totalPages ? "not-allowed" : "pointer",
+              opacity: safePage >= totalPages ? 0.4 : 1,
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              safePage < totalPages &&
+              (e.target.style.background = "rgb(248, 250, 252)")
+            }
+            onMouseLeave={(e) => (e.target.style.background = "white")}
+          >
+            Next
+          </button>
+        </Stack>
+
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Typography variant="caption" sx={{ fontSize: "11px", color: "rgb(100, 116, 139)" }}>
+            Rows/page
+          </Typography>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => {
+              setPage(1);
+              setRowsPerPage(Number(e.target.value));
+            }}
+            style={{
+              fontSize: "11px",
+              padding: "4px 8px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value={5}>5</option>
+            <option value={7}>7</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </Stack>
       </Box>
     </Card>
   );
@@ -1104,6 +1173,25 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
 
 export default function PricingAnalysisData() {
   const [chartTab, setChartTab] = useState("discount");
+  const calledOnce = useRef(false);
+
+  useEffect(() => {
+    if (calledOnce.current) return;
+    calledOnce.current = true;
+
+    const fetchPricingData = async () => {
+      try {
+        const response = await axiosInstance.get('/pricing-analysis', {
+          params: { platform: 'Blinkit' } // Default filter
+        });
+        console.log("Pricing Analysis Data:", response.data);
+      } catch (error) {
+        console.error("Error fetching Pricing Analysis data:", error);
+      }
+    };
+
+    fetchPricingData();
+  }, []);
   const [filters, setFilters] = useState(defaultFilters);
   const [openPopup, setOpenPopup] = useState(false);
   const [tab, setTab] = useState("overview");
@@ -1296,8 +1384,8 @@ export default function PricingAnalysisData() {
       const areaStyle =
         chartGradient && (chartType === "area" || chartType === "line")
           ? {
-              opacity: 0.18,
-            }
+            opacity: 0.18,
+          }
           : undefined;
 
       return {
@@ -2351,11 +2439,9 @@ export default function PricingAnalysisData() {
             </Menu>
 
             <Box sx={{ mt: 1, height: 320 }}>
-              <ReactECharts
-                ref={chartRef}
+              <EChartsWrapper
                 option={discountChart}
                 style={{ height: "100%", width: "100%" }}
-                notMerge
               />
             </Box>
           </>
@@ -2366,17 +2452,15 @@ export default function PricingAnalysisData() {
           <Box sx={{ mt: 1, height: 320 }}>
             <Grid container spacing={2} sx={{ height: "100%" }}>
               <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <ReactECharts
+                <EChartsWrapper
                   option={rpiFormatChart}
                   style={{ height: "100%", width: "100%" }}
-                  notMerge
                 />
               </Grid>
               <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <ReactECharts
+                <EChartsWrapper
                   option={rpiBrandChart}
                   style={{ height: "100%", width: "100%" }}
-                  notMerge
                 />
               </Grid>
             </Grid>
