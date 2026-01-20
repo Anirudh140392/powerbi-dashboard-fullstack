@@ -3,13 +3,15 @@ import RbPdpOlap from '../models/RbPdpOlap.js';
 import TbZeptoInventoryData from '../models/TbZeptoInventoryData.js';
 import { Op } from 'sequelize';
 import sequelize from '../config/db.js';
+import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 
 export const watchTowerOverview = async (req, res) => {
     {
         try {
             const filters = req.query;
             console.log("watch tower api call received", filters);
-            const data = await watchTowerService.getSummaryMetrics(filters);
+            const cacheKey = generateCacheKey('summary-metrics', filters);
+            const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getSummaryMetrics(filters), CACHE_TTL.METRICS);
             res.json(data);
         } catch (error) {
             console.error('Error fetching summary metrics:', error);
@@ -32,7 +34,8 @@ export const getTrendData = async (req, res) => {
             endDate: req.query.endDate
         };
         console.log("trend data api call received", filters);
-        const data = await watchTowerService.getTrendData(filters);
+        const cacheKey = generateCacheKey('trend-data', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getTrendData(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching trend data:', error);
@@ -43,7 +46,8 @@ export const getTrendData = async (req, res) => {
 export const getLatestAvailableMonth = async (req, res) => {
     try {
         const filters = req.query;
-        const latest = await watchTowerService.getLatestAvailableMonth(filters);
+        const cacheKey = generateCacheKey('latest-month', filters);
+        const latest = await getCachedOrCompute(cacheKey, () => watchTowerService.getLatestAvailableMonth(filters), CACHE_TTL.STATIC);
 
         if (!latest?.available) {
             return res.status(404).json({
@@ -61,7 +65,8 @@ export const getLatestAvailableMonth = async (req, res) => {
 
 export const getPlatforms = async (req, res) => {
     try {
-        const platforms = await watchTowerService.getPlatforms();
+        const cacheKey = 'watchtower:platforms:all';
+        const platforms = await getCachedOrCompute(cacheKey, () => watchTowerService.getPlatforms(), CACHE_TTL.VERY_STATIC);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching platforms:', error);
@@ -74,7 +79,8 @@ export const getBrands = async (req, res) => {
         const { platform, includeCompetitors } = req.query;
         // Convert string 'true' to boolean true
         const shouldIncludeCompetitors = includeCompetitors === 'true';
-        const brands = await watchTowerService.getBrands(platform, shouldIncludeCompetitors);
+        const cacheKey = `watchtower:brands:p_${platform || 'all'}:comp_${shouldIncludeCompetitors}`;
+        const brands = await getCachedOrCompute(cacheKey, () => watchTowerService.getBrands(platform, shouldIncludeCompetitors), CACHE_TTL.VERY_STATIC);
         res.json(brands);
     } catch (error) {
         console.error('Error fetching brands:', error);
@@ -85,7 +91,8 @@ export const getBrands = async (req, res) => {
 export const getKeywords = async (req, res) => {
     try {
         const { brand } = req.query;
-        const keywords = await watchTowerService.getKeywords(brand);
+        const cacheKey = `watchtower:keywords:b_${brand || 'all'}`;
+        const keywords = await getCachedOrCompute(cacheKey, () => watchTowerService.getKeywords(brand), CACHE_TTL.STATIC);
         res.json(keywords);
     } catch (error) {
         console.error('Error fetching keywords:', error);
@@ -98,7 +105,8 @@ export const getLocations = async (req, res) => {
         const { platform, brand, includeCompetitors } = req.query;
         // Convert string 'true' to boolean true
         const shouldIncludeCompetitors = includeCompetitors === 'true';
-        const locations = await watchTowerService.getLocations(platform, brand, shouldIncludeCompetitors);
+        const cacheKey = `watchtower:locations:p_${platform || 'all'}:b_${brand || 'all'}:comp_${shouldIncludeCompetitors}`;
+        const locations = await getCachedOrCompute(cacheKey, () => watchTowerService.getLocations(platform, brand, shouldIncludeCompetitors), CACHE_TTL.STATIC);
         res.json(locations);
     } catch (error) {
         console.error('Error fetching locations:', error);
@@ -109,7 +117,8 @@ export const getLocations = async (req, res) => {
 export const getBrandCategories = async (req, res) => {
     try {
         const { platform } = req.query;
-        const categories = await watchTowerService.getBrandCategories(platform);
+        const cacheKey = `watchtower:categories:p_${platform || 'all'}`;
+        const categories = await getCachedOrCompute(cacheKey, () => watchTowerService.getBrandCategories(platform), CACHE_TTL.STATIC);
         res.json(categories);
     } catch (error) {
         console.error('Error fetching brand categories:', error);
@@ -120,7 +129,8 @@ export const getBrandCategories = async (req, res) => {
 export const getMetrics = async (req, res) => {
     try {
         const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
-        const metrics = await getAllMetricKeys();
+        const cacheKey = 'metric_keys';
+        const metrics = await getCachedOrCompute(cacheKey, () => getAllMetricKeys(), CACHE_TTL.VERY_STATIC);
         res.json(metrics);
     } catch (error) {
         console.error('Error fetching metrics:', error);
@@ -220,7 +230,8 @@ export const getOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getOverview(filters);
+        const cacheKey = generateCacheKey('overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getOverview(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching overview:', error);
@@ -235,7 +246,8 @@ export const getPerformanceMetrics = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getPerformanceMetrics] API call received with filters:', filters);
-        const data = await watchTowerService.getPerformanceMetrics(filters);
+        const cacheKey = generateCacheKey('performance-metrics', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getPerformanceMetrics(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching performance metrics:', error);
@@ -250,7 +262,8 @@ export const getPlatformOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getPlatformOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getPlatformOverview(filters);
+        const cacheKey = generateCacheKey('platform-overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getPlatformOverview(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching platform overview:', error);
@@ -265,7 +278,8 @@ export const getMonthOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getMonthOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getMonthOverview(filters);
+        const cacheKey = generateCacheKey('month-overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getMonthOverview(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching month overview:', error);
@@ -280,7 +294,8 @@ export const getCategoryOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getCategoryOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getCategoryOverview(filters);
+        const cacheKey = generateCacheKey('category-overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getCategoryOverview(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching category overview:', error);
@@ -295,7 +310,8 @@ export const getBrandsOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getBrandsOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getBrandsOverview(filters);
+        const cacheKey = generateCacheKey('brands-overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getBrandsOverview(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching brands overview:', error);
@@ -320,7 +336,8 @@ export const getKpiTrends = async (req, res) => {
             endDate: req.query.endDate
         };
         console.log('[getKpiTrends] API call received with filters:', filters);
-        const data = await watchTowerService.getKpiTrends(filters);
+        const cacheKey = generateCacheKey('kpi-trends', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getKpiTrends(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('Error fetching KPI trends:', error);
@@ -335,7 +352,8 @@ export const getTrendsFilterOptions = async (req, res) => {
     try {
         const { filterType, platform, brand } = req.query;
         console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand });
+        const cacheKey = generateCacheKey('trends-filter-options', { filterType, platform, brand });
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getTrendsFilterOptions({ filterType, platform, brand }), CACHE_TTL.STATIC);
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);
@@ -360,8 +378,8 @@ export const getCompetition = async (req, res) => {
         };
 
         console.log('[getCompetition] Request:', filters);
-
-        const data = await watchTowerService.getCompetitionData(filters);
+        const cacheKey = generateCacheKey('competition', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getCompetitionData(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
         console.error('[getCompetition] Error:', error);
@@ -377,12 +395,12 @@ export const getCompetitionFilterOptions = async (req, res) => {
     try {
         const { location, category, brand } = req.query;
         console.log('[getCompetitionFilterOptions] API call with:', { location, category, brand });
-
-        const data = await watchTowerService.getCompetitionFilterOptions({
+        const cacheKey = generateCacheKey('competition-filter-options', { location, category, brand });
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getCompetitionFilterOptions({
             location,
             category,
             brand
-        });
+        }), CACHE_TTL.STATIC);
 
         res.json(data);
     } catch (error) {
@@ -399,13 +417,13 @@ export const getCompetitionBrandTrends = async (req, res) => {
     try {
         const { brands, location, category, period } = req.query;
         console.log('[getCompetitionBrandTrends] Request:', { brands, location, category, period });
-
-        const data = await watchTowerService.getCompetitionBrandTrends({
+        const cacheKey = generateCacheKey('competition-brand-trends', { brands, location, category, period });
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getCompetitionBrandTrends({
             brands,
             location,
             category,
             period
-        });
+        }), CACHE_TTL.METRICS);
 
         res.json(data);
     } catch (error) {
@@ -413,4 +431,3 @@ export const getCompetitionBrandTrends = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
-

@@ -30,6 +30,7 @@ import {
   TableRow,
   Select,
   MenuItem,
+  Skeleton,
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
@@ -417,6 +418,15 @@ export default function TrendsCompetitionDrawer({
   const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
   const [competitionLoading, setCompetitionLoading] = useState(false);
 
+  // State for dynamic trend filter options (for availability dynamicKey)
+  const [trendFilterOptions, setTrendFilterOptions] = useState({
+    platforms: [],
+    formats: [],
+    brands: [],
+    cities: []
+  });
+  const [filtersLoading, setFiltersLoading] = useState(false);
+
   // Fetch formats from API on mount
   useEffect(() => {
     const fetchFormats = async () => {
@@ -432,6 +442,44 @@ export default function TrendsCompetitionDrawer({
     };
     fetchFormats();
   }, []);
+
+  // Fetch dynamic filter options for trend dropdowns when drawer opens (for availability dynamicKey)
+  useEffect(() => {
+    if (!open || dynamicKey !== 'availability') return;
+
+    const fetchTrendFilters = async () => {
+      setFiltersLoading(true);
+      try {
+        const [platformsRes, formatsRes, brandsRes, citiesRes] = await Promise.all([
+          axiosInstance.get('/availability-analysis/filter-options', { params: { filterType: 'platforms' } }),
+          axiosInstance.get('/availability-analysis/filter-options', { params: { filterType: 'categories' } }),
+          axiosInstance.get('/availability-analysis/filter-options', { params: { filterType: 'brands' } }),
+          axiosInstance.get('/availability-analysis/filter-options', { params: { filterType: 'cities' } })
+        ]);
+
+        setTrendFilterOptions({
+          platforms: platformsRes.data?.options || [],
+          formats: formatsRes.data?.options || [],
+          brands: brandsRes.data?.options || [],
+          cities: citiesRes.data?.options || []
+        });
+
+        // Set default selected platform from the first option if available
+        if (platformsRes.data?.options?.length > 0) {
+          const firstPlatform = platformsRes.data.options.find(p => p !== 'All') || platformsRes.data.options[0];
+          if (firstPlatform) {
+            setSelectedPlatform(firstPlatform);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching trend filter options:', error);
+      } finally {
+        setFiltersLoading(false);
+      }
+    };
+
+    fetchTrendFilters();
+  }, [open, dynamicKey]);
 
   let DASHBOARD_DATA = {};
   if (dynamicKey === "performance_dashboard_tower") {
@@ -1321,11 +1369,19 @@ export default function TrendsCompetitionDrawer({
     fetchCompetitionData();
   }, [view, globalPlatform, globalLocation]);
 
-  // Dynamic options from FilterContext (filter out 'All' for pills)
-  const PLATFORM_OPTIONS = platforms.filter(p => p !== "All");
-  const FORMAT_OPTIONS = formatOptions.length > 0 ? formatOptions : ["Cassata", "Core Tubs", "Premium"];
-  const CITY_OPTIONS = locations.filter(l => l !== "All");
-  const BRAND_OPTIONS = brands.filter(b => b !== "All");
+  // Dynamic options from FilterContext or fetched API (for availability)
+  const PLATFORM_OPTIONS = dynamicKey === 'availability'
+    ? trendFilterOptions.platforms.filter(p => p !== "All")
+    : platforms.filter(p => p !== "All");
+  const FORMAT_OPTIONS = dynamicKey === 'availability'
+    ? trendFilterOptions.formats.filter(f => f !== "All")
+    : (formatOptions.length > 0 ? formatOptions : ["Cassata", "Core Tubs", "Premium"]);
+  const CITY_OPTIONS = dynamicKey === 'availability'
+    ? trendFilterOptions.cities.filter(l => l !== "All")
+    : locations.filter(l => l !== "All");
+  const BRAND_OPTIONS = dynamicKey === 'availability'
+    ? trendFilterOptions.brands.filter(b => b !== "All")
+    : brands.filter(b => b !== "All");
 
   // Fetch trend data when filters change
   useEffect(() => {
@@ -1362,7 +1418,11 @@ export default function TrendsCompetitionDrawer({
         if (audienceType === 'Format') params.category = selectedPlatform;
 
         console.log("Fetching trend data with params:", params);
-        const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+        // Use availability-specific endpoint for availability dynamicKey
+        const endpoint = dynamicKey === 'availability'
+          ? '/availability-analysis/kpi-trends'
+          : '/watchtower/kpi-trends';
+        const response = await axiosInstance.get(endpoint, { params });
 
         if (cancelled) return;
 
@@ -1695,7 +1755,9 @@ export default function TrendsCompetitionDrawer({
                       display: "flex",
                       gap: 0.5,
                       overflowX: "auto",
-                      maxWidth: "calc(100vw - 450px)", // Prevents overflow while leaving space for title/select
+                      flex: 1, // Take remaining space in parent flex container
+                      maxWidth: "600px", // Fixed max width that fits within typical drawer
+                      minWidth: 0, // Allow shrinking below content size
                       pb: 0.5, // Space for custom scrollbar
                       whiteSpace: "nowrap",
                       px: 0.5,
@@ -1714,43 +1776,56 @@ export default function TrendsCompetitionDrawer({
                       },
                     }}
                   >
-                    {(allTrendMeta.context.audience === "Platform"
-                      ? PLATFORM_OPTIONS
-                      : allTrendMeta.context.audience === "Format"
-                        ? FORMAT_OPTIONS
-                        : allTrendMeta.context.audience === "City"
-                          ? CITY_OPTIONS
-                          : allTrendMeta.context.audience === "Brand"
-                            ? BRAND_OPTIONS
-                            : []
-                    ).map((p) => (
-                      <Box
-                        key={p}
-                        onClick={() => {
-                          setSelectedPlatform(p); // only select the pill
-                        }}
-                        sx={{
-                          px: 1.5,
-                          py: 0.7,
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          border: "1px solid #E5E7EB",
-                          flexShrink: 0, // Prevent pills from shrinking
-                          backgroundColor:
-                            selectedPlatform === p ? "#0ea5e9" : "white",
-                          color: selectedPlatform === p ? "white" : "#0f172a",
-                          transition: "all 0.2s ease",
-                          "&:hover": {
-                            borderColor: selectedPlatform === p ? "#0ea5e9" : "#CBD5E1",
-                            backgroundColor: selectedPlatform === p ? "#0389c4" : "#F8FAFC",
-                          },
-                        }}
-                      >
-                        {p}
-                      </Box>
-                    ))}
+                    {filtersLoading ? (
+                      // Skeleton pills while loading
+                      Array.from({ length: 4 }).map((_, idx) => (
+                        <Skeleton
+                          key={idx}
+                          variant="rounded"
+                          width={80}
+                          height={32}
+                          sx={{ borderRadius: '999px', flexShrink: 0 }}
+                        />
+                      ))
+                    ) : (
+                      (allTrendMeta.context.audience === "Platform"
+                        ? PLATFORM_OPTIONS
+                        : allTrendMeta.context.audience === "Format"
+                          ? FORMAT_OPTIONS
+                          : allTrendMeta.context.audience === "City"
+                            ? CITY_OPTIONS
+                            : allTrendMeta.context.audience === "Brand"
+                              ? BRAND_OPTIONS
+                              : []
+                      ).map((p) => (
+                        <Box
+                          key={p}
+                          onClick={() => {
+                            setSelectedPlatform(p); // only select the pill
+                          }}
+                          sx={{
+                            px: 1.5,
+                            py: 0.7,
+                            borderRadius: "999px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            border: "1px solid #E5E7EB",
+                            flexShrink: 0, // Prevent pills from shrinking
+                            backgroundColor:
+                              selectedPlatform === p ? "#0ea5e9" : "white",
+                            color: selectedPlatform === p ? "white" : "#0f172a",
+                            transition: "all 0.2s ease",
+                            "&:hover": {
+                              borderColor: selectedPlatform === p ? "#0ea5e9" : "#CBD5E1",
+                              backgroundColor: selectedPlatform === p ? "#0389c4" : "#F8FAFC",
+                            },
+                          }}
+                        >
+                          {p}
+                        </Box>
+                      ))
+                    )}
                   </Box>
                 )}
               </Box>
@@ -1833,13 +1908,17 @@ export default function TrendsCompetitionDrawer({
                 </Button>
               </Box>
 
-              {/* Chart */}
+              {/* Chart with Skeleton Loader */}
               <Box sx={{ height: 340 }}>
-                <ReactECharts
-                  style={{ height: "100%", width: "100%" }}
-                  option={trendOption}
-                  notMerge
-                />
+                {loading ? (
+                  <Skeleton variant="rounded" width="100%" height={340} sx={{ borderRadius: 2 }} />
+                ) : (
+                  <ReactECharts
+                    style={{ height: "100%", width: "100%" }}
+                    option={trendOption}
+                    notMerge
+                  />
+                )}
               </Box>
             </Paper>
           </Box>
