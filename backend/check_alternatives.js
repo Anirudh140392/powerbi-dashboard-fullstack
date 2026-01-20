@@ -15,6 +15,7 @@ const config = {
 async function checkAlternatives() {
     const connection = await mysql.createConnection(config);
 
+
     try {
         console.log("--- Checking rb_brands ---");
         const [rows1] = await connection.execute('SELECT * FROM rb_brands LIMIT 5');
