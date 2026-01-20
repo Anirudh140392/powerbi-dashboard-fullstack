@@ -27,10 +27,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1600M
-          cpus: '1.5'
+          memory: 13G
+          cpus: '3'
         reservations:
-          memory: 512M
+          memory: 4G
 
   # Frontend UI Service
   frontend:
@@ -44,7 +44,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: '0.5'
+          memory: 1400M
+          cpus: '1'
         reservations:
-          memory: 128M
+          memory: 512M
