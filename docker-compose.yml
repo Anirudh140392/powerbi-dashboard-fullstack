@@ -10,17 +10,16 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=5000
-      - DB_HOST=15.207.197.27
-      - DB_PORT=3306
-      - DB_USER=readonly_user
-      - DB_PASSWORD=Readonly@123
-      - DB_NAME=gcpl
       - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
-      - REDIS_ENABLED=true
+      - REDIS_ENABLED=false
       - REDIS_DEFAULT_TTL=2000
+      - CLICKHOUSE_URL=http://13.200.55.131:8123
+      - CLICKHOUSE_USER=readonly_user
+      - CLICKHOUSE_PASSWORD=Readonly@123
+      - CLICKHOUSE_DB=gcpl
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -39,7 +38,7 @@ services:
       dockerfile: Dockerfile
     container_name: frontend
     ports:
-      - "9000:9000"
+      - "9400:9500"
     restart: unless-stopped
     deploy:
       resources:
