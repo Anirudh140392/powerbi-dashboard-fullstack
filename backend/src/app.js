@@ -6,6 +6,7 @@ import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import AllRoutes from "./routes.js";
 import { connectDB } from "./config/db.js";
+import { connectClickHouse } from "./config/clickhouse.js";
 import redisClient from "./config/redis.js";
 import cacheRoutes from "./routes/cache.js";
 import "./models/associations.js";
@@ -75,8 +76,23 @@ app.use("/api", (req, res, next) => {
 });
 
 
-// Connect to DB via Sequelize
-connectDB().then(() => console.log("✅ DB Ready")).catch(console.error);
+// MySQL connection disabled - using ClickHouse only
+// connectDB()
+//     .then(() => console.log("✅ MySQL DB Ready"))
+//     .catch((err) => {
+//         console.warn("⚠️  MySQL connection failed, continuing without MySQL:", err.message);
+//     });
+
+// Connect to ClickHouse (Primary database)
+connectClickHouse()
+    .then((connected) => {
+        if (connected) {
+            console.log("✅ ClickHouse DB Ready");
+        }
+    })
+    .catch((err) => {
+        console.warn("⚠️  ClickHouse connection failed:", err.message);
+    });
 
 // Connect to Redis
 redisClient.connect()

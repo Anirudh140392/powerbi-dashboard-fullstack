@@ -1957,7 +1957,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
             <SelectTrigger className="h-9 w-40 bg-white">
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-60 overflow-y-auto">
               {(filterOptions.locations || CITIES).map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}

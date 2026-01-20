@@ -11,11 +11,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 9000,
+    port: 9500,
     host: true,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://13.200.212.219',
+        target: process.env.VITE_API_URL || 'http://localhost:5000',
         changeOrigin: true,
         secure: false, // In case of self-signed certs, though this is http
       },
