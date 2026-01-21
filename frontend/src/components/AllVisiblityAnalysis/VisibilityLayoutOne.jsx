@@ -871,7 +871,7 @@ export function VisibilityLayoutOne() {
             No {signalType}s found at {level} level
           </div>
         ) : (
-          <div className="flex overflow-x-auto pb-4 gap-3 snap-x md:grid md:grid-cols-4 md:gap-3 md:items-start md:overflow-visible">
+          <div className="flex overflow-x-auto no-scrollbar pb-4 gap-3 snap-x -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:gap-3 md:items-start md:overflow-visible">
             {signals.slice(0, 4).map((item) => (
               <VisibilityCard
                 key={item.id}

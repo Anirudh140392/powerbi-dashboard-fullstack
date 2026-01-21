@@ -95,7 +95,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
+      <div className="flex-1 overflow-y-auto md:overflow-hidden rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -634,16 +634,16 @@ function RuleGroupEditor({ group, fields, isRoot, onChange }) {
 
   return (
     <div className="mb-3 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {!isRoot && (
             <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">
               Group
             </span>
           )}
-          <span className="text-slate-500">Match</span>
+          <span className="text-slate-500 text-xs sm:text-sm">Match</span>
           <select
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs w-full sm:w-auto"
             value={group.logicalOp}
             onChange={(e) =>
               updateGroup({ logicalOp: e.target.value === "OR" ? "OR" : "AND" })
@@ -700,18 +700,18 @@ function RuleGroupEditor({ group, fields, isRoot, onChange }) {
         })}
       </div>
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={addCondition}
-          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none"
         >
           + Add condition
         </button>
         <button
           type="button"
           onClick={addSubgroup}
-          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none"
         >
           + Add subgroup
         </button>
@@ -739,11 +739,11 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
   const handleChange = (partial) => onChange({ ...condition, ...partial });
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-      <span className="text-slate-500">Where</span>
+    <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+      <span className="text-slate-500 text-xs">Where</span>
 
       <select
-        className="min-w-[140px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+        className="w-full sm:min-w-[140px] sm:w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
         value={condition.fieldId}
         onChange={(e) => handleChange({ fieldId: e.target.value })}
       >
@@ -755,7 +755,7 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
       </select>
 
       <select
-        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+        className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
         value={condition.operator}
         onChange={(e) => handleChange({ operator: e.target.value })}
       >
@@ -770,15 +770,15 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
         <>
           <input
             type="number"
-            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="w-full sm:w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
             value={condition.value}
             onChange={(e) => handleChange({ value: e.target.value })}
             placeholder="Min"
           />
-          <span className="text-slate-500">and</span>
+          <span className="text-slate-500 text-xs">and</span>
           <input
             type="number"
-            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="w-full sm:w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
             value={condition.valueTo ?? ""}
             onChange={(e) => handleChange({ valueTo: e.target.value })}
             placeholder="Max"
@@ -787,7 +787,7 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
       ) : (
         <input
           type={field?.type === "number" && condition.operator !== "regex" ? "number" : "text"}
-          className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs"
+          className="w-full sm:w-40 rounded-md border border-slate-300 px-2 py-1 text-xs"
           value={condition.value}
           onChange={(e) => handleChange({ value: e.target.value })}
           placeholder={
@@ -803,7 +803,7 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
       <button
         type="button"
         onClick={onRemove}
-        className="ml-auto text-[11px] text-slate-400 hover:text-red-500"
+        className="w-full sm:w-auto sm:ml-auto text-[11px] text-slate-400 hover:text-red-500 mt-1 sm:mt-0"
       >
         Remove
       </button>

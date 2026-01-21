@@ -62,14 +62,14 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
 
   return (
     <Box sx={{ mb: 4 }}>
-      <Card sx={{ p: { xs: 2, md: 3 }, borderRadius: 4, boxShadow: 4, position: "relative", overflow: "visible" }}>
+      <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4, position: "relative" }}>
         {/* Floating loader overlay - only when cards exist and refreshing */}
         {loading && cards.length > 0 && (
           <FloatingLoader loading={true} label="Updating overview..." />
         )}
 
         {/* Header */}
-        <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} mb={3} gap={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Box display="flex" alignItems="center" gap={1.5}>
             <Box
               sx={{
@@ -95,15 +95,12 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
         <Box
           sx={{
             display: "flex",
-            gap: { xs: 1.5, md: 2 },
-            overflowX: "auto",
+            gap: 2,
+            overflowX: { xs: "auto", sm: "auto", md: scrollNeeded ? "auto" : "visible" },
             pb: 1,
-            px: { xs: 0, sm: 0 },
-            scrollSnapType: "x mandatory",
-            "&::-webkit-scrollbar": { display: "none" },
-            msOverflowStyle: "none",
-            scrollbarWidth: "none",
-            mx: { xs: 0, sm: 0 }
+            scrollSnapType: { xs: "x mandatory", sm: "x mandatory", md: scrollNeeded ? "x mandatory" : "none" },
+            // Ensure smooth scrolling on mobile
+            WebkitOverflowScrolling: "touch",
           }}
         >
           {showSkeletonCards ? (
@@ -112,13 +109,12 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
               <Box
                 key={i}
                 sx={{
-                  flexShrink: 0,
-                  width: { xs: 260, sm: 250 },
+                  flex: 1,
+                  minWidth: 200,
                   p: 2,
                   borderRadius: 3,
                   border: '1px solid #e2e8f0',
                   bgcolor: '#f8fafc',
-                  scrollSnapAlign: "start"
                 }}
               >
                 <Skeleton variant="text" width="60%" height={18} animation="wave" sx={{ borderRadius: 1, mb: 1 }} />
@@ -131,13 +127,12 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           ) : (
             // Actual cards
             cards.map((card, index) => (
-              <Box key={index} sx={{ flexShrink: 0, scrollSnapAlign: "start" }}>
-                <MetricCard
-                  card={card}
-                  scrollNeeded={scrollNeeded}
-                  totalCards={cards.length}
-                />
-              </Box>
+              <MetricCard
+                key={index}
+                card={card}
+                scrollNeeded={scrollNeeded}
+                totalCards={cards.length}
+              />
             ))
           )}
         </Box>
@@ -145,4 +140,3 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
     </Box>
   );
 }
-
