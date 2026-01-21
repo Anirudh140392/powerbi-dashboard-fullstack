@@ -1233,7 +1233,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
             {/* Data Grid (Shown if data exists, regardless of loading state) */}
             {skusData.length > 0 && (
                 <div className={`mt-5 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
-                    <div className="flex flex-wrap gap-5 justify-start">
+                    <div className="flex overflow-x-auto no-scrollbar gap-5 pb-4 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:justify-start snap-x">
                         {pageRows.map((s) => (
                             <SignalCard
                                 key={s.id}

@@ -126,38 +126,53 @@ export default function InsightHorizontalKpis({
         {selectedInsight}
       </Typography>
 
-      <Grid container spacing={2}>
+      {/* Mobile: Horizontal scroll | Desktop: Grid */}
+      <Box
+        sx={{
+          // Mobile: horizontal scroll
+          display: { xs: "flex", sm: "flex", md: "grid" },
+          gap: 2,
+          overflowX: { xs: "auto", sm: "auto", md: "visible" },
+          pb: { xs: 1, sm: 1, md: 0 },
+          scrollSnapType: { xs: "x mandatory", sm: "x mandatory", md: "none" },
+          WebkitOverflowScrolling: "touch",
+          // Desktop: grid layout
+          gridTemplateColumns: { md: "repeat(5, 1fr)" },
+        }}
+      >
         {loading ? (
           // Skeleton cards when loading
           Array.from({ length: 5 }).map((_, idx) => (
-            <Grid item xs={12} sm={6} md={2.4} key={`skeleton-${idx}`}>
-              <Card
-                sx={{
-                  p: 2,
-                  height: 140,
-                  borderRadius: 3,
-                  border: "1px solid #e2e8f0",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
-              >
-                {/* Top row - title and icon */}
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Skeleton variant="text" width="70%" height={20} />
-                  <Skeleton variant="circular" width={22} height={22} />
-                </Box>
+            <Card
+              key={`skeleton-${idx}`}
+              sx={{
+                p: 2,
+                height: 140,
+                minWidth: { xs: 240, sm: 240, md: "auto" },
+                flexShrink: 0,
+                scrollSnapAlign: { xs: "start", sm: "start", md: "none" },
+                borderRadius: 3,
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+              }}
+            >
+              {/* Top row - title and icon */}
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Skeleton variant="text" width="70%" height={20} />
+                <Skeleton variant="circular" width={22} height={22} />
+              </Box>
 
-                {/* Middle rows - lines */}
-                <Box>
-                  <Skeleton variant="text" width="50%" height={18} />
-                  <Skeleton variant="text" width="30%" height={18} />
-                </Box>
+              {/* Middle rows - lines */}
+              <Box>
+                <Skeleton variant="text" width="50%" height={18} />
+                <Skeleton variant="text" width="30%" height={18} />
+              </Box>
 
-                {/* Bottom area - large block */}
-                <Skeleton variant="rounded" width="100%" height={40} sx={{ borderRadius: 2 }} />
-              </Card>
-            </Grid>
+              {/* Bottom area - large block */}
+              <Skeleton variant="rounded" width="100%" height={40} sx={{ borderRadius: 2 }} />
+            </Card>
           ))
         ) : (
           // Actual cards when data is loaded
@@ -166,50 +181,53 @@ export default function InsightHorizontalKpis({
             const active = selectedInsight === item.label;
 
             return (
-              <Grid item xs={12} sm={6} md={2.4} key={item.key}>
-                <Card
-                  onClick={() => setSelectedInsight(item.label)}
-                  sx={{
-                    p: 2,
-                    height: 140,
-                    borderRadius: 3,
-                    border: active ? "1px solid #6366F2" : "1px solid #e2e8f0",
-                    cursor: "pointer",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    transform: active && "scale(1.03)",
-                    boxShadow: active && "0 10px 35px rgba(0,0,0,0.12)",
-                    transition: "0.25s",
-                    "&:hover": {
-                      transform: active ? "scale(1.03)" : "translateY(-6px)",
-                      boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
-                    },
-                  }}
+              <Card
+                key={item.key}
+                onClick={() => setSelectedInsight(item.label)}
+                sx={{
+                  p: 2,
+                  height: 140,
+                  minWidth: { xs: 240, sm: 240, md: "auto" },
+                  flexShrink: 0,
+                  scrollSnapAlign: { xs: "start", sm: "start", md: "none" },
+                  borderRadius: 3,
+                  border: active ? "1px solid #6366F2" : "1px solid #e2e8f0",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  transform: active && "scale(1.03)",
+                  boxShadow: active && "0 10px 35px rgba(0,0,0,0.12)",
+                  transition: "0.25s",
+                  "&:hover": {
+                    transform: active ? "scale(1.03)" : "translateY(-6px)",
+                    boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
+                  },
+                }}
+              >
+                <Box display="flex" justifyContent="space-between">
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                    {item.label}
+                  </Typography>
+                  <Icon size={22} color={item.color} />
+                </Box>
+
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  sx={{ color: "#111" }}
                 >
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-                      {item.label}
-                    </Typography>
-                    <Icon size={22} color={item.color} />
-                  </Box>
+                  {item.value}
+                </Typography>
 
-                  <Typography
-                    variant="h5"
-                    fontWeight={700}
-                    sx={{ color: "#111" }}
-                  >
-                    {item.value}
-                  </Typography>
-
-                  <Typography sx={{ fontSize: 12, color: "#94a3b8" }}>
-                    {item.description}
-                  </Typography>
-                </Card>
-              </Grid>
+                <Typography sx={{ fontSize: 12, color: "#94a3b8" }}>
+                  {item.description}
+                </Typography>
+              </Card>
             );
           })
         )}
-      </Grid>
+      </Box>
     </Card>
   );
 }

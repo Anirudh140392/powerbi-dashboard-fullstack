@@ -319,11 +319,14 @@ const PillToggleGroup = ({ value, onChange, options }) => (
       backgroundColor: "#F3F4F6",
       borderRadius: "999px",
       p: "2px",
+      width: { xs: "100%", sm: "auto" },
+      display: "flex",
       "& .MuiToggleButton-root": {
         textTransform: "none",
         border: "none",
-        px: 2.5,
+        px: { xs: 1.5, sm: 2.5 },
         py: 0.5,
+        flex: { xs: 1, sm: "initial" },
         borderRadius: "999px",
         "&.Mui-selected": {
           backgroundColor: "#ffffff",
@@ -334,7 +337,7 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   >
     {options.map((opt) => (
       <ToggleButton key={opt} value={opt}>
-        <Typography variant="body2">{opt}</Typography>
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{opt}</Typography>
       </ToggleButton>
     ))}
   </ToggleButtonGroup>
@@ -1607,10 +1610,8 @@ export default function TrendsCompetitionDrawer({
         {/* Header row */}
         <Box
           display="flex"
-          flexDirection={{ xs: "column-reverse", sm: "row" }}
           justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          gap={2}
+          alignItems="center"
         >
           <ToggleButtonGroup
             exclusive
@@ -1620,17 +1621,13 @@ export default function TrendsCompetitionDrawer({
               backgroundColor: "#F3F4F6",
               borderRadius: "999px",
               p: "3px",
-              width: { xs: "100%", sm: "auto" },
-              display: "flex",
-              justifyContent: "center",
               "& .MuiToggleButton-root": {
                 textTransform: "none",
                 border: "none",
                 borderRadius: "999px",
-                px: 2.5,
-                py: 0.75,
-                fontSize: 14,
-                flex: { xs: 1, sm: "initial" },
+                px: { xs: 2, sm: 2.5 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: 13, sm: 14 },
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
                   color: "#fff",
@@ -1649,9 +1646,9 @@ export default function TrendsCompetitionDrawer({
           <IconButton
             onClick={onClose}
             size="small"
-            sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}
+            sx={{ color: "#64748b" }}
           >
-            <X size={18} />
+            <X size={20} />
           </IconButton>
         </Box>
 
@@ -1661,13 +1658,12 @@ export default function TrendsCompetitionDrawer({
             {/* HEADER + PLATFORM FILTER */}
             <Box
               display="flex"
-              alignItems={{ xs: "flex-start", sm: "center" }}
-              gap={2}
-              flexDirection={{ xs: "column", sm: "row" }}
+              flexDirection="column"
+              gap={1.5}
               width="100%"
             >
               {/* Title */}
-              <Typography variant="h6" fontWeight={600} sx={{ flexShrink: 0 }}>
+              <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
@@ -1676,7 +1672,8 @@ export default function TrendsCompetitionDrawer({
                 display="flex"
                 alignItems="center"
                 gap={1}
-                sx={{ width: { xs: "100%", sm: "auto" }, overflow: "hidden" }}
+                flexWrap="wrap"
+                sx={{ width: "100%" }}
               >
                 <Select
                   size="small"
@@ -1695,7 +1692,6 @@ export default function TrendsCompetitionDrawer({
                     borderRadius: "8px",
                     fontSize: "0.85rem",
                     fontWeight: 500,
-                    flexShrink: 0,
                     "& .MuiOutlinedInput-notchedOutline": {
                       borderColor: "#E2E8F0",
                     },
@@ -1788,9 +1784,7 @@ export default function TrendsCompetitionDrawer({
             {/* RANGE + TIMESTEP */}
             <Box
               display="flex"
-              flexDirection={{ xs: "column", sm: "row" }}
-              justifyContent="space-between"
-              alignItems={{ xs: "flex-start", sm: "center" }}
+              flexDirection="column"
               gap={2}
             >
               <PillToggleGroup
@@ -1799,8 +1793,8 @@ export default function TrendsCompetitionDrawer({
                 options={trendMeta.rangeOptions}
               />
 
-              <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="body2">Time Step:</Typography>
+              <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} gap={{ xs: 1, sm: 2 }}>
+                <Typography variant="body2" fontWeight={500} sx={{ color: "#64748b" }}>Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
@@ -1822,13 +1816,11 @@ export default function TrendsCompetitionDrawer({
               {/* Metric Row */}
               <Box
                 display="flex"
-                flexDirection={{ xs: "column", md: "row" }}
-                alignItems={{ xs: "flex-start", md: "center" }}
-                justifyContent="space-between"
+                flexDirection="column"
                 gap={2}
                 mb={2}
               >
-                <Box display="flex" gap={1} flexWrap="wrap">
+                <Box display="flex" gap={1.5} flexWrap="wrap">
                   {trendMeta.metrics.map((m) => (
                     <MetricChip
                       key={m.id}
@@ -1846,18 +1838,28 @@ export default function TrendsCompetitionDrawer({
                   ))}
                 </Box>
 
-                <Button
-                  size="small"
-                  endIcon={<ChevronDown size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB",
-                  }}
-                  variant="outlined"
-                >
-                  +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                </Button>
+                <Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    endIcon={<ChevronDown size={14} />}
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: "999px",
+                      borderColor: "#E2E8F0",
+                      color: "#3b82f6",
+                      backgroundColor: "#eff6ff",
+                      fontSize: "0.75rem",
+                      px: 2,
+                      "&:hover": {
+                        borderColor: "#3b82f6",
+                        backgroundColor: "#dbeafe",
+                      }
+                    }}
+                  >
+                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
+                  </Button>
+                </Box>
               </Box>
 
               {/* Chart */}
