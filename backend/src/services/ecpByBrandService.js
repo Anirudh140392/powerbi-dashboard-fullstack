@@ -1,40 +1,31 @@
 /**
  * ECP by Brand Service
  * Provides ECP and MRP data grouped by Brand for the Pricing Analysis page
+ * ECP Per Unit = ECP / avg gram (from rb_sku_platform.quantity)
  */
 
 import sequelize from '../config/db.js';
 import dayjs from 'dayjs';
 
 /**
- * Parse weight string like "225 ml X 3" or "30 g X 2" to get total weight
- * @param {string} weightStr - Weight string in format "value unit X quantity"
- * @returns {number} Total weight (value * quantity)
+ * Parse quantity string to extract numeric gram value
+ * Examples: "100", "100g", "100 g", "100ml", etc.
+ * @param {string} quantityStr - Quantity string
+ * @returns {number} Parsed numeric value
  */
-function parseWeight(weightStr) {
-    if (!weightStr || typeof weightStr !== 'string') return 0;
+function parseQuantity(quantityStr) {
+    if (!quantityStr || typeof quantityStr !== 'string') return 0;
 
-    // Match pattern: number, optional unit (ml/g/kg/L etc), X, number
-    // Examples: "225 ml X 3", "30 g X 2", "400 g X 2", "20 g X 4"
-    const match = weightStr.match(/(\d+(?:\.\d+)?)\s*(?:ml|g|kg|l|L|ML|G|KG)?\s*[Xx]\s*(\d+)/i);
-
+    // Extract first number from string
+    const match = quantityStr.match(/(\d+(?:\.\d+)?)/);
     if (match) {
-        const value = parseFloat(match[1]) || 0;
-        const quantity = parseFloat(match[2]) || 1;
-        return value * quantity;
+        return parseFloat(match[1]) || 0;
     }
-
-    // Fallback: try to extract just the first number
-    const simpleMatch = weightStr.match(/(\d+(?:\.\d+)?)/);
-    if (simpleMatch) {
-        return parseFloat(simpleMatch[1]) || 0;
-    }
-
     return 0;
 }
 
 /**
- * Get ECP by Brand data
+ * Get ECP by Brand data with ECP Per Unit calculated from rb_sku_platform.quantity
  * @param {Object} filters - { platform, location, startDate, endDate }
  * @returns {Object} { data: [...], filters: {...} }
  */
@@ -51,116 +42,104 @@ async function getEcpByBrand(filters = {}) {
 
         // Build dynamic WHERE conditions
         let whereConditions = [
-            "DATE BETWEEN :startDate AND :endDate",
-            "Brand IS NOT NULL"
+            "p.DATE BETWEEN :startDate AND :endDate",
+            "p.Brand IS NOT NULL"
         ];
         const replacements = {
             startDate,
             endDate
         };
 
-        // Platform filter - required for this endpoint
+        // Platform filter
         if (platform && platform !== 'All') {
-            whereConditions.push("LOWER(Platform) = LOWER(:platform)");
+            whereConditions.push("LOWER(p.Platform) = LOWER(:platform)");
             replacements.platform = platform;
         }
 
         if (location && location !== 'All') {
-            whereConditions.push("LOWER(Location) = LOWER(:location)");
+            whereConditions.push("LOWER(p.Location) = LOWER(:location)");
             replacements.location = location;
         }
 
         const whereClause = whereConditions.join(' AND ');
 
-        // SQL query to calculate MRP, ECP, and Weight by Brand
+        // SQL query to calculate MRP, ECP, and avg gram by Brand
+        // Join rb_pdp_olap (p) with rb_sku_platform (s) on Web_Pid = web_pid
+        // Only include quantity values that are valid (not null/empty and > 0)
         const query = `
             SELECT
-                Brand,
-                Weight,
+                p.Brand,
                 ROUND(
-                    SUM(CASE WHEN MRP IS NOT NULL AND MRP > 0 THEN MRP ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN MRP IS NOT NULL AND MRP > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.MRP IS NOT NULL AND p.MRP > 0 THEN p.MRP ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND p.MRP > 0 THEN 1 END), 0),
                     0
                 ) AS mrp,
                 ROUND(
-                    SUM(CASE WHEN Selling_Price IS NOT NULL AND Selling_Price > 0 THEN Selling_Price ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN Selling_Price IS NOT NULL AND Selling_Price > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND p.Selling_Price > 0 THEN p.Selling_Price ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND p.Selling_Price > 0 THEN 1 END), 0),
                     0
-                ) AS ecp
-            FROM rb_pdp_olap
+                ) AS ecp,
+                AVG(
+                    CASE 
+                        WHEN s.quantity IS NOT NULL 
+                        AND s.quantity != '' 
+                        AND s.quantity != '0' 
+                        AND CAST(s.quantity AS DECIMAL(10,2)) > 0 
+                        THEN CAST(s.quantity AS DECIMAL(10,2)) 
+                        ELSE NULL 
+                    END
+                ) AS avg_gram
+            FROM rb_pdp_olap p
+            LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
             WHERE ${whereClause}
-            GROUP BY Brand, Weight
+            GROUP BY p.Brand
             HAVING mrp IS NOT NULL OR ecp IS NOT NULL
-            ORDER BY Brand
+            ORDER BY p.Brand
         `;
 
-        console.log('[EcpByBrandService] Executing ECP by Brand query...');
+        console.log('[EcpByBrandService] Executing ECP by Brand query with gram join...');
         const queryStart = Date.now();
 
         const [results] = await sequelize.query(query, { replacements });
 
         console.log(`[EcpByBrandService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
-        // Group results by Brand and calculate average weight
-        const brandMap = {};
-        const sampleWeights = []; // For debugging
-
-        (results || []).forEach(row => {
-            const brand = row.Brand;
-            const weight = parseWeight(row.Weight);
+        // Transform results and calculate ECP Per Unit
+        const data = (results || []).map((row, index) => {
             const mrp = parseFloat(row.mrp) || 0;
             const ecp = parseFloat(row.ecp) || 0;
+            const avgGram = parseFloat(row.avg_gram) || 0;
 
-            // Log first 5 weight samples for debugging
-            if (sampleWeights.length < 5 && row.Weight) {
-                sampleWeights.push({ raw: row.Weight, parsed: weight });
-            }
-
-            if (!brandMap[brand]) {
-                brandMap[brand] = {
-                    brand,
-                    totalMrp: 0,
-                    totalEcp: 0,
-                    totalWeight: 0,
-                    count: 0
-                };
-            }
-
-            brandMap[brand].totalMrp += mrp;
-            brandMap[brand].totalEcp += ecp;
-            brandMap[brand].totalWeight += weight;
-            brandMap[brand].count += 1;
-        });
-
-        console.log('[EcpByBrandService] Sample Weight values:', sampleWeights);
-
-        // Calculate averages and ecpPerUnit
-        const data = Object.values(brandMap).map(brandData => {
-            const avgMrp = brandData.count > 0 ? brandData.totalMrp / brandData.count : 0;
-            const avgEcp = brandData.count > 0 ? brandData.totalEcp / brandData.count : 0;
-            const avgWeight = brandData.count > 0 ? brandData.totalWeight / brandData.count : 0;
-
-            // ecpPerUnit = ECP / avgWeight (price per gram/ml)
-            const ecpPerUnit = avgWeight > 0 ? avgEcp / avgWeight : 0;
+            // ECP Per Unit = ECP / avg gram (price per gram)
+            // Only calculate if avgGram is valid (> 0)
+            const ecpPerUnit = avgGram > 0 ? ecp / avgGram : 0;
 
             return {
-                brand: brandData.brand,
-                mrp: Math.round(avgMrp),
-                ecp: Math.round(avgEcp),
+                id: index + 1,
+                brand: row.Brand,
+                mrp: Math.round(mrp),
+                ecp: Math.round(ecp),
                 ecpPerUnit: parseFloat(ecpPerUnit.toFixed(2)),
-                rpi: 0  // Placeholder for now
+                rpi: 0  // RPI placeholder - to be implemented later
             };
         });
 
         // Sort by brand name
         data.sort((a, b) => a.brand.localeCompare(b.brand));
 
+        // Log some samples for debugging
+        const samples = data.slice(0, 5).map(d => ({
+            brand: d.brand,
+            ecp: d.ecp,
+            ecpPerUnit: d.ecpPerUnit
+        }));
+        console.log('[EcpByBrandService] Sample ECP Per Unit values:', samples);
+
         console.log(`[EcpByBrandService] Returning ${data.length} ECP by Brand records`);
 
         return {
             success: true,
             data,
-            debug: { sampleWeights }, // Debugging - remove later
             filters: {
                 startDate,
                 endDate,
