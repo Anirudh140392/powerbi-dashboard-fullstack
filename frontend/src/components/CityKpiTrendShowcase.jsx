@@ -638,7 +638,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI", filters }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -661,6 +661,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [showValue, setShowValue] = useState(true);
   const [selectedKPIs, setSelectedKPIs] = useState([]);
   const [isKPIOptionsOpen, setKPIOptionsOpen] = useState(false);
+  const [hoveredCell, setHoveredCell] = useState(null); // { kpi: string, col: string }
 
   // New KpiFilterPanel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -1130,11 +1131,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
                           return (
                             <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
-                              <Popover>
+                              <Popover open={hoveredCell?.kpi === row.kpi && hoveredCell?.col === col}>
                                 <PopoverTrigger asChild>
 
                                   {/* CITY-STYLE CELL BUTTON */}
                                   <button
+                                    onMouseEnter={() => setHoveredCell({ kpi: row.kpi, col })}
+                                    onMouseLeave={() => setHoveredCell(null)}
                                     className={`flex w-max mx-auto items-center justify-center gap-2 
                                                rounded-md border border-transparent px-2 py-1.5 
                                                text-xs font-semibold 
@@ -1223,6 +1226,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
+          filters={filters}
         />
       ) : dynamicKey === 'sales_category_table' ? (
         <SalesTrendsDrawer
@@ -1508,12 +1512,12 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel, filters }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} filters={filters} />;
 }
 

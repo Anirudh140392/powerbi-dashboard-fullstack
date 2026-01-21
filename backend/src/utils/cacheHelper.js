@@ -56,7 +56,12 @@ export function generateCacheKey(section, filters) {
         signalType = '',
         type = '', // Often used in Signal Lab instead of section
         webPid = '',
-        filterType = '' // Filter type for filter-options endpoints
+        filterType = '', // Filter type for filter-options endpoints
+        // Section-specific platform/category overrides
+        monthOverviewPlatform = '',
+        categoryOverviewPlatform = '',
+        brandsOverviewPlatform = '',
+        brandsOverviewCategory = ''
     } = filters;
 
     // 4. Append secondary filters
@@ -84,6 +89,12 @@ export function generateCacheKey(section, filters) {
     // Trends specific
     if (period) key += `:pd_${normalize(period)}`;
     if (timeStep) key += `:ts_${normalize(timeStep)}`;
+
+    // Section-specific platform/category overrides (for By Month, By Category, By Brands tabs)
+    if (monthOverviewPlatform) key += `:mop_${normalize(monthOverviewPlatform)}`;
+    if (categoryOverviewPlatform) key += `:cop_${normalize(categoryOverviewPlatform)}`;
+    if (brandsOverviewPlatform) key += `:bop_${normalize(brandsOverviewPlatform)}`;
+    if (brandsOverviewCategory) key += `:boc_${normalize(brandsOverviewCategory)}`;
 
     return key;
 }
@@ -158,19 +169,13 @@ export async function warmCommonCaches() {
 
         // Import services (lazy to avoid circular dependencies)
         const { default: watchTowerService } = await import('../services/watchTowerService.js');
-        const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
 
-        // Warm platform list (used in every dropdown)
+        // Warm platform list (used in every dropdown) - uses ClickHouse
         const platformKey = 'watchtower:platforms:all';
         const platforms = await watchTowerService.getPlatforms();
         await setCached(platformKey, platforms, CACHE_TTL.VERY_STATIC);
 
-        // Warm metric keys (used in SKU metrics dropdown)
-        const metricKeysKey = 'metric_keys';
-        const metricKeys = await getAllMetricKeys();
-        await setCached(metricKeysKey, metricKeys, CACHE_TTL.VERY_STATIC);
-
-        console.log('✅ Cache warming complete: platforms, metric keys');
+        console.log('✅ Cache warming complete: platforms');
     } catch (error) {
         console.error('❌ Error warming cache:', error.message);
         // Don't throw - cache warming is optional
