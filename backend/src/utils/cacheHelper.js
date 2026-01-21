@@ -57,6 +57,7 @@ export function generateCacheKey(section, filters) {
         type = '', // Often used in Signal Lab instead of section
         webPid = '',
         filterType = '', // Filter type for filter-options endpoints
+        filter = '', // Keyword type filter for Top Search Terms (All, Branded, Generic, Competition)
         // Section-specific platform/category overrides
         monthOverviewPlatform = '',
         categoryOverviewPlatform = '',
@@ -71,6 +72,7 @@ export function generateCacheKey(section, filters) {
     if (region && region !== 'all') key += `:reg_${normalize(region)}`;
     if (category && category !== 'all') key += `:cat_${normalize(category)}`;
     if (type && type !== 'all') key += `:tp_${normalize(type)}`;
+    if (filter && filter !== 'all' && filter !== 'All') key += `:flt_${normalize(filter)}`;
     if (signalType) key += `:sig_${normalize(signalType)}`;
     if (webPid) key += `:pid_${normalize(webPid)}`;
 
