@@ -432,9 +432,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 }
             }
 
-            // Category still uses single value
-            if (categoryFilter && categoryFilter !== 'All') {
-                conditions.push(`Category = '${escapeStr(categoryFilter)}'`);
+            // Handle category with multi-value support
+            const categoryFilterArr = normalizeFilterArray(categoryFilter);
+            if (categoryFilterArr && categoryFilterArr.length > 0) {
+                if (categoryFilterArr.length === 1) {
+                    conditions.push(`Category = '${escapeStr(categoryFilterArr[0])}'`);
+                } else {
+                    conditions.push(`Category IN (${categoryFilterArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
             }
 
             const query = `
@@ -4726,7 +4731,7 @@ const getBrandsOverview = async (filters) => {
 
             const monthsBack = parseInt(months, 10) || 1;
             const boPlatform = brandsOverviewPlatform || filters.platform || 'All';
-            const boCategory = brandsOverviewCategory || 'All';
+            const boCategory = brandsOverviewCategory || filters.category || 'All';
 
             // Calculate date range
             let endDate = dayjs().endOf('day');
@@ -4771,14 +4776,17 @@ const getBrandsOverview = async (filters) => {
             // Build SOS conditions for rb_kw
             const buildSosBrandConds = () => {
                 const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-                if (boPlatform && boPlatform !== 'All') {
-                    conds.push(`platform_name = '${escapeStr(boPlatform)}'`);
+                const platformArr = normalizeFilterArray(boPlatform);
+                if (platformArr.length > 0) {
+                    conds.push(`platform_name IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
-                if (boCategory && boCategory !== 'All') {
-                    conds.push(`keyword_category = '${escapeStr(boCategory)}'`);
+                const categoryArr = normalizeFilterArray(boCategory);
+                if (categoryArr.length > 0) {
+                    conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
-                if (locationArr && locationArr.length > 0) {
-                    conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                const locArr = normalizeFilterArray(location);
+                if (locArr.length > 0) {
+                    conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
                 return conds.join(' AND ');
             };
@@ -4787,17 +4795,20 @@ const getBrandsOverview = async (filters) => {
             const buildMsBrandConds = (brandsFilter = null) => {
                 const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 conds.push(`sales IS NOT NULL`);
-                if (boPlatform && boPlatform !== 'All') {
-                    conds.push(`Platform = '${escapeStr(boPlatform)}'`);
+                const platformArr = normalizeFilterArray(boPlatform);
+                if (platformArr.length > 0) {
+                    conds.push(`Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
-                if (boCategory && boCategory !== 'All') {
-                    conds.push(`category = '${escapeStr(boCategory)}'`);
+                const categoryArr = normalizeFilterArray(boCategory);
+                if (categoryArr.length > 0) {
+                    conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
                 if (brandsFilter && brandsFilter.length > 0) {
                     conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
                 }
-                if (locationArr && locationArr.length > 0) {
-                    conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                const locArr = normalizeFilterArray(location);
+                if (locArr.length > 0) {
+                    conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
                 return conds.join(' AND ');
             };
@@ -5005,10 +5016,22 @@ const getKpiTrends = async (filters) => {
         // 3. Build WHERE conditions for rb_pdp_olap
         const buildKpiConds = () => {
             const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-            if (category && category !== 'All') conds.push(`Category = '${escapeStr(category)}'`);
-            if (brand && brand !== 'All') conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
-            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
-            if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
+
+            const catArr = normalizeFilterArray(category);
+            if (catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+
+            const brandArr = normalizeFilterArray(brand);
+            if (brandArr.length > 0) {
+                const brandConditions = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                conds.push(`(${brandConditions})`);
+            }
+
+            const locArr = normalizeFilterArray(location);
+            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+
+            const platArr = normalizeFilterArray(platform);
+            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+
             return conds.join(' AND ');
         };
 
@@ -5267,20 +5290,27 @@ const getCompetitionData = async (filters = {}) => {
         // Build base conditions for ClickHouse
         const buildCompConds = (startDt, endDt) => {
             const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
-            conds.push(`toString(Comp_flag) = '1'`);  // Only competitor brands
-            if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
-            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
-            if (category && category !== 'All') conds.push(`Category = '${escapeStr(category)}'`);
+            const platArr = normalizeFilterArray(platform);
+            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
 
-            if (brand && brand !== 'All') {
-                const brandList = brand.split(',').map(b => b.trim().toLowerCase());
-                if (brandList.length === 1) {
-                    conds.push(`lower(Brand) = '${escapeStr(brandList[0])}'`);
+            const locArr = normalizeFilterArray(location);
+            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+
+            const catArr = normalizeFilterArray(category);
+            if (catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+
+            const brandArr = normalizeFilterArray(brand);
+            if (brandArr.length > 0) {
+                if (brandArr.length === 1) {
+                    conds.push(`lower(Brand) = '${escapeStr(brandArr[0].toLowerCase())}'`);
                 } else {
-                    conds.push(`lower(Brand) IN (${brandList.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+                    conds.push(`lower(Brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
                 }
             }
-            if (sku && sku !== 'All') conds.push(`Product = '${escapeStr(sku)}'`);
+
+            const skuArr = normalizeFilterArray(sku);
+            if (skuArr.length > 0) conds.push(`Product IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
+
             return conds.join(' AND ');
         };
 
@@ -5610,51 +5640,70 @@ const getCompetitionData = async (filters = {}) => {
  */
 const getCompetitionFilterOptions = async (filters = {}) => {
     try {
-        const { location = null, category = null, brand = null } = filters;
-        console.log('[getCompetitionFilterOptions] Cascading filters:', { location, category, brand });
+        const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
+        console.log('[getCompetitionFilterOptions] Cascading filters:', { platform, location, category, brand });
 
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build base condition for rca_sku_dim
+        const buildBaseConds = () => {
+            const conds = [`toString(status) = '1'`];
+            if (platform && platform !== 'All') {
+                const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+                if (platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            }
+            if (location && location !== 'All' && location !== 'All India') {
+                const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+                if (locArr.length > 0) conds.push(`lower(location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+            }
+            return conds;
+        };
 
         // Run all queries in parallel using ClickHouse
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
             // Fetch distinct locations from rca_sku_dim
             queryClickHouse(`SELECT DISTINCT location FROM rca_sku_dim WHERE location IS NOT NULL AND location != '' ORDER BY location`),
 
-            // Fetch distinct categories filtered by location
+            // Fetch distinct categories filtered by platform/location
             (() => {
-                const conds = [`Category IS NOT NULL`, `Category != ''`, `toString(status) = '1'`];
-                if (location && location !== 'All' && location !== 'All India') {
-                    conds.push(`lower(location) = '${escapeStr(location.toLowerCase())}'`);
-                }
+                const conds = buildBaseConds();
+                conds.push(`Category IS NOT NULL`, `Category != ''`);
                 return queryClickHouse(`SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
             })(),
 
-            // Fetch distinct competitor brands filtered by location + category
+            // Fetch distinct competitor brands filtered by platform/location + category
             (() => {
-                const conds = [`brand_name IS NOT NULL`, `brand_name != ''`, `toString(comp_flag) = '1'`];
-                if (location && location !== 'All' && location !== 'All India') {
-                    conds.push(`lower(location) = '${escapeStr(location.toLowerCase())}'`);
-                }
-                if (category && category !== 'All') {
-                    conds.push(`lower(Category) = '${escapeStr(category.toLowerCase())}'`);
+                const conds = buildBaseConds();
+                conds.push(`brand_name IS NOT NULL`, `brand_name != ''`, `toString(comp_flag) = '1'`);
+                const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
+                if (catArr.length > 0) {
+                    conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
                 return queryClickHouse(`SELECT DISTINCT brand_name as brand FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY brand`);
             })(),
 
-            // Fetch distinct SKUs from rb_pdp_olap filtered by location + category + brand
+            // Fetch distinct SKUs from rb_pdp_olap filtered by platform/location + category + brand
             (() => {
-                const conds = [`Product IS NOT NULL`, `Product != ''`];
+                const conds = [];
+                if (platform && platform !== 'All') {
+                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+                    if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(',')})`);
+                }
                 if (location && location !== 'All' && location !== 'All India') {
-                    conds.push(`lower(Location) = '${escapeStr(location.toLowerCase())}'`);
+                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+                    if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(',')})`);
                 }
-                if (category && category !== 'All') {
-                    conds.push(`lower(Category) = '${escapeStr(category.toLowerCase())}'`);
+                const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
+                if (catArr.length > 0) {
+                    conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
                 }
-                if (brand && brand !== 'All') {
-                    conds.push(`lower(Brand) = '${escapeStr(brand.toLowerCase())}'`);
+                const bndArr = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
+                if (bndArr.length > 0) {
+                    conds.push(`Brand IN (${bndArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
                 }
-                return queryClickHouse(`SELECT DISTINCT Product as sku FROM rb_pdp_olap WHERE ${conds.join(' AND ')} ORDER BY sku`);
+                conds.push(`Product IS NOT NULL`, `Product != ''`);
+                return queryClickHouse(`SELECT DISTINCT Product as sku FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY sku LIMIT 200`);
             })()
         ]);
 
@@ -5662,8 +5711,6 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const categories = categoryResults.map(c => c.category).filter(Boolean);
         const brands = brandResults.map(b => b.brand).filter(Boolean);
         const skus = skuResults.map(s => s.sku).filter(Boolean);
-
-        console.log(`[getCompetitionFilterOptions] Found ${locations.length} locations, ${categories.length} categories, ${brands.length} brands, and ${skus.length} SKUs`);
 
         return {
             locations: ['All India', ...locations],
@@ -5791,25 +5838,28 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         // First, get total impressions from rb_pdp_olap and Market Share from rb_brand_ms
         const baseConds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         baseConds.push(`toString(Comp_flag) = '1'`);  // Competitor brands only
-        if (location && location !== 'All') {
-            baseConds.push(`Location = '${escapeStr(location)}'`);
+
+        const locArr = normalizeFilterArray(location);
+        if (locArr.length > 0) {
+            baseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Market Share conditions for rb_brand_ms table (platform-level totals)
         const msBaseConds = [`created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         msBaseConds.push(`sales IS NOT NULL`);
-        if (location && location !== 'All') {
-            msBaseConds.push(`Location = '${escapeStr(location)}'`);
+        if (locArr.length > 0) {
+            msBaseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Category Share conditions for rb_brand_ms table (category-level totals)
         const catBaseConds = [`created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         catBaseConds.push(`sales IS NOT NULL`);
-        if (location && location !== 'All') {
-            catBaseConds.push(`Location = '${escapeStr(location)}'`);
+        if (locArr.length > 0) {
+            catBaseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
-        if (category && category !== 'All') {
-            catBaseConds.push(`category_master = '${escapeStr(category)}'`);
+        const catArr = normalizeFilterArray(category);
+        if (catArr.length > 0) {
+            catBaseConds.push(`category_master IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Build valid brands filter for market share numerator

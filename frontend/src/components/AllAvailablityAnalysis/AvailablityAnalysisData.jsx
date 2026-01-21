@@ -162,54 +162,14 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
     return { columns: ['kpi', ...columns], rows };
   };
 
-  // 🔥 Utility to compute unified trend + series for ANY item (for fallback hardcoded data)
-  const buildRows = (dataArray, columnList) => {
-    return dataArray.map((item) => {
-      const primaryTrendSeries = item.trend?.["Spend"] || [];
-      const valid = primaryTrendSeries.length >= 2;
-
-      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
-
-      const globalDelta = Number((lastVal - prevVal).toFixed(1));
-
-      const trendObj = {};
-      const seriesObj = {};
-
-      columnList.forEach((col) => {
-        trendObj[col] = globalDelta;
-        seriesObj[col] = primaryTrendSeries;
-      });
-
-      return {
-        kpi: item.kpi,
-        ...item.values,
-        trend: trendObj,
-        series: seriesObj,
-      };
-    });
-  };
-
   // ---------------- PLATFORM (uses apiData.platformKpi) ----------------
-  const apiPlatformData = transformApiData(apiData?.platformKpi);
-  const platformData = apiPlatformData || {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns),
-  };
+  const platformData = transformApiData(apiData?.platformKpi);
 
   // ---------------- FORMAT (uses apiData.formatKpi) ----------------
-  const apiFormatData = transformApiData(apiData?.formatKpi);
-  const formatData = apiFormatData || {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns),
-  };
+  const formatData = transformApiData(apiData?.formatKpi);
 
   // ---------------- CITY (uses apiData.cityKpi) ----------------
-  const apiCityData = transformApiData(apiData?.cityKpi);
-  const cityData = apiCityData || {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns),
-  };
+  const cityData = transformApiData(apiData?.cityKpi);
 
   // ---------------- TABS ----------------
   const tabs = [
@@ -220,8 +180,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
 
   const active = tabs.find((t) => t.key === activeTab);
 
-  // If loading and no data, show skeleton (same pattern as Visibility page)
-  if (loading && !apiData?.platformKpi) {
+  // If loading and no data for the current tab, show skeleton
+  if (active.loading && !active.data) {
     return <PlatformKpiMatrixSkeleton />;
   }
 
@@ -242,7 +202,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} filters={filters} />
     </div>
   );
 };
@@ -1273,11 +1233,11 @@ export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false
             endDate: filters.endDate,
           };
         } else if (metroCity && isMetroCity === false) {
-          // User selected a non-metro city location - show N/A
+          // User selected a non-metro city location - show Not A Metro City
           return {
             ...card,
-            value: "N/A",
-            sub: "Selected location is not a metro city",
+            value: "Not A Metro City",
+            sub: "Selected location is not a Tier 1 city",
             change: "",
             changeColor: "gray",
             prevText: "",

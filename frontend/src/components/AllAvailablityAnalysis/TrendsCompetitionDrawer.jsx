@@ -36,6 +36,7 @@ import { ChevronDown, X, Search, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
+import AvailabilityCompetitionKpiShowcase from "./AvailabilityCompetitionKpiShowcase";
 import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
 
 /**
@@ -399,6 +400,7 @@ export default function TrendsCompetitionDrawer({
   onClose = () => { },
   selectedColumn,
   selectedLevel,
+  filters
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -741,7 +743,7 @@ export default function TrendsCompetitionDrawer({
             id: "Listing",
             label: "Listing %",
             color: "#0EA5E9",
-            axis: "left",
+            axis: "right",
             default: true,
           },
           {
@@ -752,38 +754,7 @@ export default function TrendsCompetitionDrawer({
             default: false,
           },
         ],
-
-        points: [
-          { date: "06 Sep'25", Osa: 57, Doi: 41, Fillrate: 72, Assortment: 65, Listing: 88 },
-          { date: "07 Sep'25", Osa: 54, Doi: 42, Fillrate: 70, Assortment: 66, Listing: 87 },
-          { date: "08 Sep'25", Osa: 53, Doi: 40, Fillrate: 69, Assortment: 64, Listing: 86 },
-          { date: "09 Sep'25", Osa: 53, Doi: 39, Fillrate: 68, Assortment: 63, Listing: 85 },
-          { date: "10 Sep'25", Osa: 52, Doi: 37, Fillrate: 66, Assortment: 62, Listing: 84 },
-          { date: "11 Sep'25", Osa: 52, Doi: 36, Fillrate: 67, Assortment: 62, Listing: 84 },
-          { date: "12 Sep'25", Osa: 52, Doi: 35, Fillrate: 68, Assortment: 61, Listing: 83 },
-          { date: "13 Sep'25", Osa: 52, Doi: 34, Fillrate: 69, Assortment: 60, Listing: 82 },
-          { date: "14 Sep'25", Osa: 52, Doi: 33, Fillrate: 70, Assortment: 60, Listing: 81 },
-          { date: "15 Sep'25", Osa: 52, Doi: 32, Fillrate: 70, Assortment: 59, Listing: 80 },
-          { date: "16 Sep'25", Osa: 52, Doi: 32, Fillrate: 69, Assortment: 59, Listing: 79 },
-          { date: "17 Sep'25", Osa: 51, Doi: 31, Fillrate: 68, Assortment: 58, Listing: 78 },
-          { date: "18 Sep'25", Osa: 51, Doi: 31, Fillrate: 67, Assortment: 58, Listing: 77 },
-          { date: "19 Sep'25", Osa: 51, Doi: 32, Fillrate: 66, Assortment: 57, Listing: 76 },
-          { date: "20 Sep'25", Osa: 56, Doi: 50, Fillrate: 75, Assortment: 68, Listing: 85 },
-          { date: "21 Sep'25", Osa: 50, Doi: 34, Fillrate: 67, Assortment: 55, Listing: 75 },
-          { date: "22 Sep'25", Osa: 49, Doi: 33, Fillrate: 66, Assortment: 54, Listing: 74 },
-          { date: "23 Sep'25", Osa: 48, Doi: 32, Fillrate: 65, Assortment: 54, Listing: 73 },
-          { date: "24 Sep'25", Osa: 47, Doi: 31, Fillrate: 64, Assortment: 53, Listing: 72 },
-          { date: "25 Sep'25", Osa: 46, Doi: 30, Fillrate: 63, Assortment: 52, Listing: 71 },
-          { date: "26 Sep'25", Osa: 45, Doi: 30, Fillrate: 62, Assortment: 52, Listing: 70 },
-          { date: "27 Sep'25", Osa: 44, Doi: 31, Fillrate: 63, Assortment: 51, Listing: 69 },
-          { date: "28 Sep'25", Osa: 44, Doi: 31, Fillrate: 62, Assortment: 51, Listing: 68 },
-          { date: "29 Sep'25", Osa: 43, Doi: 32, Fillrate: 61, Assortment: 50, Listing: 67 },
-          { date: "30 Sep'25", Osa: 43, Doi: 34, Fillrate: 60, Assortment: 49, Listing: 66 },
-          { date: "01 Oct'25", Osa: 44, Doi: 36, Fillrate: 61, Assortment: 50, Listing: 68 },
-          { date: "02 Oct'25", Osa: 45, Doi: 37, Fillrate: 62, Assortment: 51, Listing: 69 },
-          { date: "03 Oct'25", Osa: 46, Doi: 39, Fillrate: 63, Assortment: 52, Listing: 70 },
-          { date: "04 Oct'25", Osa: 46, Doi: 40, Fillrate: 65, Assortment: 53, Listing: 71 },
-        ],
+        points: [],
       },
 
       // compare SKUs with per-SKU trend
@@ -842,32 +813,29 @@ export default function TrendsCompetitionDrawer({
         columns: [
           { id: "brand", label: "Brand", type: "text" },
           { id: "Osa", label: "Osa", type: "metric" },
-          { id: "Listing", label: "Listing %", type: "metric" },
+          { id: "Doi", label: "DOI", type: "metric" },
+          { id: "Fillrate", label: "Fillrate", type: "metric" },
           { id: "Assortment", label: "Assortment", type: "metric" },
+          { id: "Psl", label: "PSL", type: "metric" },
         ],
 
         brands: [
           {
             brand: "Colgate",
             Osa: { value: 32.9, delta: -4.5 },
-            Doi: { value: 74.6, delta: -16.3 },
-            Fillrate: { value: 20.0, delta: -8.5 },
             Listing: { value: 85.4, delta: 1.2 },
             Assortment: { value: 18.8, delta: 0.4 },
           },
           {
             brand: "Sensodyne",
             Osa: { value: 19.6, delta: 2.2 },
-            Doi: { value: 94.2, delta: 3.9 },
-            Fillrate: { value: 19.3, delta: 2.7 },
             Listing: { value: 91.2, delta: -0.5 },
             Assortment: { value: 18.5, delta: -3.1 },
           },
           {
             brand: "Oral-B",
             Osa: { value: 11.7, delta: -0.9 },
-            Doi: { value: 86.7, delta: -4.2 },
-            Fillrate: { value: 16.2, delta: -2.9 },
+            Listing: { value: 88.0, delta: 0.5 },
             Assortment: { value: 20.8, delta: -5.6 },
           },
           {
@@ -1303,6 +1271,15 @@ export default function TrendsCompetitionDrawer({
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
 
+  // Sync active metrics when dashboard view (dynamicKey) changes
+  useEffect(() => {
+    if (DASHBOARD_DATA.trends.metrics) {
+      setActiveMetrics(
+        DASHBOARD_DATA.trends.metrics.filter((m) => m.default).map((m) => m.id)
+      );
+    }
+  }, [dynamicKey]);
+
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
@@ -1333,27 +1310,36 @@ export default function TrendsCompetitionDrawer({
         };
 
         console.log("Fetching competition data with params:", params);
-        const response = await axiosInstance.get('/watchtower/competition', { params });
+        const endpoint = dynamicKey === 'availability'
+          ? '/availability-analysis/competition'
+          : '/watchtower/competition';
+
+        console.log("Fetching competition data with params:", params, "from endpoint:", endpoint);
+        const response = await axiosInstance.get(endpoint, { params });
 
         if (response.data) {
           // Transform backend format to frontend format
-          const transformedBrands = (response.data.brands || []).map(b => ({
-            brand: b.brand_name,
-            ShareOfSearch: { value: b.sos || 0, delta: 0 },
-            InorganicSales: { value: b.marketShare || 0, delta: 0 },
-            Conversion: { value: b.categoryShare || 0, delta: 0 },
-            Roas: { value: b.price || 0, delta: 0 },
-            BmiSalesRatio: { value: b.osa || 0, delta: 0 },
+          const rawBrands = response.data.brands || [];
+          const rawSkus = response.data.skus || [];
+
+          const transformedBrands = rawBrands.map(b => ({
+            brand: b.brand || b.brand_name,
+            rank: b.rank,
+            Osa: { value: b.osa || 0, delta: b.osaDelta || 0 },
+            Doi: { value: b.doi || 0, delta: 0 },
+            Fillrate: { value: b.fillrate || 0, delta: 0 },
+            Assortment: { value: b.assortment || 0, delta: b.assortmentDelta || 0 },
+            Psl: { value: b.psl || 0, delta: 0 },
           }));
 
-          const transformedSkus = (response.data.skus || []).map(s => ({
-            brand: s.sku_name,
-            brandName: s.brand_name,
-            ShareOfSearch: { value: s.sos || 0, delta: 0 },
-            InorganicSales: { value: s.marketShare || 0, delta: 0 },
-            Conversion: { value: s.categoryShare || 0, delta: 0 },
-            Roas: { value: s.price || 0, delta: 0 },
-            BmiSalesRatio: { value: s.osa || 0, delta: 0 },
+          const transformedSkus = rawSkus.map(s => ({
+            sku: s.sku_name || s.sku,
+            brand: s.brand_name || s.brand,
+            Osa: { value: s.osa || 0, delta: s.osaDelta || 0 },
+            Doi: { value: s.doi || 0, delta: 0 },
+            Fillrate: { value: s.fillrate || 0, delta: 0 },
+            Assortment: { value: s.assortment || 0, delta: s.assortmentDelta || 0 },
+            Psl: { value: s.psl || 0, delta: 0 },
           }));
 
           console.log("Competition data received:", transformedBrands.length, "brands,", transformedSkus.length, "skus");
@@ -1445,13 +1431,8 @@ export default function TrendsCompetitionDrawer({
       }
     };
 
-    // Delay trend data fetch by 3 seconds to prioritize main dashboard segments loading first
-    console.log("⏳ Trend data fetch scheduled in 3 seconds...");
-    timeoutId = setTimeout(() => {
-      if (!cancelled) {
-        fetchTrendData();
-      }
-    }, 3000);
+    // Immediate trend data fetch
+    fetchTrendData();
 
     return () => {
       cancelled = true;
@@ -1485,14 +1466,23 @@ export default function TrendsCompetitionDrawer({
   const trendPoints = useMemo(() => {
     if (chartData && chartData.length > 0) {
       // API data is already filtered
-      return chartData.map(p => ({
-        ...p,
-        // Format date for display if needed, or keep as is. 
-        // Backend usually returns YYYY-MM-DD. 
-        // Let's formatting it to match the mock format "DD MMM'YY" for consistency
-        date: new Date(p.date).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, " ").replace(/\/20/, "'")
-      }));
+      return chartData.map(p => {
+        // If the date is already a string like "DD MMM'YY", use it as is.
+        // Otherwise, try to parse it.
+        const dateStr = String(p.date);
+        const displayDate = (dateStr.includes("'") || dateStr.length === 9)
+          ? dateStr
+          : new Date(p.date).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: '2-digit' }).replace(/ /g, " ").replace(/\/20/, "'");
+
+        return {
+          ...p,
+          date: displayDate
+        };
+      });
     }
+
+    // For availability, we no longer fallback to mock data
+    if (dynamicKey === 'availability') return [];
 
     const enriched = trendMeta.points.map((p) => ({
       ...p,
@@ -1517,7 +1507,7 @@ export default function TrendsCompetitionDrawer({
     });
 
     return filtered.map(({ _dateObj, ...rest }) => rest);
-  }, [trendMeta, range, chartData]);
+  }, [trendMeta, range, chartData, dynamicKey]);
 
   const trendOption = useMemo(() => {
     const xData = trendPoints.map((p) => p.date);
@@ -1576,6 +1566,16 @@ export default function TrendsCompetitionDrawer({
     const apiBrands = competitionData.brands || [];
     const apiSkus = competitionData.skus || [];
 
+    // For availability, we no longer fallback to mock data
+    if (dynamicKey === 'availability') {
+      const rows = compTab === "Brands" ? apiBrands : apiSkus;
+      return rows.filter((r) =>
+        search.trim()
+          ? r.brand.toLowerCase().includes(search.toLowerCase())
+          : true
+      );
+    }
+
     const baseRows = compTab === "Brands"
       ? (apiBrands.length > 0 ? apiBrands : compMeta.brands)
       : (apiSkus.length > 0 ? apiSkus : compMeta.skus || compMeta.brands);
@@ -1585,7 +1585,7 @@ export default function TrendsCompetitionDrawer({
         ? r.brand.toLowerCase().includes(search.toLowerCase())
         : true
     );
-  }, [compMeta, compTab, search, competitionData]);
+  }, [compMeta, compTab, search, competitionData, dynamicKey]);
 
   // Compare SKUs chart option (multi-KPI, multi-SKU)
   const compareOption = useMemo(() => {
@@ -1935,7 +1935,11 @@ export default function TrendsCompetitionDrawer({
                 selectedPlatform={selectedPlatform}
               />
             ) : (
-              <KpiTrendShowcase dynamicKey={dynamicKey} />
+              dynamicKey === "availability" ? (
+                <AvailabilityCompetitionKpiShowcase platform={selectedPlatform} globalFilters={filters} />
+              ) : (
+                <KpiTrendShowcase dynamicKey={dynamicKey} platform={selectedPlatform} globalFilters={filters} />
+              )
             )}
           </>
         )}

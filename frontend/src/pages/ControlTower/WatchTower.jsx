@@ -263,6 +263,11 @@ function WatchTower() {
   // Ref to track last fetched filters to prevent duplicate API calls
   const lastFetchedFiltersRef = useRef(null);
 
+  // Refs to track if section data was loaded from parallel fetch (prevents duplicate calls from separate useEffects)
+  const monthOverviewLoadedRef = useRef(false);
+  const categoryOverviewLoadedRef = useRef(false);
+  const brandsOverviewLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!datesInitialized) {
       console.log("⏭️ Skipping fetch: Dates not initialized yet");
@@ -271,12 +276,11 @@ function WatchTower() {
 
     let ignore = false;
 
-    const fetchAllInParallel = async () => {
-      // Prevent fetching if critical filters are missing
-      if (!filters.brand || !filters.location) {
-        console.log("⏭️ Skipping fetch: Brand or Location missing");
-        return;
-      }
+    // Debounce timer to prevent rapid filter changes from triggering multiple fetches
+    const debounceTimer = setTimeout(() => {
+      if (ignore) return;
+      // NOTE: Removed strict brand/location check - backend handles missing filters gracefully
+      // by defaulting to 'All' for empty filters
 
       // Create a stable key for current filters to compare
       const filterKey = JSON.stringify({
@@ -316,6 +320,11 @@ function WatchTower() {
       }));
       setMonthOverviewData([]);
       setCategoryOverviewData([]);
+      // Reset loaded refs for fresh fetch
+      monthOverviewLoadedRef.current = false;
+      categoryOverviewLoadedRef.current = false;
+      brandsOverviewLoadedRef.current = false;
+
       setBrandsOverviewData(null);
 
       // ============ ALL 6 SECTIONS FIRE IN PARALLEL ============
@@ -375,13 +384,17 @@ function WatchTower() {
         });
 
       // STEP 4: CATEGORY OVERVIEW (PARALLEL)
+      // NOTE: Category Overview uses its own platform dropdown, NOT the global platform filter
       const step4Start = performance.now();
       console.log("📊 [4/6] Loading Category Overview...");
-      axiosInstance.get("/watchtower/category-overview", { params: { ...filters, categoryOverviewPlatform } })
+      const categoryFilters = { ...filters };
+      delete categoryFilters.platform; // Remove global platform
+      axiosInstance.get("/watchtower/category-overview", { params: { ...categoryFilters, platform: categoryOverviewPlatform } })
         .then(categoryRes => {
           setCategoryOverviewData(categoryRes.data);
           setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
           setCategoryOverviewLoading(false);
+          categoryOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
           console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
@@ -390,13 +403,17 @@ function WatchTower() {
         });
 
       // STEP 5: MONTH OVERVIEW (PARALLEL)
+      // NOTE: Month Overview uses its own platform dropdown, NOT the global platform filter
       const step5Start = performance.now();
       console.log("📊 [5/6] Loading Month Overview...");
-      axiosInstance.get("/watchtower/month-overview", { params: { ...filters, monthOverviewPlatform } })
+      const monthFilters = { ...filters };
+      delete monthFilters.platform; // Remove global platform
+      axiosInstance.get("/watchtower/month-overview", { params: { ...monthFilters, platform: monthOverviewPlatform } })
         .then(monthRes => {
           setMonthOverviewData(monthRes.data);
           setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
           setMonthOverviewLoading(false);
+          monthOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
           console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
@@ -405,13 +422,17 @@ function WatchTower() {
         });
 
       // STEP 6: BRAND OVERVIEW (PARALLEL)
+      // NOTE: Brand Overview uses its own platform & category dropdowns, NOT the global filters
       const step6Start = performance.now();
       console.log("📊 [6/6] Loading Brand Overview...");
-      axiosInstance.get("/watchtower/brands-overview", { params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory } })
+      const brandFilters = { ...filters };
+      delete brandFilters.platform; // Remove global platform
+      axiosInstance.get("/watchtower/brands-overview", { params: { ...brandFilters, platform: brandsOverviewPlatform, category: brandsOverviewCategory } })
         .then(brandsRes => {
           setBrandsOverviewData(brandsRes.data);
           setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
           setBrandsOverviewLoading(false);
+          brandsOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
           console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
@@ -420,10 +441,12 @@ function WatchTower() {
         });
 
       console.log(`🚀 All 6 section requests fired in parallel! Each will display as soon as ready.`);
-    };
+    }, 300); // 300ms debounce to wait for all filter changes to complete
 
-    fetchAllInParallel();
-    return () => { ignore = true; };
+    return () => {
+      ignore = true;
+      clearTimeout(debounceTimer);
+    };
   }, [filters, datesInitialized]); // Only re-fetch ALL sections when filters change (brand, location, dates)
   // Platform-specific changes (monthOverviewPlatform, categoryOverviewPlatform, etc.) are handled by their own useEffects below
 
@@ -432,15 +455,18 @@ function WatchTower() {
     let ignore = false;
 
     const fetchMonthOverview = async () => {
-      // Skip if initial load hasn't completed
-      if (loading || !filters.brand || !filters.location) return;
+      // Skip only if initial load hasn't completed
+      if (loading) return;
 
       console.log("🔄 Fetching Month Overview for platform:", monthOverviewPlatform);
       setMonthOverviewLoading(true);
 
       try {
+        // Exclude global platform - use section-specific platform only
+        const monthFilters = { ...filters };
+        delete monthFilters.platform;
         const response = await axiosInstance.get("/watchtower/month-overview", {
-          params: { ...filters, monthOverviewPlatform }
+          params: { ...monthFilters, platform: monthOverviewPlatform }
         });
 
         if (!ignore) {
@@ -460,7 +486,13 @@ function WatchTower() {
       }
     };
 
-    // Only run if monthOverviewPlatform changes AFTER initial load
+    // Only run if monthOverviewPlatform changes AFTER initial parallel load
+    // Skip if already loaded from parallel fetch (to prevent double API call)
+    if (!loading && monthOverviewLoadedRef.current) {
+      // Reset ref so future changes trigger fetch
+      monthOverviewLoadedRef.current = false;
+      return; // Skip - data was just loaded by parallel fetch
+    }
     if (!loading) {
       fetchMonthOverview();
     }
@@ -473,15 +505,18 @@ function WatchTower() {
     let ignore = false;
 
     const fetchCategoryOverview = async () => {
-      // Skip if initial load hasn't completed
-      if (loading || !filters.brand || !filters.location) return;
+      // Skip only if initial load hasn't completed
+      if (loading) return;
 
       console.log("🔄 Fetching Category Overview for platform:", categoryOverviewPlatform);
       setCategoryOverviewLoading(true);
 
       try {
+        // Exclude global platform - use section-specific platform only
+        const categoryFilters = { ...filters };
+        delete categoryFilters.platform;
         const response = await axiosInstance.get("/watchtower/category-overview", {
-          params: { ...filters, categoryOverviewPlatform }
+          params: { ...categoryFilters, platform: categoryOverviewPlatform }
         });
 
         if (!ignore) {
@@ -501,7 +536,13 @@ function WatchTower() {
       }
     };
 
-    // Only run if categoryOverviewPlatform changes AFTER initial load
+    // Only run if categoryOverviewPlatform changes AFTER initial parallel load
+    // Skip if already loaded from parallel fetch (to prevent double API call)
+    if (!loading && categoryOverviewLoadedRef.current) {
+      // Reset ref so future changes trigger fetch
+      categoryOverviewLoadedRef.current = false;
+      return; // Skip - data was just loaded by parallel fetch
+    }
     if (!loading) {
       fetchCategoryOverview();
     }
@@ -514,15 +555,18 @@ function WatchTower() {
     let ignore = false;
 
     const fetchBrandsOverview = async () => {
-      // Skip if initial load hasn't completed
-      if (loading || !filters.brand || !filters.location) return;
+      // Skip only if initial load hasn't completed
+      if (loading) return;
 
       console.log("🔄 Fetching Brands Overview for:", brandsOverviewPlatform, brandsOverviewCategory);
       setBrandsOverviewLoading(true);
 
       try {
+        // Exclude global platform - use section-specific platform & category only
+        const brandFilters = { ...filters };
+        delete brandFilters.platform;
         const response = await axiosInstance.get("/watchtower/brands-overview", {
-          params: { ...filters, brandsOverviewPlatform, brandsOverviewCategory }
+          params: { ...brandFilters, platform: brandsOverviewPlatform, category: brandsOverviewCategory }
         });
 
         if (!ignore) {
@@ -542,7 +586,13 @@ function WatchTower() {
       }
     };
 
-    // Only run if platform/category changes AFTER initial load
+    // Only run if platform/category changes AFTER initial parallel load
+    // Skip if already loaded from parallel fetch (to prevent double API call)
+    if (!loading && brandsOverviewLoadedRef.current) {
+      // Reset ref so future changes trigger fetch
+      brandsOverviewLoadedRef.current = false;
+      return; // Skip - data was just loaded by parallel fetch
+    }
     if (!loading) {
       fetchBrandsOverview();
     }

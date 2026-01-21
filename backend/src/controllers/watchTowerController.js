@@ -1,8 +1,4 @@
 import watchTowerService from '../services/watchTowerService.js';
-import RbPdpOlap from '../models/RbPdpOlap.js';
-import TbZeptoInventoryData from '../models/TbZeptoInventoryData.js';
-import { Op } from 'sequelize';
-import sequelize from '../config/db.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 
 export const watchTowerOverview = async (req, res) => {
@@ -128,10 +124,9 @@ export const getBrandCategories = async (req, res) => {
 
 export const getMetrics = async (req, res) => {
     try {
-        const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
-        const cacheKey = 'metric_keys';
-        const metrics = await getCachedOrCompute(cacheKey, () => getAllMetricKeys(), CACHE_TTL.VERY_STATIC);
-        res.json(metrics);
+        // Metric keys are no longer used with ClickHouse - return empty array
+        // If metric keys are needed in the future, migrate keyMetricsService to ClickHouse
+        res.json([]);
     } catch (error) {
         console.error('Error fetching metrics:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -140,85 +135,12 @@ export const getMetrics = async (req, res) => {
 
 
 export const debugAvailability = async (req, res) => {
-    try {
-        const { brand, location, platform, startDate, endDate } = req.query;
-
-        const results = {};
-
-        // 1. Check Brand Matches
-        if (brand) {
-            results.brandExact = await RbPdpOlap.count({ where: { Brand: brand } });
-            results.brandLike = await RbPdpOlap.count({ where: { Brand: { [Op.like]: `%${brand}%` } } });
-            results.brandSamples = await RbPdpOlap.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Brand')), 'Brand']],
-                where: { Brand: { [Op.like]: `%${brand}%` } },
-                raw: true
-            });
-        }
-
-        // 2. Check Location Matches
-        if (location) {
-            results.locationExact = await RbPdpOlap.count({ where: { Location: location } });
-            results.locationLike = await RbPdpOlap.count({ where: { Location: { [Op.like]: `%${location}%` } } });
-            results.locationSamples = await RbPdpOlap.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Location')), 'Location']],
-                where: { Location: { [Op.like]: `%${location}%` } },
-                raw: true
-            });
-        }
-
-        // 3. Check Platform Matches
-        if (platform) {
-            results.platformExact = await RbPdpOlap.count({ where: { Platform: platform } });
-        }
-        results.platformSamples = await RbPdpOlap.findAll({
-            attributes: [[sequelize.fn('DISTINCT', sequelize.col('Platform')), 'Platform']],
-            raw: true
-        });
-
-        // 4. Combined Check
-        const where = {};
-        if (brand) where.Brand = { [Op.like]: `%${brand}%` };
-        if (location) where.Location = { [Op.like]: `%${location}%` }; // Try loose match for location too
-        if (platform) where.Platform = platform;
-
-        results.combinedCount = await RbPdpOlap.count({ where });
-
-        // 5. Data with Date
-        if (startDate && endDate) {
-            where.DATE = { [Op.between]: [new Date(startDate), new Date(endDate)] };
-            results.combinedWithDateCount = await RbPdpOlap.count({ where });
-
-            // Get a sample record
-            results.sampleRecord = await RbPdpOlap.findOne({ where, raw: true });
-        }
-
-        // 6. Get All Distinct Brands and Locations (Limit 10) - REMOVED
-        // results.allBrands = ...
-        // results.allLocations = ...
-
-        // 7. Check TbZeptoInventoryData
-        if (brand && location) {
-            results.zeptoInventoryCount = await TbZeptoInventoryData.count({
-                where: {
-                    brand_name: brand,
-                    city: location
-                }
-            });
-            results.zeptoInventorySample = await TbZeptoInventoryData.findOne({
-                where: {
-                    brand_name: brand,
-                    city: location
-                },
-                raw: true
-            });
-        }
-
-        res.json(results);
-    } catch (error) {
-        console.error('Debug Error:', error);
-        res.status(500).json({ error: error.message });
-    }
+    // Debug endpoint deprecated - system now uses ClickHouse only
+    // To debug, use ClickHouse client directly or create a new ClickHouse-based debug endpoint
+    res.json({
+        message: 'Debug endpoint disabled - system migrated to ClickHouse',
+        suggestion: 'Use ClickHouse client or create a ClickHouse-based debug query'
+    });
 };
 
 // ==================== NEW: Dedicated Section Endpoints ====================
@@ -393,13 +315,14 @@ export const getCompetition = async (req, res) => {
  */
 export const getCompetitionFilterOptions = async (req, res) => {
     try {
-        const { location, category, brand } = req.query;
-        console.log('[getCompetitionFilterOptions] API call with:', { location, category, brand });
-        const cacheKey = generateCacheKey('competition-filter-options', { location, category, brand });
+        const { platform, location, category, brand } = req.query;
+        console.log('[getCompetitionFilterOptions] API call with:', { platform, location, category, brand });
+        const cacheKey = generateCacheKey('competition-filter-options', { platform, location, category, brand });
         const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getCompetitionFilterOptions({
-            location,
-            category,
-            brand
+            platform: platform || 'All',
+            location: location || 'All',
+            category: category || 'All',
+            brand: brand || 'All'
         }), CACHE_TTL.STATIC);
 
         res.json(data);

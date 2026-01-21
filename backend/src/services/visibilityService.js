@@ -19,15 +19,15 @@ import dayjs from 'dayjs';
 function parseMultiSelectFilter(value, column, replacements, prefix, options = {}) {
     const { isBrand = false, caseInsensitive = false } = options;
 
-    // special handling for "All" in brands
-    if (isBrand && (!value || value === 'All')) return "keyword_is_rb_product = 1";
+    // special handling for "All" and "All India" in brands
+    if (isBrand && (!value || value === 'All' || value === 'All India')) return "keyword_is_rb_product = 1";
 
-    // skip filter if "All" or empty
-    if (!value || value === 'All') return "1=1";
+    // skip filter if "All", "All India" or empty
+    if (!value || value === 'All' || value === 'All India') return "1=1";
 
     const list = typeof value === 'string'
-        ? value.split(',').map(v => v.trim()).filter(Boolean)
-        : Array.isArray(value) ? value : [value];
+        ? value.split(',').map(v => v.trim()).filter(v => v && v !== 'All' && v !== 'All India')
+        : Array.isArray(value) ? value.filter(v => v && v !== 'All' && v !== 'All India') : [value];
 
     if (list.length === 0) return isBrand ? "keyword_is_rb_product = 1" : "1=1";
 
