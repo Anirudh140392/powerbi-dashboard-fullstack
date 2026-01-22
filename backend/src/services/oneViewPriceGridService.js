@@ -4,7 +4,7 @@
  * Joins rb_pdp_olap and rb_sku_platform tables
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 /**
@@ -20,30 +20,22 @@ async function getOneViewPriceGrid(filters = {}) {
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
-        const replacements = {
-            startDate,
-            endDate
-        };
-
         // Build dynamic WHERE clauses for all optional filters
         let filterClauses = [];
 
         // Platform filter
         if (filters.platform && filters.platform !== 'All') {
-            filterClauses.push('p.Platform = :platform');
-            replacements.platform = filters.platform;
+            filterClauses.push(`p.Platform = '${filters.platform}'`);
         }
 
         // Brand filter
         if (filters.brand && filters.brand !== 'All') {
-            filterClauses.push('p.Brand = :brand');
-            replacements.brand = filters.brand;
+            filterClauses.push(`p.Brand = '${filters.brand}'`);
         }
 
-        // Product filter (partial match)
+        // Product filter (partial match - use like with %%)
         if (filters.product) {
-            filterClauses.push('p.Product LIKE :product');
-            replacements.product = `%${filters.product}%`;
+            filterClauses.push(`p.Product LIKE '%${filters.product}%'`);
         }
 
         // SKU Type filter (Own/Competition based on Comp_flag)
@@ -57,14 +49,12 @@ async function getOneViewPriceGrid(filters = {}) {
 
         // Format (Category) filter
         if (filters.format && filters.format !== 'All') {
-            filterClauses.push('p.Category = :format');
-            replacements.format = filters.format;
+            filterClauses.push(`p.Category = '${filters.format}'`);
         }
 
         // ML filter
         if (filters.ml) {
-            filterClauses.push('s.quantity = :ml');
-            replacements.ml = filters.ml;
+            filterClauses.push(`s.quantity = '${filters.ml}'`);
         }
 
         // Combine all filter clauses
@@ -75,7 +65,7 @@ async function getOneViewPriceGrid(filters = {}) {
         // Main SQL query joining rb_pdp_olap and rb_sku_platform
         const query = `
             SELECT
-                DATE_FORMAT(p.DATE, '%d %b %Y') as date,
+                formatDateTime(p.DATE, '%d %b %Y') as date,
                 p.DATE as rawDate,
                 p.Platform as platform,
                 p.Brand as brand,
@@ -83,13 +73,13 @@ async function getOneViewPriceGrid(filters = {}) {
                 CASE WHEN p.Comp_flag = 0 THEN 'Own' ELSE 'Competition' END as skuType,
                 p.Category as format,
                 s.quantity as ml,
-                ROUND(AVG(p.MRP), 1) as mrp,
+                ROUND(AVG(toFloat64(p.MRP)), 1) as mrp,
                 0 as basePrice,
-                ROUND(AVG(p.Discount), 1) as discount,
-                ROUND(AVG(p.Selling_Price), 1) as ecp
+                ROUND(AVG(toFloat64(p.Discount)), 1) as discount,
+                ROUND(AVG(toFloat64(p.Selling_Price)), 1) as ecp
             FROM rb_pdp_olap p
             INNER JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
-            WHERE p.DATE BETWEEN :startDate AND :endDate
+            WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
               AND p.Product IS NOT NULL
               AND p.Product != ''
               AND p.Platform IS NOT NULL
@@ -97,7 +87,7 @@ async function getOneViewPriceGrid(filters = {}) {
               AND s.quantity IS NOT NULL
               AND s.quantity != ''
               AND s.quantity != '0'
-              AND s.quantity > 0
+              AND toFloat64(s.quantity) > 0
               ${additionalFilters}
             GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, s.quantity
             ORDER BY p.DATE DESC, p.Platform, p.Brand
@@ -107,7 +97,8 @@ async function getOneViewPriceGrid(filters = {}) {
         console.log('[OneViewPriceGridService] Executing query...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
+
 
         console.log(`[OneViewPriceGridService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 

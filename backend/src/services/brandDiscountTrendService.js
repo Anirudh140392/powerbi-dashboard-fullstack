@@ -4,8 +4,9 @@
  * For the "Price Intelligence — Trend & RPI" chart on Pricing Analysis page
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+
 
 /**
  * Get brand-wise discount trend on monthly basis
@@ -30,13 +31,10 @@ async function getBrandDiscountTrend(filters = {}) {
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
 
-        const replacements = { startDate, endDate };
-
         // Build platform filter clause
         let platformClause = '';
         if (filters.platform && filters.platform !== 'All') {
-            platformClause = 'AND Platform = :platform';
-            replacements.platform = filters.platform;
+            platformClause = `AND Platform = '${filters.platform}'`;
         }
 
         // SQL query to get monthly average discount by brand
@@ -44,22 +42,22 @@ async function getBrandDiscountTrend(filters = {}) {
         const query = `
             SELECT
                 Brand,
-                DATE_FORMAT(DATE, '%b %Y') as monthLabel,
-                DATE_FORMAT(DATE, '%Y-%m') as monthSort,
-                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND Discount >= 0 THEN Discount ELSE NULL END), 1) AS avgDiscount
+                formatDateTime(DATE, '%b %Y') as monthLabel,
+                formatDateTime(DATE, '%Y-%m') as monthSort,
+                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND toFloat64(Discount) >= 0 THEN toFloat64(Discount) ELSE NULL END), 1) AS avgDiscount
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN :startDate AND :endDate
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
               AND Brand IS NOT NULL
               AND Brand != ''
               ${platformClause}
-            GROUP BY Brand, DATE_FORMAT(DATE, '%Y-%m'), DATE_FORMAT(DATE, '%b %Y')
-            ORDER BY Brand, DATE_FORMAT(DATE, '%Y-%m') DESC
+            GROUP BY Brand, monthSort, monthLabel
+            ORDER BY Brand, monthSort DESC
         `;
 
         console.log('[BrandDiscountTrendService] Executing query...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
 
         console.log(`[BrandDiscountTrendService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
@@ -162,26 +160,25 @@ async function getAvailableBrands(filters = {}) {
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
 
-        const replacements = { startDate, endDate };
 
         let platformClause = '';
         if (filters.platform && filters.platform !== 'All') {
-            platformClause = 'AND Platform = :platform';
-            replacements.platform = filters.platform;
+            platformClause = `AND Platform = '${filters.platform}'`;
         }
 
         const query = `
             SELECT DISTINCT Brand
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN :startDate AND :endDate
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
               AND Brand IS NOT NULL
               AND Brand != ''
               ${platformClause}
             ORDER BY Brand
         `;
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
         const brands = results.map(r => r.Brand);
+
 
         return {
             success: true,

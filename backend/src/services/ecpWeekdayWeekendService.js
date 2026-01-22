@@ -4,14 +4,14 @@
  * Uses Date column to determine day of week
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 /**
  * Get average ECP by Brand split by Weekday vs Weekend
- * MySQL DAYOFWEEK: 1=Sunday, 2=Monday, ..., 7=Saturday
- * Weekday = Monday-Friday (2-6)
- * Weekend = Saturday-Sunday (1, 7)
+ * ClickHouse toDayOfWeek: 1=Monday, ..., 7=Sunday
+ * Weekday = Monday-Friday (1-5)
+ * Weekend = Saturday-Sunday (6, 7)
  * 
  * @param {Object} filters - { platform, location, startDate, endDate, brand }
  * @returns {Object} { success, data: [...], filters }
@@ -26,52 +26,47 @@ async function getEcpWeekdayWeekend(filters = {}) {
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
-        const replacements = { startDate, endDate };
-        const conditions = ['DATE BETWEEN :startDate AND :endDate'];
+        const conditions = [`DATE BETWEEN '${startDate}' AND '${endDate}'`];
 
         // Apply platform filter
         if (platform && platform !== 'All') {
-            conditions.push('Platform = :platform');
-            replacements.platform = platform;
+            conditions.push(`Platform = '${platform}'`);
         }
 
         // Apply location filter
         if (location && location !== 'All') {
-            conditions.push('Location = :location');
-            replacements.location = location;
+            conditions.push(`Location = '${location}'`);
         }
 
         // Apply brand filter (optional - when clicking on a specific brand)
         if (brand && brand !== 'All' && brand !== 'All Brands') {
-            conditions.push('Brand = :brand');
-            replacements.brand = brand;
+            conditions.push(`Brand = '${brand}'`);
         }
 
         const whereClause = conditions.join(' AND ');
 
         // SQL query to calculate average ECP by Brand split by weekday/weekend
-        // DAYOFWEEK: 1=Sunday, 2=Monday, 3=Tuesday, 4=Wednesday, 5=Thursday, 6=Friday, 7=Saturday
-        // Weekday = 2,3,4,5,6 (Mon-Fri)
-        // Weekend = 1,7 (Sun, Sat)
+        // ClickHouse toDayOfWeek: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
+        // Weekday = 1,2,3,4,5
+        // Weekend = 6,7
         const query = `
             SELECT
                 Brand,
                 ROUND(AVG(CASE 
-                    WHEN DAYOFWEEK(DATE) IN (2,3,4,5,6) 
-                    THEN Selling_Price 
+                    WHEN toDayOfWeek(DATE) IN (1,2,3,4,5) 
+                    THEN toFloat64(Selling_Price) 
                     ELSE NULL 
                 END), 2) AS weekdayEcp,
                 ROUND(AVG(CASE 
-                    WHEN DAYOFWEEK(DATE) IN (1,7) 
-                    THEN Selling_Price 
+                    WHEN toDayOfWeek(DATE) IN (6,7) 
+                    THEN toFloat64(Selling_Price) 
                     ELSE NULL 
                 END), 2) AS weekendEcp
             FROM rb_pdp_olap
             WHERE ${whereClause}
               AND Brand IS NOT NULL
               AND Brand != ''
-              AND Selling_Price IS NOT NULL
-              AND Selling_Price > 0
+              AND toFloat64(Selling_Price) > 0
             GROUP BY Brand
             ORDER BY Brand
         `;
@@ -79,7 +74,8 @@ async function getEcpWeekdayWeekend(filters = {}) {
         console.log('[EcpWeekdayWeekendService] Executing query...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
+
 
         console.log(`[EcpWeekdayWeekendService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
