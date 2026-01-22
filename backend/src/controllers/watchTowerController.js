@@ -354,3 +354,26 @@ export const getCompetitionBrandTrends = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+/**
+ * Get Dark Store Count from rb_location_darkstore table
+ * GET /api/watchtower/dark-store-count
+ */
+export const getDarkStoreCount = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+
+        console.log('[getDarkStoreCount] Request:', filters);
+        const cacheKey = generateCacheKey('dark-store-count', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getDarkStoreCount(filters), CACHE_TTL.METRICS);
+        res.json(data);
+    } catch (error) {
+        console.error('[getDarkStoreCount] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};

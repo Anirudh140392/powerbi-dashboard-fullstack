@@ -266,6 +266,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     t1.${groupColumn} as col_value,
                     SUM(toFloat64(t1.neno_osa)) as sum_neno,
                     SUM(toFloat64(t1.deno_osa)) as sum_deno,
+                    SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
+                    SUM(toFloat64(t1.MSL)) as sum_msl,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -299,6 +301,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     t1.${groupColumn} as col_value,
                     SUM(toFloat64(t1.neno_osa)) as sum_neno,
                     SUM(toFloat64(t1.deno_osa)) as sum_deno,
+                    SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
+                    SUM(toFloat64(t1.MSL)) as sum_msl,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -382,17 +386,29 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 kpiRows.doi[colValue] = Math.round(currDoi);
                 kpiRows.doi.trend[colValue] = Math.round(currDoi - prevDoi);
 
-                // Fillrate (placeholder)
-                kpiRows.fillrate[colValue] = 'Coming Soon';
-                kpiRows.fillrate.trend[colValue] = 0;
+                // Fillrate: (SUM(buy_box_neno_osa) / SUM(deno_osa)) * 100
+                const currFillrate = (parseFloat(curr.sum_deno) > 0)
+                    ? (parseFloat(curr.sum_buybox_neno) / parseFloat(curr.sum_deno)) * 100 : 0;
+                const prevFillrate = (parseFloat(prev.sum_deno) > 0)
+                    ? (parseFloat(prev.sum_buybox_neno) / parseFloat(prev.sum_deno)) * 100 : 0;
+                kpiRows.fillrate[colValue] = Math.round(currFillrate);
+                kpiRows.fillrate.trend[colValue] = Math.round(currFillrate - prevFillrate);
 
                 // Assortment
                 kpiRows.assortment[colValue] = parseInt(curr.assortment_count, 10) || 0;
                 kpiRows.assortment.trend[colValue] = (parseInt(curr.assortment_count, 10) || 0) - (parseInt(prev.assortment_count, 10) || 0);
 
-                // PSL (placeholder)
-                kpiRows.psl[colValue] = Math.round(Math.random() * 30);
-                kpiRows.psl.trend[colValue] = 0;
+                // PSL: (Latest Inventory / SUM(MSL)) * 100 if MSL > 0, else proxy or 0
+                const currMsl = parseFloat(curr.sum_msl) || 0;
+                const prevMsl = parseFloat(prev.sum_msl) || 0;
+                const currInv = parseFloat(curr.latest_inventory) || 0;
+                const prevInv = parseFloat(prev.latest_inventory) || 0;
+
+                const currPsl = currMsl > 0 ? (currInv / currMsl) * 100 : (currOsa * 0.95); // Using proxy if MSL is 0
+                const prevPsl = prevMsl > 0 ? (prevInv / prevMsl) * 100 : (prevOsa * 0.95);
+
+                kpiRows.psl[colValue] = Math.round(currPsl);
+                kpiRows.psl.trend[colValue] = Math.round(currPsl - prevPsl);
             }
 
             return {
@@ -651,18 +667,31 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city }) => {
-    const cacheKey = `availability_filter:${filterType}:${(platform || 'all').toLowerCase()}:${(brand || 'all').toLowerCase()}:${(category || 'all').toLowerCase()}:${(city || 'all').toLowerCase()}`;
+const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city, months }) => {
+    const pKey = Array.isArray(platform) ? platform.join(',') : (platform || 'all');
+    const bKey = Array.isArray(brand) ? brand.join(',') : (brand || 'all');
+    const cKey = Array.isArray(category) ? category.join(',') : (category || 'all');
+    const ctKey = Array.isArray(city) ? city.join(',') : (city || 'all');
+    const mKey = Array.isArray(months) ? months.join(',') : (months || 'all');
+
+    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}`;
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
+            // Helper to build IN clause or equality
+            const buildInClause = (col, val) => {
+                const arr = Array.isArray(val) ? val : [val];
+                if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
+                return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
+            };
+
             // Build cascading filter conditions
             const conditions = [];
-            if (platform && platform !== 'All') conditions.push(`Platform = '${escapeStr(platform)}'`);
-            if (category && category !== 'All') conditions.push(`Category = '${escapeStr(category)}'`);
-            if (city && city !== 'All') conditions.push(`Location = '${escapeStr(city)}'`);
+            if (platform && platform !== 'All') conditions.push(buildInClause('Platform', platform));
+            if (category && category !== 'All') conditions.push(buildInClause('Category', category));
+            if (city && city !== 'All') conditions.push(buildInClause('Location', city));
             const baseFilter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
             if (filterType === 'platforms') {
@@ -673,8 +702,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
             if (filterType === 'categories') {
                 const catConditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
-                if (platform && platform !== 'All') catConditions.push(`platform = '${escapeStr(platform)}'`);
-                if (city && city !== 'All') catConditions.push(`location = '${escapeStr(city)}'`);
+                if (platform && platform !== 'All') catConditions.push(buildInClause('platform', platform)); // rca_sku_dim uses lowercase platform
+                if (city && city !== 'All') catConditions.push(buildInClause('location', city)); // rca_sku_dim uses lowercase location
 
                 const query = `
                     SELECT DISTINCT Category as value 
@@ -687,7 +716,12 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'cities') {
-                const cityConditions = [...conditions.filter(c => !c.includes('Location'))];
+                // rb_pdp_olap uses uppercase Location, Platform, Brand
+                const cityConditions = [];
+                if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
+                if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
+                if (category && category !== 'All') cityConditions.push(buildInClause('Category', category));
+
                 cityConditions.push(`Location IS NOT NULL AND Location != ''`);
                 const whereClause = cityConditions.length > 0 ? `WHERE ${cityConditions.join(' AND ')}` : '';
                 const query = `SELECT DISTINCT Location as value FROM rb_pdp_olap ${whereClause} ORDER BY Location`;
@@ -696,7 +730,11 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'brands') {
-                const brandConditions = [...conditions.filter(c => !c.includes('Brand'))];
+                const brandConditions = [];
+                if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
+                if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
+                if (category && category !== 'All') brandConditions.push(buildInClause('Category', category));
+
                 brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
                 const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
                 const query = `SELECT DISTINCT Brand as value FROM rb_pdp_olap ${whereClause} ORDER BY Brand`;
@@ -709,6 +747,22 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                     SELECT DISTINCT formatDateTime(DATE, '%Y-%m') as value
                     FROM rb_pdp_olap
                     WHERE DATE IS NOT NULL
+                    ORDER BY value DESC
+                `;
+                const results = await queryClickHouse(query);
+                return { options: results.map(r => r.value).filter(Boolean) };
+            }
+
+            if (filterType === 'dates') {
+                const dateConditions = [`DATE IS NOT NULL`];
+                if (months && months !== 'All') {
+                    dateConditions.push(buildInClause("formatDateTime(DATE, '%Y-%m')", months));
+                }
+
+                const query = `
+                    SELECT DISTINCT toString(DATE) as value
+                    FROM rb_pdp_olap
+                    WHERE ${dateConditions.join(' AND ')}
                     ORDER BY value DESC
                 `;
                 const results = await queryClickHouse(query);
@@ -732,9 +786,18 @@ const buildAvailabilityWhereClause = (filters, tableAlias = 't1') => {
 
     const prefix = tableAlias ? `${tableAlias}.` : '';
 
-    if (platform && platform !== 'All') conditions.push(`${prefix}Platform = '${escapeStr(platform)}'`);
-    if (brand && brand !== 'All') conditions.push(`${prefix}Brand = '${escapeStr(brand)}'`);
-    if (location && location !== 'All') conditions.push(`${prefix}Location = '${escapeStr(location)}'`);
+    if (platform && platform !== 'All') {
+        const pArr = Array.isArray(platform) ? platform : [platform];
+        conditions.push(`lower(replace(${prefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    }
+    if (brand && brand !== 'All') {
+        const bArr = Array.isArray(brand) ? brand : [brand];
+        conditions.push(`lower(replace(${prefix}Brand, ' ', '_')) IN (${bArr.map(b => `'${escapeStr(b.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    }
+    if (location && location !== 'All') {
+        const lArr = Array.isArray(location) ? location : [location];
+        conditions.push(`lower(replace(${prefix}Location, ' ', '_')) IN (${lArr.map(l => `'${escapeStr(l.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    }
 
     // Date/Month range
     if (dates && dates.length > 0) {
@@ -747,10 +810,10 @@ const buildAvailabilityWhereClause = (filters, tableAlias = 't1') => {
 
     // Advanced filters (Normalized ID matching)
     if (cities && cities.length > 0) {
-        conditions.push(`lower(replace(${prefix}Location, ' ', '_')) IN (${cities.map(c => `'${escapeStr(c).toLowerCase()}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Location, ' ', '_')) IN (${cities.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
     if (categories && categories.length > 0) {
-        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${categories.map(c => `'${escapeStr(c).toLowerCase()}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${categories.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
@@ -759,11 +822,18 @@ const buildAvailabilityWhereClause = (filters, tableAlias = 't1') => {
 const getOsaDetailByCategory = async (filters) => {
     console.log('[getOsaDetailByCategory] Request received with filters:', filters);
 
-    const cacheKey = generateCacheKey('osa_detail_sku_level', filters);
+    // Apply default dates if not provided to ensure performance and "not applied" behavior
+    const effectiveFilters = { ...filters };
+    if (!effectiveFilters.startDate && !effectiveFilters.endDate && !effectiveFilters.dates && !effectiveFilters.months) {
+        effectiveFilters.endDate = dayjs().format('YYYY-MM-DD');
+        effectiveFilters.startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+    }
+
+    const cacheKey = generateCacheKey('osa_detail_sku_level', effectiveFilters);
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const whereClause = buildAvailabilityWhereClause(filters, 't1');
+            const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
 
             // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
             const query = `
@@ -788,12 +858,41 @@ const getOsaDetailByCategory = async (filters) => {
 
             // Transform into the format the frontend expects: { name, sku, values, avg31, status }
             const skuMap = {};
-            const allDatesSet = new Set();
+
+            // Determine the full date range for gap filling
+            let rangeStart = effectiveFilters.startDate;
+            let rangeEnd = effectiveFilters.endDate;
+
+            if (!rangeStart || !rangeEnd) {
+                // If using months filter instead of explicit range
+                if (effectiveFilters.months && effectiveFilters.months.length > 0) {
+                    const sortedMonths = [...effectiveFilters.months].sort();
+                    rangeStart = dayjs(sortedMonths[0]).startOf('month').format('YYYY-MM-DD');
+                    rangeEnd = dayjs(sortedMonths[sortedMonths.length - 1]).endOf('month').format('YYYY-MM-DD');
+                } else if (results.length > 0) {
+                    // Fallback to the dates present in results
+                    const allDatesArr = results.map(r => dayjs(r.DATE).format('YYYY-MM-DD')).sort();
+                    rangeStart = allDatesArr[0];
+                    rangeEnd = allDatesArr[allDatesArr.length - 1];
+                } else {
+                    // Total fallback
+                    rangeEnd = dayjs().format('YYYY-MM-DD');
+                    rangeStart = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                }
+            }
+
+            // Generate full date list
+            const sortedDates = [];
+            let current = dayjs(rangeStart);
+            const end = dayjs(rangeEnd);
+            while (current.isBefore(end) || current.isSame(end)) {
+                sortedDates.push(current.format('YYYY-MM-DD'));
+                current = current.add(1, 'day');
+            }
 
             results.forEach(row => {
                 const skuId = row.sku;
                 const dateStr = dayjs(row.DATE).format('YYYY-MM-DD');
-                allDatesSet.add(dateStr);
 
                 const neno = parseFloat(row.sum_neno) || 0;
                 const deno = parseFloat(row.sum_deno) || 0;
@@ -809,12 +908,11 @@ const getOsaDetailByCategory = async (filters) => {
                 skuMap[skuId].dailyOsa[dateStr] = parseFloat(osa.toFixed(1));
             });
 
-            const sortedDates = Array.from(allDatesSet).sort();
-
             const categories = Object.values(skuMap).map(item => {
+                // Map to sortedDates and fill gaps with 0
                 const values = sortedDates.map(d => item.dailyOsa[d] ?? 0);
 
-                // Overall average (avg31 in frontend, but here it's for the selected period)
+                // Overall average
                 const totalSum = values.reduce((a, b) => a + b, 0);
                 const avg31 = values.length > 0 ? Math.round(totalSum / values.length) : 0;
 

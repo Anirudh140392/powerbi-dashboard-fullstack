@@ -12,6 +12,7 @@ export default function VisibilityAnalysis() {
     selectedLocation,
     timeStart,
     timeEnd,
+    refreshFilters,
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
@@ -130,6 +131,106 @@ export default function VisibilityAnalysis() {
 
   // API data state - fetched when filters change
   const [apiData, setApiData] = useState({});
+  // Per-segment error tracking
+  const [apiErrors, setApiErrors] = useState({});
+
+  // Individual segment fetch functions for retry capability
+  const fetchVisibilityOverview = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, overview: null }));
+      const res = await fetch(`/api/visibility-analysis/visibility-overview?${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, overview: data }));
+      return true;
+    } catch (err) {
+      console.error('❌ [Visibility] Overview fetch error:', err);
+      setApiErrors(prev => ({ ...prev, overview: err.message }));
+      return false;
+    }
+  };
+
+  const fetchVisibilityMatrix = async (matrixParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, matrix: null }));
+      const res = await fetch(`/api/visibility-analysis/platform-kpi-matrix?${matrixParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, matrix: data }));
+      return true;
+    } catch (err) {
+      console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err);
+      setApiErrors(prev => ({ ...prev, matrix: err.message }));
+      return false;
+    }
+  };
+
+  const fetchVisibilityKeywords = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, keywords: null }));
+      const res = await fetch(`/api/visibility-analysis/keywords-at-glance?${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, keywords: data }));
+      return true;
+    } catch (err) {
+      console.error('❌ [Visibility] Keywords at Glance fetch error:', err);
+      setApiErrors(prev => ({ ...prev, keywords: err.message }));
+      return false;
+    }
+  };
+
+  const fetchVisibilitySearchTerms = async (termsParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, searchTerms: null }));
+      const res = await fetch(`/api/visibility-analysis/top-search-terms?${termsParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, searchTerms: data }));
+      return true;
+    } catch (err) {
+      console.error('❌ [Visibility] Top Search Terms fetch error:', err);
+      setApiErrors(prev => ({ ...prev, searchTerms: err.message }));
+      return false;
+    }
+  };
+
+  // Retry handlers for each segment
+  const retrySegment = async (segmentKey) => {
+    // First, refresh the filter options to ensure dropdowns show updated values
+    if (refreshFilters) {
+      refreshFilters();
+    }
+
+    const baseParams = {
+      platform: filters.platform || 'All',
+      brand: filters.brand || 'All',
+      location: filters.location || 'All',
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    };
+
+    const queryParams = new URLSearchParams(baseParams).toString();
+    const matrixParams = new URLSearchParams({
+      platform: 'All',
+      brand: filters.brand || 'All',
+      location: filters.location || 'All',
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    }).toString();
+    const termsParams = new URLSearchParams({
+      ...baseParams,
+      filter: topSearchFilter
+    }).toString();
+
+    switch (segmentKey) {
+      case 'overview': return fetchVisibilityOverview(queryParams);
+      case 'matrix': return fetchVisibilityMatrix(matrixParams);
+      case 'keywords': return fetchVisibilityKeywords(queryParams);
+      case 'searchTerms': return fetchVisibilitySearchTerms(termsParams);
+      default: return false;
+    }
+  };
 
   // Fetch visibility data when filters change
   useEffect(() => {
@@ -181,6 +282,7 @@ export default function VisibilityAnalysis() {
     if (isMainFilterChange) {
       console.log('🔄 [Visibility] Main filters changed, resetting all data');
       setApiData({});
+      setApiErrors({});
       // Update the main ref here to mark this state change
       lastMainFiltersRef.current = mainFiltersKey;
     } else {
@@ -206,12 +308,7 @@ export default function VisibilityAnalysis() {
         }).toString();
 
         console.log('📡 [Visibility] Fetching Top Search Terms:', topSearchFilter);
-        fetch(`/api/visibility-analysis/top-search-terms?${termsParams}`)
-          .then(res => res.json())
-          .then(searchTerms => {
-            setApiData(prev => ({ ...prev, searchTerms }));
-          })
-          .catch(err => console.error('❌ [Visibility] Top Search Terms fetch error:', err));
+        fetchVisibilitySearchTerms(termsParams);
 
         // 2. Only fetch OTHER segments if it was a main filter change
         if (!isMainFilterChange) {
@@ -220,39 +317,22 @@ export default function VisibilityAnalysis() {
         }
 
         const queryParams = new URLSearchParams(baseParams).toString();
-        console.log('📡 [Visibility] Fetching ALL segments (main filters changed)');
-
-        // Visibility Overview (SOS cards)
-        fetch(`/api/visibility-analysis/visibility-overview?${queryParams}`)
-          .then(res => res.json())
-          .then(overview => {
-            setApiData(prev => ({ ...prev, overview }));
-          })
-          .catch(err => console.error('❌ [Visibility] Overview fetch error:', err));
-
-        // Platform KPI Matrix - DON'T filter by platform dropdown, always show ALL platforms for comparison
         const matrixParams = new URLSearchParams({
-          platform: 'All',  // Always show all platforms in the matrix
+          platform: 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();
-        fetch(`/api/visibility-analysis/platform-kpi-matrix?${matrixParams}`)
-          .then(res => res.json())
-          .then(matrix => {
-            setApiData(prev => ({ ...prev, matrix }));
-          })
-          .catch(err => console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err));
 
-        // Keywords at a Glance
-        fetch(`/api/visibility-analysis/keywords-at-glance?${queryParams}`)
-          .then(res => res.json())
-          .then(keywords => {
-            setApiData(prev => ({ ...prev, keywords }));
-          })
-          .catch(err => console.error('❌ [Visibility] Keywords at Glance fetch error:', err));
+        console.log('📡 [Visibility] Fetching ALL segments (main filters changed)');
 
+        // Fetch all segments (errors are tracked per-segment)
+        await Promise.allSettled([
+          fetchVisibilityOverview(queryParams),
+          fetchVisibilityMatrix(matrixParams),
+          fetchVisibilityKeywords(queryParams)
+        ]);
       } catch (error) {
         console.error("[Visibility] Error setting up data fetch:", error);
       }
@@ -316,6 +396,8 @@ export default function VisibilityAnalysis() {
       >
         <VisiblityAnalysisData
           apiData={apiData}
+          apiErrors={apiErrors}
+          onRetry={retrySegment}
           filters={filters}
           topSearchFilter={topSearchFilter}
           setTopSearchFilter={setTopSearchFilter}

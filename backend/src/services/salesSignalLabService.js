@@ -1,11 +1,16 @@
 /**
  * Sales Signal Lab Service
  * Provides visibility signal logic specifically for the Sales page
- * Moved from visibilityService.js for separation of concerns
+ * Migrated from MySQL Sequelize to ClickHouse
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+
+/**
+ * Helper to escape ClickHouse strings
+ */
+const escapeCH = (str) => String(str || '').replace(/'/g, "''");
 
 /**
  * Get Visibility Signals for Keyword & SKU drainers/gainers
@@ -36,47 +41,46 @@ async function getVisibilitySignals(filters = {}) {
             prevStartDate = dayjs(prevEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
         }
 
-        // Build WHERE clause
-        let whereClause = "WHERE DATE(kw_crawl_date) BETWEEN :startDate AND :endDate";
-        const replacements = { startDate, endDate, prevStartDate, prevEndDate };
+        // Build WHERE clauses for ClickHouse
+        let whereConditions = [`toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'`];
 
         if (platform && platform !== 'All') {
-            whereClause += " AND LOWER(platform_name) = LOWER(:platform)";
-            replacements.platform = platform;
+            whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
         }
 
         if (location && location !== 'All') {
-            whereClause += " AND LOWER(location_name) = LOWER(:location)";
-            replacements.location = location;
+            whereConditions.push(`lower(location_name) = lower('${escapeCH(location)}')`);
         }
+
+        const whereClause = whereConditions.join(' AND ');
 
         // Group by column based on level
         const groupColumn = level === 'keyword' ? 'keyword' : 'keyword_search_product';
         const selectLabel = level === 'keyword' ? 'keyword' : 'keyword_search_product as sku';
 
-        // OPTIMIZED: Single query without subqueries
+        // ClickHouse query - note: using toString() for flag comparisons and ifNull for COALESCE
         const currentQuery = `
             SELECT 
                 ${selectLabel},
                 platform_name as platform,
                 COUNT(*) as total_appearances,
-                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as overall_sos,
-                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END), 0), 2) as ad_sos,
-                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 0 OR spons_flag IS NULL THEN 1 ELSE 0 END), 0), 2) as organic_sos,
-                AVG(CASE WHEN spons_flag = 1 THEN keyword_search_rank ELSE NULL END) as avg_ad_position,
-                AVG(CASE WHEN spons_flag = 0 OR spons_flag IS NULL THEN keyword_search_rank ELSE NULL END) as avg_organic_position
+                ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 2) as overall_sos,
+                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 2) as ad_sos,
+                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) as organic_sos,
+                avgIf(keyword_search_rank, toString(spons_flag) = '1') as avg_ad_position,
+                avgIf(keyword_search_rank, toString(spons_flag) != '1') as avg_organic_position
             FROM rb_kw
-            ${whereClause}
+            WHERE ${whereClause}
             GROUP BY ${groupColumn}, platform_name
             HAVING COUNT(*) >= 5
             ORDER BY total_appearances DESC
             LIMIT 20
         `;
 
-        console.log('[SalesSignalLabService] Executing optimized query...');
+        console.log('[SalesSignalLabService] Executing ClickHouse query...');
         const queryStart = Date.now();
 
-        const [currentResults] = await sequelize.query(currentQuery, { replacements });
+        const currentResults = await queryClickHouse(currentQuery);
 
         console.log(`[SalesSignalLabService] Query completed in ${Date.now() - queryStart}ms, found ${currentResults?.length || 0} results`);
 
@@ -149,7 +153,7 @@ async function getVisibilitySignals(filters = {}) {
 
 /**
  * Get city-level KPI details for a specific keyword or SKU
- * Queries rb_kw for visibility metrics
+ * Queries rb_kw for visibility metrics using ClickHouse
  * @param {Object} params - { keyword, skuName, level, platform, startDate, endDate }
  * @returns {Object} { cities: [...] }
  */
@@ -167,40 +171,40 @@ async function getVisibilitySignalCityDetails(params = {}) {
         const currentEnd = endDate || dayjs().format('YYYY-MM-DD');
         const currentStart = startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
-        // Build WHERE clause for rb_kw only
-        let kwWhereClause = "WHERE DATE(kw_crawl_date) BETWEEN :startDate AND :endDate";
-        const replacements = { startDate: currentStart, endDate: currentEnd };
+        // Build WHERE conditions for ClickHouse
+        let whereConditions = [`toDate(kw_crawl_date) BETWEEN '${currentStart}' AND '${currentEnd}'`];
 
         if (platform && platform !== 'All') {
-            kwWhereClause += " AND LOWER(platform_name) = LOWER(:platform)";
-            replacements.platform = platform;
+            whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
         }
 
-        // Add keyword/sku filter - use LIKE for flexibility
+        // Add keyword/sku filter - use positionCaseInsensitive for LIKE equivalent
         const kwColumn = level === 'keyword' ? 'keyword' : 'keyword_search_product';
-        kwWhereClause += ` AND LOWER(${kwColumn}) LIKE LOWER(:searchTerm)`;
-        replacements.searchTerm = `%${searchTerm}%`;
+        whereConditions.push(`positionCaseInsensitive(${kwColumn}, '${escapeCH(searchTerm)}') > 0`);
+        whereConditions.push(`location_name IS NOT NULL`);
+        whereConditions.push(`location_name != ''`);
 
-        // Simple optimized query - just visibility metrics from rb_kw
+        const whereClause = whereConditions.join(' AND ');
+
+        // ClickHouse query for city-level metrics
         const visibilityQuery = `
             SELECT 
                 location_name as city,
                 COUNT(*) as total_appearances,
-                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) as overall_sos,
-                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END), 0), 2) as ad_sos,
-                ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 0 OR spons_flag IS NULL THEN 1 ELSE 0 END), 0), 2) as organic_sos
+                ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 2) as overall_sos,
+                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 2) as ad_sos,
+                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) as organic_sos
             FROM rb_kw
-            ${kwWhereClause}
-            AND location_name IS NOT NULL AND location_name != ''
+            WHERE ${whereClause}
             GROUP BY location_name
             ORDER BY total_appearances DESC
             LIMIT 30
         `;
 
-        console.log('[SalesSignalLabService] Executing city query...');
+        console.log('[SalesSignalLabService] Executing ClickHouse city query...');
         const queryStart = Date.now();
 
-        const [visibilityResults] = await sequelize.query(visibilityQuery, { replacements });
+        const visibilityResults = await queryClickHouse(visibilityQuery);
 
         console.log(`[SalesSignalLabService] City query completed in ${Date.now() - queryStart}ms, found ${visibilityResults?.length || 0} cities`);
 
