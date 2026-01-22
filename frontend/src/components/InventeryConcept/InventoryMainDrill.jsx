@@ -307,6 +307,15 @@ export default function InventoryDrill() {
                                         ))}
                                     </tr>
                                 ))
+                            ) : pageRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={cityColumns.length + 1} className="px-6 py-10 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>No data found for the selected filters.</Typography>
+                                            <Typography variant="caption">Try adjusting your date range or filter selections.</Typography>
+                                        </div>
+                                    </td>
+                                </tr>
                             ) : (
                                 pageRows.map((row) => (
                                     <tr key={row.sku} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors">

@@ -1,26 +1,24 @@
-import { Op } from 'sequelize';
-import sequelize from '../config/db.js';
-import RbPdpOlap from '../models/RbPdpOlap.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 const THRESHOLD_DOH = 8; // Default threshold for DOH
 const UNITS_PER_BOX = 24; // Units per box for replenishment calculation
 const RESTRICTED_CATEGORIES = ['Bath & Body', 'Detergent', 'Hair Care', 'Fragrance & talc'];
 
-const getFilterMetadata = async (whereClause) => {
-    // Optimization: Grouping by all target columns to get unique combinations
-    const results = await RbPdpOlap.findAll({
-        attributes: [
-            ['Platform', 'platform'],
-            ['Brand', 'brand'],
-            ['Category', 'category'],
-            ['Product', 'sku'],
-            ['Location', 'city']
-        ],
-        where: whereClause,
-        group: ['Platform', 'Brand', 'Category', 'Product', 'Location'],
-        raw: true
-    });
+const getFilterMetadata = async (whereClause, params) => {
+    const query = `
+        SELECT 
+            Platform as platform,
+            Brand as brand,
+            Category as category,
+            Product as sku,
+            Location as city
+        FROM rb_pdp_olap
+        WHERE ${whereClause}
+        GROUP BY Platform, Brand, Category, Product, Location
+    `;
+
+    const results = await queryClickHouse(query, params);
 
     return {
         platforms: [...new Set(results.map(r => r.platform))].filter(Boolean).sort(),
@@ -31,21 +29,7 @@ const getFilterMetadata = async (whereClause) => {
     };
 };
 
-/**
- * Helper to get the actual latest date available in the database
- */
-const getLatestAvailableDate = async (categoryRestricted = true) => {
-    const where = {};
-    if (categoryRestricted) {
-        where.Category = { [Op.in]: RESTRICTED_CATEGORIES };
-    }
-    const result = await RbPdpOlap.findOne({
-        attributes: [[sequelize.fn('MAX', sequelize.col('DATE')), 'maxDate']],
-        where,
-        raw: true
-    });
-    return result?.maxDate ? dayjs(result.maxDate) : dayjs();
-};
+
 
 /**
  * Inventory Analysis Service
@@ -66,233 +50,118 @@ const inventoryAnalysisService = {
      */
     async getInventoryOverview(filters) {
         try {
-            console.log("🔍 [InventoryAnalysis] Fetching overview with filters:", filters);
+            console.log("🔍 [InventoryAnalysis] Fetching overview (ClickHouse) with filters:", filters);
 
             const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
             const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(6, 'days');
-
-            // Calculate date range duration
             const duration = endDate.diff(startDate, 'day') + 1;
 
-            // Comparison period (previous period of same duration)
-            const compareEndDate = filters.compareEndDate
-                ? dayjs(filters.compareEndDate)
-                : startDate.subtract(1, 'day');
-            const compareStartDate = filters.compareStartDate
-                ? dayjs(filters.compareStartDate)
-                : compareEndDate.subtract(duration - 1, 'day');
+            const compareEndDate = filters.compareEndDate ? dayjs(filters.compareEndDate) : startDate.subtract(1, 'day');
+            const compareStartDate = filters.compareStartDate ? dayjs(filters.compareStartDate) : compareEndDate.subtract(duration - 1, 'day');
 
-            // Build base where clause
-            const buildWhereClause = (start, end) => {
-                const whereClause = {
-                    DATE: {
-                        [Op.between]: [
-                            start.startOf('day').format('YYYY-MM-DD HH:mm:ss'),
-                            end.endOf('day').format('YYYY-MM-DD HH:mm:ss')
-                        ]
-                    }
-                };
+            const buildSqlWhere = (start, end) => {
+                let where = `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
+                const params = {};
 
-                // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => p.trim());
-                    whereClause.Platform = { [Op.in]: platforms };
+                    where += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
                 }
-
-                // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
                     const brands = filters.brand.split(',').map(b => b.trim());
-                    whereClause.Brand = { [Op.in]: brands };
+                    where += ` AND Brand IN (${brands.map(b => `'${b}'`).join(',')})`;
                 }
-
-                // Location filter
                 if (filters.location && filters.location !== 'All') {
                     const locations = filters.location.split(',').map(l => l.trim());
-                    whereClause.Location = { [Op.in]: locations };
+                    where += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
                 }
 
-                // Global Category Restriction
                 if (filters.category && filters.category !== 'All') {
-                    const requested = filters.category.split(',').map(c => c.trim());
-                    whereClause.Category = { [Op.in]: requested.filter(c => RESTRICTED_CATEGORIES.includes(c)) };
+                    const requested = filters.category.split(',').map(c => c.trim()).filter(c => RESTRICTED_CATEGORIES.includes(c));
+                    if (requested.length > 0) {
+                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
+                    } else {
+                        where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
+                    }
                 } else {
-                    whereClause.Category = { [Op.in]: RESTRICTED_CATEGORIES };
+                    where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
                 }
-
-                return whereClause;
+                return where;
             };
 
-            // Smart Fallback Detection
-            const initialCount = await RbPdpOlap.count({ where: buildWhereClause(startDate, endDate) });
 
-            if (initialCount === 0) {
-                console.log("⚠️ [InventoryAnalysis] No data found for overview range, falling back to latest.");
-                const latestDate = await getLatestAvailableDate();
-                const searchEnd = latestDate;
-                const searchStart = latestDate.subtract(duration - 1, 'day');
 
-                // Adjust comparison period too
-                const newCompareEnd = searchStart.subtract(1, 'day');
-                const newCompareStart = newCompareEnd.subtract(duration - 1, 'day');
-
-                return this.getInventoryOverview({
-                    ...filters,
-                    startDate: searchStart.format('YYYY-MM-DD'),
-                    endDate: searchEnd.format('YYYY-MM-DD'),
-                    compareStartDate: newCompareStart.format('YYYY-MM-DD'),
-                    compareEndDate: newCompareEnd.format('YYYY-MM-DD')
-                });
-            }
-
-            // Fetch aggregated metrics for a period (aggregating per SKU-City)
-            const getMetrics = async (start, end) => {
-                const whereClause = buildWhereClause(start, end);
+            // 2. Fetch Metrics (Per period aggregation)
+            const getMetricsSql = (start, end) => {
+                const where = buildSqlWhere(start, end);
                 const periodDays = end.diff(start, 'day') + 1;
-
-                // 1. Get sales and days per SKU-City
-                const salesResults = await RbPdpOlap.findAll({
-                    attributes: [
-                        ['Product', 'sku'],
-                        ['Location', 'city'],
-                        [sequelize.fn('SUM', sequelize.col('Qty_Sold')), 'totalQtySold'],
-                        [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.fn('DATE', sequelize.col('DATE')))), 'distinctDays']
-                    ],
-                    where: whereClause,
-                    group: ['Product', 'Location'],
-                    raw: true
-                });
-
-                // 2. Get latest inventory per SKU-City (summing platforms)
-                const latestInventoryResults = await RbPdpOlap.findAll({
-                    attributes: [
-                        ['Product', 'sku'],
-                        ['Location', 'city'],
-                        ['Platform', 'platform'],
-                        ['inventory', 'inventory']
-                    ],
-                    where: whereClause,
-                    order: [['DATE', 'DESC']],
-                    raw: true
-                });
-
-                // Map latest inventory by platforms
-                const platformLatestMap = new Map();
-                latestInventoryResults.forEach(r => {
-                    const key = `${r.sku}|${r.city}|${r.platform}`;
-                    if (!platformLatestMap.has(key)) platformLatestMap.set(key, parseFloat(r.inventory || 0));
-                });
-
-                // Sum inventory by SKU-City
-                const skuCityInventory = new Map();
-                platformLatestMap.forEach((inv, key) => {
-                    const [sku, city] = key.split('|');
-                    const k = `${sku}|${city}`;
-                    skuCityInventory.set(k, (skuCityInventory.get(k) || 0) + inv);
-                });
-
-                // 3. Calculate per-SKU metrics and aggregate
-                let totalPoQty = 0;
-                let totalCurrentInventory = 0;
-                let totalDrrSum = 0;
-                let pairCount = 0;
-
-                salesResults.forEach(r => {
-                    const key = `${r.sku}|${r.city}`;
-                    const inventory = skuCityInventory.get(key) || 0;
-                    const sales = parseFloat(r.totalQtySold || 0);
-                    const days = parseInt(r.distinctDays || periodDays);
-
-                    const drr = days > 0 ? sales / days : 0;
-                    const doh = drr > 0 ? inventory / drr : 0;
-                    const poQty = Math.max(0, (THRESHOLD_DOH - doh) * drr);
-
-                    totalPoQty += poQty;
-                    totalCurrentInventory += inventory;
-                    totalDrrSum += drr;
-                    pairCount++;
-                });
-
-                const totalBoxesRequired = Math.round(totalPoQty / UNITS_PER_BOX);
-                const globalDoh = totalDrrSum > 0 ? totalCurrentInventory / totalDrrSum : 0;
-
-                return {
-                    totalInventory: totalCurrentInventory,
-                    drr: totalDrrSum,
-                    doh: globalDoh,
-                    poQty: totalPoQty,
-                    totalBoxesRequired,
-                    periodDays: periodDays
-                };
+                return `
+                    SELECT 
+                        sum(drr) as totalDrr,
+                        sum(inventory) as totalInventory,
+                        sum(poQty) as totalPoQty,
+                        count() as pairCount
+                    FROM (
+                        SELECT 
+                            Product, 
+                            Location,
+                            argMax(toFloat64OrZero(Inventory), DATE) as inventory,
+                            sum(toFloat64OrZero(Qty_Sold)) / ${periodDays} as drr,
+                            if(isNaN(if(drr > 0, inventory / drr, 0)), 0, if(drr > 0, inventory / drr, 0)) as doh,
+                            if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty
+                        FROM rb_pdp_olap
+                        WHERE ${where}
+                        GROUP BY Product, Location
+                    )
+                `;
             };
 
-            // Fetch trend data for sparklines (Calculating replenishment per day)
-            const getTrendData = async (start, end) => {
-                const whereClause = buildWhereClause(start, end);
-
-                // Get daily data per SKU-City-Platform
-                const results = await RbPdpOlap.findAll({
-                    attributes: [
-                        [sequelize.fn('DATE', sequelize.col('DATE')), 'date'],
-                        ['Product', 'sku'],
-                        ['Location', 'city'],
-                        ['Platform', 'platform'],
-                        ['inventory', 'inventory'],
-                        ['Qty_Sold', 'qtySold']
-                    ],
-                    where: whereClause,
-                    order: [[sequelize.fn('DATE', sequelize.col('DATE')), 'ASC']],
-                    raw: true
-                });
-
-                // Group by date, then sum SKU-City PO Qty
-                const dailyData = new Map();
-                results.forEach(r => {
-                    const d = r.date;
-                    if (!dailyData.has(d)) dailyData.set(d, new Map());
-                    const m = dailyData.get(d);
-                    const k = `${r.sku}|${r.city}`;
-                    if (!m.has(k)) m.set(k, { inventory: 0, qtySold: 0 });
-                    const entry = m.get(k);
-                    entry.inventory += parseFloat(r.inventory || 0);
-                    entry.qtySold += parseFloat(r.qtySold || 0);
-                });
-
-                const finalTrend = [];
-                dailyData.forEach((skus, date) => {
-                    let dayPoQty = 0;
-                    let dayInventory = 0;
-                    let dayQtySold = 0;
-
-                    skus.forEach(v => {
-                        dayInventory += v.inventory;
-                        dayQtySold += v.qtySold;
-                        const drr = v.qtySold; // Local daily DRR proxy
-                        const doh = drr > 0 ? v.inventory / drr : (v.inventory > 0 ? 99 : 0);
-                        dayPoQty += Math.max(0, (THRESHOLD_DOH - doh) * drr);
-                    });
-
-                    finalTrend.push({
-                        date,
-                        inventory: dayInventory,
-                        qtySold: dayQtySold,
-                        poQty: dayPoQty
-                    });
-                });
-
-                return finalTrend.sort((a, b) => dayjs(a.date).diff(dayjs(b.date)));
-            };
-
-            // Execute queries in parallel
-            const [currentMetrics, compareMetrics, trendData] = await Promise.all([
-                getMetrics(startDate, endDate),
-                getMetrics(compareStartDate, compareEndDate),
-                getTrendData(startDate, endDate)
+            const [currentData, compareData] = await Promise.all([
+                queryClickHouse(getMetricsSql(startDate, endDate)),
+                queryClickHouse(getMetricsSql(compareStartDate, compareEndDate))
             ]);
 
-            console.log("✅ [InventoryAnalysis] Current metrics:", currentMetrics);
-            console.log("✅ [InventoryAnalysis] Compare metrics:", compareMetrics);
+            const currentMetrics = {
+                drr: parseFloat(currentData[0]?.totalDrr || 0),
+                totalInventory: parseFloat(currentData[0]?.totalInventory || 0),
+                totalPoQty: parseFloat(currentData[0]?.totalPoQty || 0),
+                totalBoxesRequired: Math.round(parseFloat(currentData[0]?.totalPoQty || 0) / UNITS_PER_BOX),
+                doh: parseFloat(currentData[0]?.totalDrr || 0) > 0 ? parseFloat(currentData[0]?.totalInventory || 0) / parseFloat(currentData[0]?.totalDrr || 0) : 0,
+                periodDays: duration
+            };
 
-            // Calculate changes
+            const compareMetrics = {
+                drr: parseFloat(compareData[0]?.totalDrr || 0),
+                totalBoxesRequired: Math.round(parseFloat(compareData[0]?.totalPoQty || 0) / UNITS_PER_BOX),
+                doh: parseFloat(compareData[0]?.totalDrr || 0) > 0 ? parseFloat(compareData[0]?.totalInventory || 0) / parseFloat(compareData[0]?.totalDrr || 0) : 0
+            };
+
+            // 3. Fetch Trend Data for Sparklines
+            const trendQuery = `
+                SELECT 
+                    toDate(DATE) as date,
+                    sum(inventory) as inventory,
+                    sum(qtySold) as qtySold,
+                    sum(poQty) as poQty
+                FROM (
+                    SELECT 
+                        DATE,
+                        Product,
+                        Location,
+                        argMax(toFloat64OrZero(Inventory), DATE) as inventory,
+                        sum(toFloat64OrZero(Qty_Sold)) as qtySold,
+                        if(isNaN(if(qtySold > 0, inventory / qtySold, (if(inventory > 0, 99, 0)))), 0, if(qtySold > 0, inventory / qtySold, (if(inventory > 0, 99, 0)))) as doh,
+                        if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * qtySold, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * qtySold, 0)) as poQty
+                    FROM rb_pdp_olap
+                    WHERE ${buildSqlWhere(startDate, endDate)}
+                    GROUP BY DATE, Product, Location
+                )
+                GROUP BY date
+                ORDER BY date ASC
+            `;
+
+            const trendData = await queryClickHouse(trendQuery);
+
             const calculateChange = (current, previous) => {
                 if (previous === 0) return current === 0 ? 0 : 100;
                 return ((current - previous) / previous) * 100;
@@ -302,22 +171,11 @@ const inventoryAnalysisService = {
             const drrChange = calculateChange(currentMetrics.drr, compareMetrics.drr);
             const boxesChange = calculateChange(currentMetrics.totalBoxesRequired, compareMetrics.totalBoxesRequired);
 
-            // Build sparkline data from trend
-            const dohSparkline = trendData.map(d => {
-                const dailyDrr = d.qtySold || 1;
-                return d.inventory / dailyDrr;
-            });
-
-            const drrSparkline = trendData.map(d => d.qtySold);
-
-            // Calculate rolling boxes required for sparkline
-            const boxesSparkline = trendData.map(d => {
-                return Math.ceil(d.poQty / UNITS_PER_BOX);
-            });
-
+            const dohSparkline = trendData.map(d => parseFloat(d.qtySold) > 0 ? parseFloat(d.inventory) / parseFloat(d.qtySold) : (parseFloat(d.inventory) > 0 ? 99 : 0));
+            const drrSparkline = trendData.map(d => parseFloat(d.qtySold));
+            const boxesSparkline = trendData.map(d => Math.ceil(parseFloat(d.poQty) / UNITS_PER_BOX));
             const trendLabels = trendData.map(d => dayjs(d.date).format('MMM DD'));
 
-            // Format response
             const formatNumber = (num) => {
                 if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`;
                 if (num >= 100000) return `${(num / 100000).toFixed(2)} L`;
@@ -346,11 +204,11 @@ const inventoryAnalysisService = {
                     },
                     totalBoxesRequired: {
                         value: formatNumber(currentMetrics.totalBoxesRequired),
-                        rawValue: currentMetrics.totalBoxesRequired,
+                        rawValue: currentMetrics.totalPoQty,
                         previousValue: compareMetrics.totalBoxesRequired,
                         change: boxesChange.toFixed(1),
                         changePoints: (currentMetrics.totalBoxesRequired - compareMetrics.totalBoxesRequired).toFixed(1),
-                        isPositive: boxesChange <= 0, // Lower is better for boxes required
+                        isPositive: boxesChange <= 0,
                         sparkline: boxesSparkline.length > 0 ? boxesSparkline : [0],
                         labels: trendLabels.length > 0 ? trendLabels : [startDate.format('MMM DD')]
                     }
@@ -367,7 +225,6 @@ const inventoryAnalysisService = {
                     compareEnd: compareEndDate.format('YYYY-MM-DD')
                 }
             };
-
         } catch (error) {
             console.error("❌ [InventoryAnalysis] Error fetching overview:", error);
             throw error;
@@ -379,13 +236,9 @@ const inventoryAnalysisService = {
      */
     async getPlatforms() {
         try {
-            const platforms = await RbPdpOlap.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Platform')), 'Platform']],
-                where: { Platform: { [Op.ne]: null } },
-                order: [['Platform', 'ASC']],
-                raw: true
-            });
-            return platforms.map(p => p.Platform).filter(p => p);
+            const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')}) ORDER BY platform ASC`;
+            const results = await queryClickHouse(query);
+            return results.map(p => p.platform);
         } catch (error) {
             console.error("❌ [InventoryAnalysis] Error fetching platforms:", error);
             return [];
@@ -397,18 +250,14 @@ const inventoryAnalysisService = {
      */
     async getBrands(platform) {
         try {
-            const whereClause = { Brand: { [Op.ne]: null } };
+            let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
             if (platform && platform !== 'All') {
-                whereClause.Platform = { [Op.in]: platform.split(',').map(p => p.trim()) };
+                const platforms = platform.split(',').map(p => p.trim());
+                query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
             }
-
-            const brands = await RbPdpOlap.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Brand')), 'Brand']],
-                where: whereClause,
-                order: [['Brand', 'ASC']],
-                raw: true
-            });
-            return brands.map(b => b.Brand).filter(b => b);
+            query += ` ORDER BY brand ASC`;
+            const results = await queryClickHouse(query);
+            return results.map(b => b.brand);
         } catch (error) {
             console.error("❌ [InventoryAnalysis] Error fetching brands:", error);
             return [];
@@ -420,22 +269,18 @@ const inventoryAnalysisService = {
      */
     async getLocations(platform, brand) {
         try {
-            const whereClause = { Location: { [Op.ne]: null } };
-
+            let query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
             if (platform && platform !== 'All') {
-                whereClause.Platform = { [Op.in]: platform.split(',').map(p => p.trim()) };
+                const platforms = platform.split(',').map(p => p.trim());
+                query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
             }
             if (brand && brand !== 'All') {
-                whereClause.Brand = { [Op.in]: brand.split(',').map(b => b.trim()) };
+                const brands = brand.split(',').map(b => b.trim());
+                query += ` AND Brand IN (${brands.map(b => `'${b}'`).join(',')})`;
             }
-
-            const locations = await RbPdpOlap.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Location')), 'Location']],
-                where: whereClause,
-                order: [['Location', 'ASC']],
-                raw: true
-            });
-            return locations.map(l => l.Location).filter(l => l);
+            query += ` ORDER BY location ASC`;
+            const results = await queryClickHouse(query);
+            return results.map(l => l.location);
         } catch (error) {
             console.error("❌ [InventoryAnalysis] Error fetching locations:", error);
             return [];
@@ -447,115 +292,64 @@ const inventoryAnalysisService = {
      */
     async getInventoryMatrix(filters) {
         try {
-            console.log("🔍 [InventoryAnalysis] Fetching basic matrix with filters:", filters);
+            console.log("🔍 [InventoryAnalysis] Fetching basic matrix (ClickHouse) with filters:", filters);
 
             const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
             const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(6, 'days');
 
-            const buildWhereClause = (start, end) => {
-                const whereClause = {
-                    DATE: {
-                        [Op.between]: [
-                            start.startOf('day').format('YYYY-MM-DD HH:mm:ss'),
-                            end.endOf('day').format('YYYY-MM-DD HH:mm:ss')
-                        ]
-                    }
-                };
-
-                if (filters.platform && filters.platform !== 'All' && filters.platform !== '') {
-                    const platforms = filters.platform.split(',').map(p => p.trim()).filter(p => p);
-                    if (platforms.length > 0) whereClause.Platform = { [Op.in]: platforms };
+            const buildSqlWhere = (start, end) => {
+                let where = `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
+                if (filters.platform && filters.platform !== 'All') {
+                    const platforms = filters.platform.split(',').map(p => p.trim());
+                    where += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
                 }
-                if (filters.brand && filters.brand !== 'All' && filters.brand !== '') {
-                    const brands = filters.brand.split(',').map(b => b.trim()).filter(b => b);
-                    if (brands.length > 0) whereClause.Brand = { [Op.in]: brands };
+                if (filters.brand && filters.brand !== 'All') {
+                    const brands = filters.brand.split(',').map(b => b.trim());
+                    where += ` AND Brand IN (${brands.map(b => `'${b}'`).join(',')})`;
                 }
-                if (filters.location && filters.location !== 'All' && filters.location !== '') {
-                    const locations = filters.location.split(',').map(l => l.trim()).filter(l => l);
-                    if (locations.length > 0) whereClause.Location = { [Op.in]: locations };
+                if (filters.location && filters.location !== 'All') {
+                    const locations = filters.location.split(',').map(l => l.trim());
+                    where += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
                 }
 
-                // Global Category Restriction
-                if (filters.category && filters.category !== 'All' && filters.category !== '') {
-                    const requested = filters.category.split(',').map(c => c.trim()).filter(c => c);
-                    const filtered = requested.filter(c => RESTRICTED_CATEGORIES.includes(c));
-                    if (filtered.length > 0) {
-                        whereClause.Category = { [Op.in]: filtered };
+                if (filters.category && filters.category !== 'All') {
+                    const requested = filters.category.split(',').map(c => c.trim()).filter(c => RESTRICTED_CATEGORIES.includes(c));
+                    if (requested.length > 0) {
+                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
                     } else {
-                        whereClause.Category = { [Op.in]: RESTRICTED_CATEGORIES };
+                        where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
                     }
                 } else {
-                    whereClause.Category = { [Op.in]: RESTRICTED_CATEGORIES };
+                    where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
                 }
-                return whereClause;
+                return where;
             };
 
-            let whereClause = buildWhereClause(startDate, endDate);
+            let sqlWhere = buildSqlWhere(startDate, endDate);
 
-            // Check if results exist for this range
-            const count = await RbPdpOlap.count({ where: whereClause });
-            if (count === 0) {
-                console.log("⚠️ [InventoryAnalysis] No data found for requested range, falling back to latest available data.");
-                const latestDate = await getLatestAvailableDate();
-                const fallbackStart = latestDate.subtract(6, 'days');
-                const fallbackEnd = latestDate;
-                whereClause = buildWhereClause(fallbackStart, fallbackEnd);
-                console.log(`🔄 [InventoryAnalysis] Fallback range: ${fallbackStart.format('YYYY-MM-DD')} to ${fallbackEnd.format('YYYY-MM-DD')}`);
-            }
 
-            // Metadata for dynamic filters (independent of specific filters except date/category)
-            const metadataWhere = {
-                DATE: whereClause.DATE,
-                Category: { [Op.in]: RESTRICTED_CATEGORIES }
-            };
-            const metadata = await getFilterMetadata(metadataWhere);
+            const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`);
 
-            // Fetch latest inventory snapshot per City-SKU-Platform
-            const results = await RbPdpOlap.findAll({
-                attributes: [
-                    ['Product', 'sku'],
-                    ['Location', 'city'],
-                    ['Brand', 'brand'],
-                    ['Platform', 'platform'],
-                    ['Category', 'category'],
-                    ['inventory', 'inventory'],
-                    ['DATE', 'date']
-                ],
-                where: whereClause,
-                order: [['DATE', 'DESC']],
-                raw: true
-            });
+            const matrixQuery = `
+                SELECT 
+                    Product as sku,
+                    Location as city,
+                    Brand as brand,
+                    Category as category,
+                    sum(inventory) as inventory
+                FROM (
+                    SELECT 
+                        Product, Location, Brand, Category, Platform,
+                        argMax(toFloat64OrZero(Inventory), DATE) as inventory
+                    FROM rb_pdp_olap
+                    WHERE ${sqlWhere}
+                    GROUP BY Product, Location, Brand, Category, Platform
+                )
+                GROUP BY Product, Location, Brand, Category
+            `;
 
-            // For each unique (city, sku, platform), pick the first (latest) record
-            // Then sum them up by (city, sku)
-            const latestPlatformMap = new Map(); // key: city|sku|platform
-            results.forEach(r => {
-                const key = `${r.city}|${r.sku}|${r.platform}`;
-                if (!latestPlatformMap.has(key)) {
-                    latestPlatformMap.set(key, r);
-                }
-            });
-
-            const finalMap = new Map(); // key: city|sku
-            latestPlatformMap.forEach(r => {
-                const key = `${r.city}|${r.sku}`;
-                if (!finalMap.has(key)) {
-                    finalMap.set(key, {
-                        sku: r.sku,
-                        city: r.city,
-                        brand: r.brand,
-                        category: r.category,
-                        inventory: 0
-                    });
-                }
-                const entry = finalMap.get(key);
-                entry.inventory += parseFloat(r.inventory || 0);
-            });
-
-            return {
-                data: Array.from(finalMap.values()),
-                metadata
-            };
+            const results = await queryClickHouse(matrixQuery);
+            return { data: results, metadata };
 
         } catch (error) {
             console.error("❌ [InventoryAnalysis] Error fetching matrix:", error);
@@ -568,136 +362,88 @@ const inventoryAnalysisService = {
      */
     async getCitySkuMatrix(filters) {
         try {
-            console.log("🔍 [InventoryAnalysis] Fetching city-sku matrix with filters:", filters);
+            console.log("🔍 [InventoryAnalysis] Fetching city-sku matrix (ClickHouse) with filters:", filters);
 
             const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
             const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(6, 'days');
             const periodDays = endDate.diff(startDate, 'day') + 1;
 
-            const buildWhereClause = (start, end) => {
-                const whereClause = {
-                    DATE: {
-                        [Op.between]: [
-                            start.startOf('day').format('YYYY-MM-DD HH:mm:ss'),
-                            end.endOf('day').format('YYYY-MM-DD HH:mm:ss')
-                        ]
-                    }
-                };
-
-                if (filters.platform && filters.platform !== 'All' && filters.platform !== '') {
-                    const platforms = filters.platform.split(',').map(p => p.trim()).filter(p => p);
-                    if (platforms.length > 0) whereClause.Platform = { [Op.in]: platforms };
+            const buildSqlWhere = (start, end) => {
+                let where = `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
+                if (filters.platform && filters.platform !== 'All') {
+                    const platforms = filters.platform.split(',').map(p => p.trim());
+                    where += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
                 }
-                if (filters.brand && filters.brand !== 'All' && filters.brand !== '') {
-                    const brands = filters.brand.split(',').map(b => b.trim()).filter(b => b);
-                    if (brands.length > 0) whereClause.Brand = { [Op.in]: brands };
+                if (filters.brand && filters.brand !== 'All') {
+                    const brands = filters.brand.split(',').map(b => b.trim());
+                    where += ` AND Brand IN (${brands.map(b => `'${b}'`).join(',')})`;
                 }
-                if (filters.location && filters.location !== 'All' && filters.location !== '') {
-                    const locations = filters.location.split(',').map(l => l.trim()).filter(l => l);
-                    if (locations.length > 0) whereClause.Location = { [Op.in]: locations };
+                if (filters.location && filters.location !== 'All') {
+                    const locations = filters.location.split(',').map(l => l.trim());
+                    where += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
                 }
 
-                // Global Category Restriction
-                if (filters.category && filters.category !== 'All' && filters.category !== '') {
-                    const requested = filters.category.split(',').map(c => c.trim()).filter(c => c);
-                    const filtered = requested.filter(c => RESTRICTED_CATEGORIES.includes(c));
-                    if (filtered.length > 0) {
-                        whereClause.Category = { [Op.in]: filtered };
+                if (filters.category && filters.category !== 'All') {
+                    const requested = filters.category.split(',').map(c => c.trim()).filter(c => RESTRICTED_CATEGORIES.includes(c));
+                    if (requested.length > 0) {
+                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
                     } else {
-                        whereClause.Category = { [Op.in]: RESTRICTED_CATEGORIES };
+                        where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
                     }
                 } else {
-                    whereClause.Category = { [Op.in]: RESTRICTED_CATEGORIES };
+                    where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
                 }
-                return whereClause;
+                return where;
             };
 
-            let whereClause = buildWhereClause(startDate, endDate);
+            let sqlWhere = buildSqlWhere(startDate, endDate);
 
-            // Check if results exist for this range
-            const count = await RbPdpOlap.count({ where: whereClause });
-            if (count === 0) {
-                console.log("⚠️ [InventoryAnalysis] No data found for city-sku range, falling back to latest available data.");
-                const latestDate = await getLatestAvailableDate();
-                const fallbackStart = latestDate.subtract(6, 'days');
-                const fallbackEnd = latestDate;
-                whereClause = buildWhereClause(fallbackStart, fallbackEnd);
-            }
 
-            // Metadata for dynamic filters
-            const metadataWhere = {
-                DATE: whereClause.DATE,
-                Category: { [Op.in]: RESTRICTED_CATEGORIES }
-            };
-            const metadata = await getFilterMetadata(metadataWhere);
+            const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`);
 
-            // 1. Get total Qty_Sold and distinct days per Product/Location for DRR (Aggregated across platforms)
-            const aggResults = await RbPdpOlap.findAll({
-                attributes: [
-                    ['Product', 'sku'],
-                    ['Location', 'city'],
-                    ['Category', 'category'],
-                    ['Brand', 'brand'],
-                    [sequelize.fn('SUM', sequelize.col('Qty_Sold')), 'totalQtySold'],
-                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.fn('DATE', sequelize.col('DATE')))), 'distinctDays']
-                ],
-                where: buildWhereClause(startDate, endDate),
-                group: ['Product', 'Location', 'Category', 'Brand'],
-                raw: true
-            });
+            const matrixQuery = `
+                SELECT 
+                    Product as sku,
+                    Location as city,
+                    Brand as brand,
+                    Category as category,
+                    ifNull(sum(drr), 0) as drr_qty,
+                    ifNull(sum(latestStock), 0) as current_inventory,
+                    ifNull(sum(poQty), 0) as req_po_qty
+                FROM (
+                    SELECT 
+                        Product, Location, Brand, Category, Platform,
+                        ifNull(argMax(toFloat64OrZero(Inventory), DATE), 0) as latestStock,
+                        if(isNaN(sum(toFloat64OrZero(Qty_Sold)) / ${periodDays}), 0, sum(toFloat64OrZero(Qty_Sold)) / ${periodDays}) as drr,
+                        if(isNaN(if(drr > 0, latestStock / drr, 0)), 0, if(drr > 0, latestStock / drr, 0)) as doh,
+                        if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty
+                    FROM rb_pdp_olap
+                    WHERE ${sqlWhere}
+                    GROUP BY Product, Location, Brand, Category, Platform
+                )
+                GROUP BY Product, Location, Brand, Category
+            `;
 
-            // 2. Get latest inventory per Product/Location/Platform for summation
-            const latestInventoryResults = await RbPdpOlap.findAll({
-                attributes: [
-                    ['Product', 'sku'],
-                    ['Location', 'city'],
-                    ['Platform', 'platform'],
-                    ['inventory', 'latestInventory'],
-                    ['DATE', 'date']
-                ],
-                where: whereClause,
-                order: [['DATE', 'DESC']],
-                raw: true
-            });
+            console.log("🔍 [InventoryAnalysis] Executing Matrix Query:", matrixQuery.substring(0, 500));
+            const results = await queryClickHouse(matrixQuery);
+            console.log("📊 [InventoryAnalysis] Raw results sample:", results.slice(0, 2));
 
-            // Map to store latest inventory by City-SKU-Platform
-            const latestPlatformMap = new Map();
-            latestInventoryResults.forEach(r => {
-                const key = `${r.city}|${r.sku}|${r.platform}`;
-                if (!latestPlatformMap.has(key)) {
-                    latestPlatformMap.set(key, parseFloat(r.latestInventory || 0));
-                }
-            });
-
-            // Aggregate inventory by City-SKU (sum across platforms)
-            const latestInventoryMap = new Map();
-            latestPlatformMap.forEach((inventory, key) => {
-                const [city, sku] = key.split('|');
-                const mainKey = `${city}|${sku}`;
-                latestInventoryMap.set(mainKey, (latestInventoryMap.get(mainKey) || 0) + inventory);
-            });
-
-            const data = aggResults.map(row => {
-                const totalQtySold = parseFloat(row.totalQtySold || 0);
-                const distinctDays = parseInt(row.distinctDays || periodDays);
-                const key = `${row.city}|${row.sku}`;
-                const currentInventory = latestInventoryMap.get(key) || 0;
-
-                const drr = distinctDays > 0 ? totalQtySold / distinctDays : 0;
-                const doh = drr > 0 ? currentInventory / drr : 0;
-                const poQty = Math.max(0, (THRESHOLD_DOH - doh) * drr);
-                const reqBoxes = Math.round(poQty / UNITS_PER_BOX);
+            const data = results.map(row => {
+                const drrQty = parseFloat(row.drr_qty || 0);
+                const currentInventory = parseFloat(row.current_inventory || 0);
+                const reqPoQty = parseFloat(row.req_po_qty || 0);
 
                 return {
                     city: row.city,
                     category: row.category,
                     brand: row.brand,
                     sku: row.sku,
-                    drrQty: Math.round(drr),
-                    currentDoh: parseFloat(doh.toFixed(2)),
-                    reqPoQty: Math.round(poQty),
-                    reqBoxes: reqBoxes,
-                    thresholdDoh: THRESHOLD_DOH
+                    drr_qty: drrQty,
+                    current_inventory: currentInventory,
+                    current_doh: drrQty > 0 ? currentInventory / drrQty : 0,
+                    req_po_qty: reqPoQty,
+                    req_boxes: reqPoQty / UNITS_PER_BOX,
+                    threshold_doh: THRESHOLD_DOH
                 };
             });
 

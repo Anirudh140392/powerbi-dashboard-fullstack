@@ -1,27 +1,22 @@
-import sequelize from '../config/db.js';
-import { Op } from 'sequelize';
-import RbPdpOlap from '../models/RbPdpOlap.js';
-import TbZeptoAdsKeywordData from '../models/TbZeptoAdsKeywordData.js';
-import TbZeptoPmKeywordRca from '../models/TbZeptoPmKeywordRca.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 /**
  * Performance Marketing Service
- * specialized for fetching Performance Overview metrics from tb_zepto_ads_keyword_data
+ * specialized for fetching Performance Overview metrics from tb_zepto_pm_keyword_rca
  */
 const performanceMarketingService = {
 
     async getCategories() {
         try {
             const targetCategories = ['bath & body', 'detergent', 'fragrance & talc', 'hair care'];
-            const results = await TbZeptoPmKeywordRca.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('keyword_category')), 'category']],
-                where: sequelize.where(
-                    sequelize.fn('LOWER', sequelize.col('keyword_category')),
-                    { [Op.in]: targetCategories }
-                ),
-                raw: true
-            });
+            const query = `
+                SELECT DISTINCT lower(keyword_category) as category 
+                FROM tb_zepto_pm_keyword_rca 
+                WHERE lower(keyword_category) IN (${targetCategories.map(c => `'${c}'`).join(',')})
+                ORDER BY category
+            `;
+            const results = await queryClickHouse(query);
             return results.map(r => r.category).filter(Boolean);
         } catch (error) {
             console.error('Error in getCategories:', error);
@@ -40,62 +35,58 @@ const performanceMarketingService = {
             const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
             const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(29, 'days');
 
-            const whereClause = {
-                date: {
-                    [Op.between]: [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')]
-                }
-            };
+            const startStr = startDate.format('YYYY-MM-DD');
+            const endStr = endDate.format('YYYY-MM-DD');
+
+            let whereConditions = [`date BETWEEN '${startStr}' AND '${endStr}'`];
 
             // Filters
             if (filters.platform && filters.platform !== 'All') {
-                const platforms = filters.platform.split(',').map(p => p.trim());
-                whereClause.Platform = { [Op.in]: platforms };
+                const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
+                whereConditions.push(`Platform IN (${platforms})`);
             }
             if (filters.brand && filters.brand !== 'All') {
-                const brands = filters.brand.split(',').map(b => b.trim().toLowerCase());
-                whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
+                const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                whereConditions.push(`lower(brand_name) IN (${brands})`);
             }
             if (filters.zone && filters.zone !== 'All') {
-                const zones = filters.zone.split(',').map(z => z.trim());
-                whereClause.zone = { [Op.in]: zones };
+                const zones = filters.zone.split(',').map(z => `'${z.trim()}'`).join(',');
+                whereConditions.push(`zone IN (${zones})`);
             }
 
             // Target Categories
             const targetCategories = ['bath & body', 'detergent', 'hair care', 'fragrance & talc'];
-            whereClause.keyword_category = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('keyword_category')),
-                { [Op.in]: targetCategories }
-            );
+            whereConditions.push(`lower(keyword_category) IN (${targetCategories.map(c => `'${c}'`).join(',')})`);
 
             // Weekend Flag
             if (filters.weekendFlag) {
                 const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                 if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                    whereClause[Op.and] = whereClause[Op.and] || [];
-                    whereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 IN (6, 7)'));
+                    whereConditions.push(`toDayOfWeek(date) IN (6, 7)`);
                 } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                    whereClause[Op.and] = whereClause[Op.and] || [];
-                    whereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 NOT IN (6, 7)'));
+                    whereConditions.push(`toDayOfWeek(date) NOT IN (6, 7)`);
                 }
             }
 
-            console.log("🔍 [Service] getKeywordAnalysis whereClause:", JSON.stringify(whereClause, null, 2));
+            const whereSql = whereConditions.join(' AND ');
+            console.log("🔍 [Service] getKeywordAnalysis whereSql:", whereSql);
 
-            const results = await TbZeptoPmKeywordRca.findAll({
-                attributes: [
-                    'keyword_name',
-                    'keyword_category',
-                    [sequelize.fn('DATE_FORMAT', sequelize.col('date'), '%M'), 'month'],
-                    [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                    [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                    [sequelize.fn('SUM', sequelize.col('revenue')), 'revenue'],
-                    [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                    [sequelize.fn('SUM', sequelize.col('orders')), 'orders']
-                ],
-                where: whereClause,
-                group: ['keyword_name', 'keyword_category', 'month'],
-                raw: true
-            });
+            const query = `
+                SELECT 
+                    keyword_name, 
+                    keyword_category, 
+                    formatDateTime(date, '%M') as month, 
+                    SUM(impressions) as impressions, 
+                    SUM(spend) as spend, 
+                    SUM(revenue) as revenue, 
+                    SUM(clicks) as clicks, 
+                    SUM(orders) as orders 
+                FROM tb_zepto_pm_keyword_rca 
+                WHERE ${whereSql}
+                GROUP BY keyword_name, keyword_category, month
+            `;
+
+            const results = await queryClickHouse(query);
 
             console.log("🔍 [Service] getKeywordAnalysis results count:", results.length);
 
@@ -188,104 +179,94 @@ const performanceMarketingService = {
             const duration = endDate.diff(startDate, 'day') + 1;
             const prevDuration = prevEndDate.diff(prevStartDate, 'day') + 1;
 
-            // 2. Build Query Conditions
-            const whereClause = {};
+            // 2. Build Query Conditions (Base)
+            let baseConditions = [];
 
-            // Platform filter - tb_zepto_pm_keyword_rca has 'Platform' column
+            // Platform filter
             if (filters.platform && filters.platform !== 'All') {
-                const platforms = filters.platform.split(',').map(p => p.trim());
-                whereClause.Platform = { [Op.in]: platforms };
+                const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
+                baseConditions.push(`Platform IN (${platforms})`);
             }
 
-            // Brand filter - column is 'brand_name'
+            // Brand filter
             if (filters.brand && filters.brand !== 'All') {
-                const brands = filters.brand.split(',').map(b => b.trim().toLowerCase());
-                whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
+                const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                baseConditions.push(`lower(brand_name) IN (${brands})`);
             }
 
-            // Zone Filter (passed as 'zone' from frontend)
+            // Zone Filter
             if (filters.zone && filters.zone !== 'All') {
-                const zones = filters.zone.split(',').map(z => z.trim());
-                whereClause.zone = { [Op.in]: zones };
+                const zones = filters.zone.split(',').map(z => `'${z.trim()}'`).join(',');
+                baseConditions.push(`zone IN (${zones})`);
             }
 
-            // Weekend Flag filter - MySQL: 1=Sun, 2=Mon, ..., 7=Sat
+            // Weekend Flag
             if (filters.weekendFlag) {
-                const flags = Array.isArray(filters.weekendFlag)
-                    ? filters.weekendFlag
-                    : typeof filters.weekendFlag === 'string' ? filters.weekendFlag.split(',').map(f => f.trim()) : [];
-
+                const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                 if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                    whereClause[Op.and] = whereClause[Op.and] || [];
-                    whereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 IN (6, 7)'));
+                    baseConditions.push(`toDayOfWeek(date) IN (6, 7)`);
                 } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                    whereClause[Op.and] = whereClause[Op.and] || [];
-                    whereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 NOT IN (6, 7)'));
+                    baseConditions.push(`toDayOfWeek(date) NOT IN (6, 7)`);
                 }
             }
 
-            // Restrict to specific keyword_categories (Consistency with Drilldown Table)
+            // Restrict to specific keyword_categories
             const targetCategories = ['bath & body', 'detergent', 'hair care', 'fragrance & talc'];
-            whereClause.keyword_category = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('keyword_category')),
-                { [Op.in]: targetCategories }
-            );
+            baseConditions.push(`lower(keyword_category) IN (${targetCategories.map(c => `'${c}'`).join(',')})`);
+
 
             // 3. Helper to fetch aggregate metrics for a date range
-            // Using TbZeptoPmKeywordRca for PM page KPIs
             const getMetrics = async (start, end) => {
-                const rangeWhere = {
-                    ...whereClause,
-                    date: {
-                        [Op.between]: [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')]
-                    }
-                };
+                const s = start.format('YYYY-MM-DD');
+                const e = end.format('YYYY-MM-DD');
+                const conditions = [...baseConditions, `date BETWEEN '${s}' AND '${e}'`];
+                const whereSql = conditions.join(' AND ');
 
-                const result = await TbZeptoPmKeywordRca.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                        [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                        [sequelize.fn('SUM', sequelize.col('revenue')), 'ad_sales'],
-                        [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                        [sequelize.fn('SUM', sequelize.col('orders')), 'orders']
-                    ],
-                    where: rangeWhere,
-                    raw: true
-                });
+                const query = `
+                    SELECT 
+                        SUM(impressions) as impressions,
+                        SUM(spend) as spend,
+                        SUM(revenue) as ad_sales,
+                        SUM(clicks) as clicks,
+                        SUM(orders) as orders
+                    FROM tb_zepto_pm_keyword_rca
+                    WHERE ${whereSql}
+                `;
+
+                const results = await queryClickHouse(query);
+                const result = results[0] || {};
 
                 return {
-                    impressions: parseFloat(result?.impressions || 0),
-                    spend: parseFloat(result?.spend || 0),
-                    adSales: parseFloat(result?.ad_sales || 0),
-                    clicks: parseFloat(result?.clicks || 0),
-                    orders: parseFloat(result?.orders || 0)
+                    impressions: parseFloat(result.impressions || 0),
+                    spend: parseFloat(result.spend || 0),
+                    adSales: parseFloat(result.ad_sales || 0),
+                    clicks: parseFloat(result.clicks || 0),
+                    orders: parseFloat(result.orders || 0)
                 };
             };
 
             // 4. Helper to fetch daily trend data
-            // Using TbZeptoPmKeywordRca for PM page trends
             const getTrendData = async (start, end) => {
-                const rangeWhere = {
-                    ...whereClause,
-                    date: {
-                        [Op.between]: [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')]
-                    }
-                };
+                const s = start.format('YYYY-MM-DD');
+                const e = end.format('YYYY-MM-DD');
+                const conditions = [...baseConditions, `date BETWEEN '${s}' AND '${e}'`];
+                const whereSql = conditions.join(' AND ');
 
-                const results = await TbZeptoPmKeywordRca.findAll({
-                    attributes: [
-                        [sequelize.col('date'), 'date'],
-                        [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                        [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                        [sequelize.fn('SUM', sequelize.col('revenue')), 'ad_sales'],
-                        [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                        [sequelize.fn('SUM', sequelize.col('orders')), 'orders']
-                    ],
-                    where: rangeWhere,
-                    group: ['date'],
-                    order: [['date', 'ASC']],
-                    raw: true
-                });
+                const query = `
+                    SELECT 
+                        date,
+                        SUM(impressions) as impressions,
+                        SUM(spend) as spend,
+                        SUM(revenue) as ad_sales,
+                        SUM(clicks) as clicks,
+                        SUM(orders) as orders
+                    FROM tb_zepto_pm_keyword_rca
+                    WHERE ${whereSql}
+                    GROUP BY date
+                    ORDER BY date ASC
+                `;
+
+                const results = await queryClickHouse(query);
 
                 return results.map(row => {
                     const imp = parseFloat(row.impressions || 0);
@@ -299,7 +280,6 @@ const performanceMarketingService = {
                         impressions: imp,
                         spend: sp,
                         roas_roas: sp > 0 ? rev / sp : 0,
-                        // Conversion % = (Orders / Clicks) * 100
                         // Conversion % = (Clicks / Orders) * 100
                         cr_percentage: ord > 0 ? (clk / ord) * 100 : 0
                     };
@@ -410,48 +390,40 @@ const performanceMarketingService = {
     async getFormatPerformance(filters) {
         try {
             const { platform, brand, zone, startDate, endDate } = filters;
-            const whereClause = {};
+            let conditions = [];
 
             // Platform Filter
             if (platform && platform !== 'All') {
-                const platforms = platform.split(',').map(p => p.trim().toLowerCase());
-                whereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), { [Op.in]: platforms });
+                const platforms = platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                conditions.push(`lower(Platform) IN (${platforms})`);
             }
 
             // Date Range Filter
             if (startDate && endDate) {
-                whereClause.date = {
-                    [Op.between]: [
-                        dayjs(startDate).startOf('day').format('YYYY-MM-DD'),
-                        dayjs(endDate).endOf('day').format('YYYY-MM-DD')
-                    ]
-                };
+                const s = dayjs(startDate).startOf('day').format('YYYY-MM-DD');
+                const e = dayjs(endDate).endOf('day').format('YYYY-MM-DD');
+                conditions.push(`date BETWEEN '${s}' AND '${e}'`);
             }
 
             // Brand Filter
             if (brand && brand !== 'All') {
-                const brands = brand.split(',').map(b => b.trim().toLowerCase());
-                whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
+                const brands = brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                conditions.push(`lower(brand_name) IN (${brands})`);
             }
 
             // Zone Filter
             if (zone && zone !== 'All') {
-                const zones = zone.split(',').map(z => z.trim().toLowerCase());
-                whereClause.zone = sequelize.where(sequelize.fn('LOWER', sequelize.col('zone')), { [Op.in]: zones });
+                const zones = zone.split(',').map(z => `'${z.trim().toLowerCase()}'`).join(',');
+                conditions.push(`lower(zone) IN (${zones})`);
             }
 
-            // Weekend Flag filter - MySQL: 1=Sun, 2=Mon, ..., 7=Sat
+            // Weekend Flag
             if (filters.weekendFlag) {
-                const flags = Array.isArray(filters.weekendFlag)
-                    ? filters.weekendFlag
-                    : typeof filters.weekendFlag === 'string' ? filters.weekendFlag.split(',').map(f => f.trim()) : [];
-
+                const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                 if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                    whereClause[Op.and] = whereClause[Op.and] || [];
-                    whereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 IN (6, 7)'));
+                    conditions.push(`toDayOfWeek(date) IN (6, 7)`);
                 } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                    whereClause[Op.and] = whereClause[Op.and] || [];
-                    whereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 NOT IN (6, 7)'));
+                    conditions.push(`toDayOfWeek(date) NOT IN (6, 7)`);
                 }
             }
 
@@ -461,41 +433,39 @@ const performanceMarketingService = {
 
             if (filters.category && filters.category !== 'All') {
                 const selectedCats = filters.category.split(',').map(c => c.trim().toLowerCase());
-                // Intersect or just use selected (if valid)
                 categoriesToFilter = selectedCats.filter(c => targetCategories.includes(c));
-                if (categoriesToFilter.length === 0) categoriesToFilter = targetCategories; // Fallback or strict? Fallback seems safer to avoid empty stats if mismatch
+                if (categoriesToFilter.length === 0) categoriesToFilter = targetCategories;
             }
-
-            whereClause.keyword_category = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('keyword_category')),
-                { [Op.in]: categoriesToFilter }
-            );
+            conditions.push(`lower(keyword_category) IN (${categoriesToFilter.map(c => `'${c}'`).join(',')})`);
 
             // Keyword filter
             if (filters.keywords && filters.keywords.length > 0) {
                 const keywords = Array.isArray(filters.keywords) ? filters.keywords : filters.keywords.split(',').map(k => k.trim());
                 if (keywords.length > 0) {
-                    whereClause.keyword_name = { [Op.in]: keywords };
+                    conditions.push(`keyword_name IN (${keywords.map(k => `'${k}'`).join(',')})`);
                 }
             }
 
+            const whereSql = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+
             // Group by keyword_category -> Date
-            const dailyData = await TbZeptoPmKeywordRca.findAll({
-                where: whereClause,
-                attributes: [
-                    ['keyword_category', 'Category'],
-                    [sequelize.fn('DATE', sequelize.col('date')), 'date'],
-                    [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                    [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                    [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                    [sequelize.fn('SUM', sequelize.col('orders')), 'orders'],
-                    [sequelize.fn('SUM', sequelize.col('revenue')), 'sales'],
-                    [sequelize.fn('SUM', sequelize.col('revenue')), 'total_sales'],
-                ],
-                group: ['keyword_category', sequelize.fn('DATE', sequelize.col('date'))],
-                order: [['keyword_category', 'ASC'], [sequelize.fn('DATE', sequelize.col('date')), 'ASC']],
-                raw: true
-            });
+            const query = `
+                SELECT 
+                    keyword_category as Category,
+                    formatDateTime(date, '%F') as date,
+                    SUM(spend) as spend,
+                    SUM(impressions) as impressions,
+                    SUM(clicks) as clicks,
+                    SUM(orders) as orders,
+                    SUM(revenue) as sales,
+                    SUM(revenue) as total_sales
+                FROM tb_zepto_pm_keyword_rca
+                WHERE ${whereSql}
+                GROUP BY keyword_category, date
+                ORDER BY keyword_category ASC, date ASC
+            `;
+
+            const dailyData = await queryClickHouse(query);
 
             // Log what dates we got from database
             console.log(`\n📊 [getFormatPerformance] Retrieved ${dailyData.length} rows from database`);
@@ -550,27 +520,21 @@ const performanceMarketingService = {
         try {
             console.error("🔍 [Service] Fetching distinct keywords for category:", category);
 
-            const whereClause = {
-                keyword_name: { [Op.ne]: null }
-            };
+            let whereConditions = ['keyword_name IS NOT NULL'];
 
             if (category && category !== 'All') {
-                const categories = category.split(',').map(c => c.trim().toLowerCase());
-                whereClause.keyword_category = sequelize.where(
-                    sequelize.fn('LOWER', sequelize.col('keyword_category')),
-                    { [Op.in]: categories }
-                );
+                const categories = category.split(',').map(c => `'${c.trim().toLowerCase()}'`).join(',');
+                whereConditions.push(`lower(keyword_category) IN (${categories})`);
             }
 
-            const keywords = await TbZeptoPmKeywordRca.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('keyword_name')), 'keyword_name']],
-                where: whereClause,
-                order: [['keyword_name', 'ASC']],
-                raw: true
-            });
-
-            const mappedKeywords = keywords.map(k => k.keyword_name).filter(k => k);
-            return mappedKeywords;
+            const query = `
+                SELECT DISTINCT keyword_name 
+                FROM tb_zepto_pm_keyword_rca 
+                WHERE ${whereConditions.join(' AND ')}
+                ORDER BY keyword_name ASC
+            `;
+            const keywords = await queryClickHouse(query);
+            return keywords.map(k => k.keyword_name).filter(k => k);
         } catch (error) {
             console.error("❌ [Service] Error fetching keywords:", error);
             return [];
@@ -585,28 +549,20 @@ const performanceMarketingService = {
         try {
             console.error("🔍 [Service] Fetching distinct zones for brand:", brand);
 
-            const whereClause = {
-                zone: { [Op.ne]: null } // Exclude nulls
-            };
+            let whereConditions = ['zone IS NOT NULL'];
 
-            // Filter by brand if provided and not "All" - column is 'brand_name'
             if (brand && brand !== 'All') {
-                const brands = brand.split(',').map(b => b.trim().toLowerCase());
-                whereClause.brand_name = sequelize.where(
-                    sequelize.fn('LOWER', sequelize.col('brand_name')),
-                    { [Op.in]: brands }
-                );
+                const brands = brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                whereConditions.push(`lower(brand_name) IN (${brands})`);
             }
 
-            // Using TbZeptoPmKeywordRca for zones (consistent with PM page data source)
-            const zones = await TbZeptoPmKeywordRca.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('zone')), 'zone']],
-                where: whereClause,
-                order: [['zone', 'ASC']],
-                raw: true
-            });
-
-            console.error("✅ [Service] Raw Zones from DB:", zones);
+            const query = `
+                SELECT DISTINCT zone 
+                FROM tb_zepto_pm_keyword_rca 
+                WHERE ${whereConditions.join(' AND ')}
+                ORDER BY zone ASC
+            `;
+            const zones = await queryClickHouse(query);
             const mappedZones = zones.map(z => z.zone).filter(z => z);
             console.error("📤 [Service] Mapped Zones returning:", mappedZones);
             return mappedZones;
@@ -622,14 +578,13 @@ const performanceMarketingService = {
     getPlatforms: async () => {
         try {
             console.error("🔍 [Service] Fetching PM platforms...");
-            const platforms = await TbZeptoPmKeywordRca.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('Platform')), 'Platform']],
-                where: {
-                    Platform: { [Op.ne]: null }
-                },
-                order: [['Platform', 'ASC']],
-                raw: true
-            });
+            const query = `
+                SELECT DISTINCT Platform 
+                FROM tb_zepto_pm_keyword_rca 
+                WHERE Platform IS NOT NULL
+                ORDER BY Platform ASC
+            `;
+            const platforms = await queryClickHouse(query);
             const mappedPlatforms = platforms.map(p => p.Platform).filter(p => p);
             console.error("📤 [Service] PM Platforms:", mappedPlatforms);
             return mappedPlatforms;
@@ -647,21 +602,20 @@ const performanceMarketingService = {
         try {
             console.error("🔍 [Service] Fetching PM brands for platform:", platform);
 
-            const whereClause = {
-                brand_name: { [Op.ne]: null }
-            };
+            let whereConditions = ['brand_name IS NOT NULL'];
 
             if (platform && platform !== 'All') {
-                const platforms = platform.split(',').map(p => p.trim());
-                whereClause.Platform = { [Op.in]: platforms };
+                const platforms = platform.split(',').map(p => `'${p.trim()}'`).join(',');
+                whereConditions.push(`Platform IN (${platforms})`);
             }
 
-            const brands = await TbZeptoPmKeywordRca.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_name')), 'brand_name']],
-                where: whereClause,
-                order: [['brand_name', 'ASC']],
-                raw: true
-            });
+            const query = `
+                SELECT DISTINCT brand_name 
+                FROM tb_zepto_pm_keyword_rca 
+                WHERE ${whereConditions.join(' AND ')}
+                ORDER BY brand_name ASC
+            `;
+            const brands = await queryClickHouse(query);
             const mappedBrands = brands.map(b => b.brand_name).filter(b => b);
             console.error("📤 [Service] PM Brands:", mappedBrands);
             return mappedBrands;
@@ -679,47 +633,44 @@ const performanceMarketingService = {
         try {
             console.error("🔍 [Service] Fetching campaign quadrants with filters:", filters);
 
-            const whereClause = {};
+            let whereConditions = [];
 
             // Platform filter
             if (filters.platform && filters.platform !== 'All') {
-                const platforms = filters.platform.split(',').map(p => p.trim());
-                whereClause.Platform = { [Op.in]: platforms };
+                const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
+                whereConditions.push(`Platform IN (${platforms})`);
             }
 
             // Brand filter
             if (filters.brand && filters.brand !== 'All') {
-                const brands = filters.brand.split(',').map(b => b.trim().toLowerCase());
-                whereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
+                const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                whereConditions.push(`lower(brand_name) IN (${brands})`);
             }
 
             // Zone filter
             if (filters.zone && filters.zone !== 'All') {
-                const zones = filters.zone.split(',').map(z => z.trim());
-                whereClause.zone = { [Op.in]: zones };
+                const zones = filters.zone.split(',').map(z => `'${z.trim()}'`).join(',');
+                whereConditions.push(`zone IN (${zones})`);
             }
 
             // Date filter
             if (filters.startDate && filters.endDate) {
-                whereClause.date = {
-                    [Op.between]: [filters.startDate, filters.endDate]
-                };
+                whereConditions.push(`date BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
             }
 
-            // Get counts by acos_spend_class - counting distinct campaign_id
-            const results = await TbZeptoPmKeywordRca.findAll({
-                attributes: [
-                    'acos_spend_class',
-                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('campaign_id'))), 'count']
-                ],
-                where: {
-                    ...whereClause,
-                    acos_spend_class: { [Op.ne]: null }
-                },
-                group: ['acos_spend_class'],
-                raw: true
-            });
+            // Only include non-null acos_spend_class
+            whereConditions.push('acos_spend_class IS NOT NULL');
 
+            const query = `
+                SELECT 
+                    acos_spend_class,
+                    count(DISTINCT campaign_id) as count
+                FROM tb_zepto_pm_keyword_rca
+                WHERE ${whereConditions.join(' AND ')}
+                GROUP BY acos_spend_class
+            `;
+
+            const results = await queryClickHouse(query);
             console.error("✅ [Service] Quadrant results:", results);
 
             // Map results to quadrant object
@@ -785,71 +736,69 @@ const performanceMarketingService = {
             });
 
             // Build base where clause (without date)
-            const baseWhereClause = {};
+            // Build base conditions (without date)
+            let baseConditions = [];
 
             // Platform filter
             if (filters.platform && filters.platform !== 'All') {
-                const platforms = filters.platform.split(',').map(p => p.trim().toLowerCase());
-                baseWhereClause.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), { [Op.in]: platforms });
+                const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                baseConditions.push(`lower(Platform) IN (${platforms})`);
             }
 
             // Brand filter
             if (filters.brand && filters.brand !== 'All') {
-                const brands = filters.brand.split(',').map(b => b.trim().toLowerCase());
-                baseWhereClause.brand_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('brand_name')), { [Op.in]: brands });
+                const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                baseConditions.push(`lower(brand_name) IN (${brands})`);
             }
 
             // Zone filter
             if (filters.zone && filters.zone !== 'All') {
-                const zones = filters.zone.split(',').map(z => z.trim().toLowerCase());
-                baseWhereClause.zone = sequelize.where(sequelize.fn('LOWER', sequelize.col('zone')), { [Op.in]: zones });
+                const zones = filters.zone.split(',').map(z => `'${z.trim().toLowerCase()}'`).join(',');
+                baseConditions.push(`lower(zone) IN (${zones})`);
             }
 
             // Filter out null keyword_type
-            baseWhereClause.keyword_type = { [Op.ne]: null };
+            baseConditions.push(`keyword_type IS NOT NULL`);
 
-            // Spend Class filter (Q1, Q2, Q3, Q4) - filters by acos_spend_class column
+            // Spend Class filter (Q1, Q2, Q3, Q4)
             if (filters.spendClass && ['Q1', 'Q2', 'Q3', 'Q4'].includes(filters.spendClass)) {
-                baseWhereClause.acos_spend_class = filters.spendClass;
+                baseConditions.push(`acos_spend_class = '${filters.spendClass}'`);
                 console.log("🎯 [Service] Filtering by spend class:", filters.spendClass);
             }
 
-            // Weekend Flag filter - MySQL: 1=Sun, 2=Mon, ..., 7=Sat
+            // Weekend Flag filter
             if (filters.weekendFlag) {
-                const flags = Array.isArray(filters.weekendFlag)
-                    ? filters.weekendFlag
-                    : typeof filters.weekendFlag === 'string' ? filters.weekendFlag.split(',').map(f => f.trim()) : [];
-
+                const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                 if (flags.includes('Weekend') && !flags.includes('Weekday')) {
                     console.log("🎯 [Service] Filtering for Weekends");
-                    baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
-                    baseWhereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 IN (6, 7)'));
+                    baseConditions.push(`toDayOfWeek(date) IN (6, 7)`);
                 } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
                     console.log("🎯 [Service] Filtering for Weekdays");
-                    baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
-                    baseWhereClause[Op.and].push(sequelize.literal('WEEKDAY(date) + 1 NOT IN (6, 7)'));
+                    baseConditions.push(`toDayOfWeek(date) NOT IN (6, 7)`);
                 }
             }
 
             // Helper function to get aggregated data for a date range
             const getKeywordTypeData = async (start, end) => {
-                return await TbZeptoPmKeywordRca.findAll({
-                    where: {
-                        ...baseWhereClause,
-                        date: { [Op.between]: [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')] }
-                    },
-                    attributes: [
-                        'keyword_type',
-                        [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                        [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                        [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                        [sequelize.fn('SUM', sequelize.col('orders')), 'orders'],
-                        [sequelize.fn('SUM', sequelize.col('revenue')), 'revenue']
-                    ],
-                    group: ['keyword_type'],
-                    order: [['keyword_type', 'ASC']],
-                    raw: true
-                });
+                const s = start.format('YYYY-MM-DD');
+                const e = end.format('YYYY-MM-DD');
+                const conditions = [...baseConditions, `date BETWEEN '${s}' AND '${e}'`];
+                const whereSql = conditions.join(' AND ');
+
+                const query = `
+                    SELECT 
+                        keyword_type,
+                        SUM(spend) as spend,
+                        SUM(impressions) as impressions,
+                        SUM(clicks) as clicks,
+                        SUM(orders) as orders,
+                        SUM(revenue) as revenue
+                    FROM tb_zepto_pm_keyword_rca
+                    WHERE ${whereSql}
+                    GROUP BY keyword_type
+                    ORDER BY keyword_type ASC
+                `;
+                return await queryClickHouse(query);
             };
 
             // Fetch data for all 3 periods in parallel
@@ -869,51 +818,53 @@ const performanceMarketingService = {
             console.log("✅ [Service] Current results:", currentResults.length, "M-1:", m1Results.length, "M-2:", m2Results.length);
 
             // Get keyword-level data grouped by keyword_type AND keyword_name (current period only)
-            const keywordResults = await TbZeptoPmKeywordRca.findAll({
-                where: {
-                    ...baseWhereClause,
-                    keyword_name: { [Op.ne]: null },
-                    date: { [Op.between]: [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')] }
-                },
-                attributes: [
-                    'keyword_type',
-                    'keyword_name',
-                    [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                    [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                    [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                    [sequelize.fn('SUM', sequelize.col('orders')), 'orders'],
-                    [sequelize.fn('SUM', sequelize.col('revenue')), 'revenue']
-                ],
-                group: ['keyword_type', 'keyword_name'],
-                order: [['keyword_type', 'ASC'], [sequelize.fn('SUM', sequelize.col('spend')), 'DESC']],
-                raw: true
-            });
+            const s = startDate.format('YYYY-MM-DD');
+            const e = endDate.format('YYYY-MM-DD');
+            const keywordConditions = [...baseConditions,
+                `keyword_name IS NOT NULL`,
+            `date BETWEEN '${s}' AND '${e}'`
+            ];
+            const keywordWhereSql = keywordConditions.join(' AND ');
+
+            const keywordQuery = `
+                SELECT 
+                    keyword_type,
+                    keyword_name,
+                    SUM(spend) as spend,
+                    SUM(impressions) as impressions,
+                    SUM(clicks) as clicks,
+                    SUM(orders) as orders,
+                    SUM(revenue) as revenue
+                FROM tb_zepto_pm_keyword_rca
+                WHERE ${keywordWhereSql}
+                GROUP BY keyword_type, keyword_name
+                ORDER BY keyword_type ASC, spend DESC
+            `;
+            const keywordResults = await queryClickHouse(keywordQuery);
 
             console.log("✅ [Service] Current period results:", currentResults.length);
             console.log("✅ [Service] Keyword results count:", keywordResults.length);
 
             // Get zone-level data grouped by keyword_type, keyword_name, AND zone (current period only)
-            const zoneResults = await TbZeptoPmKeywordRca.findAll({
-                where: {
-                    ...baseWhereClause,
-                    keyword_name: { [Op.ne]: null },
-                    zone: { [Op.ne]: null },
-                    date: { [Op.between]: [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')] }
-                },
-                attributes: [
-                    'keyword_type',
-                    'keyword_name',
-                    'zone',
-                    [sequelize.fn('SUM', sequelize.col('spend')), 'spend'],
-                    [sequelize.fn('SUM', sequelize.col('impressions')), 'impressions'],
-                    [sequelize.fn('SUM', sequelize.col('clicks')), 'clicks'],
-                    [sequelize.fn('SUM', sequelize.col('orders')), 'orders'],
-                    [sequelize.fn('SUM', sequelize.col('revenue')), 'revenue']
-                ],
-                group: ['keyword_type', 'keyword_name', 'zone'],
-                order: [['keyword_type', 'ASC'], ['keyword_name', 'ASC'], [sequelize.fn('SUM', sequelize.col('spend')), 'DESC']],
-                raw: true
-            });
+            const zoneConditions = [...keywordConditions, `zone IS NOT NULL`];
+            const zoneWhereSql = zoneConditions.join(' AND ');
+
+            const zoneQuery = `
+                 SELECT 
+                    keyword_type,
+                    keyword_name,
+                    zone,
+                    SUM(spend) as spend,
+                    SUM(impressions) as impressions,
+                    SUM(clicks) as clicks,
+                    SUM(orders) as orders,
+                    SUM(revenue) as revenue
+                 FROM tb_zepto_pm_keyword_rca
+                 WHERE ${zoneWhereSql}
+                 GROUP BY keyword_type, keyword_name, zone
+                 ORDER BY keyword_type ASC, keyword_name ASC, spend DESC
+             `;
+            const zoneResults = await queryClickHouse(zoneQuery);
 
             console.log("✅ [Service] Zone results count:", zoneResults.length);
 
