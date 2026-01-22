@@ -5,11 +5,14 @@ import { KpiFilterPanel } from "../KpiFilterPanel";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
 
-const formatNumber = (v) => {
-    if (v === undefined || v === null) return "—";
-    if (!Number.isFinite(v)) return "—";
-    if (Math.abs(v) >= 100) return v.toFixed(0);
-    return v.toFixed(2);
+const formatNumber = (v, decimals = null) => {
+    if (v === undefined || v === null || isNaN(v)) return "—";
+    const num = parseFloat(v);
+    if (!Number.isFinite(num)) return "—";
+
+    if (decimals !== null) return num.toFixed(decimals);
+    if (Math.abs(num) >= 100) return Math.round(num).toString();
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 };
 
 export default function CitySkuInventoryDrill() {
@@ -131,17 +134,17 @@ export default function CitySkuInventoryDrill() {
         [...byCity.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([city, rows]) => {
             const cityAgg = rows.reduce(
                 (a, r) => ({
-                    drrQty: a.drrQty + r.drrQty,
-                    currentDoh: a.currentDoh + r.currentDoh, // Not statistically sound but used for grouping mock
-                    reqPoQty: a.reqPoQty + r.reqPoQty,
-                    reqBoxes: a.reqBoxes + r.reqBoxes,
-                    thresholdDoh: r.thresholdDoh, // Just take from one
+                    drr_qty: a.drr_qty + (parseFloat(r.drr_qty) || 0),
+                    current_inventory: a.current_inventory + (parseFloat(r.current_inventory) || 0),
+                    req_po_qty: a.req_po_qty + (parseFloat(r.req_po_qty) || 0),
+                    req_boxes: a.req_boxes + (parseFloat(r.req_boxes) || 0),
+                    threshold_doh: r.threshold_doh || 8,
                 }),
-                { drrQty: 0, currentDoh: 0, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 }
+                { drr_qty: 0, current_inventory: 0, req_po_qty: 0, req_boxes: 0, threshold_doh: 8 }
             );
 
-            // Re-calculate average DOH for city if many SKUs
-            cityAgg.currentDoh = rows.length > 0 ? rows.reduce((s, r) => s + r.currentDoh, 0) / rows.length : 0;
+            // Calculate weighted average DOH for city
+            cityAgg.current_doh = cityAgg.drr_qty > 0 ? cityAgg.current_inventory / cityAgg.drr_qty : 0;
 
             const cityId = `city-${city}`;
             out.push({ id: cityId, level: "city", city, metrics: cityAgg, hasChildren: true });
@@ -274,6 +277,15 @@ export default function CitySkuInventoryDrill() {
                                         <td className="px-3 py-3"><Skeleton variant="text" width={40} className="ml-auto" /></td>
                                     </tr>
                                 ))
+                            ) : pageRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={expanded.size > 0 ? 7 : 6} className="px-6 py-10 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>No data found for the selected filters.</Typography>
+                                            <Typography variant="caption">Try adjusting your date range or filter selections.</Typography>
+                                        </div>
+                                    </td>
+                                </tr>
                             ) : (
                                 pageRows.map((row) => (
                                     <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/50">
@@ -292,11 +304,11 @@ export default function CitySkuInventoryDrill() {
                                                 {row.level === "sku" ? row.sku : ""}
                                             </td>
                                         )}
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drrQty)}</td>
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.currentDoh)}</td>
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.reqPoQty)}</td>
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.reqBoxes)}</td>
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.thresholdDoh)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drr_qty, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.current_doh, 2)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_po_qty, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_boxes, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.threshold_doh, 2)}</td>
                                     </tr>
                                 ))
                             )}
