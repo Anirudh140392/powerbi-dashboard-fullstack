@@ -4777,15 +4777,15 @@ const getBrandsOverview = async (filters) => {
             const buildSosBrandConds = () => {
                 const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 const platformArr = normalizeFilterArray(boPlatform);
-                if (platformArr.length > 0) {
+                if (platformArr && platformArr.length > 0) {
                     conds.push(`platform_name IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
                 const categoryArr = normalizeFilterArray(boCategory);
-                if (categoryArr.length > 0) {
+                if (categoryArr && categoryArr.length > 0) {
                     conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
                 const locArr = normalizeFilterArray(location);
-                if (locArr.length > 0) {
+                if (locArr && locArr.length > 0) {
                     conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
                 return conds.join(' AND ');
@@ -4796,18 +4796,18 @@ const getBrandsOverview = async (filters) => {
                 const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 conds.push(`sales IS NOT NULL`);
                 const platformArr = normalizeFilterArray(boPlatform);
-                if (platformArr.length > 0) {
+                if (platformArr && platformArr.length > 0) {
                     conds.push(`Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
                 const categoryArr = normalizeFilterArray(boCategory);
-                if (categoryArr.length > 0) {
+                if (categoryArr && categoryArr.length > 0) {
                     conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
                 if (brandsFilter && brandsFilter.length > 0) {
                     conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
                 }
                 const locArr = normalizeFilterArray(location);
-                if (locArr.length > 0) {
+                if (locArr && locArr.length > 0) {
                     conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
                 return conds.join(' AND ');
@@ -5018,19 +5018,19 @@ const getKpiTrends = async (filters) => {
             const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
 
             const catArr = normalizeFilterArray(category);
-            if (catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            if (catArr && catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
             const brandArr = normalizeFilterArray(brand);
-            if (brandArr.length > 0) {
+            if (brandArr && brandArr.length > 0) {
                 const brandConditions = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                 conds.push(`(${brandConditions})`);
             }
 
             const locArr = normalizeFilterArray(location);
-            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
             const platArr = normalizeFilterArray(platform);
-            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            if (platArr && platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
 
             return conds.join(' AND ');
         };
@@ -6055,6 +6055,78 @@ const getCompetitionBrandTrends = async (filters = {}) => {
     }
 };
 
+/**
+ * Get Dark Store Count from rb_location_darkstore table
+ * Returns count of distinct merchant_name grouped by platform based on filters
+ * @param {Object} filters - { platform, location, startDate, endDate }
+ * @returns {Object} - { totalCount, byPlatform: { platform: count } }
+ */
+const getDarkStoreCount = async (filters = {}) => {
+    try {
+        console.log('[getDarkStoreCount] Fetching dark store count with filters:', filters);
+
+        const { platform, location, startDate, endDate } = filters;
+
+        // Helper to escape strings for ClickHouse
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build conditions
+        const conds = [];
+
+        // Platform filter
+        if (platform && platform !== 'All') {
+            const platformArr = Array.isArray(platform) ? platform : [platform];
+            if (platformArr.length > 0) {
+                conds.push(`platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            }
+        }
+
+        // Location filter
+        if (location && location !== 'All') {
+            const locationArr = Array.isArray(location) ? location : [location];
+            if (locationArr.length > 0) {
+                conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            }
+        }
+
+        const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+
+        // Query for dark store count grouped by platform
+        const query = `
+            SELECT 
+                platform,
+                count(DISTINCT merchant_name) as store_count
+            FROM rb_location_darkstore
+            ${whereClause}
+            GROUP BY platform
+        `;
+
+        console.log('[getDarkStoreCount] Query:', query);
+
+        const results = await queryClickHouse(query);
+
+        // Build response
+        const byPlatform = {};
+        let totalCount = 0;
+
+        results.forEach(row => {
+            const count = parseInt(row.store_count) || 0;
+            byPlatform[row.platform] = count;
+            totalCount += count;
+        });
+
+        console.log(`[getDarkStoreCount] Total: ${totalCount}, By Platform:`, byPlatform);
+
+        return {
+            totalCount,
+            byPlatform
+        };
+    } catch (error) {
+        console.error('[getDarkStoreCount] Error:', error);
+        return { totalCount: 0, byPlatform: {} };
+    }
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -6074,5 +6146,6 @@ export default {
     getCompetitionData,
     getCompetitionFilterOptions,
     getCompetitionBrandTrends,
-    getLatestAvailableMonth
+    getLatestAvailableMonth,
+    getDarkStoreCount
 };

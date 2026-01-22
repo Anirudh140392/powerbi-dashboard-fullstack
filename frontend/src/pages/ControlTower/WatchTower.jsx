@@ -56,6 +56,48 @@ import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopA
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
 
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+  return (
+    <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+        <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+        <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={isRetrying}
+        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+          }`}
+      >
+        {isRetrying ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+            <span>Retrying...</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
   const [selectedTrendName, setSelectedTrendName] = useState("All");
@@ -65,7 +107,7 @@ function WatchTower() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = React.useState(0);
 
-  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized } = React.useContext(FilterContext);
+  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized, refreshFilters } = React.useContext(FilterContext);
 
   const [filters, setFilters] = useState({
     platform: platform || "Zepto",
@@ -229,6 +271,9 @@ function WatchTower() {
   const [brandsOverviewData, setBrandsOverviewData] = useState(null);
   const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
 
+  // Per-segment error tracking
+  const [apiErrors, setApiErrors] = useState({});
+
   // Reset category when platform changes to avoid invalid filters
   useEffect(() => {
     setBrandsOverviewCategory("All");
@@ -327,6 +372,9 @@ function WatchTower() {
 
       setBrandsOverviewData(null);
 
+      // Reset all errors when starting fresh fetch
+      setApiErrors({});
+
       // ============ ALL 6 SECTIONS FIRE IN PARALLEL ============
 
       // STEP 1: WATCH OVERVIEW (PARALLEL)
@@ -340,11 +388,13 @@ function WatchTower() {
             topMetrics: overviewRes.data.topMetrics || [],
             summaryMetrics: overviewRes.data.summaryMetrics || prev.summaryMetrics
           }));
+          setApiErrors(prev => ({ ...prev, overview: null }));
           setLoading(false);
           console.log(`✅ [1/6] Watch Overview loaded in ${((performance.now() - step1Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Watch Overview:", err);
+          setApiErrors(prev => ({ ...prev, overview: err.message || 'Failed to load' }));
           setLoading(false);
         });
 
@@ -358,11 +408,13 @@ function WatchTower() {
             ...prev,
             performanceMetricsKpis: performanceRes.data.performanceMetricsKpis || []
           }));
+          setApiErrors(prev => ({ ...prev, performance: null }));
           setPerformanceLoading(false);
           console.log(`✅ [2/6] Performance Metrics loaded in ${((performance.now() - step2Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Performance Metrics:", err);
+          setApiErrors(prev => ({ ...prev, performance: err.message || 'Failed to load' }));
           setPerformanceLoading(false);
         });
 
@@ -375,11 +427,13 @@ function WatchTower() {
             ...prev,
             platformOverview: platformRes.data || []
           }));
+          setApiErrors(prev => ({ ...prev, platformOverview: null }));
           setPlatformOverviewLoading(false);
           console.log(`✅ [3/6] Platform Overview loaded in ${((performance.now() - step3Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Platform Overview:", err);
+          setApiErrors(prev => ({ ...prev, platformOverview: err.message || 'Failed to load' }));
           setPlatformOverviewLoading(false);
         });
 
@@ -393,12 +447,14 @@ function WatchTower() {
         .then(categoryRes => {
           setCategoryOverviewData(categoryRes.data);
           setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
+          setApiErrors(prev => ({ ...prev, categoryOverview: null }));
           setCategoryOverviewLoading(false);
           categoryOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
           console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Category Overview:", err);
+          setApiErrors(prev => ({ ...prev, categoryOverview: err.message || 'Failed to load' }));
           setCategoryOverviewLoading(false);
         });
 
@@ -412,12 +468,14 @@ function WatchTower() {
         .then(monthRes => {
           setMonthOverviewData(monthRes.data);
           setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
+          setApiErrors(prev => ({ ...prev, monthOverview: null }));
           setMonthOverviewLoading(false);
           monthOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
           console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Month Overview:", err);
+          setApiErrors(prev => ({ ...prev, monthOverview: err.message || 'Failed to load' }));
           setMonthOverviewLoading(false);
         });
 
@@ -431,12 +489,14 @@ function WatchTower() {
         .then(brandsRes => {
           setBrandsOverviewData(brandsRes.data);
           setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
+          setApiErrors(prev => ({ ...prev, brandsOverview: null }));
           setBrandsOverviewLoading(false);
           brandsOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
           console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
           console.error("Error loading Brand Overview:", err);
+          setApiErrors(prev => ({ ...prev, brandsOverview: err.message || 'Failed to load' }));
           setBrandsOverviewLoading(false);
         });
 
@@ -449,6 +509,72 @@ function WatchTower() {
     };
   }, [filters, datesInitialized]); // Only re-fetch ALL sections when filters change (brand, location, dates)
   // Platform-specific changes (monthOverviewPlatform, categoryOverviewPlatform, etc.) are handled by their own useEffects below
+
+  // Retry handler for individual segments
+  const retrySegment = async (segmentKey) => {
+    // First, refresh the filter options to ensure dropdowns show updated values
+    if (refreshFilters) {
+      refreshFilters();
+    }
+
+    const categoryFilters = { ...filters };
+    delete categoryFilters.platform;
+    const monthFilters = { ...filters };
+    delete monthFilters.platform;
+    const brandFilters = { ...filters };
+    delete brandFilters.platform;
+
+    switch (segmentKey) {
+      case 'overview':
+        setLoading(true);
+        setApiErrors(prev => ({ ...prev, overview: null }));
+        try {
+          const res = await axiosInstance.get("/watchtower/overview", { params: filters });
+          setDashboardData(prev => ({
+            ...prev,
+            topMetrics: res.data.topMetrics || [],
+            summaryMetrics: res.data.summaryMetrics || prev.summaryMetrics
+          }));
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, overview: err.message || 'Failed to load' }));
+        } finally {
+          setLoading(false);
+        }
+        break;
+      case 'performance':
+        setPerformanceLoading(true);
+        setApiErrors(prev => ({ ...prev, performance: null }));
+        try {
+          const res = await axiosInstance.get("/watchtower/performance-metrics", { params: filters });
+          setDashboardData(prev => ({
+            ...prev,
+            performanceMetricsKpis: res.data.performanceMetricsKpis || []
+          }));
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, performance: err.message || 'Failed to load' }));
+        } finally {
+          setPerformanceLoading(false);
+        }
+        break;
+      case 'platformOverview':
+        setPlatformOverviewLoading(true);
+        setApiErrors(prev => ({ ...prev, platformOverview: null }));
+        try {
+          const res = await axiosInstance.get("/watchtower/platform-overview", { params: filters });
+          setDashboardData(prev => ({
+            ...prev,
+            platformOverview: res.data || []
+          }));
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, platformOverview: err.message || 'Failed to load' }));
+        } finally {
+          setPlatformOverviewLoading(false);
+        }
+        break;
+      default:
+        return false;
+    }
+  };
 
   // Separate effect for Month Overview platform changes (after initial load)
   useEffect(() => {
@@ -608,28 +734,44 @@ function WatchTower() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-        {/* Top Cards */}
-        <CardMetric
-          data={dashboardData.topMetrics}
-          onViewTrends={handleViewTrends}
-        />
-
-        {/* Performance Marketing */}
-        <Box
-          sx={{
-            bgcolor: (theme) => theme.palette.background.paper,
-            borderRadius: 6,
-            boxShadow: 1,
-            mb: 4,
-          }}
-        >
-          <PerformanceMatric
-            cardWidth={285}
-            cardHeight={140}
-            data={dashboardData.performanceMetricsKpis}
-            filters={filters}
+        {/* Top Cards - with error handling */}
+        {apiErrors.overview ? (
+          <ErrorWithRefresh
+            segmentName="Watch Overview"
+            errorMessage={apiErrors.overview}
+            onRetry={() => retrySegment('overview')}
           />
-        </Box >
+        ) : (
+          <CardMetric
+            data={dashboardData.topMetrics}
+            onViewTrends={handleViewTrends}
+          />
+        )}
+
+        {/* Performance Marketing - with error handling */}
+        {apiErrors.performance ? (
+          <ErrorWithRefresh
+            segmentName="Performance Metrics"
+            errorMessage={apiErrors.performance}
+            onRetry={() => retrySegment('performance')}
+          />
+        ) : (
+          <Box
+            sx={{
+              bgcolor: (theme) => theme.palette.background.paper,
+              borderRadius: 6,
+              boxShadow: 1,
+              mb: 4,
+            }}
+          >
+            <PerformanceMatric
+              cardWidth={285}
+              cardHeight={140}
+              data={dashboardData.performanceMetricsKpis}
+              filters={filters}
+            />
+          </Box>
+        )}
 
         {/* Platform Overview */}
         {/* Tabs */}

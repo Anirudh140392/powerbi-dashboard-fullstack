@@ -106,6 +106,44 @@ export const FilterProvider = ({ children }) => {
     // Track if backend is available
     const [backendAvailable, setBackendAvailable] = useState(true);
 
+    // Counter to force re-fetch of filter options (incremented when user clicks Refresh)
+    const [filterRefreshCounter, setFilterRefreshCounter] = useState(0);
+
+    // Dark Store Count State
+    const [darkStoreData, setDarkStoreData] = useState({ totalCount: 0, byPlatform: {} });
+
+    // Function to trigger a refresh of all filter options
+    const refreshFilters = () => {
+        console.log('🔄 [FilterContext] Refreshing all filter options...');
+        setBackendAvailable(true); // Reset backend available flag to try API again
+        setFilterRefreshCounter(prev => prev + 1); // Increment counter to trigger useEffect re-runs
+    };
+
+    // Fetch Dark Store Count
+    useEffect(() => {
+        const fetchDarkStoreCount = async () => {
+            try {
+                const response = await axiosInstance.get("/watchtower/dark-store-count", {
+                    params: {
+                        platform: platform,
+                        location: selectedLocation,
+                        startDate: timeStart ? timeStart.format('YYYY-MM-DD') : null,
+                        endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : null
+                    }
+                });
+                if (response.data) {
+                    setDarkStoreData(response.data);
+                }
+            } catch (error) {
+                console.error("[FilterContext] Error fetching dark store count:", error);
+            }
+        };
+
+        if (datesInitialized) {
+            fetchDarkStoreCount();
+        }
+    }, [platform, selectedLocation, timeStart, timeEnd, datesInitialized, filterRefreshCounter]);
+
     // Log route changes for debugging and reset location for Performance Marketing
     useEffect(() => {
         console.log('📍 Route changed to:', currentPath);
@@ -222,7 +260,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchPlatforms();
-    }, []);
+    }, [filterRefreshCounter]); // Re-fetch when refresh counter changes
 
     // Fetch brands when platform changes (with fallback)
     useEffect(() => {
@@ -279,7 +317,7 @@ export const FilterProvider = ({ children }) => {
         };
 
         fetchBrands();
-    }, [platform, backendAvailable, currentPath]); // Re-fetch brands when page changes
+    }, [platform, backendAvailable, currentPath, filterRefreshCounter]); // Re-fetch when refresh counter changes
 
     // Fetch keywords and locations when brand changes (with fallback)
     useEffect(() => {
@@ -377,7 +415,7 @@ export const FilterProvider = ({ children }) => {
 
         fetchKeywords();
         fetchLocations();
-    }, [selectedBrand, platform, backendAvailable, currentPath]); // Re-fetch locations when page changes
+    }, [selectedBrand, platform, backendAvailable, currentPath, filterRefreshCounter]); // Re-fetch when refresh counter changes
 
     return (
         <FilterContext.Provider value={{
@@ -417,7 +455,10 @@ export const FilterProvider = ({ children }) => {
             pmBrands,
             pmSelectedBrand,
             setPmBrands,
-            setPmSelectedBrand
+            setPmSelectedBrand,
+            refreshFilters,
+            filterRefreshCounter,
+            darkStoreData
         }}>
 
             {children}
