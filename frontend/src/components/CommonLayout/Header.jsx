@@ -225,6 +225,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   }
                 }}
                 width={150}
+                multi={title === "Inventory Analysis"}
               />
 
 

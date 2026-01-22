@@ -22,17 +22,43 @@ const generateMonthLabels = (startDate, endDate) => {
   return labels;
 };
 
+// Generate daily/interpolated date labels to match the number of points
+const generateDateLabels = (startDate, endDate, count) => {
+  if (!startDate || !endDate || count <= 0) return [];
+  const start = dayjs(startDate);
+  const end = dayjs(endDate);
+  const diffDays = end.diff(start, "day");
+
+  return Array.from({ length: count }, (_, i) => {
+    const dayOffset = count > 1 ? Math.floor(i * (diffDays / (count - 1))) : 0;
+    return start.add(dayOffset, "day").format("MMM DD");
+  });
+};
+
 const generateValues = (count) => Array.from({ length: count }, () => Math.floor(Math.random() * 60) + 20);
 
 export default function MetricCard({ card, scrollNeeded, totalCards }) {
-  // Use card-provided months/labels, or generate from date range, or fallback to default
-  const months = card.months ||
-    (card.startDate && card.endDate ? generateMonthLabels(card.startDate, card.endDate) : generateMonthLabels());
-
-  // Use card-provided sparklineData, fallback to random ONLY if explicitly undefined or null
+  // Use card-provided sparklineData if available, otherwise default to a fallback
   const values = (card.sparklineData !== undefined && card.sparklineData !== null)
     ? card.sparklineData
-    : generateValues(months.length);
+    : generateValues(7); // Default to 7 points if nothing provided
+
+  // Generate labels
+  let months = (card.months && card.months.length > 0)
+    ? card.months
+    : (card.startDate && card.endDate && values.length > 5)
+      ? generateDateLabels(card.startDate, card.endDate, values.length)
+      : (card.startDate && card.endDate)
+        ? generateMonthLabels(card.startDate, card.endDate)
+        : generateMonthLabels();
+
+  // Ensure months matches values length if we have a mismatch
+  if (months.length !== values.length && values.length > 0) {
+    if (card.startDate && card.endDate) {
+      months = generateDateLabels(card.startDate, card.endDate, values.length);
+    }
+  }
+
   const positive = card.change && (card.change.includes("▲") || card.change.includes("+"));
   const color = positive ? "#28a745" : "#dc3545";
 
@@ -160,7 +186,9 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
         )}
 
         {/* Sparkline */}
-        <MiniSparkline months={months} values={values} color={color} title={card.title} />
+        <Box sx={{ mb: 0 }}>
+          <MiniSparkline months={months} values={values} color={color} title={card.title} />
+        </Box>
       </CardContent>
     </Card>
   );
