@@ -518,7 +518,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -544,11 +544,13 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
       try {
         // Build query params for cascading filters
         const params = new URLSearchParams();
+        if (platform) params.append('platform', platform);
+        if (location) params.append('location', location === 'All India' ? 'All' : location);
         if (value.categories.length > 0) {
-          params.append('category', value.categories[0]); // Use first selected category for cascading
+          params.append('category', value.categories.join(','));
         }
         if (value.brands.length > 0) {
-          params.append('brand', value.brands[0]); // Use first selected brand for cascading
+          params.append('brand', value.brands.join(','));
         }
 
         const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
@@ -578,7 +580,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     };
 
     fetchFilterOptions();
-  }, [open, value.categories, value.brands]); // Refetch when categories or brands change (cascading filters)
+  }, [open, value.categories, value.brands, platform, location]); // Refetch when categories, brands, platform or location change (cascading filters)
 
   // Use API-fetched options instead of hardcoded ones
   const getCategoryOptions = () => filterOptions.categories;
@@ -1339,7 +1341,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = () => {
+export const KpiTrendShowcase = ({ platform, globalFilters }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1360,11 +1362,14 @@ export const KpiTrendShowcase = () => {
       setLoading(true);
       try {
         const params = {
+          platform: platform || 'All',
           location: city === 'All India' ? 'All' : city,
           category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
           brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
           sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
-          period: '1M'
+          period: '1M',
+          startDate: globalFilters?.startDate,
+          endDate: globalFilters?.endDate
         };
         console.log('[KpiTrendShowcase] Fetching competition data with params:', params);
         const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -1379,7 +1384,7 @@ export const KpiTrendShowcase = () => {
       }
     };
     fetchCompetitionData();
-  }, [city, filters]);
+  }, [city, filters, platform, globalFilters]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
@@ -1581,6 +1586,8 @@ export const KpiTrendShowcase = () => {
         mode={tab}
         value={filters}
         onChange={setFilters}
+        platform={platform}
+        location={city}
       />
     </div>
   );
