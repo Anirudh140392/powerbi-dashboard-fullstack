@@ -3,8 +3,12 @@
  * Provides ECP (Effective Consumer Price) comparison logic for the Pricing Analysis page
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
 
 /**
  * Get ECP Comparison between two time periods
@@ -49,16 +53,15 @@ async function getEcpComparison(filters = {}) {
         };
 
         if (platform && platform !== 'All') {
-            whereConditions.push("LOWER(Platform) = LOWER(:platform)");
-            replacements.platform = platform;
+            whereConditions.push(`LOWER(Platform) = LOWER('${platform}')`);
         }
 
         if (location && location !== 'All') {
-            whereConditions.push("LOWER(Location) = LOWER(:location)");
-            replacements.location = location;
+            whereConditions.push(`LOWER(Location) = LOWER('${location}')`);
         }
 
         const whereClause = whereConditions.join(' AND ');
+
 
         // SQL query to calculate ECP for both periods
         const query = `
@@ -66,23 +69,23 @@ async function getEcpComparison(filters = {}) {
                 Platform,
                 Brand,
                 ROUND(
-                    SUM(CASE WHEN DATE BETWEEN :compareStartDate AND :compareEndDate THEN Selling_Price ELSE 0 END)
+                    SUM(CASE WHEN DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64(Selling_Price) ELSE 0 END)
                     / NULLIF(
-                        COUNT(CASE WHEN DATE BETWEEN :compareStartDate AND :compareEndDate THEN 1 END),
+                        COUNT(CASE WHEN DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN 1 END),
                         0
                     ),
                     2
                 ) AS ecp_prev,
                 ROUND(
-                    SUM(CASE WHEN DATE BETWEEN :startDate AND :endDate THEN Selling_Price ELSE 0 END)
+                    SUM(CASE WHEN DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64(Selling_Price) ELSE 0 END)
                     / NULLIF(
-                        COUNT(CASE WHEN DATE BETWEEN :startDate AND :endDate THEN 1 END),
+                        COUNT(CASE WHEN DATE BETWEEN '${startDate}' AND '${endDate}' THEN 1 END),
                         0
                     ),
                     2
                 ) AS ecp_curr
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN :compareStartDate AND :endDate
+            WHERE DATE BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
             GROUP BY Platform, Brand
             HAVING ecp_prev IS NOT NULL AND ecp_curr IS NOT NULL
@@ -92,7 +95,8 @@ async function getEcpComparison(filters = {}) {
         console.log('[PricingAnalysisService] Executing ECP comparison query...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
+
 
         console.log(`[PricingAnalysisService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 

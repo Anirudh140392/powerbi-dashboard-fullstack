@@ -4,8 +4,9 @@
  * ECP Per Unit = ECP / avg gram (from rb_sku_platform.quantity)
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+
 
 /**
  * Parse quantity string to extract numeric gram value
@@ -42,23 +43,17 @@ async function getEcpByBrand(filters = {}) {
 
         // Build dynamic WHERE conditions
         let whereConditions = [
-            "p.DATE BETWEEN :startDate AND :endDate",
+            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
             "p.Brand IS NOT NULL"
         ];
-        const replacements = {
-            startDate,
-            endDate
-        };
 
         // Platform filter
         if (platform && platform !== 'All') {
-            whereConditions.push("LOWER(p.Platform) = LOWER(:platform)");
-            replacements.platform = platform;
+            whereConditions.push(`LOWER(p.Platform) = LOWER('${platform}')`);
         }
 
         if (location && location !== 'All') {
-            whereConditions.push("LOWER(p.Location) = LOWER(:location)");
-            replacements.location = location;
+            whereConditions.push(`LOWER(p.Location) = LOWER('${location}')`);
         }
 
         const whereClause = whereConditions.join(' AND ');
@@ -70,13 +65,13 @@ async function getEcpByBrand(filters = {}) {
             SELECT
                 p.Brand,
                 ROUND(
-                    SUM(CASE WHEN p.MRP IS NOT NULL AND p.MRP > 0 THEN p.MRP ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND p.MRP > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.MRP IS NOT NULL AND toFloat64(p.MRP) > 0 THEN toFloat64(p.MRP) ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND toFloat64(p.MRP) > 0 THEN 1 END), 0),
                     0
                 ) AS mrp,
                 ROUND(
-                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND p.Selling_Price > 0 THEN p.Selling_Price ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND p.Selling_Price > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND toFloat64(p.Selling_Price) > 0 THEN toFloat64(p.Selling_Price) ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND toFloat64(p.Selling_Price) > 0 THEN 1 END), 0),
                     0
                 ) AS ecp,
                 AVG(
@@ -84,8 +79,9 @@ async function getEcpByBrand(filters = {}) {
                         WHEN s.quantity IS NOT NULL 
                         AND s.quantity != '' 
                         AND s.quantity != '0' 
-                        AND CAST(s.quantity AS DECIMAL(10,2)) > 0 
-                        THEN CAST(s.quantity AS DECIMAL(10,2)) 
+                        AND isFinite(toFloat64(s.quantity))
+                        AND toFloat64(s.quantity) > 0 
+                        THEN toFloat64(s.quantity) 
                         ELSE NULL 
                     END
                 ) AS avg_gram
@@ -100,7 +96,7 @@ async function getEcpByBrand(filters = {}) {
         console.log('[EcpByBrandService] Executing ECP by Brand query with gram join...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
 
         console.log(`[EcpByBrandService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 

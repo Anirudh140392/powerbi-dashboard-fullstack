@@ -4,7 +4,7 @@
  * For the Discount Trend drilldown table on Pricing Analysis page
  */
 
-import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 /**
@@ -16,12 +16,12 @@ async function getAvailablePlatforms(replacements) {
     const platformQuery = `
         SELECT DISTINCT Platform
         FROM rb_pdp_olap
-        WHERE DATE BETWEEN :startDate AND :endDate
+        WHERE DATE BETWEEN '${replacements.startDate}' AND '${replacements.endDate}'
           AND Platform IS NOT NULL
           AND Platform != ''
         ORDER BY Platform
     `;
-    const [platformResults] = await sequelize.query(platformQuery, { replacements });
+    const platformResults = await queryClickHouse(platformQuery);
     return platformResults.map(r => r.Platform);
 }
 
@@ -49,9 +49,9 @@ async function getDiscountByCategory(filters = {}) {
             SELECT
                 Category,
                 Platform,
-                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND Discount >= 0 THEN Discount ELSE NULL END), 1) AS avgDiscount
+                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND toFloat64(Discount) >= 0 THEN toFloat64(Discount) ELSE NULL END), 1) AS avgDiscount
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN :startDate AND :endDate
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
               AND Category IS NOT NULL
               AND Category != ''
               AND Platform IS NOT NULL
@@ -62,7 +62,8 @@ async function getDiscountByCategory(filters = {}) {
         console.log('[DiscountTrendService] Executing discount by category query...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
+
 
         console.log(`[DiscountTrendService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
@@ -158,13 +159,13 @@ async function getDiscountByBrand(filters = {}) {
         const platformQuery = `
             SELECT DISTINCT Platform
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN :startDate AND :endDate
-              AND Category = :category
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND Category = '${category}'
               AND Platform IS NOT NULL
               AND Platform != ''
             ORDER BY Platform
         `;
-        const [platformResults] = await sequelize.query(platformQuery, { replacements });
+        const platformResults = await queryClickHouse(platformQuery);
         const platforms = platformResults.map(r => r.Platform);
 
         // SQL query to calculate average discount by Brand and Platform for a specific Category
@@ -172,10 +173,10 @@ async function getDiscountByBrand(filters = {}) {
             SELECT
                 Brand,
                 Platform,
-                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND Discount >= 0 THEN Discount ELSE NULL END), 1) AS avgDiscount
+                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND toFloat64(Discount) >= 0 THEN toFloat64(Discount) ELSE NULL END), 1) AS avgDiscount
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN :startDate AND :endDate
-              AND Category = :category
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND Category = '${category}'
               AND Brand IS NOT NULL
               AND Brand != ''
               AND Platform IS NOT NULL
@@ -186,7 +187,8 @@ async function getDiscountByBrand(filters = {}) {
         console.log('[DiscountTrendService] Executing discount by brand query...');
         const queryStart = Date.now();
 
-        const [results] = await sequelize.query(query, { replacements });
+        const results = await queryClickHouse(query);
+
 
         console.log(`[DiscountTrendService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
