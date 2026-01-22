@@ -1,142 +1,140 @@
-import { Op } from 'sequelize';
+/**
+ * Availability Analysis Service - ClickHouse Version
+ * Migrated from Sequelize/MySQL to native ClickHouse client
+ */
+
 import dayjs from 'dayjs';
-import sequelize from '../config/db.js';
-import RbPdpOlap from '../models/RbPdpOlap.js';
-import RcaSkuDim from '../models/RcaSkuDim.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
+// Helper to build WHERE clause from filters
+const buildWhereConditions = (filters, includeDate = true) => {
+    const conditions = [];
+    const { platform, brand, location, category, startDate, endDate } = filters;
+
+    if (includeDate) {
+        if (startDate && endDate) {
+            conditions.push(`DATE BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'`);
+        } else if (endDate) {
+            conditions.push(`DATE = '${dayjs(endDate).format('YYYY-MM-DD')}'`);
+        }
+    }
+
+    if (platform && platform !== 'All') {
+        conditions.push(`Platform = '${platform}'`);
+    }
+    if (brand && brand !== 'All') {
+        conditions.push(`Brand = '${brand}'`);
+    }
+    if (location && location !== 'All') {
+        conditions.push(`Location = '${location}'`);
+    }
+    if (category && category !== 'All') {
+        conditions.push(`Category = '${category}'`);
+    }
+
+    return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+};
+
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
 const getAssortment = async (filters) => {
-    // Generate cache key based on filters
     const cacheKey = generateCacheKey('assortment', filters);
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const { platform, months, startDate, endDate, brand, location } = filters;
-            const whereClause = {};
+            const { platform, startDate, endDate, brand, location } = filters;
 
-            // Determine the target date (last date of the period)
-            let targetDate;
-            if (endDate) {
-                targetDate = dayjs(endDate).format('YYYY-MM-DD');
-            } else {
-                targetDate = dayjs().format('YYYY-MM-DD');
-            }
+            // Determine target date
+            const targetDate = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-            // Update whereClause to filter by this specific date instead of a range
-            whereClause.DATE = targetDate;
+            // Build conditions
+            const conditions = [`DATE = '${targetDate}'`];
+            if (brand && brand !== 'All') conditions.push(`Brand = '${escapeStr(brand)}'`);
+            if (location && location !== 'All') conditions.push(`Location = '${escapeStr(location)}'`);
+            if (platform && platform !== 'All') conditions.push(`Platform = '${escapeStr(platform)}'`);
 
-            // Brand Filter
-            if (brand && brand !== 'All') {
-                whereClause.Brand = brand;
-            }
+            const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-            // Location Filter
-            if (location && location !== 'All') {
-                whereClause.Location = location;
-            }
+            // Query by platform breakdown
+            const query = `
+                SELECT 
+                    Platform,
+                    COUNT(DISTINCT Web_Pid) as count
+                FROM rb_pdp_olap
+                ${whereClause}
+                GROUP BY Platform
+            `;
 
-            // Platform Filter - only apply if specific platform selected, otherwise get all for breakdown
-            if (platform && platform !== 'All') {
-                whereClause.Platform = platform;
-            }
-
-            const results = await RbPdpOlap.findAll({
-                attributes: [
-                    'Platform',
-                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Web_Pid'))), 'count']
-                ],
-                where: whereClause,
-                group: ['Platform'],
-                raw: true
-            });
+            const results = await queryClickHouse(query);
 
             // Convert to object { Platform: Count }
             const assortmentMap = {};
             results.forEach(r => {
-                const count = parseInt(r.count, 10);
-                assortmentMap[r.Platform] = count;
+                assortmentMap[r.Platform] = parseInt(r.count, 10);
             });
 
-            const totalAssortmentCount = await RbPdpOlap.count({
-                distinct: true,
-                col: 'Web_Pid',
-                where: whereClause
-            });
+            // Total count
+            const totalQuery = `
+                SELECT COUNT(DISTINCT Web_Pid) as total
+                FROM rb_pdp_olap
+                ${whereClause}
+            `;
+            const totalResult = await queryClickHouse(totalQuery);
+            const total = parseInt(totalResult[0]?.total, 10) || 0;
 
             return {
                 breakdown: assortmentMap,
-                total: totalAssortmentCount,
+                total: total,
                 date: targetDate
             };
         } catch (error) {
             console.error('Error calculating Assortment:', error);
             throw error;
         }
-    }, CACHE_TTL.SHORT); // 5 minutes - assortment data is fairly static
+    }, CACHE_TTL.SHORT);
 };
 
-// ==================== Absolute OSA Section APIs ====================
-
-/**
- * Get Availability Overview data for Absolute OSA page
- * Stock Availability = (Sum of neno_osa / Sum of deno_osa) * 100
- * @param {Object} filters - { platform, brand, location, startDate, endDate }
- */
 const getAbsoluteOsaOverview = async (filters) => {
     console.log('[getAbsoluteOsaOverview] Request received with filters:', filters);
 
-    // Generate cache key based on filters
     const cacheKey = generateCacheKey('absolute_osa_overview', filters);
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
             const { platform, brand, location, startDate, endDate } = filters;
-            const whereClause = {};
 
-            // Time Period Filter - date range
+            // Build conditions
+            const conditions = [];
             if (startDate && endDate) {
-                whereClause.DATE = {
-                    [Op.between]: [dayjs(startDate).format('YYYY-MM-DD'), dayjs(endDate).format('YYYY-MM-DD')]
-                };
+                conditions.push(`DATE BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'`);
             } else if (endDate) {
-                whereClause.DATE = dayjs(endDate).format('YYYY-MM-DD');
+                conditions.push(`DATE = '${dayjs(endDate).format('YYYY-MM-DD')}'`);
             } else {
-                // Default to today's date
-                whereClause.DATE = dayjs().format('YYYY-MM-DD');
+                conditions.push(`DATE = '${dayjs().format('YYYY-MM-DD')}'`);
             }
 
-            // Platform Filter
-            if (platform && platform !== 'All') {
-                whereClause.Platform = platform;
-            }
+            if (platform && platform !== 'All') conditions.push(`Platform = '${escapeStr(platform)}'`);
+            if (brand && brand !== 'All') conditions.push(`Brand = '${escapeStr(brand)}'`);
+            if (location && location !== 'All') conditions.push(`Location = '${escapeStr(location)}'`);
 
-            // Brand Filter
-            if (brand && brand !== 'All') {
-                whereClause.Brand = brand;
-            }
+            const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-            // Location Filter
-            if (location && location !== 'All') {
-                whereClause.Location = location;
-            }
+            const query = `
+                SELECT 
+                    SUM(toFloat64(neno_osa)) as sumNenoOsa,
+                    SUM(toFloat64(deno_osa)) as sumDenoOsa
+                FROM rb_pdp_olap
+                ${whereClause}
+            `;
 
-            console.log('[getAbsoluteOsaOverview] Where clause:', whereClause);
+            console.log('[getAbsoluteOsaOverview] Query:', query);
+            const result = await queryClickHouse(query);
+            const row = result[0] || {};
 
-            // Query to get Sum of neno_osa and Sum of deno_osa
-            const result = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
-                ],
-                where: whereClause,
-                raw: true
-            });
-
-            console.log('[getAbsoluteOsaOverview] Query result:', result);
-
-            // Calculate Stock Availability: (Sum of neno_osa / Sum of deno_osa) * 100
-            const sumNenoOsa = parseFloat(result?.sumNenoOsa) || 0;
-            const sumDenoOsa = parseFloat(result?.sumDenoOsa) || 0;
+            const sumNenoOsa = parseFloat(row.sumNenoOsa) || 0;
+            const sumDenoOsa = parseFloat(row.sumDenoOsa) || 0;
 
             let stockAvailability = 0;
             if (sumDenoOsa > 0) {
@@ -158,11 +156,6 @@ const getAbsoluteOsaOverview = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-/**
- * Get Platform KPI Matrix data for Absolute OSA page
- * Dynamic columns based on viewMode (Platform/Format/City)
- * @param {Object} filters - { viewMode, platform, brand, location, startDate, endDate }
- */
 const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
     console.log('[getAbsoluteOsaPlatformKpiMatrix] Request received with filters:', filters);
 
@@ -172,9 +165,6 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
         try {
             const { viewMode = 'Platform', platform, brand, location, startDate, endDate } = filters;
 
-            // Import RcaSkuDim for fetching dynamic columns
-            const RcaSkuDim = (await import('../models/RcaSkuDim.js')).default;
-
             // Date calculations
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
@@ -182,47 +172,59 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevEndDate = currentStartDate.subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
-            // Determine which column to use for grouping based on viewMode
-            let groupColumn, rcaDimColumn;
-            switch (viewMode) {
-                case 'Format':
-                    groupColumn = 'Category';  // Using Category as Format
-                    rcaDimColumn = 'Category';
-                    break;
-                case 'City':
-                    groupColumn = 'Location';
-                    rcaDimColumn = 'location';
-                    break;
-                case 'Platform':
-                default:
-                    groupColumn = 'Platform';
-                    rcaDimColumn = 'platform';
-                    break;
-            }
+            // Determine group column based on viewMode
+            const groupColumn = viewMode === 'Format' ? 'Category' :
+                viewMode === 'City' ? 'Location' : 'Platform';
 
-            // Fetch distinct column values from rca_sku_dim
-            const rcaWhereClause = {};
+            // Build base filter conditions (without date and group column)
+            const baseConditions = [];
             if (platform && platform !== 'All' && viewMode !== 'Platform') {
-                rcaWhereClause.platform = platform;
+                baseConditions.push(`Platform = '${escapeStr(platform)}'`);
+            }
+            if (brand && brand !== 'All') {
+                baseConditions.push(`Brand = '${escapeStr(brand)}'`);
+            }
+            if (location && location !== 'All' && viewMode !== 'City') {
+                baseConditions.push(`Location = '${escapeStr(location)}'`);
             }
 
-            const distinctValues = await RcaSkuDim.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col(rcaDimColumn)), 'value']],
-                where: {
-                    [rcaDimColumn]: { [Op.ne]: null },
-                    ...rcaWhereClause
-                },
-                raw: true,
-                limit: 10  // Limit to 10 columns for performance
-            });
+            if (viewMode === 'Format') {
+                const activeCategoriesResult = await queryClickHouse(
+                    `SELECT DISTINCT Category FROM rca_sku_dim WHERE toString(status) = '1' AND Category IS NOT NULL AND Category != ''`
+                );
 
-            const columnValues = distinctValues
+                const validCategories = activeCategoriesResult.map(c => c.Category).filter(Boolean);
+
+                if (validCategories.length > 0) {
+                    baseConditions.push(`Category IN (${validCategories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                } else {
+                    // If no categories have status=1, we should return empty to avoid showing inactive ones
+                    return {
+                        section: "platform_kpi_matrix",
+                        viewMode,
+                        columns: ['KPI'],
+                        rows: [],
+                        filters,
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            }
+
+            const baseFilter = baseConditions.length > 0 ? ` AND ${baseConditions.join(' AND ')}` : '';
+
+            // Get distinct column values
+            const distinctQuery = `
+                SELECT DISTINCT ${groupColumn} as value
+                FROM rb_pdp_olap
+                WHERE ${groupColumn} IS NOT NULL AND ${groupColumn} != ''
+                ${baseFilter}
+                ORDER BY value
+                LIMIT 10
+            `;
+
+            const columnValues = (await queryClickHouse(distinctQuery))
                 .map(r => r.value)
-                .filter(v => v && v.trim())
-                .sort()
-                .slice(0, 10);
-
-            console.log(`[getAbsoluteOsaPlatformKpiMatrix] Found ${columnValues.length} ${viewMode} values:`, columnValues);
+                .filter(v => v && v.trim());
 
             if (columnValues.length === 0) {
                 return {
@@ -235,32 +237,120 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 };
             }
 
-            // Build base where clause
-            const buildWhereClause = (start, end, columnValue) => {
-                const whereClause = {
-                    DATE: {
-                        [Op.between]: [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')]
-                    }
-                };
+            // Calculate KPIs for all columns in a single optimized query
+            // OSA uses the selected period
+            // DOI uses latest inventory and a 30-day sales lookback (from currentEndDate)
+            const doiLookbackDate = currentEndDate.subtract(30, 'day').format('YYYY-MM-DD');
+            const prevDoiLookbackDate = prevEndDate.subtract(30, 'day').format('YYYY-MM-DD');
 
-                // Add column filter based on viewMode
-                whereClause[groupColumn] = columnValue;
+            const kpiQuery = `
+                WITH daily_stats AS (
+                    SELECT 
+                        DATE,
+                        ${groupColumn} as col_value,
+                        SUM(toFloat64(Inventory)) as daily_inv
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      ${baseFilter}
+                    GROUP BY DATE, ${groupColumn}
+                ),
+                latest_inv_stats AS (
+                    SELECT 
+                        col_value,
+                        argMax(daily_inv, DATE) as latest_inventory
+                    FROM daily_stats
+                    GROUP BY col_value
+                )
+                SELECT 
+                    t1.${groupColumn} as col_value,
+                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
+                    SUM(toFloat64(t1.deno_osa)) as sum_deno,
+                    COUNT(DISTINCT t1.Web_Pid) as assortment_count,
+                    any(l.latest_inventory) as latest_inventory
+                FROM rb_pdp_olap t1
+                LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
+                WHERE t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                  AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                  ${baseFilter}
+                GROUP BY col_value
+            `;
 
-                // Apply additional filters
-                if (platform && platform !== 'All' && viewMode !== 'Platform') {
-                    whereClause.Platform = platform;
-                }
-                if (brand && brand !== 'All') {
-                    whereClause.Brand = brand;
-                }
-                if (location && location !== 'All' && viewMode !== 'City') {
-                    whereClause.Location = location;
-                }
+            const prevKpiQuery = `
+                WITH daily_stats AS (
+                    SELECT 
+                        DATE,
+                        ${groupColumn} as col_value,
+                        SUM(toFloat64(Inventory)) as daily_inv
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      ${baseFilter}
+                    GROUP BY DATE, ${groupColumn}
+                ),
+                latest_inv_stats AS (
+                    SELECT 
+                        col_value,
+                        argMax(daily_inv, DATE) as latest_inventory
+                    FROM daily_stats
+                    GROUP BY col_value
+                )
+                SELECT 
+                    t1.${groupColumn} as col_value,
+                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
+                    SUM(toFloat64(t1.deno_osa)) as sum_deno,
+                    COUNT(DISTINCT t1.Web_Pid) as assortment_count,
+                    any(l.latest_inventory) as latest_inventory
+                FROM rb_pdp_olap t1
+                LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
+                WHERE t1.DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                  AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                  ${baseFilter}
+                GROUP BY col_value
+            `;
 
-                return whereClause;
-            };
+            // DOI sales queries (30-day lookback for current and prev)
+            const doiSalesQuery = `
+                SELECT 
+                    ${groupColumn} as col_value,
+                    SUM(toFloat64(Qty_Sold)) as total_qty_sold
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                  AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                  ${baseFilter}
+                GROUP BY ${groupColumn}
+            `;
 
-            // Calculate KPIs for each column
+            const prevDoiSalesQuery = `
+                SELECT 
+                    ${groupColumn} as col_value,
+                    SUM(toFloat64(Qty_Sold)) as total_qty_sold
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${prevDoiLookbackDate}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                  AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                  ${baseFilter}
+                GROUP BY ${groupColumn}
+            `;
+
+            const [currentResults, prevResults, currentSales, prevSales] = await Promise.all([
+                queryClickHouse(kpiQuery),
+                queryClickHouse(prevKpiQuery),
+                queryClickHouse(doiSalesQuery),
+                queryClickHouse(prevDoiSalesQuery)
+            ]);
+
+            // Build lookup maps
+            const currentMap = {};
+            currentResults.forEach(r => { currentMap[r.col_value] = r; });
+            const prevMap = {};
+            prevResults.forEach(r => { prevMap[r.col_value] = r; });
+
+            const currentSalesMap = {};
+            currentSales.forEach(r => { currentSalesMap[r.col_value] = r.total_qty_sold; });
+            const prevSalesMap = {};
+            prevSales.forEach(r => { prevSalesMap[r.col_value] = r.total_qty_sold; });
+
+            // Build KPI rows
             const kpiRows = {
                 osa: { kpi: 'OSA', trend: {} },
                 doi: { kpi: 'DOI', trend: {} },
@@ -269,168 +359,39 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 psl: { kpi: 'PSL', trend: {} }
             };
 
-            // Process each column value
             for (const colValue of columnValues) {
-                const currentWhere = buildWhereClause(currentStartDate, currentEndDate, colValue);
-                const prevWhere = buildWhereClause(prevStartDate, prevEndDate, colValue);
+                const curr = currentMap[colValue] || {};
+                const prev = prevMap[colValue] || {};
 
-                // === OSA Calculation ===
-                const osaResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNeno'],
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDeno']
-                    ],
-                    where: currentWhere,
-                    raw: true
-                });
-                const osaPrevResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNeno'],
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDeno']
-                    ],
-                    where: prevWhere,
-                    raw: true
-                });
+                // OSA
+                const currOsa = (parseFloat(curr.sum_deno) > 0)
+                    ? (parseFloat(curr.sum_neno) / parseFloat(curr.sum_deno)) * 100 : 0;
+                const prevOsa = (parseFloat(prev.sum_deno) > 0)
+                    ? (parseFloat(prev.sum_neno) / parseFloat(prev.sum_deno)) * 100 : 0;
+                kpiRows.osa[colValue] = Math.round(currOsa);
+                kpiRows.osa.trend[colValue] = Math.round(currOsa - prevOsa);
 
-                const currentOsa = (parseFloat(osaResult?.sumDeno) > 0)
-                    ? (parseFloat(osaResult?.sumNeno) / parseFloat(osaResult?.sumDeno)) * 100
-                    : 0;
-                const prevOsa = (parseFloat(osaPrevResult?.sumDeno) > 0)
-                    ? (parseFloat(osaPrevResult?.sumNeno) / parseFloat(osaPrevResult?.sumDeno)) * 100
-                    : 0;
+                // DOI: (Latest Inventory / Last 30 Days Sales) * 30
+                const currSalesVal = parseFloat(currentSalesMap[colValue]) || 0;
+                const prevSalesVal = parseFloat(prevSalesMap[colValue]) || 0;
 
-                kpiRows.osa[colValue] = Math.round(currentOsa);
-                kpiRows.osa.trend[colValue] = Math.round(currentOsa - prevOsa);
+                const currDoi = (currSalesVal > 0)
+                    ? (parseFloat(curr.latest_inventory) / currSalesVal) * 30 : 0;
+                const prevDoi = (prevSalesVal > 0)
+                    ? (parseFloat(prev.latest_inventory) / prevSalesVal) * 30 : 0;
+                kpiRows.doi[colValue] = Math.round(currDoi);
+                kpiRows.doi.trend[colValue] = Math.round(currDoi - prevDoi);
 
-                // === DOI Calculation ===
-                // Formula: DOI = [end date inventory / period Qty_Sold] * 30
-                // Use end date inventory (or avg of last 7 days if no data)
-                const doiEndDateWhere = {
-                    DATE: currentEndDate.format('YYYY-MM-DD'),
-                    [groupColumn]: colValue
-                };
-                if (platform && platform !== 'All' && viewMode !== 'Platform') {
-                    doiEndDateWhere.Platform = platform;
-                }
-                if (brand && brand !== 'All') {
-                    doiEndDateWhere.Brand = brand;
-                }
-                if (location && location !== 'All' && viewMode !== 'City') {
-                    doiEndDateWhere.Location = location;
-                }
-
-                let endDateInventoryResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory']
-                    ],
-                    where: doiEndDateWhere,
-                    raw: true
-                });
-
-                let endDateInventory = parseFloat(endDateInventoryResult?.totalInventory) || 0;
-
-                // If no inventory for end date, use average of last 7 days
-                if (endDateInventory === 0) {
-                    const last7DaysWhere = {
-                        DATE: {
-                            [Op.between]: [currentEndDate.subtract(7, 'day').format('YYYY-MM-DD'), currentEndDate.format('YYYY-MM-DD')]
-                        },
-                        [groupColumn]: colValue
-                    };
-                    if (platform && platform !== 'All' && viewMode !== 'Platform') {
-                        last7DaysWhere.Platform = platform;
-                    }
-                    if (brand && brand !== 'All') {
-                        last7DaysWhere.Brand = brand;
-                    }
-                    if (location && location !== 'All' && viewMode !== 'City') {
-                        last7DaysWhere.Location = location;
-                    }
-
-                    const last7DaysResult = await RbPdpOlap.findOne({
-                        attributes: [
-                            [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory'],
-                            [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('DATE'))), 'daysCount']
-                        ],
-                        where: last7DaysWhere,
-                        raw: true
-                    });
-
-                    const totalInv = parseFloat(last7DaysResult?.totalInventory) || 0;
-                    const daysCount = parseFloat(last7DaysResult?.daysCount) || 1;
-                    endDateInventory = daysCount > 0 ? totalInv / daysCount : 0;
-                }
-
-                // Get Qty_Sold for the period
-                const doiQtySoldResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
-                    ],
-                    where: currentWhere,
-                    raw: true
-                });
-
-                const totalQtySold = parseFloat(doiQtySoldResult?.totalQtySold) || 0;
-                const currentDoi = totalQtySold > 0 ? (endDateInventory / totalQtySold) * 30 : 0;
-
-                // Previous period DOI
-                const doiPrevEndDateWhere = {
-                    DATE: prevEndDate.format('YYYY-MM-DD'),
-                    [groupColumn]: colValue
-                };
-                if (platform && platform !== 'All' && viewMode !== 'Platform') {
-                    doiPrevEndDateWhere.Platform = platform;
-                }
-                if (brand && brand !== 'All') {
-                    doiPrevEndDateWhere.Brand = brand;
-                }
-                if (location && location !== 'All' && viewMode !== 'City') {
-                    doiPrevEndDateWhere.Location = location;
-                }
-
-                const prevEndDateInventoryResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory']
-                    ],
-                    where: doiPrevEndDateWhere,
-                    raw: true
-                });
-                const prevEndDateInventory = parseFloat(prevEndDateInventoryResult?.totalInventory) || 0;
-
-                const doiPrevQtySoldResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
-                    ],
-                    where: prevWhere,
-                    raw: true
-                });
-                const prevTotalQtySold = parseFloat(doiPrevQtySoldResult?.totalQtySold) || 0;
-                const prevDoi = prevTotalQtySold > 0 ? (prevEndDateInventory / prevTotalQtySold) * 30 : 0;
-
-                kpiRows.doi[colValue] = Math.round(currentDoi);
-                kpiRows.doi.trend[colValue] = Math.round(currentDoi - prevDoi);
-
-                // === FILLRATE - Coming Soon ===
+                // Fillrate (placeholder)
                 kpiRows.fillrate[colValue] = 'Coming Soon';
                 kpiRows.fillrate.trend[colValue] = 0;
 
-                // === ASSORTMENT Calculation ===
-                const assortResult = await RbPdpOlap.count({
-                    distinct: true,
-                    col: 'Web_Pid',
-                    where: currentWhere
-                });
-                const assortPrevResult = await RbPdpOlap.count({
-                    distinct: true,
-                    col: 'Web_Pid',
-                    where: prevWhere
-                });
+                // Assortment
+                kpiRows.assortment[colValue] = parseInt(curr.assortment_count, 10) || 0;
+                kpiRows.assortment.trend[colValue] = (parseInt(curr.assortment_count, 10) || 0) - (parseInt(prev.assortment_count, 10) || 0);
 
-                kpiRows.assortment[colValue] = assortResult || 0;
-                kpiRows.assortment.trend[colValue] = (assortResult || 0) - (assortPrevResult || 0);
-
-                // === PSL - Placeholder ===
-                kpiRows.psl[colValue] = Math.round(Math.random() * 30);  // Placeholder
+                // PSL (placeholder)
+                kpiRows.psl[colValue] = Math.round(Math.random() * 30);
                 kpiRows.psl.trend[colValue] = 0;
             }
 
@@ -438,21 +399,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 section: "platform_kpi_matrix",
                 viewMode,
                 columns: ['KPI', ...columnValues],
-                rows: [
-                    kpiRows.osa,
-                    kpiRows.doi,
-                    kpiRows.fillrate,
-                    kpiRows.assortment,
-                    kpiRows.psl
-                ],
-                currentPeriod: {
-                    start: currentStartDate.format('YYYY-MM-DD'),
-                    end: currentEndDate.format('YYYY-MM-DD')
-                },
-                comparisonPeriod: {
-                    start: prevStartDate.format('YYYY-MM-DD'),
-                    end: prevEndDate.format('YYYY-MM-DD')
-                },
+                rows: [kpiRows.osa, kpiRows.doi, kpiRows.fillrate, kpiRows.assortment, kpiRows.psl],
+                currentPeriod: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') },
+                comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
                 filters,
                 timestamp: new Date().toISOString()
             };
@@ -463,15 +412,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-
-/**
- * Get OSA Percentage Detail View data for Absolute OSA page
- * @param {Object} filters - { platform, brand, location, startDate, endDate }
- */
 const getAbsoluteOsaPercentageDetail = async (filters) => {
     console.log('[getAbsoluteOsaPercentageDetail] Request received with filters:', filters);
-
-    // Placeholder - return confirmation message
     return {
         message: "OSA Percentage Detail View section request received",
         section: "osa_percentage_detail",
@@ -480,170 +422,83 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
     };
 };
 
-/**
- * Get Days of Inventory (DOI) data for Availability Overview
- * Formula: DOI = [[MRP * Inventory] / last 30 days Sales] * 30
- * @param {Object} filters - { platform, brand, location, startDate, endDate }
- */
 const getDOI = async (filters) => {
     console.log('[getDOI] Request received with filters:', filters);
 
-    // Generate cache key based on filters
     const cacheKey = generateCacheKey('doi_overview', filters);
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
             const { platform, brand, location, startDate, endDate } = filters;
 
-            // Get end date (defaults to today) - this is "today's date" for inventory
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
-            // For Qty_Sold, we need last 30 days from the end date
             const thirtyDaysAgo = currentEndDate.subtract(30, 'day');
-
-            // Previous period for comparison (30 days before the current 30-day window)
             const prevEndDate = thirtyDaysAgo.subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(29, 'day');
 
-            // Build base where clause with filters (without date)
-            const buildBaseFilters = () => {
-                const whereClause = {};
-                if (platform && platform !== 'All') {
-                    whereClause.Platform = platform;
-                }
-                if (brand && brand !== 'All') {
-                    whereClause.Brand = brand;
-                }
-                if (location && location !== 'All') {
-                    whereClause.Location = location;
-                }
-                return whereClause;
-            };
+            // Build base filter conditions
+            const baseConditions = [];
+            if (platform && platform !== 'All') baseConditions.push(`Platform = '${escapeStr(platform)}'`);
+            if (brand && brand !== 'All') baseConditions.push(`Brand = '${escapeStr(brand)}'`);
+            if (location && location !== 'All') baseConditions.push(`Location = '${escapeStr(location)}'`);
+            const baseFilter = baseConditions.length > 0 ? ` AND ${baseConditions.join(' AND ')}` : '';
 
-            const baseFilters = buildBaseFilters();
+            // Get today's inventory
+            const invQuery = `
+                SELECT SUM(toFloat64(Inventory)) as totalInventory
+                FROM rb_pdp_olap
+                WHERE DATE = '${currentEndDate.format('YYYY-MM-DD')}'
+                ${baseFilter}
+            `;
+            let invResult = await queryClickHouse(invQuery);
+            let todayInventory = parseFloat(invResult[0]?.totalInventory) || 0;
 
-            // NEW FORMULA: DOI = [sum of today's inventory / last 30 days sum of Qty_Sold] * 30
-
-            // Step 1: Get inventory for the end date (or sum of last 7 days if end date has no data)
-            // First try the exact end date
-            let todayWhereClause = {
-                ...baseFilters,
-                DATE: currentEndDate.format('YYYY-MM-DD')
-            };
-
-            let todayInventoryResult = await RbPdpOlap.findOne({
-                attributes: [
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory']
-                ],
-                where: todayWhereClause,
-                raw: true
-            });
-
-            let todayInventory = parseFloat(todayInventoryResult?.totalInventory) || 0;
-
-            // If no inventory for end date, try last 7 days average * 1 day
+            // Fallback to last 7 days average
             if (todayInventory === 0) {
-                const last7Days = currentEndDate.subtract(7, 'day');
-                const last7DaysWhereClause = {
-                    ...baseFilters,
-                    DATE: {
-                        [Op.between]: [last7Days.format('YYYY-MM-DD'), currentEndDate.format('YYYY-MM-DD')]
-                    }
-                };
-
-                const last7DaysResult = await RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory'],
-                        [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('DATE'))), 'daysCount']
-                    ],
-                    where: last7DaysWhereClause,
-                    raw: true
-                });
-
-                const totalInv = parseFloat(last7DaysResult?.totalInventory) || 0;
-                const daysCount = parseFloat(last7DaysResult?.daysCount) || 1;
+                const last7Query = `
+                    SELECT 
+                        SUM(toFloat64(Inventory)) as totalInventory,
+                        COUNT(DISTINCT DATE) as daysCount
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${currentEndDate.subtract(7, 'day').format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                    ${baseFilter}
+                `;
+                const last7Result = await queryClickHouse(last7Query);
+                const totalInv = parseFloat(last7Result[0]?.totalInventory) || 0;
+                const daysCount = parseFloat(last7Result[0]?.daysCount) || 1;
                 todayInventory = daysCount > 0 ? totalInv / daysCount : 0;
-
-                console.log('[getDOI] Using last 7 days average inventory:', { totalInv, daysCount, avgInventory: todayInventory });
             }
 
-            // Step 2: Get last 30 days Qty_Sold
-            const last30DaysWhereClause = {
-                ...baseFilters,
-                DATE: {
-                    [Op.between]: [thirtyDaysAgo.format('YYYY-MM-DD'), currentEndDate.format('YYYY-MM-DD')]
-                }
-            };
-
-            // Previous period where clauses
-            const prevTodayWhereClause = {
-                ...baseFilters,
-                DATE: prevEndDate.format('YYYY-MM-DD')
-            };
-            const prev30DaysWhereClause = {
-                ...baseFilters,
-                DATE: {
-                    [Op.between]: [prevStartDate.format('YYYY-MM-DD'), prevEndDate.format('YYYY-MM-DD')]
-                }
-            };
-
-            // ⚡ OPTIMIZED: Run all 3 queries in PARALLEL
-            const [qtySoldResult, prevInventoryResult, prevQtySoldResult] = await Promise.all([
-                RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
-                    ],
-                    where: last30DaysWhereClause,
-                    raw: true
-                }),
-                RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'totalInventory']
-                    ],
-                    where: prevTodayWhereClause,
-                    raw: true
-                }),
-                RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'totalQtySold']
-                    ],
-                    where: prev30DaysWhereClause,
-                    raw: true
-                })
+            // Get last 30 days Qty_Sold and previous period data in parallel
+            const [qtySoldResult, prevInvResult, prevQtySoldResult] = await Promise.all([
+                queryClickHouse(`
+                    SELECT SUM(toFloat64(Qty_Sold)) as totalQtySold
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${thirtyDaysAgo.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                    ${baseFilter}
+                `),
+                queryClickHouse(`
+                    SELECT SUM(toFloat64(Inventory)) as totalInventory
+                    FROM rb_pdp_olap
+                    WHERE DATE = '${prevEndDate.format('YYYY-MM-DD')}'
+                    ${baseFilter}
+                `),
+                queryClickHouse(`
+                    SELECT SUM(toFloat64(Qty_Sold)) as totalQtySold
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                    ${baseFilter}
+                `)
             ]);
 
-            console.log('[getDOI] Today inventory:', todayInventory);
-            console.log('[getDOI] Last 30 days Qty_Sold result:', qtySoldResult);
+            const totalQtySold = parseFloat(qtySoldResult[0]?.totalQtySold) || 0;
+            const currentDOI = totalQtySold > 0 ? (todayInventory / totalQtySold) * 30 : 0;
 
-            // Calculate current DOI: [today's inventory / last 30 days Qty_Sold] * 30
-            // todayInventory is already calculated above
-            const totalQtySold = parseFloat(qtySoldResult?.totalQtySold) || 0;
+            const prevInventory = parseFloat(prevInvResult[0]?.totalInventory) || 0;
+            const prevTotalQtySold = parseFloat(prevQtySoldResult[0]?.totalQtySold) || 0;
+            const prevDOI = prevTotalQtySold > 0 ? (prevInventory / prevTotalQtySold) * 30 : 0;
 
-            let currentDOI = 0;
-            if (totalQtySold > 0) {
-                currentDOI = (todayInventory / totalQtySold) * 30;
-            }
-
-            const prevInventory = parseFloat(prevInventoryResult?.totalInventory) || 0;
-            const prevTotalQtySold = parseFloat(prevQtySoldResult?.totalQtySold) || 0;
-
-            let prevDOI = 0;
-            if (prevTotalQtySold > 0) {
-                prevDOI = (prevInventory / prevTotalQtySold) * 30;
-            }
-
-            // Calculate change percentage
-            let changePercent = 0;
-            if (prevDOI > 0) {
-                changePercent = ((currentDOI - prevDOI) / prevDOI) * 100;
-            }
-
-            console.log('[getDOI] Calculated DOI:', {
-                todayInventory,
-                totalQtySold,
-                currentDOI,
-                prevDOI,
-                changePercent
-            });
+            const changePercent = prevDOI > 0 ? ((currentDOI - prevDOI) / prevDOI) * 100 : 0;
 
             return {
                 section: "doi_overview",
@@ -672,56 +527,17 @@ const getDOI = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-/**
- * Check if a location is a Metro City (Tier 1)
- * @param {string} location - location name to check
- * @returns {Promise<boolean>} true if location is Tier 1
- */
-const isMetroCity = async (location) => {
-    if (!location || location === 'All') return true; // All includes metro cities
-
-    const cacheKey = generateCacheKey('is_metro_city', { location });
-
-    return getCachedOrCompute(cacheKey, async () => {
-        try {
-            const RbLocationDarkstore = (await import('../models/RbLocationDarkstore.js')).default;
-
-            const result = await RbLocationDarkstore.findOne({
-                attributes: ['tier'],
-                where: {
-                    location: location,
-                    tier: 'Tier 1'
-                },
-                raw: true
-            });
-
-            return !!result;
-        } catch (error) {
-            console.error('[isMetroCity] Error:', error);
-            return false;
-        }
-    }, CACHE_TTL.MEDIUM);
-};
-
-/**
- * Get list of all Metro Cities (Tier 1)
- * @returns {Promise<string[]>} array of metro city location names
- */
 const getMetroCities = async () => {
     const cacheKey = generateCacheKey('metro_cities_list', {});
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const RbLocationDarkstore = (await import('../models/RbLocationDarkstore.js')).default;
-
-            const results = await RbLocationDarkstore.findAll({
-                attributes: [[sequelize.fn('DISTINCT', sequelize.col('location')), 'location']],
-                where: {
-                    tier: 'Tier 1'
-                },
-                raw: true
-            });
-
+            const query = `
+                SELECT DISTINCT location
+                FROM rb_location_darkstore
+                WHERE tier = 'Tier 1'
+            `;
+            const results = await queryClickHouse(query);
             return results.map(r => r.location).filter(Boolean);
         } catch (error) {
             console.error('[getMetroCities] Error:', error);
@@ -730,12 +546,12 @@ const getMetroCities = async () => {
     }, CACHE_TTL.LONG);
 };
 
-/**
- * Get Metro City Stock Availability
- * Same formula as Stock Availability but filtered by Tier 1 (Metro) cities
- * Stock Availability = (Sum of neno_osa / Sum of deno_osa) * 100
- * @param {Object} filters - { platform, brand, location, startDate, endDate }
- */
+const isMetroCity = async (location) => {
+    if (!location || location === 'All') return true;
+    const metroCities = await getMetroCities();
+    return metroCities.some(city => city.toLowerCase() === location.toLowerCase());
+};
+
 const getMetroCityStockAvailability = async (filters) => {
     console.log('[getMetroCityStockAvailability] Request received with filters:', filters);
 
@@ -745,10 +561,7 @@ const getMetroCityStockAvailability = async (filters) => {
         try {
             const { platform, brand, location, startDate, endDate } = filters;
 
-            // Get list of metro cities (Tier 1)
             const metroCities = await getMetroCities();
-            console.log('[getMetroCityStockAvailability] Metro cities found:', metroCities.length);
-
             if (metroCities.length === 0) {
                 return {
                     section: "metro_city_osa",
@@ -761,159 +574,74 @@ const getMetroCityStockAvailability = async (filters) => {
                 };
             }
 
-            // Check if user-selected location is a metro city
-            let locationFilter = metroCities;
-            let isUserLocationMetro = true;
+            let isLocationMetro = true;
+            let targetLocations = metroCities;
 
             if (location && location !== 'All') {
-                // Helper function to check if two strings are similar (for handling typos)
-                const isSimilar = (str1, str2) => {
-                    const s1 = str1.toLowerCase().trim();
-                    const s2 = str2.toLowerCase().trim();
-
-                    // Exact match
-                    if (s1 === s2) return true;
-
-                    // Substring match
-                    if (s1.includes(s2) || s2.includes(s1)) return true;
-
-                    // Check if they start with the same 3+ characters (handles Ahmedabad vs Ahemdabad)
-                    if (s1.length >= 3 && s2.length >= 3) {
-                        const prefix1 = s1.substring(0, 3);
-                        const prefix2 = s2.substring(0, 3);
-                        // If they share the same first 3 chars and are similar length
-                        if (prefix1 === prefix2 && Math.abs(s1.length - s2.length) <= 2) {
-                            return true;
-                        }
-                    }
-
-                    // Check if only 1-2 characters are different (simple edit distance approximation)
-                    if (Math.abs(s1.length - s2.length) <= 1) {
-                        let differences = 0;
-                        const longer = s1.length >= s2.length ? s1 : s2;
-                        const shorter = s1.length < s2.length ? s1 : s2;
-                        for (let i = 0; i < shorter.length && differences <= 2; i++) {
-                            if (shorter[i] !== longer[i]) differences++;
-                        }
-                        if (differences <= 2) return true;
-                    }
-
-                    return false;
-                };
-
-                const matchedMetroCity = metroCities.find(city => isSimilar(city, location));
-
-                isUserLocationMetro = !!matchedMetroCity;
-                if (isUserLocationMetro) {
-                    // Use the matched metro city name (from rb_location_darkstore) for the pdp_olap query
-                    // This handles cases where user input has typos (e.g., "Ahemdabad" -> "Ahmedabad")
-                    locationFilter = [matchedMetroCity];
-                    console.log(`[getMetroCityStockAvailability] Matched "${location}" to metro city "${matchedMetroCity}"`);
-                } else {
-                    // User selected a non-metro city, return with flag
+                isLocationMetro = metroCities.some(c => c.toLowerCase() === location.toLowerCase());
+                if (!isLocationMetro) {
                     return {
                         section: "metro_city_osa",
-                        stockAvailability: null,
-                        prevStockAvailability: null,
-                        change: null,
+                        stockAvailability: 0,
+                        prevStockAvailability: 0,
+                        change: 0,
                         isMetroCity: false,
-                        message: "Selected location is not a metro city",
                         filters: filters,
                         timestamp: new Date().toISOString()
                     };
                 }
+                targetLocations = [location];
             }
 
-            // Date range calculations
+            // Build date conditions
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
-            const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
+            const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
             const prevEndDate = currentStartDate.subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
-            // Build base where clause
-            const buildWhereClause = (start, end, locations) => {
-                const whereClause = {
-                    DATE: {
-                        [Op.between]: [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')]
-                    },
-                    Location: {
-                        [Op.in]: locations
-                    }
-                };
+            // Build filter conditions
+            const metroLocations = targetLocations.map(c => `'${escapeStr(c)}'`).join(',');
+            const baseConditions = [`Location IN (${metroLocations})`];
+            if (platform && platform !== 'All') baseConditions.push(`Platform = '${escapeStr(platform)}'`);
+            if (brand && brand !== 'All') baseConditions.push(`Brand = '${escapeStr(brand)}'`);
+            const baseFilter = baseConditions.join(' AND ');
 
-                if (platform && platform !== 'All') {
-                    whereClause.Platform = platform;
-                }
-                if (brand && brand !== 'All') {
-                    whereClause.Brand = brand;
-                }
-
-                return whereClause;
-            };
-
-            // Query for current period
-            const currentWhereClause = buildWhereClause(currentStartDate, currentEndDate, locationFilter);
-            const prevWhereClause = buildWhereClause(prevStartDate, prevEndDate, locationFilter);
-            console.log('[getMetroCityStockAvailability] Current period where clause locations count:', locationFilter.length);
-
-            // ⚡ OPTIMIZED: Run both queries in PARALLEL
             const [currentResult, prevResult] = await Promise.all([
-                RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
-                    ],
-                    where: currentWhereClause,
-                    raw: true
-                }),
-                RbPdpOlap.findOne({
-                    attributes: [
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNenoOsa'],
-                        [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDenoOsa']
-                    ],
-                    where: prevWhereClause,
-                    raw: true
-                })
+                queryClickHouse(`
+                    SELECT 
+                        SUM(toFloat64(neno_osa)) as sumNeno,
+                        SUM(toFloat64(deno_osa)) as sumDeno
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                      AND ${baseFilter}
+                `),
+                queryClickHouse(`
+                    SELECT 
+                        SUM(toFloat64(neno_osa)) as sumNeno,
+                        SUM(toFloat64(deno_osa)) as sumDeno
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                      AND ${baseFilter}
+                `)
             ]);
 
-            // Calculate current Stock Availability
-            const currentNenoOsa = parseFloat(currentResult?.sumNenoOsa) || 0;
-            const currentDenoOsa = parseFloat(currentResult?.sumDenoOsa) || 0;
-            let currentStockAvail = 0;
-            if (currentDenoOsa > 0) {
-                currentStockAvail = (currentNenoOsa / currentDenoOsa) * 100;
-            }
+            const currNeno = parseFloat(currentResult[0]?.sumNeno) || 0;
+            const currDeno = parseFloat(currentResult[0]?.sumDeno) || 0;
+            const prevNeno = parseFloat(prevResult[0]?.sumNeno) || 0;
+            const prevDeno = parseFloat(prevResult[0]?.sumDeno) || 0;
 
-            // Calculate previous Stock Availability
-            const prevNenoOsa = parseFloat(prevResult?.sumNenoOsa) || 0;
-            const prevDenoOsa = parseFloat(prevResult?.sumDenoOsa) || 0;
-            let prevStockAvail = 0;
-            if (prevDenoOsa > 0) {
-                prevStockAvail = (prevNenoOsa / prevDenoOsa) * 100;
-            }
-
-            // Calculate change
-            const change = currentStockAvail - prevStockAvail;
-
-            console.log('[getMetroCityStockAvailability] Calculated:', { currentStockAvail, prevStockAvail, change });
+            const currentOsa = currDeno > 0 ? (currNeno / currDeno) * 100 : 0;
+            const prevOsa = prevDeno > 0 ? (prevNeno / prevDeno) * 100 : 0;
 
             return {
                 section: "metro_city_osa",
-                stockAvailability: parseFloat(currentStockAvail.toFixed(1)),
-                prevStockAvailability: parseFloat(prevStockAvail.toFixed(1)),
-                change: parseFloat(change.toFixed(1)),
-                isMetroCity: isUserLocationMetro,
-                metroCitiesCount: metroCities.length,
+                stockAvailability: parseFloat(currentOsa.toFixed(2)),
+                prevStockAvailability: parseFloat(prevOsa.toFixed(2)),
+                change: parseFloat((currentOsa - prevOsa).toFixed(2)),
+                isMetroCity: true,
+                metroCitiesCount: targetLocations.length,
                 filters: filters,
-                currentPeriod: {
-                    start: currentStartDate.format('YYYY-MM-DD'),
-                    end: currentEndDate.format('YYYY-MM-DD')
-                },
-                comparisonPeriod: {
-                    start: prevStartDate.format('YYYY-MM-DD'),
-                    end: prevEndDate.format('YYYY-MM-DD')
-                },
                 timestamp: new Date().toISOString()
             };
         } catch (error) {
@@ -923,510 +651,197 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-/**
- * Get filter options for availability analysis filters
- * Now uses rca_sku_dim table for Platform, City, and Category filters
- * @param {Object} params - { filterType, platform, brand, category, city }
- * @returns {Object} { options: [...] }
- */
 const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city }) => {
-    // Use a custom cache key that includes filterType and all cascading filters
     const cacheKey = `availability_filter:${filterType}:${(platform || 'all').toLowerCase()}:${(brand || 'all').toLowerCase()}:${(category || 'all').toLowerCase()}:${(city || 'all').toLowerCase()}`;
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            console.log(`[getAvailabilityFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}, city=${city}`);
+            console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
-            // Import RcaSkuDim model for dimension table queries
-            const RcaSkuDim = (await import('../models/RcaSkuDim.js')).default;
+            // Build cascading filter conditions
+            const conditions = [];
+            if (platform && platform !== 'All') conditions.push(`Platform = '${escapeStr(platform)}'`);
+            if (category && category !== 'All') conditions.push(`Category = '${escapeStr(category)}'`);
+            if (city && city !== 'All') conditions.push(`Location = '${escapeStr(city)}'`);
+            const baseFilter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-            // Build base where clause for rca_sku_dim with cascading filters
-            const buildRcaWhereClause = () => {
-                const whereClause = {};
-                if (platform && platform !== 'All') {
-                    whereClause.platform = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('platform')),
-                        platform.toLowerCase()
-                    );
-                }
-                if (category && category !== 'All') {
-                    whereClause.Category = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('Category')),
-                        category.toLowerCase()
-                    );
-                }
-                if (city && city !== 'All') {
-                    whereClause.location = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('location')),
-                        city.toLowerCase()
-                    );
-                }
-                return whereClause;
-            };
-
-            // Build base where clause for rb_pdp_olap (for date/month queries)
-            const buildOlapWhereClause = () => {
-                const whereClause = {};
-                if (platform && platform !== 'All') {
-                    whereClause.Platform = platform;
-                }
-                if (brand && brand !== 'All') {
-                    whereClause.Brand = brand;
-                }
-                return whereClause;
-            };
-
-            // Handle different filter types
-            // PLATFORMS: Fetch from rca_sku_dim.platform
             if (filterType === 'platforms') {
-                const results = await RcaSkuDim.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('platform')), 'platform']],
-                    where: { platform: { [Op.ne]: null } },
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.platform)
-                    .filter(p => p && p.trim())
-                    .sort();
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} platforms from rca_sku_dim`);
-                return { options };
+                const query = `SELECT DISTINCT Platform as value FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
+                const results = await queryClickHouse(query);
+                return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            // CATEGORIES: Fetch from rca_sku_dim.Category with platform filter
             if (filterType === 'categories') {
-                const whereClause = { Category: { [Op.ne]: null } };
+                const catConditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
+                if (platform && platform !== 'All') catConditions.push(`platform = '${escapeStr(platform)}'`);
+                if (city && city !== 'All') catConditions.push(`location = '${escapeStr(city)}'`);
 
-                // Apply cascading filter - filter by platform if selected
-                if (platform && platform !== 'All') {
-                    whereClause.platform = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('platform')),
-                        platform.toLowerCase()
-                    );
-                }
-
-                const results = await RcaSkuDim.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('Category')), 'category']],
-                    where: whereClause,
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.category)
-                    .filter(c => c && c.trim())
-                    .sort();
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} categories from rca_sku_dim`);
-                return { options };
+                const query = `
+                    SELECT DISTINCT Category as value 
+                    FROM rca_sku_dim
+                    WHERE ${catConditions.join(' AND ')}
+                    ORDER BY value
+                `;
+                const results = await queryClickHouse(query);
+                return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            // CITIES: Fetch from rca_sku_dim.location with platform and category filters
             if (filterType === 'cities') {
-                const whereClause = { location: { [Op.ne]: null } };
-
-                // Apply cascading filters
-                if (platform && platform !== 'All') {
-                    whereClause.platform = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('platform')),
-                        platform.toLowerCase()
-                    );
-                }
-                if (category && category !== 'All') {
-                    whereClause.Category = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('Category')),
-                        category.toLowerCase()
-                    );
-                }
-
-                const results = await RcaSkuDim.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('location')), 'city']],
-                    where: whereClause,
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.city)
-                    .filter(c => c && c.trim())
-                    .sort();
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} cities from rca_sku_dim`);
-                return { options };
+                const cityConditions = [...conditions.filter(c => !c.includes('Location'))];
+                cityConditions.push(`Location IS NOT NULL AND Location != ''`);
+                const whereClause = cityConditions.length > 0 ? `WHERE ${cityConditions.join(' AND ')}` : '';
+                const query = `SELECT DISTINCT Location as value FROM rb_pdp_olap ${whereClause} ORDER BY Location`;
+                const results = await queryClickHouse(query);
+                return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            // BRANDS: Fetch from rca_sku_dim.brand_name with platform and category filters
-            // For Availability Analysis, show ALL brands (including competitors)
             if (filterType === 'brands') {
-                const whereClause = {
-                    brand_name: { [Op.ne]: null }
-                    // No comp_flag filter - show all brands for availability analysis
-                };
-
-                // Apply cascading filters
-                if (platform && platform !== 'All') {
-                    whereClause.platform = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('platform')),
-                        platform.toLowerCase()
-                    );
-                }
-                if (category && category !== 'All') {
-                    whereClause.Category = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('Category')),
-                        category.toLowerCase()
-                    );
-                }
-                if (city && city !== 'All') {
-                    whereClause.location = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('location')),
-                        city.toLowerCase()
-                    );
-                }
-
-                const results = await RcaSkuDim.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_name')), 'brand']],
-                    where: whereClause,
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.brand)
-                    .filter(b => b && b.trim())
-                    .sort();
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} brands from rca_sku_dim`);
-                return { options };
+                const brandConditions = [...conditions.filter(c => !c.includes('Brand'))];
+                brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
+                const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
+                const query = `SELECT DISTINCT Brand as value FROM rb_pdp_olap ${whereClause} ORDER BY Brand`;
+                const results = await queryClickHouse(query);
+                return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            // LOCATIONS: Alias for cities (same functionality)
-            // For Availability Analysis, show ALL locations
-            if (filterType === 'locations') {
-                const whereClause = {
-                    location: { [Op.ne]: null }
-                    // No comp_flag filter - show all locations for availability analysis
-                };
-
-                // Apply cascading filters
-                if (platform && platform !== 'All') {
-                    whereClause.platform = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('platform')),
-                        platform.toLowerCase()
-                    );
-                }
-                if (category && category !== 'All') {
-                    whereClause.Category = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('Category')),
-                        category.toLowerCase()
-                    );
-                }
-                if (brand && brand !== 'All') {
-                    whereClause.brand_name = sequelize.where(
-                        sequelize.fn('LOWER', sequelize.col('brand_name')),
-                        brand.toLowerCase()
-                    );
-                }
-
-                const results = await RcaSkuDim.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('location')), 'location']],
-                    where: whereClause,
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.location)
-                    .filter(l => l && l.trim())
-                    .sort();
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} locations from rca_sku_dim`);
-                return { options };
-            }
-
-            // MONTHS: Keep from rb_pdp_olap.DATE (not available in rca_sku_dim)
             if (filterType === 'months') {
-                const whereClause = buildOlapWhereClause();
-
-                const results = await RbPdpOlap.findAll({
-                    attributes: [
-                        [sequelize.fn('DISTINCT', sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m')), 'month']
-                    ],
-                    where: whereClause,
-                    raw: true,
-                    order: [[sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m'), 'DESC']]
-                });
-
-                const options = results
-                    .map(r => r.month)
-                    .filter(m => m && m.trim());
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} months from rb_pdp_olap`);
-                return { options };
+                const query = `
+                    SELECT DISTINCT formatDateTime(DATE, '%Y-%m') as value
+                    FROM rb_pdp_olap
+                    WHERE DATE IS NOT NULL
+                    ORDER BY value DESC
+                `;
+                const results = await queryClickHouse(query);
+                return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            // DATES: Keep from rb_pdp_olap.DATE (not available in rca_sku_dim)
-            if (filterType === 'dates') {
-                const whereClause = buildOlapWhereClause();
-
-                const results = await RbPdpOlap.findAll({
-                    attributes: [
-                        [sequelize.fn('DISTINCT', sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m-%d')), 'date']
-                    ],
-                    where: whereClause,
-                    raw: true,
-                    order: [[sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m-%d'), 'DESC']],
-                    limit: 365 // Limit to last year of dates
-                });
-
-                const options = results
-                    .map(r => r.date)
-                    .filter(d => d && d.trim());
-
-                console.log(`[getAvailabilityFilterOptions] Found ${options.length} dates from rb_pdp_olap`);
-                return { options };
-            }
-
-            // PRODUCTS: Keep from rb_pdp_olap with platform/brand filters
-            if (filterType === 'products') {
-                const whereClause = buildOlapWhereClause();
-
-                const results = await RbPdpOlap.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('Product')), 'product']],
-                    where: whereClause,
-                    raw: true,
-                    limit: 100 // Limit to prevent too many results
-                });
-
-                const options = results
-                    .map(r => r.product)
-                    .filter(p => p && p.trim())
-                    .sort();
-
-                return { options };
-            }
-
-            // ZONES: Get unique regions from rb_location_darkstore
-            if (filterType === 'zones') {
-                const RbLocationDarkstore = (await import('../models/RbLocationDarkstore.js')).default;
-
-                const results = await RbLocationDarkstore.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('region')), 'zone']],
-                    where: {},
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.zone)
-                    .filter(z => z && z.trim())
-                    .sort();
-
-                return { options };
-            }
-
-            // METRO FLAGS: Get unique tiers from rb_location_darkstore
-            if (filterType === 'metroFlags') {
-                const RbLocationDarkstore = (await import('../models/RbLocationDarkstore.js')).default;
-
-                const results = await RbLocationDarkstore.findAll({
-                    attributes: [[sequelize.fn('DISTINCT', sequelize.col('tier')), 'tier']],
-                    where: {},
-                    raw: true
-                });
-
-                const options = results
-                    .map(r => r.tier)
-                    .filter(t => t && t.trim())
-                    .sort();
-
-                return { options };
-            }
-
-            // Return empty for unknown filter types
             return { options: [] };
-
         } catch (error) {
-            console.error(`[getAvailabilityFilterOptions] Error fetching ${filterType}:`, error);
+            console.error('[getAvailabilityFilterOptions] Error:', error);
             return { options: [] };
         }
     }, CACHE_TTL.MEDIUM);
 };
 
 /**
- * Get OSA Detail by Category for the OSA Detail View table
- * Returns categories with daily OSA % for last 31 days
- * @param {Object} filters - { platform, brand, location, startDate, endDate }
+ * Internal helper to build WHERE clause for availability analysis with advanced filters
  */
+const buildAvailabilityWhereClause = (filters, tableAlias = 't1') => {
+    const { platform, brand, location, startDate, endDate, dates, months, cities, categories } = filters;
+    const conditions = [];
+
+    const prefix = tableAlias ? `${tableAlias}.` : '';
+
+    if (platform && platform !== 'All') conditions.push(`${prefix}Platform = '${escapeStr(platform)}'`);
+    if (brand && brand !== 'All') conditions.push(`${prefix}Brand = '${escapeStr(brand)}'`);
+    if (location && location !== 'All') conditions.push(`${prefix}Location = '${escapeStr(location)}'`);
+
+    // Date/Month range
+    if (dates && dates.length > 0) {
+        conditions.push(`${prefix}DATE IN (${dates.map(d => `'${d}'`).join(',')})`);
+    } else if (months && months.length > 0) {
+        conditions.push(`formatDateTime(${prefix}DATE, '%Y-%m') IN (${months.map(m => `'${m}'`).join(',')})`);
+    } else if (startDate && endDate) {
+        conditions.push(`${prefix}DATE BETWEEN '${startDate}' AND '${endDate}'`);
+    }
+
+    // Advanced filters (Normalized ID matching)
+    if (cities && cities.length > 0) {
+        conditions.push(`lower(replace(${prefix}Location, ' ', '_')) IN (${cities.map(c => `'${escapeStr(c).toLowerCase()}'`).join(',')})`);
+    }
+    if (categories && categories.length > 0) {
+        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${categories.map(c => `'${escapeStr(c).toLowerCase()}'`).join(',')})`);
+    }
+
+    return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+};
+
 const getOsaDetailByCategory = async (filters) => {
     console.log('[getOsaDetailByCategory] Request received with filters:', filters);
 
-    const cacheKey = generateCacheKey('osa_detail_by_category', filters);
+    const cacheKey = generateCacheKey('osa_detail_sku_level', filters);
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const { platform, brand, location, startDate, endDate, dates, months, cities, categories } = filters;
+            const whereClause = buildAvailabilityWhereClause(filters, 't1');
 
-            // Determine date range based on filters
-            let dateFilter;
-            let datesToUse = [];
+            // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
+            const query = `
+                SELECT 
+                    t1.Product as name,
+                    t1.Web_Pid as sku,
+                    t1.DATE,
+                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
+                    SUM(toFloat64(t1.deno_osa)) as sum_deno
+                FROM rb_pdp_olap t1
+                JOIN rca_sku_dim t2 ON t1.Platform = t2.platform 
+                    AND t1.Location = t2.location 
+                    AND t1.Brand = t2.brand_name 
+                    AND t1.Category = t2.Category
+                WHERE ${whereClause}
+                  AND t2.status = 1
+                GROUP BY t1.Product, t1.Web_Pid, t1.DATE
+                ORDER BY t1.Product, t1.Web_Pid, t1.DATE
+            `;
 
-            if (dates && dates.length > 0) {
-                // If specific dates are selected, use those
-                dateFilter = { [Op.in]: dates };
-                datesToUse = [...dates].sort();
-            } else if (months && months.length > 0) {
-                // If months are selected, filter by those months (format: 'YYYY-MM' or 'MMM YYYY')
-                // We'll need to handle this in the query
-                const currentEndDate = endDate ? dayjs(endDate) : dayjs();
-                const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
-                dateFilter = {
-                    [Op.between]: [
-                        currentStartDate.format('YYYY-MM-DD'),
-                        currentEndDate.format('YYYY-MM-DD')
-                    ]
-                };
-                // Generate date array for response - only for the selected range
-                const daysDiff = currentEndDate.diff(currentStartDate, 'day');
-                for (let i = 0; i <= daysDiff; i++) {
-                    datesToUse.push(currentStartDate.add(i, 'day').format('YYYY-MM-DD'));
+            const results = await queryClickHouse(query);
+
+            // Transform into the format the frontend expects: { name, sku, values, avg31, status }
+            const skuMap = {};
+            const allDatesSet = new Set();
+
+            results.forEach(row => {
+                const skuId = row.sku;
+                const dateStr = dayjs(row.DATE).format('YYYY-MM-DD');
+                allDatesSet.add(dateStr);
+
+                const neno = parseFloat(row.sum_neno) || 0;
+                const deno = parseFloat(row.sum_deno) || 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+
+                if (!skuMap[skuId]) {
+                    skuMap[skuId] = {
+                        name: row.name,
+                        sku: row.sku,
+                        dailyOsa: {}
+                    };
                 }
-            } else {
-                // OSA Detail View: Show ENTIRE MONTH based on selected date range
-                // Extract the month from endDate (or startDate) and show all days of that month
-                const referenceDate = endDate ? dayjs(endDate) : (startDate ? dayjs(startDate) : dayjs());
-
-                // Get first and last day of the month
-                const monthStart = referenceDate.startOf('month');
-                const monthEnd = referenceDate.endOf('month');
-
-                console.log(`[getOsaDetailByCategory] Showing full month: ${monthStart.format('YYYY-MM-DD')} to ${monthEnd.format('YYYY-MM-DD')}`);
-
-                dateFilter = {
-                    [Op.between]: [
-                        monthStart.format('YYYY-MM-DD'),
-                        monthEnd.format('YYYY-MM-DD')
-                    ]
-                };
-
-                // Generate date array for the entire month
-                const daysInMonth = monthEnd.date(); // number of days in the month
-                for (let i = 1; i <= daysInMonth; i++) {
-                    datesToUse.push(monthStart.date(i).format('YYYY-MM-DD'));
-                }
-            }
-
-            // Build base where clause for rb_pdp_olap query
-            // Changed: Now filtering by Product (SKU) instead of Category
-            const whereClause = {
-                DATE: dateFilter,
-                Product: { [Op.ne]: null },  // Filter by Product (SKU) instead of Category
-                deno_osa: { [Op.gt]: 0 }  // Only rows with actual data
-            };
-
-            // Platform filter
-            if (platform && platform !== 'All') {
-                whereClause.Platform = platform;
-            }
-
-            // Brand filter
-            if (brand && brand !== 'All') {
-                whereClause.Brand = brand;
-            }
-
-            // Location filter - support both single location and array of cities
-            if (cities && cities.length > 0) {
-                // Convert city IDs back to labels (they're lowercase with underscores)
-                const cityLabels = cities.map(c => c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
-                whereClause.Location = { [Op.in]: cityLabels };
-            } else if (location && location !== 'All') {
-                whereClause.Location = location;
-            }
-
-            // Category filter (still apply if provided, but display Product/SKU)
-            if (categories && categories.length > 0) {
-                // Convert category IDs back to labels
-                const categoryLabels = categories.map(c => c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
-                whereClause.Category = { [Op.in]: categoryLabels };
-            }
-
-            // Fetch all OSA data grouped by Product (SKU) and Date at once
-            const results = await RbPdpOlap.findAll({
-                attributes: [
-                    'Product',  // Changed: Group by Product (SKU) instead of Category
-                    [sequelize.fn('DATE', sequelize.col('DATE')), 'formattedDate'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'sumNeno'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'sumDeno']
-                ],
-                where: whereClause,
-                group: ['Product', sequelize.fn('DATE', sequelize.col('DATE'))],  // Changed: Group by Product
-                raw: true
+                skuMap[skuId].dailyOsa[dateStr] = parseFloat(osa.toFixed(1));
             });
 
-            console.log(`[getOsaDetailByCategory] Found ${results.length} product-date combinations`);
+            const sortedDates = Array.from(allDatesSet).sort();
 
-            // Group results by Product (SKU)
-            const productMap = new Map();
+            const categories = Object.values(skuMap).map(item => {
+                const values = sortedDates.map(d => item.dailyOsa[d] ?? 0);
 
-            for (const row of results) {
-                const product = row.Product;
-                const formattedDate = row.formattedDate;
-                const sumNeno = parseFloat(row.sumNeno) || 0;
-                const sumDeno = parseFloat(row.sumDeno) || 0;
+                // Overall average (avg31 in frontend, but here it's for the selected period)
+                const totalSum = values.reduce((a, b) => a + b, 0);
+                const avg31 = values.length > 0 ? Math.round(totalSum / values.length) : 0;
 
-                const osaPercent = sumDeno > 0 ? Math.round((sumNeno / sumDeno) * 100) : 0;
+                // Health status logic (based on last 7 days of the selected range)
+                const last7Values = values.slice(-7);
+                const avg7 = last7Values.length > 0
+                    ? Math.round(last7Values.reduce((a, b) => a + b, 0) / last7Values.length)
+                    : avg31;
 
-                if (!productMap.has(product)) {
-                    productMap.set(product, new Map());
-                }
+                let status = "Healthy";
+                if (avg7 < 70) status = "Action";
+                else if (avg7 < 85) status = "Watch";
 
-                productMap.get(product).set(formattedDate, osaPercent);
-            }
-
-            console.log(`[getOsaDetailByCategory] Processing ${productMap.size} products/SKUs`);
-
-            // Build product data array
-            const categoryData = [];  // Keep response field name for compatibility
-
-            for (const [product, dateMap] of productMap.entries()) {
-                // Build values array for all selected dates
-                const values = datesToUse.map(date => {
-                    return dateMap.get(date) || 0;
-                });
-
-                // Calculate average (based on valid values)
-                const validValues = values.filter(v => v > 0);
-                const avg31 = validValues.length > 0
-                    ? Math.round(validValues.reduce((a, b) => a + b, 0) / validValues.length)
-                    : 0;
-
-                // Determine status based on average
-                let status = 'Action';
-                if (avg31 >= 85) {
-                    status = 'Healthy';
-                } else if (avg31 >= 70) {
-                    status = 'Watch';
-                }
-
-                categoryData.push({
-                    name: product,  // Changed: Display Product name
-                    sku: product.toLowerCase().replace(/\s+/g, '_'),  // Changed: SKU from Product
+                return {
+                    name: item.name,
+                    sku: item.sku,
                     values: values,
                     avg31: avg31,
                     status: status
-                });
-            }
-
-            // Sort by avg31 descending
-            categoryData.sort((a, b) => b.avg31 - a.avg31);
-
-            // Build date range for response
-            const sortedDates = [...datesToUse].sort();
-            const dateRangeStart = sortedDates[0] || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-            const dateRangeEnd = sortedDates[sortedDates.length - 1] || dayjs().format('YYYY-MM-DD');
+                };
+            });
 
             return {
-                categories: categoryData,  // Keep field name for frontend compatibility
-                dateRange: {
-                    start: dateRangeStart,
-                    end: dateRangeEnd
-                },
-                dates: datesToUse,
+                section: "osa_percentage_detail",
+                categories: categories,
+                dates: sortedDates,
+                filters,
                 timestamp: new Date().toISOString()
             };
         } catch (error) {
@@ -1436,11 +851,6 @@ const getOsaDetailByCategory = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-/**
- * Get Availability KPI Trends for Trends/Competition Drawer
- * Returns time-series data for OSA, DOI, Fillrate, Assortment
- * @param {Object} filters - { platform, brand, location, category, period, timeStep, startDate, endDate }
- */
 const getAvailabilityKpiTrends = async (filters) => {
     console.log('[getAvailabilityKpiTrends] Request received with filters:', filters);
 
@@ -1448,149 +858,108 @@ const getAvailabilityKpiTrends = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const { platform, brand, location, category, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
+            const { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd } = filters;
 
-            // 1. Determine Date Range
-            let endDate = dayjs();
-            let startDate = dayjs();
+            const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+            const days = periodDays[period] || 30;
 
-            if (period === 'Custom' && customStart && customEnd) {
-                startDate = dayjs(customStart);
-                endDate = dayjs(customEnd);
-            } else {
-                switch (period) {
-                    case '1M': startDate = startDate.subtract(1, 'month'); break;
-                    case '3M': startDate = startDate.subtract(3, 'month'); break;
-                    case '6M': startDate = startDate.subtract(6, 'month'); break;
-                    case '1Y': startDate = startDate.subtract(1, 'year'); break;
-                    default: startDate = startDate.subtract(1, 'month'); // Default 1M
-                }
-            }
+            const currentEndDate = filterEnd ? dayjs(filterEnd) : dayjs();
+            const currentStartDate = filterStart ? dayjs(filterStart) : currentEndDate.subtract(days - 1, 'days');
 
-            console.log(`[getAvailabilityKpiTrends] Date range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
-
-            // 2. Determine Grouping based on timeStep
-            let groupCol;
-            let dateFormat;
-
-            if (timeStep === 'Monthly') {
-                groupCol = sequelize.fn('DATE_FORMAT', sequelize.col('DATE'), '%Y-%m-01');
-                dateFormat = 'MMM\'YY';
-            } else if (timeStep === 'Weekly') {
-                groupCol = sequelize.fn('YEARWEEK', sequelize.col('DATE'), 1);
-                dateFormat = 'DD MMM\'YY'; // Include year for consistent parsing
-            } else { // Daily
-                groupCol = sequelize.fn('DATE', sequelize.col('DATE'));
-                dateFormat = 'DD MMM\'YY';
-            }
-
-            // 3. Build base where clause
-            const whereClause = {
-                DATE: {
-                    [Op.between]: [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')]
-                }
-            };
-
+            // Build filter conditions
+            const conditions = [
+                `DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'`
+            ];
             if (platform && platform !== 'All') {
-                whereClause.Platform = platform;
+                const platformList = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+                if (platformList.length > 0) {
+                    conditions.push(`Platform IN (${platformList.map(p => `'${escapeStr(p)}'`).join(',')})`);
+                }
             }
             if (brand && brand !== 'All') {
-                whereClause.Brand = { [Op.like]: `%${brand}%` };
+                const brandList = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
+                if (brandList.length > 0) {
+                    conditions.push(`Brand IN (${brandList.map(b => `'${escapeStr(b)}'`).join(',')})`);
+                }
             }
-            if (location && location !== 'All') {
-                whereClause.Location = location;
+            if (location && location !== 'All' && location !== 'All India') {
+                const locationList = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+                if (locationList.length > 0) {
+                    conditions.push(`Location IN (${locationList.map(l => `'${escapeStr(l)}'`).join(',')})`);
+                }
             }
             if (category && category !== 'All') {
-                whereClause.Category = category;
+                const categoryList = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
+                if (categoryList.length > 0) {
+                    conditions.push(`Category IN (${categoryList.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                }
             }
 
-            // 4. Query for OSA, DOI, Assortment
-            const kpiResults = await RbPdpOlap.findAll({
-                attributes: [
-                    [groupCol, 'date_group'],
-                    [sequelize.fn('MAX', sequelize.col('DATE')), 'ref_date'],
-                    // For OSA
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'total_neno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'total_deno_osa'],
-                    // For DOI
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'total_inventory'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'total_qty_sold'],
-                    // For Assortment
-                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Web_Pid'))), 'assortment_count']
-                ],
-                where: whereClause,
-                group: [groupCol],
-                order: [[sequelize.col('ref_date'), 'ASC']],
-                raw: true
-            });
+            const whereClause = conditions.join(' AND ');
 
-            console.log(`[getAvailabilityKpiTrends] Query returned ${kpiResults.length} data points`);
+            const query = `
+                SELECT 
+                    DATE as ref_date,
+                    SUM(toFloat64(neno_osa)) as total_neno,
+                    SUM(toFloat64(deno_osa)) as total_deno,
+                    SUM(toFloat64(Inventory)) as total_inventory,
+                    SUM(toFloat64(Qty_Sold)) as total_qty_sold,
+                    COUNT(DISTINCT Web_Pid) as assortment_count
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                GROUP BY DATE
+                ORDER BY DATE ASC
+            `;
 
-            // 5. Transform results into trend points
-            const trendPoints = kpiResults.map(row => {
-                const refDate = dayjs(row.ref_date);
-                const label = refDate.format(dateFormat);
+            const results = await queryClickHouse(query);
 
-                // Calculate OSA: (neno_osa / deno_osa) * 100
-                const nenoOsa = parseFloat(row.total_neno_osa) || 0;
-                const denoOsa = parseFloat(row.total_deno_osa) || 0;
-                const osa = denoOsa > 0 ? Math.round((nenoOsa / denoOsa) * 100) : 0;
+            // Get total active assortment from rb_sku_platform for Listing % calculation
+            const masterAssortmentConds = [`status = 1`];
+            if (platform && platform !== 'All') masterAssortmentConds.push(`platform_name = '${escapeStr(platform)}'`);
+            if (category && category !== 'All') masterAssortmentConds.push(`brand_category = '${escapeStr(category)}'`);
+            if (brand && brand !== 'All') masterAssortmentConds.push(`brand_name = '${escapeStr(brand)}'`);
 
-                // Calculate DOI: (inventory / Qty_Sold) * 30
-                const inventory = parseFloat(row.total_inventory) || 0;
-                const qtySold = parseFloat(row.total_qty_sold) || 0;
-                const doi = qtySold > 0 ? Math.round((inventory / qtySold) * 30) : 0;
+            const masterQuery = `
+                SELECT count(DISTINCT web_pid) as total_master
+                FROM rb_sku_platform
+                WHERE ${masterAssortmentConds.join(' AND ')}
+            `;
+            const masterResult = await queryClickHouse(masterQuery);
+            const masterCount = parseInt(masterResult[0]?.total_master, 10) || 0;
 
-                // Assortment: distinct count of Web_Pid
-                const assortment = parseInt(row.assortment_count, 10) || 0;
+            const timeSeries = results.map(row => {
+                const neno = parseFloat(row.total_neno) || 0;
+                const deno = parseFloat(row.total_deno) || 0;
+                const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
 
-                // Fillrate: placeholder (Coming Soon)
-                const fillrate = 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
 
                 return {
-                    date: label,
-                    Osa: osa,
-                    Doi: doi,
-                    Fillrate: fillrate,
-                    Assortment: assortment
+                    date: dayjs(row.ref_date).format("DD MMM'YY"),
+                    Osa: parseFloat(osa.toFixed(1)),
+                    Listing: parseFloat(listing.toFixed(1)),
+                    Assortment: dailyUniquePids
                 };
             });
 
-            // 6. Build response with metrics config
             return {
-                context: {
-                    level: 'Platform',
-                    audience: platform || 'All'
-                },
-                rangeOptions: ['Custom', '1M', '3M', '6M', '1Y'],
-                defaultRange: period || '1M',
-                timeSteps: ['Daily', 'Weekly', 'Monthly'],
-                defaultTimeStep: timeStep || 'Daily',
                 metrics: [
-                    { id: 'Osa', label: 'OSA', color: '#F97316', axis: 'left', default: true },
-                    { id: 'Doi', label: 'DOI', color: '#7C3AED', axis: 'right', default: true },
-                    { id: 'Fillrate', label: 'Fillrate', color: '#6366F1', axis: 'left', default: false },
-                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', axis: 'left', default: false }
+                    { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
+                    { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
+                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false }
                 ],
-                points: trendPoints,
-                dateRange: {
-                    start: startDate.format('YYYY-MM-DD'),
-                    end: endDate.format('YYYY-MM-DD')
-                },
-                timestamp: new Date().toISOString()
+                timeSeries,
+                period,
+                dateRange: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') }
             };
         } catch (error) {
             console.error('[getAvailabilityKpiTrends] Error:', error);
-            throw error;
+            return { metrics: [], timeSeries: [] };
         }
     }, CACHE_TTL.SHORT);
 };
 
-/**
- * Get Availability Competition Data
- * Returns top brands with OSA, DOI, and Assortment metrics
- * @param {Object} filters - { platform, location, category, brand, period }
- */
 const getAvailabilityCompetitionData = async (filters = {}) => {
     console.log('[getAvailabilityCompetitionData] Request with filters:', filters);
 
@@ -1598,244 +967,237 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const { platform = 'All', location = 'All', category = 'All', brand = 'All', period = '1M' } = filters;
+            let { platform = 'All', location = 'All', category = 'All', brand = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
+            if (location === 'All India') location = 'All';
 
-            // Calculate date range based on period
             const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-            const days = periodDays[period] || 30;
 
-            const endDate = dayjs();
-            const startDate = endDate.clone().subtract(days, 'days');
+            let startDate, endDate;
+            if (fStart && fEnd) {
+                startDate = dayjs(fStart);
+                endDate = dayjs(fEnd);
+            } else {
+                const days = periodDays[period] || 30;
+                endDate = dayjs();
+                startDate = endDate.subtract(days, 'days');
+            }
 
-            // Build where clause for current period
-            const whereClause = {
-                DATE: { [Op.between]: [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')] }
-            };
-
+            // Build filter conditions
+            const conditions = [
+                `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
+            ];
             if (platform && platform !== 'All') {
-                whereClause.Platform = platform;
+                const platformList = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+                if (platformList.length > 0) {
+                    conditions.push(`Platform IN (${platformList.map(p => `'${escapeStr(p)}'`).join(',')})`);
+                }
             }
             if (location && location !== 'All' && location !== 'All India') {
-                whereClause.Location = location;
+                const locationList = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+                if (locationList.length > 0) {
+                    conditions.push(`Location IN (${locationList.map(l => `'${escapeStr(l)}'`).join(',')})`);
+                }
             }
             if (category && category !== 'All') {
-                whereClause.Category = category;
+                const categoryList = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
+                if (categoryList.length > 0) {
+                    conditions.push(`Category IN (${categoryList.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                }
             }
             if (brand && brand !== 'All') {
-                const brandList = brand.split(',').map(b => b.trim().toLowerCase());
-                if (brandList.length === 1) {
-                    whereClause.Brand = sequelize.where(sequelize.fn('LOWER', sequelize.col('Brand')), brandList[0]);
-                } else {
-                    whereClause.Brand = {
-                        [Op.and]: [
-                            sequelize.where(
-                                sequelize.fn('LOWER', sequelize.col('Brand')),
-                                { [Op.in]: brandList }
-                            )
-                        ]
-                    };
+                const brandList = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
+                if (brandList.length > 0) {
+                    conditions.push(`Brand IN (${brandList.map(b => `'${escapeStr(b)}'`).join(',')})`);
                 }
             }
 
-            // Only include our brands (Comp_flag = 0)
-            whereClause.Comp_flag = 0;
+            const whereClause = conditions.join(' AND ');
 
-            // 1. Get all brands with aggregated metrics
-            const currentBrands = await RbPdpOlap.findAll({
-                attributes: [
-                    'Brand',
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'total_neno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'total_deno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'total_inventory'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'total_qty_sold'],
-                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Web_Pid'))), 'assortment_count']
-                ],
-                where: whereClause,
-                group: ['Brand'],
-                having: sequelize.where(sequelize.fn('SUM', sequelize.col('deno_osa')), { [Op.gt]: 0 }),
-                raw: true
-            });
+            const query = `
+                WITH latest_skus AS (
+                    SELECT 
+                        Brand,
+                        Web_Pid,
+                        argMax(toFloat64OrZero(Inventory), DATE) as sku_latest_inventory
+                    FROM rb_pdp_olap
+                    WHERE ${whereClause}
+                      AND Brand IS NOT NULL AND Brand != ''
+                      AND Comp_flag = 1
+                    GROUP BY Brand, Web_Pid
+                )
+                SELECT 
+                    Brand,
+                    SUM(toFloat64(neno_osa)) as total_neno,
+                    SUM(toFloat64(deno_osa)) as total_deno,
+                    SUM(toFloat64OrZero(Qty_Sold)) as total_qty_sold,
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    (SELECT SUM(sku_latest_inventory) FROM latest_skus WHERE latest_skus.Brand = rb_pdp_olap.Brand) as total_brand_inventory
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                  AND Brand IS NOT NULL AND Brand != ''
+                  AND Comp_flag = 1
+                GROUP BY Brand
+                ORDER BY total_deno DESC
+                LIMIT 8
+            `;
 
-            console.log(`[getAvailabilityCompetitionData] Found ${currentBrands.length} brands`);
+            const results = await queryClickHouse(query);
 
-            // 2. Calculate metrics for each brand
-            const brandMetrics = currentBrands.map(brand => {
-                const nenoOsa = parseFloat(brand.total_neno_osa) || 0;
-                const denoOsa = parseFloat(brand.total_deno_osa) || 0;
-                const inventory = parseFloat(brand.total_inventory) || 0;
-                const qtySold = parseFloat(brand.total_qty_sold) || 0;
-                const assortment = parseInt(brand.assortment_count, 10) || 0;
+            // Get master counts from rb_sku_platform for all brands in the results to calculate Listing %
+            const foundBrands = results.map(r => r.Brand).filter(Boolean);
+            let brandMasterCounts = {};
 
-                // Calculate OSA
-                const osa = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
+            if (foundBrands.length > 0) {
+                const brandListStr = foundBrands.map(b => `'${escapeStr(b)}'`).join(', ');
+                const masterConds = [`status = 1`, `brand_name IN (${brandListStr})`];
+                if (platform && platform !== 'All') masterConds.push(`platform_name = '${escapeStr(platform)}'`);
+                if (category && category !== 'All') masterConds.push(`brand_category = '${escapeStr(category)}'`);
 
-                // Calculate DOI
-                const doi = qtySold > 0 ? (inventory / qtySold) * 30 : 0;
+                const masterQuery = `
+                    SELECT brand_name, count(DISTINCT web_pid) as total_master
+                    FROM rb_sku_platform
+                    WHERE ${masterConds.join(' AND ')}
+                    GROUP BY brand_name
+                `;
+                const masterResults = await queryClickHouse(masterQuery);
+                masterResults.forEach(r => {
+                    brandMasterCounts[r.brand_name] = parseInt(r.total_master, 10) || 0;
+                });
+            }
 
-                // Fillrate is placeholder
-                const fillrate = 0;
+            const brands = results.map((row, idx) => {
+                const neno = parseFloat(row.total_neno) || 0;
+                const deno = parseFloat(row.total_deno) || 0;
+                const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
+                const brandName = row.Brand;
+                const masterCount = brandMasterCounts[brandName] || 0;
+
+                const totalQtySold = parseFloat(row.total_qty_sold) || 0;
+                const totalBrandInv = parseFloat(row.total_brand_inventory) || 0;
+
+                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+
+                // DOI = (Current Inventory / Total Sales in Period) * period_days
+                // Assuming 1M period (30 days) as default
+                const doi = totalQtySold > 0 ? (totalBrandInv / totalQtySold) * 30 : 0;
 
                 return {
-                    brand: brand.Brand,
-                    Osa: { value: parseFloat(osa.toFixed(1)), delta: 0 },
-                    Doi: { value: parseFloat(doi.toFixed(1)), delta: 0 },
-                    Fillrate: { value: fillrate, delta: 0 },
-                    Assortment: { value: assortment, delta: 0 }
+                    rank: idx + 1,
+                    brand: brandName,
+                    osa: parseFloat(osa.toFixed(1)),
+                    osaDelta: 0,
+                    listing: parseFloat(listing.toFixed(1)),
+                    listingDelta: 0,
+                    assortment: dailyUniquePids,
+                    assortmentDelta: 0,
+                    doi: parseFloat(doi.toFixed(1)),
+                    fillrate: 'Coming Soon',
+                    psl: parseFloat(listing.toFixed(1))
                 };
             });
 
-            // 3. Sort by OSA descending and limit to top 10
-            brandMetrics.sort((a, b) => b.Osa.value - a.Osa.value);
-            const topBrands = brandMetrics.slice(0, 10);
+            const skuQuery = `
+                SELECT 
+                    Product as sku_name,
+                    Brand as brand_name,
+                    SUM(toFloat64(neno_osa)) as total_neno,
+                    SUM(toFloat64(deno_osa)) as total_deno,
+                    SUM(toFloat64OrZero(Qty_Sold)) as total_qty_sold,
+                    argMax(toFloat64OrZero(Inventory), DATE) as latest_sku_inventory
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                  AND Product IS NOT NULL AND Product != ''
+                  AND Comp_flag = 1
+                GROUP BY Product, Brand
+                ORDER BY total_deno DESC
+                LIMIT 8
+            `;
 
-            console.log(`[getAvailabilityCompetitionData] Returning ${topBrands.length} brands`);
+            const skuResults = await queryClickHouse(skuQuery);
+            const skus = skuResults.map(s => {
+                const neno = parseFloat(s.total_neno) || 0;
+                const deno = parseFloat(s.total_deno) || 0;
+                const totalQtySold = parseFloat(s.total_qty_sold) || 0;
+                const latestInv = parseFloat(s.latest_sku_inventory) || 0;
 
-            // 4. Get SKU data similarly
-            const currentSkus = await RbPdpOlap.findAll({
-                attributes: [
-                    'Product',
-                    'Brand',
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'total_neno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'total_deno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'total_inventory'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'total_qty_sold']
-                ],
-                where: whereClause,
-                group: ['Product', 'Brand'],
-                having: sequelize.where(sequelize.fn('SUM', sequelize.col('deno_osa')), { [Op.gt]: 0 }),
-                raw: true
-            });
-
-            const skuMetrics = currentSkus.map(sku => {
-                const nenoOsa = parseFloat(sku.total_neno_osa) || 0;
-                const denoOsa = parseFloat(sku.total_deno_osa) || 0;
-                const inventory = parseFloat(sku.total_inventory) || 0;
-                const qtySold = parseFloat(sku.total_qty_sold) || 0;
-
-                const osa = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
-                const doi = qtySold > 0 ? (inventory / qtySold) * 30 : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
 
                 return {
-                    brand: sku.Product,
-                    brand_parent: sku.Brand,
-                    Osa: { value: parseFloat(osa.toFixed(1)), delta: 0 },
-                    Doi: { value: parseFloat(doi.toFixed(1)), delta: 0 },
-                    Fillrate: { value: 0, delta: 0 },
-                    Assortment: { value: 0, delta: 0 }
+                    sku_name: s.sku_name,
+                    brand_name: s.brand_name,
+                    osa: parseFloat(osa.toFixed(1)),
+                    osaDelta: 0,
+                    doi: parseFloat(doi.toFixed(1)),
+                    fillrate: 'Coming Soon',
+                    assortment: 1,
+                    psl: 0
                 };
             });
-
-            skuMetrics.sort((a, b) => b.Osa.value - a.Osa.value);
-            const topSkus = skuMetrics.slice(0, 10);
 
             return {
-                brands: topBrands,
-                skus: topSkus,
-                metadata: { period, platform, location, category, totalBrands: brandMetrics.length }
+                brands,
+                skus,
+                period,
+                filters,
+                timestamp: new Date().toISOString()
             };
         } catch (error) {
             console.error('[getAvailabilityCompetitionData] Error:', error);
-            return { brands: [], skus: [], metadata: { error: error.message } };
+            return { brands: [], skus: [] };
         }
     }, CACHE_TTL.SHORT);
 };
 
-/**
- * Get Availability Competition Filter Options
- * Returns cascading filter options from rca_sku_dim
- */
 const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
     console.log('[getAvailabilityCompetitionFilterOptions] Request with filters:', filters);
 
     try {
-        const { location = null, category = null, brand = null } = filters;
+        const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
 
-        // Fetch distinct locations
-        const locationResults = await RcaSkuDim.findAll({
-            attributes: [[sequelize.fn('DISTINCT', sequelize.col('location')), 'location']],
-            where: { location: { [Op.ne]: null } },
-            order: [['location', 'ASC']],
-            raw: true
-        });
-
-        // Fetch distinct categories filtered by location
-        const categoryWhere = { Category: { [Op.ne]: null } };
-        if (location && location !== 'All' && location !== 'All India') {
-            categoryWhere.location = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('location')),
-                location.toLowerCase()
-            );
+        // 1. Build base condition (Platform and Location)
+        const baseConds = [`Comp_flag = 1`];
+        if (platform && platform !== 'All') {
+            const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+            if (platArr.length > 0) baseConds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(',')})`);
         }
 
-        const categoryResults = await RcaSkuDim.findAll({
-            attributes: [[sequelize.fn('DISTINCT', sequelize.col('Category')), 'category']],
-            where: categoryWhere,
-            order: [['Category', 'ASC']],
-            raw: true
-        });
+        // Handle location for filtering others
+        const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+        const locFilter = locArr.length > 0 ? `AND Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(',')})` : '';
 
-        // Fetch distinct brands filtered by location + category
-        const brandWhere = { brand_name: { [Op.ne]: null } };
-        if (location && location !== 'All' && location !== 'All India') {
-            brandWhere.location = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('location')),
-                location.toLowerCase()
-            );
+        // 2. Build Category conditions (filtered by Platform/Location)
+        const catQuery = `SELECT DISTINCT Category as value FROM rb_pdp_olap WHERE ${baseConds.join(' AND ')} ${locFilter} AND Category IS NOT NULL AND Category != '' ORDER BY Category`;
+
+        // 3. Build Brand conditions (filtered by Platform/Location/Category)
+        const brandConds = [...baseConds];
+        const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
+        if (catArr.length > 0) {
+            brandConds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
         }
-        if (category && category !== 'All') {
-            brandWhere.Category = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('Category')),
-                category.toLowerCase()
-            );
+        const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandConds.join(' AND ')} ${locFilter} AND Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
+
+        // 4. Build SKU conditions (filtered by Platform/Location/Category/Brand)
+        const skuConds = [...brandConds];
+        const bndArr = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
+        if (bndArr.length > 0) {
+            skuConds.push(`Brand IN (${bndArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
         }
+        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuConds.join(' AND ')} ${locFilter} AND Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
 
-        const brandResults = await RcaSkuDim.findAll({
-            attributes: [[sequelize.fn('DISTINCT', sequelize.col('brand_name')), 'brand']],
-            where: brandWhere,
-            order: [['brand_name', 'ASC']],
-            raw: true
-        });
-
-        // Fetch distinct SKUs from rb_pdp_olap filtered by location + category + brand
-        const skuWhere = { Product: { [Op.ne]: null } };
-        if (location && location !== 'All' && location !== 'All India') {
-            skuWhere.Location = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('Location')),
-                location.toLowerCase()
-            );
-        }
-        if (category && category !== 'All') {
-            skuWhere.Category = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('Category')),
-                category.toLowerCase()
-            );
-        }
-        if (brand && brand !== 'All') {
-            skuWhere.Brand = sequelize.where(
-                sequelize.fn('LOWER', sequelize.col('Brand')),
-                brand.toLowerCase()
-            );
-        }
-
-        const skuResults = await RbPdpOlap.findAll({
-            attributes: [[sequelize.fn('DISTINCT', sequelize.col('Product')), 'sku']],
-            where: skuWhere,
-            order: [['Product', 'ASC']],
-            raw: true
-        });
-
-        const locations = locationResults.map(l => l.location).filter(Boolean);
-        const categories = categoryResults.map(c => c.category).filter(Boolean);
-        const brands = brandResults.map(b => b.brand).filter(Boolean);
-        const skus = skuResults.map(s => s.sku).filter(Boolean);
-
-        console.log(`[getAvailabilityCompetitionFilterOptions] Found ${locations.length} locations, ${categories.length} categories, ${brands.length} brands, ${skus.length} SKUs`);
+        const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
+            queryClickHouse(`SELECT DISTINCT Location as value FROM rb_pdp_olap WHERE Comp_flag = 1 AND Location IS NOT NULL AND Location != '' ORDER BY Location`),
+            queryClickHouse(catQuery),
+            queryClickHouse(brandQuery),
+            queryClickHouse(skuQuery)
+        ]);
 
         return {
-            locations: ['All India', ...locations],
-            categories: ['All', ...categories],
-            brands: ['All', ...brands],
-            skus: ['All', ...skus]
+            locations: ['All India', ...locationResults.map(r => r.value).filter(Boolean)],
+            categories: ['All', ...categoryResults.map(r => r.value).filter(Boolean)],
+            brands: ['All', ...brandResults.map(r => r.value).filter(Boolean)],
+            skus: ['All', ...skuResults.map(r => r.value).filter(Boolean)]
         };
     } catch (error) {
         console.error('[getAvailabilityCompetitionFilterOptions] Error:', error);
@@ -1843,10 +1205,6 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
     }
 };
 
-/**
- * Get Availability Competition Brand Trends
- * Returns time-series data for comparing multiple brands
- */
 const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
     console.log('[getAvailabilityCompetitionBrandTrends] Request with filters:', filters);
 
@@ -1854,100 +1212,135 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            let { brands = 'All', location = 'All', category = 'All', period = '1M' } = filters;
-
+            let { brands = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
             if (location === 'All India') location = 'All';
 
             const brandList = brands && brands !== 'All' ? brands.split(',').map(b => b.trim()) : [];
-
             if (brandList.length === 0) {
                 return { metrics: [], timeSeries: {}, brands: [] };
             }
 
-            // Calculate date range
-            const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-            const days = periodDays[period] || 30;
+            let startDate, endDate;
+            if (fStart && fEnd) {
+                startDate = dayjs(fStart);
+                endDate = dayjs(fEnd);
+            } else {
+                const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodDays[period] || 30;
+                endDate = dayjs();
+                startDate = endDate.subtract(days, 'days');
+            }
 
-            const endDate = dayjs();
-            const startDate = endDate.clone().subtract(days, 'days');
-
-            // Use daily grouping
-            const groupCol = sequelize.fn('DATE', sequelize.col('DATE'));
-            const dateFormat = 'DD MMM\'YY';
-
-            // Build base where clause
-            const whereClause = {
-                DATE: { [Op.between]: [startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD')] },
-                Brand: { [Op.in]: brandList }
-            };
+            // Build filter conditions
+            const brandFilter = brandList.map(b => `'${escapeStr(b)}'`).join(',');
+            const conditions = [
+                `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
+                `Brand IN (${brandFilter})`,
+                `Comp_flag = 1`
+            ];
 
             if (location && location !== 'All') {
-                whereClause.Location = location;
+                const locationList = location.split(',').map(l => l.trim());
+                conditions.push(`Location IN (${locationList.map(l => `'${escapeStr(l)}'`).join(',')})`);
             }
             if (category && category !== 'All') {
-                whereClause.Category = category;
+                const categoryList = category.split(',').map(c => c.trim());
+                conditions.push(`Category IN (${categoryList.map(c => `'${escapeStr(c)}'`).join(',')})`);
             }
 
-            // Query for each brand's KPIs over time
-            const results = await RbPdpOlap.findAll({
-                attributes: [
-                    'Brand',
-                    [groupCol, 'date_group'],
-                    [sequelize.fn('MAX', sequelize.col('DATE')), 'ref_date'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('neno_osa'), 'DECIMAL')), 'total_neno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('deno_osa'), 'DECIMAL')), 'total_deno_osa'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('inventory'), 'DECIMAL')), 'total_inventory'],
-                    [sequelize.fn('SUM', sequelize.cast(sequelize.col('Qty_Sold'), 'DECIMAL')), 'total_qty_sold'],
-                    [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Web_Pid'))), 'assortment_count']
-                ],
-                where: whereClause,
-                group: ['Brand', groupCol],
-                order: [[sequelize.col('ref_date'), 'ASC']],
-                raw: true
+            const whereClause = conditions.join(' AND ');
+
+            const query = `
+                SELECT 
+                    Brand,
+                    DATE as ref_date,
+                    SUM(toFloat64(neno_osa)) as total_neno,
+                    SUM(toFloat64(deno_osa)) as total_deno,
+                    SUM(toFloat64(Inventory)) as total_inventory,
+                    SUM(toFloat64(Qty_Sold)) as total_qty_sold,
+                    COUNT(DISTINCT Web_Pid) as assortment_count
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                GROUP BY Brand, DATE
+                ORDER BY DATE ASC
+            `;
+
+            const results = await queryClickHouse(query);
+
+            // Get master counts from rca_sku_dim for all brands in the brandList to calculate Listing %
+            let brandMasterCounts = {};
+            if (brandList.length > 0) {
+                const brandFilterStr = brandList.map(b => `'${escapeStr(b)}'`).join(',');
+                const masterConds = [`status = 1`, `brand_name IN (${brandFilterStr})`];
+                if (category && category !== 'All') masterConds.push(`brand_category = '${escapeStr(category)}'`);
+
+                const masterQuery = `
+                    SELECT brand_name, count(DISTINCT web_pid) as total_master
+                    FROM rb_sku_platform
+                    WHERE ${masterConds.join(' AND ')}
+                    GROUP BY brand_name
+                `;
+                const masterResults = await queryClickHouse(masterQuery);
+                masterResults.forEach(r => {
+                    brandMasterCounts[r.brand_name] = parseInt(r.total_master, 10) || 0;
+                });
+            }
+
+            // Get all unique dates in the results
+            const uniqueDates = Array.from(new Set(results.map(r => dayjs(r.ref_date).format("DD MMM'YY")))).sort((a, b) => {
+                const dateA = dayjs(a, "DD MMM'YY");
+                const dateB = dayjs(b, "DD MMM'YY");
+                return dateA.diff(dateB);
             });
 
-            console.log(`[getAvailabilityCompetitionBrandTrends] Query returned ${results.length} data points for ${brandList.length} brands`);
+            // Prepare the response in the format expected by TrendView
+            const response = {
+                dates: uniqueDates,
+                osa: {},
+                doi: {},
+                listing: {},
+                assortment: {},
+                fillrate: {},
+                psl: {}
+            };
 
-            // Transform results into time series per brand
-            const brandTrends = {};
+            // Initialize brand arrays for each metric
+            brandList.forEach(brandName => {
+                response.osa[brandName] = new Array(uniqueDates.length).fill(0);
+                response.doi[brandName] = new Array(uniqueDates.length).fill(0);
+                response.listing[brandName] = new Array(uniqueDates.length).fill(0);
+                response.assortment[brandName] = new Array(uniqueDates.length).fill(0);
+                response.fillrate[brandName] = new Array(uniqueDates.length).fill(0);
+                response.psl[brandName] = new Array(uniqueDates.length).fill(0);
+            });
 
+            // Map results into the prefilled response arrays
             results.forEach(row => {
                 const brandName = row.Brand;
-                if (!brandTrends[brandName]) {
-                    brandTrends[brandName] = [];
+                const dateStr = dayjs(row.ref_date).format("DD MMM'YY");
+                const dateIndex = uniqueDates.indexOf(dateStr);
+
+                if (dateIndex !== -1 && response.osa[brandName]) {
+                    const neno = parseFloat(row.total_neno) || 0;
+                    const deno = parseFloat(row.total_deno) || 0;
+                    const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
+                    const masterCount = brandMasterCounts[brandName] || 0;
+                    const totalQtySold = parseFloat(row.total_qty_sold) || 0;
+                    const totalInv = parseFloat(row.total_inventory) || 0;
+
+                    const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                    const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+                    const doi = totalQtySold > 0 ? (totalInv / totalQtySold) * 30 : 0;
+
+                    response.osa[brandName][dateIndex] = parseFloat(osa.toFixed(1));
+                    response.listing[brandName][dateIndex] = parseFloat(listing.toFixed(1));
+                    response.assortment[brandName][dateIndex] = dailyUniquePids;
+                    response.doi[brandName][dateIndex] = parseFloat(doi.toFixed(1));
+                    response.psl[brandName][dateIndex] = parseFloat(listing.toFixed(1)); // Placeholder using listing for now
                 }
-
-                const refDate = dayjs(row.ref_date);
-                const nenoOsa = parseFloat(row.total_neno_osa) || 0;
-                const denoOsa = parseFloat(row.total_deno_osa) || 0;
-                const inventory = parseFloat(row.total_inventory) || 0;
-                const qtySold = parseFloat(row.total_qty_sold) || 0;
-                const assortment = parseInt(row.assortment_count, 10) || 0;
-
-                const osa = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
-                const doi = qtySold > 0 ? (inventory / qtySold) * 30 : 0;
-
-                brandTrends[brandName].push({
-                    date: refDate.format(dateFormat),
-                    Osa: parseFloat(osa.toFixed(1)),
-                    Doi: parseFloat(doi.toFixed(1)),
-                    Fillrate: 0,
-                    Assortment: assortment
-                });
             });
 
-            return {
-                metrics: [
-                    { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
-                    { id: 'Doi', label: 'DOI', color: '#7C3AED', default: true },
-                    { id: 'Fillrate', label: 'Fillrate', color: '#6366F1', default: false },
-                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false }
-                ],
-                timeSeries: brandTrends,
-                brands: brandList,
-                period,
-                dateRange: { start: startDate.format('YYYY-MM-DD'), end: endDate.format('YYYY-MM-DD') }
-            };
+            return response;
         } catch (error) {
             console.error('[getAvailabilityCompetitionBrandTrends] Error:', error);
             return { metrics: [], timeSeries: {}, brands: [] };
@@ -1971,4 +1364,3 @@ export default {
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends
 };
-

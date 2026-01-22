@@ -21,7 +21,6 @@ async function checkTable() {
                 WHERE TABLE_NAME = 'tb_zepto_ads_data' AND TABLE_SCHEMA = '${process.env.DB_NAME}'
             `);
             console.log("COLUMNS:", JSON.stringify(columns.map(c => c.COLUMN_NAME), null, 2));
-
             // Check distinct values for a likely Zone column (e.g., 'zone', 'location')
             // Attempting to query 'zone' if it exists in the list above, but for now just logging columns to decide next step.
         } else {
