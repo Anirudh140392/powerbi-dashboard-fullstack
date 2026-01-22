@@ -10,6 +10,8 @@ export default function VisibilityAnalysis() {
     platform,
     selectedBrand,
     selectedLocation,
+    timeStart,
+    timeEnd,
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
@@ -83,15 +85,34 @@ export default function VisibilityAnalysis() {
     fetchVisibilityDates();
   }, [visibilityDatesReady]);
 
-  // Sync only platform/brand/location with FilterContext (NOT dates - we manage those ourselves)
+  // Sync platform/brand/location AND dates with FilterContext
+  // When user changes dates in the header, update our local filters
   useEffect(() => {
-    setFilters(prev => ({
-      ...prev,
-      platform: platform || prev.platform,
-      brand: selectedBrand || prev.brand,
-      location: selectedLocation || prev.location,
-    }));
-  }, [platform, selectedBrand, selectedLocation]);
+    setFilters(prev => {
+      const updates = {
+        ...prev,
+        platform: platform || prev.platform,
+        brand: selectedBrand || prev.brand,
+        location: selectedLocation || prev.location,
+      };
+
+      // Sync dates from FilterContext if they're changed by user in the header
+      // Only update if timeStart/timeEnd are valid dayjs objects
+      if (timeStart && timeEnd) {
+        const newStartDate = dayjs(timeStart).format('YYYY-MM-DD');
+        const newEndDate = dayjs(timeEnd).format('YYYY-MM-DD');
+
+        // Only update if dates have actually changed to avoid unnecessary re-renders
+        if (newStartDate !== prev.startDate || newEndDate !== prev.endDate) {
+          console.log('🗓️ [Visibility] Syncing dates from header:', newStartDate, 'to', newEndDate);
+          updates.startDate = newStartDate;
+          updates.endDate = newEndDate;
+        }
+      }
+
+      return updates;
+    });
+  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
