@@ -25,12 +25,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keygen -l -f ~/.ssh/deploy_key || echo "❌ Warning: SSH key format might be invalid"
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file on EC2
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            # Ensure the user has permissions to the directory
+            sudo chown -R ${{ secrets.EC2_USER }}:${{ secrets.EC2_USER }} ${{ env.APP_DIR }}
+            
             cd ${{ env.APP_DIR }}
             cat > .env << 'EOF'
           DB_HOST=${{ secrets.DB_HOST }}
@@ -55,6 +57,9 @@ jobs:
             
             echo "📁 Navigating to app directory..."
             cd ${{ env.APP_DIR }} || { echo "❌ App directory not found"; exit 1; }
+            
+            # Resolve dubious ownership error
+            git config --global --add safe.directory ${{ env.APP_DIR }}
             
             echo "📥 Pulling latest code from branch: ${{ github.ref_name }}..."
             git fetch origin ${{ github.ref_name }}
