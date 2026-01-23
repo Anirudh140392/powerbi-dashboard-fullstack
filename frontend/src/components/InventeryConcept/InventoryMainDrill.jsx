@@ -1,60 +1,27 @@
-import React, { useMemo, useState } from "react";
-import { Typography } from "@mui/material";
+import React, { useMemo, useState, useEffect, useContext } from "react";
+import { Typography, Skeleton } from "@mui/material"; // Added Skeleton
 import { SlidersHorizontal, X } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
-
-/* ---------------- SAMPLE DATA ---------------- */
-
-const SAMPLE = [
-    { format: "Cornetto", brand: "Kwality Walls", product: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", city: "agra", doh: 0 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", city: "ahmedabad", doh: 0 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", city: "akola", doh: 25 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", city: "ambala", doh: 12 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", city: "amritsar", doh: 7 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", city: "aurangabad", doh: 8 },
-
-    { format: "Cornetto", brand: "Kwality Walls", product: "85047 : KW CORNETTO - BUTTERSCOTCH", city: "agra", doh: 0 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85047 : KW CORNETTO - BUTTERSCOTCH", city: "ahmedabad", doh: 0 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85047 : KW CORNETTO - BUTTERSCOTCH", city: "akola", doh: 28 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85047 : KW CORNETTO - BUTTERSCOTCH", city: "ambala", doh: 18 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85047 : KW CORNETTO - BUTTERSCOTCH", city: "amritsar", doh: 8 },
-    { format: "Cornetto", brand: "Kwality Walls", product: "85047 : KW CORNETTO - BUTTERSCOTCH", city: "aurangabad", doh: 9 },
-
-    { format: "Core Tub", brand: "Kwality Walls", product: "85123 : KW Cassatta", city: "agra", doh: 0 },
-    { format: "Core Tub", brand: "Kwality Walls", product: "85123 : KW Cassatta", city: "ahmedabad", doh: 0 },
-    { format: "Core Tub", brand: "Kwality Walls", product: "85123 : KW Cassatta", city: "akola", doh: 11 },
-    { format: "Core Tub", brand: "Kwality Walls", product: "85123 : KW Cassatta", city: "ambala", doh: 13 },
-    { format: "Core Tub", brand: "Kwality Walls", product: "85123 : KW Cassatta", city: "amritsar", doh: 24 },
-    { format: "Core Tub", brand: "Kwality Walls", product: "85123 : KW Cassatta", city: "aurangabad", doh: 38 },
-
-    { format: "Magnum", brand: "Kwality Walls", product: "85339 : KW Magnum Almond 90 ml", city: "agra", doh: 0 },
-    { format: "Magnum", brand: "Kwality Walls", product: "85339 : KW Magnum Almond 90 ml", city: "ahmedabad", doh: 0 },
-    { format: "Magnum", brand: "Kwality Walls", product: "85339 : KW Magnum Almond 90 ml", city: "akola", doh: 50 },
-    { format: "Magnum", brand: "Kwality Walls", product: "85339 : KW Magnum Almond 90 ml", city: "ambala", doh: 6 },
-    { format: "Magnum", brand: "Kwality Walls", product: "85339 : KW Magnum Almond 90 ml", city: "amritsar", doh: 6 },
-    { format: "Magnum", brand: "Kwality Walls", product: "85339 : KW Magnum Almond 90 ml", city: "aurangabad", doh: 14 },
-
-    { format: "Sandwich", brand: "Kwality Walls", product: "85438 : KW Sandwich Chocolate n Vanilla 90ml", city: "agra", doh: 0 },
-    { format: "Sandwich", brand: "Kwality Walls", product: "85438 : KW Sandwich Chocolate n Vanilla 90ml", city: "ahmedabad", doh: 0 },
-    { format: "Sandwich", brand: "Kwality Walls", product: "85438 : KW Sandwich Chocolate n Vanilla 90ml", city: "akola", doh: 14 },
-    { format: "Sandwich", brand: "Kwality Walls", product: "85438 : KW Sandwich Chocolate n Vanilla 90ml", city: "ambala", doh: 1 },
-    { format: "Sandwich", brand: "Kwality Walls", product: "85438 : KW Sandwich Chocolate n Vanilla 90ml", city: "amritsar", doh: 9 },
-    { format: "Sandwich", brand: "Kwality Walls", product: "85438 : KW Sandwich Chocolate n Vanilla 90ml", city: "aurangabad", doh: 5 },
-];
+import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 
 const formatNumber = (v) => {
+    if (v === undefined || v === null) return "—"; // Handle null/undefined explicitly
     if (!Number.isFinite(v)) return "—";
     if (Math.abs(v) >= 100) return v.toFixed(0);
     return v.toFixed(2);
 };
 
+
+
 export default function InventoryDrill() {
     const [filters, setFilters] = useState({
-        format: "All",
-        brand: "All",
+        format: [], // Changed to array
+        brand: [],  // Changed to array
         sku: "",
         citySearch: "",
         citySelection: [],
+        platform: [] // Added platform local filter
     });
     const [pageSize, setPageSize] = useState(20);
     const [page, setPage] = useState(0);
@@ -62,19 +29,92 @@ export default function InventoryDrill() {
     const [viewMode, setViewMode] = useState("Platform");
 
 
-    const formats = ["All", ...new Set(SAMPLE.map((r) => r.format))];
-    const brands = ["All", ...new Set(SAMPLE.map((r) => r.brand))];
-    const allCities = useMemo(() => [...new Set(SAMPLE.map((r) => r.city))], []);
-    const allSkus = useMemo(() => [...new Set(SAMPLE.map((r) => r.product))], []);
+    const [matrixData, setMatrixData] = useState([]);
+    const [metadata, setMetadata] = useState({ platforms: [], brands: [], categories: [], skus: [], cities: [] });
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Access global filters from context
+    const {
+        timeStart,
+        timeEnd,
+        platform: globalPlatform,
+        selectedBrand: globalBrand,
+        selectedLocation: globalLocation
+    } = useContext(FilterContext);
+
+    // Initial load & Filter change effect
+    useEffect(() => {
+        const fetchMatrixData = async () => {
+            try {
+                setIsLoading(true);
+
+                const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
+                const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
+
+                // Robust filter construction
+                const getFilterValue = (local, global) => {
+                    if (local && local.length > 0) return local.join(',');
+                    if (global) {
+                        return Array.isArray(global) ? global.join(',') : global;
+                    }
+                    return 'All';
+                };
+
+                const params = {
+                    startDate,
+                    endDate,
+                    platform: getFilterValue(filters.platform, globalPlatform),
+                    brand: getFilterValue(filters.brand, globalBrand),
+                    location: getFilterValue(filters.citySelection, globalLocation),
+                    category: getFilterValue(filters.format, null) // formats/categories are local here
+                };
+
+                const response = await axiosInstance.get(`/inventory-analysis/matrix`, { params });
+                setMatrixData(response.data.data);
+                setMetadata(response.data.metadata);
+            } catch (error) {
+                console.error("❌ [InventoryMatrix] Failed to fetch matrix data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchMatrixData();
+    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation]);
+
+    // Process backend data
+    const allPlatforms = useMemo(() => {
+        const platforms = [...new Set(matrixData.map((r) => r.platform))].filter(Boolean).sort();
+        return platforms;
+    }, [matrixData]);
+
+    const allCities = useMemo(() => {
+        const cities = [...new Set(matrixData.map((r) => r.city))].filter(Boolean).sort();
+        return cities;
+    }, [matrixData]);
+
+    const allBrands = useMemo(() => {
+        const brands = [...new Set(matrixData.map((r) => r.brand))].filter(Boolean).sort();
+        return brands;
+    }, [matrixData]);
+
+    const allSkus = useMemo(() => {
+        const skus = [...new Set(matrixData.map((r) => r.sku))].filter(Boolean).sort();
+        return skus;
+    }, [matrixData]);
+
+    const allCategories = useMemo(() => {
+        const cats = [...new Set(matrixData.map((r) => r.category || r.format))].filter(Boolean).sort();
+        return cats;
+    }, [matrixData]);
 
     const filteredRecords = useMemo(() => {
-        return SAMPLE.filter((r) => {
-            if (filters.format !== "All" && r.format !== filters.format) return false;
-            if (filters.brand !== "All" && r.brand !== filters.brand) return false;
-            if (filters.sku && r.product !== filters.sku) return false;
+        return matrixData.filter((r) => {
+            if (filters.sku && r.sku !== filters.sku) return false;
+            // Additional client-side filtering if needed
             return true;
         });
-    }, [filters]);
+    }, [matrixData, filters]);
 
     const cityColumns = useMemo(() => {
         if (filters.citySelection.length) return filters.citySelection;
@@ -89,15 +129,15 @@ export default function InventoryDrill() {
     const rows = useMemo(() => {
         const bySku = new Map();
         filteredRecords.forEach((r) => {
-            if (!bySku.has(r.product)) {
-                bySku.set(r.product, {
-                    sku: r.product,
-                    format: r.format,
+            if (!bySku.has(r.sku)) {
+                bySku.set(r.sku, {
+                    sku: r.sku,
+                    // format: r.format, // Backend might need to return this if used
                     brand: r.brand,
-                    dohByCity: {},
+                    inventoryByCity: {},
                 });
             }
-            bySku.get(r.product).dohByCity[r.city] = r.doh;
+            bySku.get(r.sku).inventoryByCity[r.city] = r.inventory;
         });
         return [...bySku.values()].sort((a, b) => a.sku.localeCompare(b.sku));
     }, [filteredRecords]);
@@ -106,26 +146,44 @@ export default function InventoryDrill() {
     const pageRows = rows.slice(page * pageSize, page * pageSize + pageSize);
 
     /* Filter panel wiring */
-    const formatOptions = formats.slice(1).map((f) => ({ id: f, label: f }));
-    const skuOptions = allSkus.map((s) => ({ id: s, label: s }));
-    const cityOptions = allCities.map((c) => ({ id: c, label: c }));
-    const brandOptions = brands.slice(1).map((b) => ({ id: b, label: b }));
-    const kpiFields = [{ id: "doh", label: "Days on hand", type: "number" }];
+    /* Filter panel wiring */
+    const platformOptions = (metadata.platforms || []).map((p) => ({ id: p, label: p }));
+    const formatOptions = (metadata.categories || []).map((f) => ({ id: f, label: f }));
+    const skuOptions = (metadata.skus || []).map((s) => ({ id: s, label: s }));
+    const cityOptions = (metadata.cities || []).map((c) => ({ id: c, label: c }));
+    const brandOptions = (metadata.brands || []).map((b) => ({ id: b, label: b }));
+    const kpiFields = [{ id: "inventory", label: "Inventory Quantity", type: "number" }];
 
-    const handleFormatChange = (ids) => setFilters((prev) => ({ ...prev, format: ids[0] || "All" }));
+    const handleFormatChange = (ids) => setFilters((prev) => ({ ...prev, format: ids }));
     const handleSkuChange = (ids) => setFilters((prev) => ({ ...prev, sku: ids[0] || "" }));
     const handleCityChange = (ids) => setFilters((prev) => ({ ...prev, citySelection: ids }));
-    const handleBrandChange = (ids) => setFilters((prev) => ({ ...prev, brand: ids[0] || "All" }));
+    const handleBrandChange = (ids) => setFilters((prev) => ({ ...prev, brand: ids }));
+    const handlePlatformChange = (ids) => setFilters((prev) => ({ ...prev, platform: ids }));
+
+    const sectionConfig = [
+        { id: "platforms", label: "Platforms" },
+        { id: "brands", label: "Brands" },
+        { id: "categories", label: "Categories" },
+        { id: "skus", label: "SKUs" },
+        { id: "cities", label: "Cities" },
+    ];
+
+    const sectionValues = useMemo(() => ({
+        platforms: filters.platform,
+        brands: filters.brand,
+        categories: filters.format,
+        skus: filters.sku ? [filters.sku] : [],
+        cities: filters.citySelection
+    }), [filters]);
 
     const filterOptions = useMemo(() => ({
-        keywords: [],
+        platforms: platformOptions,
         brands: brandOptions,
-        categories: formatOptions, // Mapping Format to Categories
+        categories: formatOptions,
         skus: skuOptions,
         cities: cityOptions,
-        platforms: [],
         kpiFields: kpiFields
-    }), [brandOptions, formatOptions, skuOptions, cityOptions]);
+    }), [platformOptions, brandOptions, formatOptions, skuOptions, cityOptions]);
 
     return (
         <div className="flex h-full w-full flex-col px-4 py-4 text-slate-900 relative">
@@ -150,21 +208,19 @@ export default function InventoryDrill() {
                         {/* Panel Content */}
                         <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
                             <KpiFilterPanel
-                                keywords={filterOptions.keywords}
+                                platforms={filterOptions.platforms}
                                 brands={filterOptions.brands}
                                 categories={filterOptions.categories}
                                 skus={filterOptions.skus}
                                 cities={filterOptions.cities}
-                                platforms={filterOptions.platforms}
                                 kpiFields={filterOptions.kpiFields}
-                                // onRulesChange={setFilterRules}
-                                // Mock handlers
-                                onKeywordChange={(ids) => console.log("Keywords:", ids)}
-                                onBrandChange={(ids) => handleBrandChange(ids)}
-                                onCategoryChange={(ids) => handleFormatChange(ids)}
-                                onSkuChange={(ids) => handleSkuChange(ids)}
-                                onCityChange={(ids) => handleCityChange(ids)}
-                                onPlatformChange={(ids) => console.log("Platforms:", ids)}
+                                sectionConfig={sectionConfig}
+                                sectionValues={sectionValues}
+                                onPlatformChange={handlePlatformChange}
+                                onBrandChange={handleBrandChange}
+                                onCategoryChange={handleFormatChange}
+                                onSkuChange={handleSkuChange}
+                                onCityChange={handleCityChange}
                             />
                         </div>
 
@@ -226,29 +282,57 @@ export default function InventoryDrill() {
                     <table className="min-w-full text-xs">
                         <thead className="bg-slate-50 text-slate-600">
                             <tr>
-                                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left w-[260px] uppercase">
+                                <th className="sticky left-0 z-30 bg-slate-50 px-2 py-2 text-left w-[300px] uppercase text-[10px] font-bold tracking-wider text-slate-500 border-b border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                     SKU
                                 </th>
                                 {cityColumns.map((city, i) => (
-                                    <th key={city} className="px-3 py-2 text-center font-semibold uppercase capitalize">
+                                    <th key={city} className="px-2 py-2 text-center font-bold uppercase text-[10px] tracking-wider text-slate-500 border-b border-slate-200 min-w-[80px]">
                                         {city}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {pageRows.map((row) => (
-                                <tr key={row.sku} className="border-b">
-                                    <td className="sticky left-0 bg-white px-3 py-2 font-medium">
-                                        {row.sku}
-                                    </td>
-                                    {cityColumns.map((city) => (
-                                        <td key={city} className="px-3 py-2 text-center">
-                                            {formatNumber(row.dohByCity[city])}
+                            {isLoading ? (
+                                // Skeleton Loading
+                                Array.from({ length: 15 }).map((_, idx) => ( // Increased skeleton count for density
+                                    <tr key={`skel-${idx}`} className="border-b border-slate-50">
+                                        <td className="sticky left-0 bg-white px-2 py-1.5"> {/* Compact padding */}
+                                            <Skeleton variant="text" width={180} height={20} />
                                         </td>
-                                    ))}
+                                        {cityColumns.map((city) => (
+                                            <td key={city} className="px-2 py-1.5 text-center">
+                                                <Skeleton variant="text" width={30} height={20} className="mx-auto" />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))
+                            ) : pageRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={cityColumns.length + 1} className="px-6 py-10 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>No data found for the selected filters.</Typography>
+                                            <Typography variant="caption">Try adjusting your date range or filter selections.</Typography>
+                                        </div>
+                                    </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                pageRows.map((row) => (
+                                    <tr key={row.sku} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors">
+                                        <td
+                                            className="sticky left-0 z-20 bg-white px-2 py-1.5 font-medium text-slate-700 whitespace-nowrap max-w-[300px] truncate border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"
+                                            title={row.sku} // Tooltip for full name
+                                        >
+                                            {row.sku}
+                                        </td>
+                                        {cityColumns.map((city) => (
+                                            <td key={city} className="px-2 py-1.5 text-center whitespace-nowrap text-slate-600">
+                                                {formatNumber(row.inventoryByCity[city] || 0)}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -294,34 +378,6 @@ export default function InventoryDrill() {
                     </div>
                 </div>
 
-                {filterPanelOpen && (
-                    <div className="absolute right-4 top-12 z-20 w-[680px]">
-                        <KpiFilterPanel
-                            keywords={formatOptions}
-                            skus={skuOptions}
-                            cities={cityOptions}
-                            platforms={brandOptions}
-                            kpiFields={kpiFields}
-                            onKeywordChange={handleFormatChange}
-                            onSkuChange={handleSkuChange}
-                            onCityChange={handleCityChange}
-                            onPlatformChange={handleBrandChange}
-                            pageSize={12}
-                            keywordsLabel="Format"
-                            keywordsTitle="Format filter"
-                            keywordsDescription="Select formats to filter the table."
-                            platformsLabel="Brand"
-                            platformsTitle="Brand filter"
-                            platformsDescription="Select brands to filter the table."
-                            skusLabel="SKU"
-                            skusTitle="SKU filter"
-                            skusDescription="Select SKUs to filter the table."
-                            citiesLabel="City"
-                            citiesTitle="City filter"
-                            citiesDescription="Select cities to show as columns."
-                        />
-                    </div>
-                )}
             </div>
         </div>
     );
