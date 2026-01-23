@@ -92,3 +92,4 @@ jobs:
           echo "📦 Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "🔗 App: http://${{ secrets.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
           echo "🔗 API: http://${{ secrets.EC2_HOST }}/api" >> $GITHUB_STEP_SUMMARY
+
