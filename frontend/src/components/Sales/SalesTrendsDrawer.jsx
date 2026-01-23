@@ -205,6 +205,10 @@ export default function SalesTrendsDrawer({
         DASHBOARD_DATA.trends.metrics.filter((m) => m.default).map((m) => m.id)
     );
 
+    // Custom Date states
+    const [customStartDate, setCustomStartDate] = useState(startDate || dayjs().subtract(30, 'day').format("YYYY-MM-DD"));
+    const [customEndDate, setCustomEndDate] = useState(endDate || dayjs().format("YYYY-MM-DD"));
+
     const [showPlatformPills, setShowPlatformPills] = useState(true);
     const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
     const [addSkuOpen, setAddSkuOpen] = useState(false);
@@ -235,11 +239,18 @@ export default function SalesTrendsDrawer({
                 try {
                     let effStartDate = startDate;
                     let effEndDate = endDate;
+
                     if (range !== "Custom" && RANGE_TO_DAYS[range]) {
                         const days = RANGE_TO_DAYS[range];
-                        effEndDate = dayjs().format("YYYY-MM-DD");
-                        effStartDate = dayjs().subtract(days, 'day').format("YYYY-MM-DD");
+                        // Anchor to the dashboard's end date if available, otherwise use today
+                        const anchorDate = endDate ? dayjs(endDate) : dayjs();
+                        effEndDate = anchorDate.format("YYYY-MM-DD");
+                        effStartDate = anchorDate.subtract(days, 'day').format("YYYY-MM-DD");
+                    } else if (range === "Custom") {
+                        effStartDate = customStartDate;
+                        effEndDate = customEndDate;
                     }
+
                     const data = await fetchSalesTrends({
                         startDate: effStartDate,
                         endDate: effEndDate,
@@ -253,7 +264,7 @@ export default function SalesTrendsDrawer({
             };
             loadTrends();
         }
-    }, [open, startDate, endDate, selectedPlatform, selectedBrandState, selectedLocationState, selectedCategory, range]);
+    }, [open, startDate, endDate, selectedPlatform, selectedBrandState, selectedLocationState, selectedCategory, range, customStartDate, customEndDate]);
 
     useEffect(() => {
         if (selectedColumn) {
@@ -275,13 +286,6 @@ export default function SalesTrendsDrawer({
             .sort((a, b) => a._dateObj.getTime() - b._dateObj.getTime());
 
         let baseData = sorted;
-        if (range !== "Custom" && RANGE_TO_DAYS[range]) {
-            const maxDate = sorted[sorted.length - 1]?._dateObj;
-            if (maxDate) {
-                const days = RANGE_TO_DAYS[range];
-                baseData = sorted.filter(p => ((maxDate.getTime() - p._dateObj.getTime()) / (1000 * 60 * 60 * 24)) <= days);
-            }
-        }
 
         if (timeStep === "Daily") return baseData.map(({ _dateObj, ...rest }) => rest);
 
@@ -306,7 +310,7 @@ export default function SalesTrendsDrawer({
             current_drr: group.lastPoint.current_drr,
             projected_sales: group.lastPoint.projected_sales
         }));
-    }, [trendData, range, timeStep]);
+    }, [trendData, timeStep]);
 
     const trendOption = useMemo(() => {
         return {
@@ -367,7 +371,42 @@ export default function SalesTrendsDrawer({
                             </Box>
                         </Box>
                         <Box display="flex" justifyContent="space-between" alignItems="center" gap={2} flexWrap="wrap">
-                            <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                                <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+
+                                {range === "Custom" && (
+                                    <Box display="flex" alignItems="center" gap={1} sx={{ ml: 1 }}>
+                                        <input
+                                            type="date"
+                                            value={customStartDate}
+                                            onChange={(e) => setCustomStartDate(e.target.value)}
+                                            style={{
+                                                padding: '4px 8px',
+                                                border: '1px solid #E5E7EB',
+                                                borderRadius: '8px',
+                                                fontSize: '12px',
+                                                fontWeight: 600,
+                                                outline: 'none'
+                                            }}
+                                        />
+                                        <Typography variant="caption" color="text.secondary">to</Typography>
+                                        <input
+                                            type="date"
+                                            value={customEndDate}
+                                            onChange={(e) => setCustomEndDate(e.target.value)}
+                                            style={{
+                                                padding: '4px 8px',
+                                                border: '1px solid #E5E7EB',
+                                                borderRadius: '8px',
+                                                fontSize: '12px',
+                                                fontWeight: 600,
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </Box>
+                                )}
+                            </Box>
+
                             <Box display="flex" alignItems="center" gap={2}>
                                 <Typography variant="body2">Time Step:</Typography>
                                 <PillToggleGroup value={timeStep} onChange={setTimeStep} options={trendMeta.timeSteps} />

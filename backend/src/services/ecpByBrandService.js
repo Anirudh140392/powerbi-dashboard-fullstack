@@ -6,6 +6,7 @@
 
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
 
 /**
@@ -31,37 +32,43 @@ function parseQuantity(quantityStr) {
  * @returns {Object} { data: [...], filters: {...} }
  */
 async function getEcpByBrand(filters = {}) {
-    try {
-        console.log('[EcpByBrandService] getEcpByBrand called with filters:', filters);
+    console.log('[EcpByBrandService] getEcpByBrand called with filters:', filters);
+    const cacheKey = generateCacheKey('pricing_ecp_by_brand', filters);
 
-        // Date range for calculation
-        const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-        const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
+    return await getCachedOrCompute(cacheKey, async () => {
+        try {
+            // ... (rest of the logic inside try block)
+            // Note: I will need to provide the full content to replace correctly
+            // but for brevity I will do a precise replace of the start/end
 
-        const platform = filters.platform || null;
-        const location = filters.location || null;
+            // Date range for calculation
+            const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
-        // Build dynamic WHERE conditions
-        let whereConditions = [
-            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
-            "p.Brand IS NOT NULL"
-        ];
+            const platform = filters.platform || null;
+            const location = filters.location || null;
 
-        // Platform filter
-        if (platform && platform !== 'All') {
-            whereConditions.push(`LOWER(p.Platform) = LOWER('${platform}')`);
-        }
+            // Build dynamic WHERE conditions
+            let whereConditions = [
+                `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
+                "p.Brand IS NOT NULL"
+            ];
 
-        if (location && location !== 'All') {
-            whereConditions.push(`LOWER(p.Location) = LOWER('${location}')`);
-        }
+            // Platform filter
+            if (platform && platform !== 'All') {
+                whereConditions.push(`LOWER(p.Platform) = LOWER('${platform}')`);
+            }
 
-        const whereClause = whereConditions.join(' AND ');
+            if (location && location !== 'All') {
+                whereConditions.push(`LOWER(p.Location) = LOWER('${location}')`);
+            }
 
-        // SQL query to calculate MRP, ECP, and avg gram by Brand
-        // Join rb_pdp_olap (p) with rb_sku_platform (s) on Web_Pid = web_pid
-        // Only include quantity values that are valid (not null/empty and > 0)
-        const query = `
+            const whereClause = whereConditions.join(' AND ');
+
+            // SQL query to calculate MRP, ECP, and avg gram by Brand
+            // Join rb_pdp_olap (p) with rb_sku_platform (s) on Web_Pid = web_pid
+            // Only include quantity values that are valid (not null/empty and > 0)
+            const query = `
             SELECT
                 p.Brand,
                 ROUND(
@@ -93,72 +100,72 @@ async function getEcpByBrand(filters = {}) {
             ORDER BY p.Brand
         `;
 
-        console.log('[EcpByBrandService] Executing ECP by Brand query with gram join...');
-        const queryStart = Date.now();
+            console.log('[EcpByBrandService] Executing ECP by Brand query with gram join...');
+            const queryStart = Date.now();
 
-        const results = await queryClickHouse(query);
+            const results = await queryClickHouse(query);
 
-        console.log(`[EcpByBrandService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
+            console.log(`[EcpByBrandService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
-        // Transform results and calculate ECP Per Unit
-        const data = (results || []).map((row, index) => {
-            const mrp = parseFloat(row.mrp) || 0;
-            const ecp = parseFloat(row.ecp) || 0;
-            const avgGram = parseFloat(row.avg_gram) || 0;
+            // Transform results and calculate ECP Per Unit
+            const data = (results || []).map((row, index) => {
+                const mrp = parseFloat(row.mrp) || 0;
+                const ecp = parseFloat(row.ecp) || 0;
+                const avgGram = parseFloat(row.avg_gram) || 0;
 
-            // ECP Per Unit = ECP / avg gram (price per gram)
-            // Only calculate if avgGram is valid (> 0)
-            const ecpPerUnit = avgGram > 0 ? ecp / avgGram : 0;
+                // ECP Per Unit = ECP / avg gram (price per gram)
+                // Only calculate if avgGram is valid (> 0)
+                const ecpPerUnit = avgGram > 0 ? ecp / avgGram : 0;
+
+                return {
+                    id: index + 1,
+                    brand: row.Brand,
+                    mrp: Math.round(mrp),
+                    ecp: Math.round(ecp),
+                    ecpPerUnit: parseFloat(ecpPerUnit.toFixed(2)),
+                    rpi: 0  // RPI placeholder - to be implemented later
+                };
+            });
+
+            // Sort by brand name
+            data.sort((a, b) => a.brand.localeCompare(b.brand));
+
+            // Log some samples for debugging
+            const samples = data.slice(0, 5).map(d => ({
+                brand: d.brand,
+                ecp: d.ecp,
+                ecpPerUnit: d.ecpPerUnit
+            }));
+            console.log('[EcpByBrandService] Sample ECP Per Unit values:', samples);
+
+            console.log(`[EcpByBrandService] Returning ${data.length} ECP by Brand records`);
 
             return {
-                id: index + 1,
-                brand: row.Brand,
-                mrp: Math.round(mrp),
-                ecp: Math.round(ecp),
-                ecpPerUnit: parseFloat(ecpPerUnit.toFixed(2)),
-                rpi: 0  // RPI placeholder - to be implemented later
+                success: true,
+                data,
+                filters: {
+                    startDate,
+                    endDate,
+                    platform: platform || 'All',
+                    location: location || 'All'
+                },
+                summary: {
+                    total: data.length
+                }
             };
-        });
-
-        // Sort by brand name
-        data.sort((a, b) => a.brand.localeCompare(b.brand));
-
-        // Log some samples for debugging
-        const samples = data.slice(0, 5).map(d => ({
-            brand: d.brand,
-            ecp: d.ecp,
-            ecpPerUnit: d.ecpPerUnit
-        }));
-        console.log('[EcpByBrandService] Sample ECP Per Unit values:', samples);
-
-        console.log(`[EcpByBrandService] Returning ${data.length} ECP by Brand records`);
-
-        return {
-            success: true,
-            data,
-            filters: {
-                startDate,
-                endDate,
-                platform: platform || 'All',
-                location: location || 'All'
-            },
-            summary: {
-                total: data.length
-            }
-        };
-
-    } catch (error) {
-        console.error('[EcpByBrandService] Error in getEcpByBrand:', error);
-        return {
-            success: false,
-            data: [],
-            error: error.message,
-            filters: {
-                startDate: filters.startDate,
-                endDate: filters.endDate
-            }
-        };
-    }
+        } catch (error) {
+            console.error('[EcpByBrandService] Error in getEcpByBrand:', error);
+            return {
+                success: false,
+                data: [],
+                error: error.message,
+                filters: {
+                    startDate: filters.startDate,
+                    endDate: filters.endDate
+                }
+            };
+        }
+    }, CACHE_TTL.ONE_HOUR);
 }
 
 export default {

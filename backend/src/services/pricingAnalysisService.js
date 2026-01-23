@@ -1,10 +1,6 @@
-/**
- * Pricing Analysis Service
- * Provides ECP (Effective Consumer Price) comparison logic for the Pricing Analysis page
- */
-
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -16,55 +12,58 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
  * @returns {Object} { data: [...], filters: {...} }
  */
 async function getEcpComparison(filters = {}) {
-    try {
-        console.log('[PricingAnalysisService] getEcpComparison called with filters:', filters);
+    console.log('[PricingAnalysisService] getEcpComparison called with filters:', filters);
+    const cacheKey = generateCacheKey('pricing_ecp_comparison', filters);
 
-        // Current period (selected date range)
-        const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-        const startDate = filters.startDate || dayjs().subtract(15, 'days').format('YYYY-MM-DD');
+    return await getCachedOrCompute(cacheKey, async () => {
+        try {
 
-        // Comparison period (previous date range)
-        let compareStartDate, compareEndDate;
-        if (filters.compareStartDate && filters.compareEndDate) {
-            compareStartDate = filters.compareStartDate;
-            compareEndDate = filters.compareEndDate;
-        } else {
-            // Auto-calculate previous period of same length
-            const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-            compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-            compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
-        }
+            // Current period (selected date range)
+            const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().subtract(15, 'days').format('YYYY-MM-DD');
 
-        const platform = filters.platform || null;
-        const location = filters.location || null;
+            // Comparison period (previous date range)
+            let compareStartDate, compareEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                compareStartDate = filters.compareStartDate;
+                compareEndDate = filters.compareEndDate;
+            } else {
+                // Auto-calculate previous period of same length
+                const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+                compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+                compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            }
 
-        // Build dynamic WHERE conditions
-        let whereConditions = [
-            "Selling_Price IS NOT NULL",
-            "Selling_Price > 0",
-            "Brand IS NOT NULL",
-            "Platform IS NOT NULL"
-        ];
-        const replacements = {
-            startDate,
-            endDate,
-            compareStartDate,
-            compareEndDate
-        };
+            const platform = filters.platform || null;
+            const location = filters.location || null;
 
-        if (platform && platform !== 'All') {
-            whereConditions.push(`LOWER(Platform) = LOWER('${platform}')`);
-        }
+            // Build dynamic WHERE conditions
+            let whereConditions = [
+                "Selling_Price IS NOT NULL",
+                "Selling_Price > 0",
+                "Brand IS NOT NULL",
+                "Platform IS NOT NULL"
+            ];
+            const replacements = {
+                startDate,
+                endDate,
+                compareStartDate,
+                compareEndDate
+            };
 
-        if (location && location !== 'All') {
-            whereConditions.push(`LOWER(Location) = LOWER('${location}')`);
-        }
+            if (platform && platform !== 'All') {
+                whereConditions.push(`LOWER(Platform) = LOWER('${platform}')`);
+            }
 
-        const whereClause = whereConditions.join(' AND ');
+            if (location && location !== 'All') {
+                whereConditions.push(`LOWER(Location) = LOWER('${location}')`);
+            }
+
+            const whereClause = whereConditions.join(' AND ');
 
 
-        // SQL query to calculate ECP for both periods
-        const query = `
+            // SQL query to calculate ECP for both periods
+            const query = `
             SELECT
                 Platform,
                 Brand,
@@ -92,75 +91,75 @@ async function getEcpComparison(filters = {}) {
             ORDER BY Platform, Brand
         `;
 
-        console.log('[PricingAnalysisService] Executing ECP comparison query...');
-        const queryStart = Date.now();
+            console.log('[PricingAnalysisService] Executing ECP comparison query...');
+            const queryStart = Date.now();
 
-        const results = await queryClickHouse(query);
+            const results = await queryClickHouse(query);
 
 
-        console.log(`[PricingAnalysisService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
+            console.log(`[PricingAnalysisService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
-        // Process results and add trend labels
-        const data = (results || []).map(row => {
-            const ecpPrev = parseFloat(row.ecp_prev) || 0;
-            const ecpCurr = parseFloat(row.ecp_curr) || 0;
-            const change = ecpCurr - ecpPrev;
-            const changePercent = ecpPrev > 0 ? ((change / ecpPrev) * 100) : 0;
+            // Process results and add trend labels
+            const data = (results || []).map(row => {
+                const ecpPrev = parseFloat(row.ecp_prev) || 0;
+                const ecpCurr = parseFloat(row.ecp_curr) || 0;
+                const change = ecpCurr - ecpPrev;
+                const changePercent = ecpPrev > 0 ? ((change / ecpPrev) * 100) : 0;
 
-            // Label as "up" if ecp_curr increased, "down" if decreased
-            let trend = 'neutral';
-            if (change > 0) {
-                trend = 'up';
-            } else if (change < 0) {
-                trend = 'down';
-            }
+                // Label as "up" if ecp_curr increased, "down" if decreased
+                let trend = 'neutral';
+                if (change > 0) {
+                    trend = 'up';
+                } else if (change < 0) {
+                    trend = 'down';
+                }
+
+                return {
+                    brand: row.Brand,
+                    platform: row.Platform,
+                    ecp_prev: ecpPrev,
+                    ecp_curr: ecpCurr,
+                    trend,
+                    change: parseFloat(change.toFixed(2)),
+                    changePercent: parseFloat(changePercent.toFixed(2))
+                };
+            });
+
+            console.log(`[PricingAnalysisService] Returning ${data.length} ECP comparison records`);
 
             return {
-                brand: row.Brand,
-                platform: row.Platform,
-                ecp_prev: ecpPrev,
-                ecp_curr: ecpCurr,
-                trend,
-                change: parseFloat(change.toFixed(2)),
-                changePercent: parseFloat(changePercent.toFixed(2))
+                success: true,
+                data,
+                filters: {
+                    startDate,
+                    endDate,
+                    compareStartDate,
+                    compareEndDate,
+                    platform: platform || 'All',
+                    location: location || 'All'
+                },
+                summary: {
+                    total: data.length,
+                    upCount: data.filter(d => d.trend === 'up').length,
+                    downCount: data.filter(d => d.trend === 'down').length,
+                    neutralCount: data.filter(d => d.trend === 'neutral').length
+                }
             };
-        });
 
-        console.log(`[PricingAnalysisService] Returning ${data.length} ECP comparison records`);
-
-        return {
-            success: true,
-            data,
-            filters: {
-                startDate,
-                endDate,
-                compareStartDate,
-                compareEndDate,
-                platform: platform || 'All',
-                location: location || 'All'
-            },
-            summary: {
-                total: data.length,
-                upCount: data.filter(d => d.trend === 'up').length,
-                downCount: data.filter(d => d.trend === 'down').length,
-                neutralCount: data.filter(d => d.trend === 'neutral').length
-            }
-        };
-
-    } catch (error) {
-        console.error('[PricingAnalysisService] Error in getEcpComparison:', error);
-        return {
-            success: false,
-            data: [],
-            error: error.message,
-            filters: {
-                startDate: filters.startDate,
-                endDate: filters.endDate,
-                compareStartDate: filters.compareStartDate,
-                compareEndDate: filters.compareEndDate
-            }
-        };
-    }
+        } catch (error) {
+            console.error('[PricingAnalysisService] Error in getEcpComparison:', error);
+            return {
+                success: false,
+                data: [],
+                error: error.message,
+                filters: {
+                    startDate: filters.startDate,
+                    endDate: filters.endDate,
+                    compareStartDate: filters.compareStartDate,
+                }
+            };
+        }
+    }, CACHE_TTL.ONE_HOUR);
 }
 
 export default {
