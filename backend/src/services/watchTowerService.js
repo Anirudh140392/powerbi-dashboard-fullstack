@@ -340,7 +340,24 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             return buckets;
         };
 
+        // Helper to generate week buckets for weekly KPI graphs
+        const generateWeekBuckets = (start, end) => {
+            const buckets = [];
+            let current = start.clone().startOf('isoWeek');
+            const endWeek = end.clone().endOf('isoWeek');
+            while (current.isBefore(endWeek) || current.isSame(endWeek, 'week')) {
+                buckets.push({
+                    label: `W${current.week()}`,
+                    date: current.toDate(),
+                    value: 0
+                });
+                current = current.add(1, 'week');
+            }
+            return buckets;
+        };
+
         const monthBuckets = generateMonthBuckets(startDate, endDate);
+        const weekBuckets = generateWeekBuckets(startDate, endDate);
 
         // Helper for currency formatting
         const formatCurrency = (value) => {
@@ -953,12 +970,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     const result = await queryClickHouse(`
                         SELECT 
-                            formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
+                            toMonday(toDate(DATE)) as week_date,
                             SUM(ifNull(toFloat64(Sales), 0)) as total_sales
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
-                        ORDER BY month_date
+                        GROUP BY toMonday(toDate(DATE))
+                        ORDER BY week_date
                     `);
                     return result;
                 } catch (err) {
@@ -984,30 +1001,44 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         `created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
                         `sales IS NOT NULL`
                     ];
-                    if (platform && platform !== 'All') msBaseConditions.push(`Platform = '${escapeStrMain(platform)}'`);
-                    if (location && location !== 'All') msBaseConditions.push(`Location = '${escapeStrMain(location)}'`);
+                    // Handle multi-value Platform filter
+                    if (platformArr && platformArr.length > 0) {
+                        if (platformArr.length === 1) {
+                            msBaseConditions.push(`Platform = '${escapeStrMain(platformArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
+                        }
+                    }
+                    // Handle multi-value Location filter
+                    if (locationArr && locationArr.length > 0) {
+                        if (locationArr.length === 1) {
+                            msBaseConditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+                        }
+                    }
 
                     const [numeratorData, denominatorData] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date, SUM(toFloat64OrZero(sales)) as our_sales
+                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(sales)) as our_sales
                             FROM rb_brand_ms
                             WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})
-                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(created_on))
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date, SUM(toFloat64OrZero(sales)) as total_sales
+                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(sales)) as total_sales
                             FROM rb_brand_ms
                             WHERE ${msBaseConditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(created_on))
                         `)
                     ]);
 
-                    const numMap = new Map(numeratorData.map(r => [r.month_date, parseFloat(r.our_sales || 0)]));
+                    const numMap = new Map(numeratorData.map(r => [r.week_date, parseFloat(r.our_sales || 0)]));
                     return denominatorData.map(r => {
-                        const ourSales = numMap.get(r.month_date) || 0;
+                        const ourSales = numMap.get(r.week_date) || 0;
                         const totalSales = parseFloat(r.total_sales || 0);
                         return {
-                            month_date: r.month_date,
+                            week_date: r.week_date,
                             avg_market_share: totalSales > 0 ? (ourSales / totalSales) * 100 : 0
                         };
                     });
@@ -1030,8 +1061,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         `created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
                         `sales IS NOT NULL`
                     ];
-                    if (platform && platform !== 'All') msBaseConditions.push(`Platform = '${escapeStrMain(platform)}'`);
-                    if (location && location !== 'All') msBaseConditions.push(`Location = '${escapeStrMain(location)}'`);
+                    // Handle multi-value Platform filter
+                    if (platformArr && platformArr.length > 0) {
+                        if (platformArr.length === 1) {
+                            msBaseConditions.push(`Platform = '${escapeStrMain(platformArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
+                        }
+                    }
+                    // Handle multi-value Location filter
+                    if (locationArr && locationArr.length > 0) {
+                        if (locationArr.length === 1) {
+                            msBaseConditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+                        }
+                    }
 
                     const [ourSalesResult, totalSalesResult] = await Promise.all([
                         queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as our_sales FROM rb_brand_ms WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})`),
@@ -1083,13 +1128,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     return await queryClickHouse(`
                         SELECT 
-                            formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
+                            toMonday(toDate(DATE)) as week_date,
                             SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
                             SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
-                        ORDER BY month_date
+                        GROUP BY toMonday(toDate(DATE))
+                        ORDER BY week_date
                     `);
                 } catch (err) {
                     console.error('[AvailabilityTrend] ClickHouse error:', err.message);
@@ -1127,34 +1172,34 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         numeratorConditions.push(`keyword_is_rb_product = 1`);
                     }
 
-                    const [brandMonthCounts, totalMonthCounts] = await Promise.all([
+                    const [brandWeekCounts, totalWeekCounts] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                            SELECT toMonday(toDate(kw_crawl_date)) as week, count() as count
                             FROM rb_kw
                             WHERE ${numeratorConditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(kw_crawl_date))
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                            SELECT toMonday(toDate(kw_crawl_date)) as week, count() as count
                             FROM rb_kw
                             WHERE ${kwBaseConditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(kw_crawl_date))
                         `)
                     ]);
 
-                    const brandCountMap = new Map(brandMonthCounts.map(r => [r.month, parseInt(r.count)]));
-                    const totalCountMap = new Map(totalMonthCounts.map(r => [r.month, parseInt(r.count)]));
+                    const brandCountMap = new Map(brandWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
+                    const totalCountMap = new Map(totalWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
 
-                    return monthBuckets.map(bucket => {
-                        const monthKey = dayjs(bucket.date).format('YYYY-MM-01');
-                        const brandCount = brandCountMap.get(monthKey) || 0;
-                        const totalCount = totalCountMap.get(monthKey) || 0;
+                    return weekBuckets.map(bucket => {
+                        const weekKey = dayjs(bucket.date).startOf('isoWeek').format('YYYY-MM-DD');
+                        const brandCount = brandCountMap.get(weekKey) || 0;
+                        const totalCount = totalCountMap.get(weekKey) || 0;
                         const sosValue = totalCount > 0 ? (brandCount / totalCount) * 100 : 0;
-                        return { month_date: bucket.date, value: sosValue };
+                        return { week_date: bucket.date, value: sosValue };
                     });
                 } catch (error) {
                     console.error('Error calculating bulk SOS trend:', error.message);
-                    return monthBuckets.map(bucket => ({ month_date: bucket.date, value: 0 }));
+                    return weekBuckets.map(bucket => ({ week_date: bucket.date, value: 0 }));
                 }
             })(),
             // 11. Previous Offtake - USING CLICKHOUSE
@@ -1203,10 +1248,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })()
         ]);
 
-        // Process Offtake Data
-        const offtakeChart = monthBuckets.map(bucket => {
+        // Process Offtake Data - Using weekBuckets for weekly chart
+        const offtakeChart = weekBuckets.map(bucket => {
             const match = offtakeData.find(d => {
-                return dayjs(d.month_date).isSame(dayjs(bucket.date), 'month');
+                return dayjs(d.week_date).isSame(dayjs(bucket.date), 'week');
             });
             return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
         });
@@ -1224,9 +1269,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(1) + "%";
 
-        // Process Market Share Data
-        const marketShareChart = monthBuckets.map(bucket => {
-            const match = marketShareData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+        // Process Market Share Data - Using weekBuckets for weekly chart
+        const marketShareChart = weekBuckets.map(bucket => {
+            const match = marketShareData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
             return match ? parseFloat(match.avg_market_share) : 0;
         });
 
@@ -1245,9 +1290,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const availabilityChange = currentAvailability - prevAvailability;
         const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + " pp";
 
-        // Process Availability Chart
-        const availabilityChart = monthBuckets.map(bucket => {
-            const match = availabilityTrendData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+        // Process Availability Chart - Using weekBuckets for weekly chart
+        const availabilityChart = weekBuckets.map(bucket => {
+            const match = availabilityTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
             if (match) {
                 const totalNeno = parseFloat(match.total_neno || 0);
                 const totalDeno = parseFloat(match.total_deno || 0);
@@ -1263,9 +1308,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const sosChange = currentShareOfSearch - prevShareOfSearch;
         const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + " pp";
 
-        // Process Share of Search Chart
-        const shareOfSearchChart = monthBuckets.map(bucket => {
-            const match = shareOfSearchTrendData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+        // Process Share of Search Chart - Using weekBuckets for weekly chart
+        const shareOfSearchChart = weekBuckets.map(bucket => {
+            const match = shareOfSearchTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
             return match ? parseFloat(match.value) : 0;
         });
 
@@ -1286,8 +1331,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             marketShare: formattedMarketShare,
         };
 
-        // Prepare Top Metrics Array (Cards with Charts)
-        const chartLabels = monthBuckets.map(b => b.label);
+        // Prepare Top Metrics Array (Cards with Charts) - Use weekBuckets for weekly labels
+        const chartLabels = weekBuckets.map(b => b.label);
 
         // Determine subtitle based on filters
         let subtitle = `last ${monthsBack} months`;

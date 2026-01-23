@@ -269,18 +269,32 @@ export const FilterProvider = ({ children }) => {
         const fetchBrands = async () => {
             if (backendAvailable) {
                 try {
-                    // Check if on Availability Analysis or Visibility Analysis page - include competitor brands
-                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis') || window.location.pathname.includes('visibility-anlysis');
+                    // Check if on Availability Analysis page - use availability-specific endpoint
+                    const isAvailabilityPage = window.location.pathname.includes('availability-analysis');
+                    // Check if on Visibility Analysis page
+                    const isVisibilityPage = window.location.pathname.includes('visibility-anlysis');
 
-                    // Note: Brands in rca_sku_dim are NOT platform-specific, so we always fetch with platform='All'
-                    // The platform filter is only relevant for other dropdowns like locations
-                    const response = await axiosInstance.get("/watchtower/brands", {
-                        params: {
-                            platform: 'All',  // Always use 'All' since brands are shared across platforms
-                            includeCompetitors: isAvailabilityPage ? 'true' : 'false'
-                        }
-                    });
-                    const fetchedBrands = response.data;
+                    let fetchedBrands;
+
+                    if (isAvailabilityPage) {
+                        // Use availability filter-options endpoint which fetches from rb_pdp_olap
+                        const response = await axiosInstance.get("/availability-analysis/filter-options", {
+                            params: {
+                                filterType: 'brands',
+                                platform: platform !== 'All' ? platform : 'All'
+                            }
+                        });
+                        fetchedBrands = response.data?.options || [];
+                    } else {
+                        // Use watchtower/brands endpoint for other pages (uses rca_sku_dim)
+                        const response = await axiosInstance.get("/watchtower/brands", {
+                            params: {
+                                platform: 'All',  // Always use 'All' since brands are shared across platforms
+                                includeCompetitors: isVisibilityPage ? 'true' : 'false'
+                            }
+                        });
+                        fetchedBrands = response.data;
+                    }
 
                     if (fetchedBrands && fetchedBrands.length > 0) {
                         // API data available
