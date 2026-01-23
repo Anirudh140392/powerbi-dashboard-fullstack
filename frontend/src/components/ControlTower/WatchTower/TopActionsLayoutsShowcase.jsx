@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
     LineChart,
     Line,
@@ -8,6 +8,8 @@ import {
     Legend,
     ResponsiveContainer,
 } from "recharts";
+import axiosInstance from "../../../api/axiosInstance";
+import { FilterContext } from "../../../utils/FilterContext";
 
 const issues = [
     {
@@ -589,7 +591,57 @@ const DetailPanel = ({ selected }) => {
 
 const LayoutOne = () => {
     const [selectedId, setSelectedId] = useState(issues[0].id);
-    const selected = issues.find((x) => x.id === selectedId) || null;
+    const [counts, setCounts] = useState({ darkstoreCount: 0, skuCount: 0 });
+
+    // Get filters from context
+    const { platform, selectedLocation, timeStart, timeEnd } = useContext(FilterContext);
+
+    // Fetch dynamic counts when filters change
+    useEffect(() => {
+        const fetchCounts = async () => {
+            try {
+                const params = {};
+
+                // Add platform filter
+                if (platform && platform !== 'All') {
+                    params.platform = platform;
+                }
+
+                // Add location filter
+                if (selectedLocation && selectedLocation !== 'All') {
+                    params.location = selectedLocation;
+                }
+
+                // Add date range filters
+                if (timeStart) {
+                    params.startDate = timeStart.format('YYYY-MM-DD');
+                }
+                if (timeEnd) {
+                    params.endDate = timeEnd.format('YYYY-MM-DD');
+                }
+
+                console.log('[TopActions] Fetching counts with filters:', params);
+                const response = await axiosInstance.get('/watchtower/top-actions-counts', { params });
+                setCounts(response.data);
+            } catch (error) {
+                console.error('[TopActions] Error fetching counts:', error);
+            }
+        };
+        fetchCounts();
+    }, [platform, selectedLocation, timeStart, timeEnd]);
+
+    // Build dynamic issues list with updated subtitle for OSA
+    const dynamicIssues = issues.map(issue => {
+        if (issue.id === 1) {
+            return {
+                ...issue,
+                subtitle: `${counts.darkstoreCount} stores OOS in top ${counts.skuCount} SKUs`
+            };
+        }
+        return issue;
+    });
+
+    const selected = dynamicIssues.find((x) => x.id === selectedId) || null;
 
     return (
         <section className="grid gap-4 rounded-3xl bg-gradient-to-br bg-white p-5 shadow-sm md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
@@ -612,7 +664,7 @@ const LayoutOne = () => {
 
                 <div className="flex flex-col gap-2 overflow-hidden rounded-2xl bg-white/70 p-2 backdrop-blur">
 
-                    {issues.map((item, idx) => {
+                    {dynamicIssues.map((item, idx) => {
                         const isActive = item.id === selectedId;
 
                         return (

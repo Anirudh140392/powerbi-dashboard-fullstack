@@ -94,7 +94,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm min-h-[400px]">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -342,7 +342,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
   const pageBadge = `${selected.size} selected`;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col p-5">
       <header className="mb-2 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
@@ -460,39 +460,41 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-y-auto" style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
-        {pageItems.map((opt) => (
-          <label
-            key={opt.id}
-            className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2.5 text-sm hover:bg-sky-50/50"
-          >
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-sky-600 rounded"
-                checked={selected.has(opt.id)}
-                onChange={() => toggleOne(opt.id)}
-              />
-              <span className="font-medium text-slate-800">{opt.label}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {typeof opt.value === "number" && (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-                  {opt.value.toLocaleString()}
-                </span>
-              )}
-              {opt.meta ? (
-                <span className="text-[11px] text-slate-400">{opt.meta}</span>
-              ) : null}
-            </div>
-          </label>
-        ))}
+      <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+          {pageItems.map((opt) => (
+            <label
+              key={opt.id}
+              className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2.5 text-sm hover:bg-sky-50/50"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-sky-600 rounded"
+                  checked={selected.has(opt.id)}
+                  onChange={() => toggleOne(opt.id)}
+                />
+                <span className="font-medium text-slate-800">{opt.label}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {typeof opt.value === "number" && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                    {opt.value.toLocaleString()}
+                  </span>
+                )}
+                {opt.meta ? (
+                  <span className="text-[11px] text-slate-400">{opt.meta}</span>
+                ) : null}
+              </div>
+            </label>
+          ))}
 
-        {pageItems.length === 0 && (
-          <div className="p-4 text-center text-xs text-slate-400">
-            No options match this search.
-          </div>
-        )}
+          {pageItems.length === 0 && (
+            <div className="p-4 text-center text-xs text-slate-400">
+              No options match this search.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Pagination footer - always visible */}
@@ -553,7 +555,7 @@ function KpiRuleBuilder({ fields, onRulesChange }) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col p-5 gap-3">
       <header className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">KPI rule builder</h2>
