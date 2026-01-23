@@ -5336,16 +5336,16 @@ const getCompetitionData = async (filters = {}) => {
         const buildCompConds = (startDt, endDt) => {
             const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
             const platArr = normalizeFilterArray(platform);
-            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            if (platArr && platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
 
             const locArr = normalizeFilterArray(location);
-            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
             const catArr = normalizeFilterArray(category);
-            if (catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            if (catArr && catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
             const brandArr = normalizeFilterArray(brand);
-            if (brandArr.length > 0) {
+            if (brandArr && brandArr.length > 0) {
                 if (brandArr.length === 1) {
                     conds.push(`lower(Brand) = '${escapeStr(brandArr[0].toLowerCase())}'`);
                 } else {
@@ -5354,7 +5354,7 @@ const getCompetitionData = async (filters = {}) => {
             }
 
             const skuArr = normalizeFilterArray(sku);
-            if (skuArr.length > 0) conds.push(`Product IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
+            if (skuArr && skuArr.length > 0) conds.push(`Product IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
 
             return conds.join(' AND ');
         };
@@ -5885,25 +5885,25 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         baseConds.push(`toString(Comp_flag) = '1'`);  // Competitor brands only
 
         const locArr = normalizeFilterArray(location);
-        if (locArr.length > 0) {
+        if (locArr && locArr.length > 0) {
             baseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Market Share conditions for rb_brand_ms table (platform-level totals)
         const msBaseConds = [`created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         msBaseConds.push(`sales IS NOT NULL`);
-        if (locArr.length > 0) {
+        if (locArr && locArr.length > 0) {
             msBaseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Category Share conditions for rb_brand_ms table (category-level totals)
         const catBaseConds = [`created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         catBaseConds.push(`sales IS NOT NULL`);
-        if (locArr.length > 0) {
+        if (locArr && locArr.length > 0) {
             catBaseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         const catArr = normalizeFilterArray(category);
-        if (catArr.length > 0) {
+        if (catArr && catArr.length > 0) {
             catBaseConds.push(`category_master IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 

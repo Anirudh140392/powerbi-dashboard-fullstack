@@ -12,7 +12,47 @@ const formatNumber = (v) => {
     return v.toFixed(2);
 };
 
-
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+    return (
+        <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div className="text-center">
+                <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+                <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+            </div>
+            <button
+                onClick={onRetry}
+                disabled={isRetrying}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+                    }`}
+            >
+                {isRetrying ? (
+                    <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+                        <span>Retrying...</span>
+                    </>
+                ) : (
+                    <>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Refresh</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
+};
 
 export default function InventoryDrill() {
     const [filters, setFilters] = useState({
@@ -32,6 +72,7 @@ export default function InventoryDrill() {
     const [matrixData, setMatrixData] = useState([]);
     const [metadata, setMetadata] = useState({ platforms: [], brands: [], categories: [], skus: [], cities: [] });
     const [isLoading, setIsLoading] = useState(false);
+    const [apiError, setApiError] = useState(null);
 
     // Access global filters from context
     const {
@@ -39,46 +80,58 @@ export default function InventoryDrill() {
         timeEnd,
         platform: globalPlatform,
         selectedBrand: globalBrand,
-        selectedLocation: globalLocation
+        selectedLocation: globalLocation,
+        refreshFilters
     } = useContext(FilterContext);
+
+    // Fetch function (extracted for reuse)
+    const fetchMatrixData = async () => {
+        try {
+            setIsLoading(true);
+            setApiError(null);
+
+            const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
+            const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
+
+            // Robust filter construction
+            const getFilterValue = (local, global) => {
+                if (local && local.length > 0) return local.join(',');
+                if (global) {
+                    return Array.isArray(global) ? global.join(',') : global;
+                }
+                return 'All';
+            };
+
+            const params = {
+                startDate,
+                endDate,
+                platform: getFilterValue(filters.platform, globalPlatform),
+                brand: getFilterValue(filters.brand, globalBrand),
+                location: getFilterValue(filters.citySelection, globalLocation),
+                category: getFilterValue(filters.format, null) // formats/categories are local here
+            };
+
+            const response = await axiosInstance.get(`/inventory-analysis/matrix`, { params });
+            setMatrixData(response.data.data);
+            setMetadata(response.data.metadata);
+        } catch (error) {
+            console.error("❌ [InventoryMatrix] Failed to fetch matrix data:", error);
+            setApiError(error.message || 'Failed to load inventory data');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Retry function
+    const retryFetch = () => {
+        if (refreshFilters) {
+            refreshFilters();
+        }
+        fetchMatrixData();
+    };
 
     // Initial load & Filter change effect
     useEffect(() => {
-        const fetchMatrixData = async () => {
-            try {
-                setIsLoading(true);
-
-                const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
-                const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
-
-                // Robust filter construction
-                const getFilterValue = (local, global) => {
-                    if (local && local.length > 0) return local.join(',');
-                    if (global) {
-                        return Array.isArray(global) ? global.join(',') : global;
-                    }
-                    return 'All';
-                };
-
-                const params = {
-                    startDate,
-                    endDate,
-                    platform: getFilterValue(filters.platform, globalPlatform),
-                    brand: getFilterValue(filters.brand, globalBrand),
-                    location: getFilterValue(filters.citySelection, globalLocation),
-                    category: getFilterValue(filters.format, null) // formats/categories are local here
-                };
-
-                const response = await axiosInstance.get(`/inventory-analysis/matrix`, { params });
-                setMatrixData(response.data.data);
-                setMetadata(response.data.metadata);
-            } catch (error) {
-                console.error("❌ [InventoryMatrix] Failed to fetch matrix data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchMatrixData();
     }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation]);
 
@@ -307,6 +360,16 @@ export default function InventoryDrill() {
                                         ))}
                                     </tr>
                                 ))
+                            ) : apiError ? (
+                                <tr>
+                                    <td colSpan={cityColumns.length + 1} className="px-6 py-6">
+                                        <ErrorWithRefresh
+                                            segmentName="Inventory Matrix"
+                                            errorMessage={apiError}
+                                            onRetry={retryFetch}
+                                        />
+                                    </td>
+                                </tr>
                             ) : pageRows.length === 0 ? (
                                 <tr>
                                     <td colSpan={cityColumns.length + 1} className="px-6 py-10 text-center">

@@ -6,6 +6,7 @@
 
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
 
 /**
@@ -24,22 +25,25 @@ import dayjs from 'dayjs';
  * }
  */
 async function getBrandDiscountTrend(filters = {}) {
-    try {
-        console.log('[BrandDiscountTrendService] getBrandDiscountTrend called with filters:', filters);
+    console.log('[BrandDiscountTrendService] getBrandDiscountTrend called with filters:', filters);
+    const cacheKey = generateCacheKey('brand_discount_trend', filters);
 
-        // Date range - default to last 6 months
-        const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-        const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
+    return await getCachedOrCompute(cacheKey, async () => {
+        try {
 
-        // Build platform filter clause
-        let platformClause = '';
-        if (filters.platform && filters.platform !== 'All') {
-            platformClause = `AND Platform = '${filters.platform}'`;
-        }
+            // Date range - default to last 6 months
+            const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
 
-        // SQL query to get monthly average discount by brand
-        // Groups by Year-Month and Brand, calculates average discount
-        const query = `
+            // Build platform filter clause
+            let platformClause = '';
+            if (filters.platform && filters.platform !== 'All') {
+                platformClause = `AND Platform = '${filters.platform}'`;
+            }
+
+            // SQL query to get monthly average discount by brand
+            // Groups by Year-Month and Brand, calculates average discount
+            const query = `
             SELECT
                 Brand,
                 formatDateTime(DATE, '%b %Y') as monthLabel,
@@ -54,19 +58,72 @@ async function getBrandDiscountTrend(filters = {}) {
             ORDER BY Brand, monthSort DESC
         `;
 
-        console.log('[BrandDiscountTrendService] Executing query...');
-        const queryStart = Date.now();
+            console.log('[BrandDiscountTrendService] Executing query...');
+            const queryStart = Date.now();
 
-        const results = await queryClickHouse(query);
+            const results = await queryClickHouse(query);
 
-        console.log(`[BrandDiscountTrendService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
+            console.log(`[BrandDiscountTrendService] Query completed in ${Date.now() - queryStart}ms, found ${results?.length || 0} results`);
 
-        if (!results || results.length === 0) {
+            if (!results || results.length === 0) {
+                return {
+                    success: true,
+                    data: {
+                        months: [],
+                        series: []
+                    },
+                    filters: {
+                        startDate,
+                        endDate,
+                        platform: filters.platform || 'All'
+                    },
+                    summary: {
+                        totalBrands: 0,
+                        totalMonths: 0
+                    }
+                };
+            }
+
+            // Extract unique months in descending order (newest first)
+            const monthsSet = new Map();
+            results.forEach(row => {
+                if (!monthsSet.has(row.monthSort)) {
+                    monthsSet.set(row.monthSort, row.monthLabel);
+                }
+            });
+
+            // Sort months in descending order (newest first for display like Nov 2025, Oct 2025...)
+            const sortedMonthKeys = Array.from(monthsSet.keys()).sort((a, b) => b.localeCompare(a));
+            const months = sortedMonthKeys.map(key => monthsSet.get(key));
+
+            // Group results by brand
+            const brandMap = {};
+            results.forEach(row => {
+                const brand = row.Brand;
+                if (!brandMap[brand]) {
+                    brandMap[brand] = {};
+                }
+                brandMap[brand][row.monthSort] = parseFloat(row.avgDiscount) || 0;
+            });
+
+            // Build series array with data aligned to months order
+            const series = Object.keys(brandMap).sort().map(brand => {
+                const data = sortedMonthKeys.map(monthKey => brandMap[brand][monthKey] || 0);
+                return {
+                    name: brand,
+                    type: 'line',
+                    smooth: true,
+                    data
+                };
+            });
+
+            console.log(`[BrandDiscountTrendService] Returning ${series.length} brands across ${months.length} months`);
+
             return {
                 success: true,
                 data: {
-                    months: [],
-                    series: []
+                    months,
+                    series
                 },
                 filters: {
                     startDate,
@@ -74,80 +131,28 @@ async function getBrandDiscountTrend(filters = {}) {
                     platform: filters.platform || 'All'
                 },
                 summary: {
-                    totalBrands: 0,
-                    totalMonths: 0
+                    totalBrands: series.length,
+                    totalMonths: months.length
+                }
+            };
+
+        } catch (error) {
+            console.error('[BrandDiscountTrendService] Error in getBrandDiscountTrend:', error);
+            return {
+                success: false,
+                data: {
+                    months: [],
+                    series: []
+                },
+                error: error.message,
+                filters: {
+                    startDate: filters.startDate,
+                    endDate: filters.endDate,
+                    platform: filters.platform || 'All'
                 }
             };
         }
-
-        // Extract unique months in descending order (newest first)
-        const monthsSet = new Map();
-        results.forEach(row => {
-            if (!monthsSet.has(row.monthSort)) {
-                monthsSet.set(row.monthSort, row.monthLabel);
-            }
-        });
-
-        // Sort months in descending order (newest first for display like Nov 2025, Oct 2025...)
-        const sortedMonthKeys = Array.from(monthsSet.keys()).sort((a, b) => b.localeCompare(a));
-        const months = sortedMonthKeys.map(key => monthsSet.get(key));
-
-        // Group results by brand
-        const brandMap = {};
-        results.forEach(row => {
-            const brand = row.Brand;
-            if (!brandMap[brand]) {
-                brandMap[brand] = {};
-            }
-            brandMap[brand][row.monthSort] = parseFloat(row.avgDiscount) || 0;
-        });
-
-        // Build series array with data aligned to months order
-        const series = Object.keys(brandMap).sort().map(brand => {
-            const data = sortedMonthKeys.map(monthKey => brandMap[brand][monthKey] || 0);
-            return {
-                name: brand,
-                type: 'line',
-                smooth: true,
-                data
-            };
-        });
-
-        console.log(`[BrandDiscountTrendService] Returning ${series.length} brands across ${months.length} months`);
-
-        return {
-            success: true,
-            data: {
-                months,
-                series
-            },
-            filters: {
-                startDate,
-                endDate,
-                platform: filters.platform || 'All'
-            },
-            summary: {
-                totalBrands: series.length,
-                totalMonths: months.length
-            }
-        };
-
-    } catch (error) {
-        console.error('[BrandDiscountTrendService] Error in getBrandDiscountTrend:', error);
-        return {
-            success: false,
-            data: {
-                months: [],
-                series: []
-            },
-            error: error.message,
-            filters: {
-                startDate: filters.startDate,
-                endDate: filters.endDate,
-                platform: filters.platform || 'All'
-            }
-        };
-    }
+    }, CACHE_TTL.ONE_HOUR);
 }
 
 /**
@@ -156,17 +161,19 @@ async function getBrandDiscountTrend(filters = {}) {
  * @returns {Object} { success, data: [...brand names] }
  */
 async function getAvailableBrands(filters = {}) {
-    try {
-        const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-        const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
+    const cacheKey = generateCacheKey('brand_discount_available_brands', filters);
+    return await getCachedOrCompute(cacheKey, async () => {
+        try {
+            const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
 
 
-        let platformClause = '';
-        if (filters.platform && filters.platform !== 'All') {
-            platformClause = `AND Platform = '${filters.platform}'`;
-        }
+            let platformClause = '';
+            if (filters.platform && filters.platform !== 'All') {
+                platformClause = `AND Platform = '${filters.platform}'`;
+            }
 
-        const query = `
+            const query = `
             SELECT DISTINCT Brand
             FROM rb_pdp_olap
             WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
@@ -176,23 +183,24 @@ async function getAvailableBrands(filters = {}) {
             ORDER BY Brand
         `;
 
-        const results = await queryClickHouse(query);
-        const brands = results.map(r => r.Brand);
+            const results = await queryClickHouse(query);
+            const brands = results.map(r => r.Brand);
 
 
-        return {
-            success: true,
-            data: brands
-        };
+            return {
+                success: true,
+                data: brands
+            };
 
-    } catch (error) {
-        console.error('[BrandDiscountTrendService] Error in getAvailableBrands:', error);
-        return {
-            success: false,
-            data: [],
-            error: error.message
-        };
-    }
+        } catch (error) {
+            console.error('[BrandDiscountTrendService] Error in getAvailableBrands:', error);
+            return {
+                success: false,
+                data: [],
+                error: error.message
+            };
+        }
+    }, CACHE_TTL.LONG);
 }
 
 export default {
