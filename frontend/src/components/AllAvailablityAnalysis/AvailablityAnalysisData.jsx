@@ -1096,7 +1096,7 @@ const cardsAbsolute = [
   },
   {
     title: "Fill Rate",
-    value: "Coming soon",
+    value: "Coming Soon...",
     sub: "Supplier fulfillment rate",
     change: "",
     changeColor: "gray",
@@ -1104,6 +1104,7 @@ const cardsAbsolute = [
     extra: "",
     extraChange: "",
     extraChangeColor: "gray",
+    isComingSoon: true,
   },
   {
     title: "Metro City Stock Availability",
@@ -1143,7 +1144,7 @@ const cardsWeighted = [
   },
   {
     title: "Fill Rate",
-    value: "Coming soon",
+    value: "Coming Soon...",
     sub: "Supplier fulfillment rate",
     change: "",
     changeColor: "gray",
@@ -1151,6 +1152,7 @@ const cardsWeighted = [
     extra: "",
     extraChange: "",
     extraChangeColor: "gray",
+    isComingSoon: true,
   },
   {
     title: "Metro City Stock Availability",

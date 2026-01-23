@@ -1265,6 +1265,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <tbody className="bg-white">
                 {paginatedRows.map((row) => {
                   const isDisplaySOS = row.kpi?.toLowerCase().includes("display sos");
+                  const isFillRate = row.kpi?.toLowerCase().includes("fill") && row.kpi?.toLowerCase().includes("rate") || row.kpi?.toLowerCase() === "fillrate";
+                  const isComingSoon = isDisplaySOS || isFillRate;
                   return (
                     <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
@@ -1275,7 +1277,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                         {row.kpi.toUpperCase()}
                       </td>
 
-                      {isDisplaySOS ? (
+                      {isComingSoon ? (
                         <td colSpan={visibleColumns.length} className="py-2 px-3 border-b border-slate-50 text-center italic text-slate-400 bg-slate-50/30 font-medium">
                           Coming Soon...
                         </td>

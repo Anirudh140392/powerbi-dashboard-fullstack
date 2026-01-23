@@ -279,7 +279,7 @@ const MiniChartCard = ({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      value : {v}
+                      value : {typeof v === 'number' ? v.toFixed(2) : v}
                     </Typography>
                   </Box>
                 )}
