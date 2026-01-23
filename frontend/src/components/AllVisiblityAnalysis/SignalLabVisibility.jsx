@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useContext } from "react";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 import {
     X,
     SlidersHorizontal,
@@ -1126,16 +1127,12 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
                 console.log(`[SignalLabVisibility] Fetching Top ${signalType}s for ${metricType} (Limit 50)`);
 
-                const response = await fetch(
-                    `http://localhost:5000/api/availability-analysis/signal-lab?${queryParams}`,
+                const response = await axiosInstance.get(
+                    `/availability-analysis/signal-lab?${queryParams}`,
                     { signal }
                 );
 
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
-                }
-
-                const data = await response.json();
+                const data = response.data;
 
                 if (isMounted) {
                     console.log('[SignalLabVisibility] API Response received');
