@@ -1,5 +1,8 @@
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+import weekOfYear from 'dayjs/plugin/weekOfYear.js';
+
+dayjs.extend(weekOfYear);
 
 /**
  * Performance Marketing Service
@@ -10,8 +13,9 @@ const performanceMarketingService = {
     async getCategories() {
         try {
             const targetCategories = ['bath & body', 'detergent', 'fragrance & talc', 'hair care'];
+            // Fetch categories that match target set (case insensitive)
             const query = `
-                SELECT DISTINCT lower(keyword_category) as category 
+                SELECT DISTINCT keyword_category as category 
                 FROM tb_zepto_pm_keyword_rca 
                 WHERE lower(keyword_category) IN (${targetCategories.map(c => `'${c}'`).join(',')})
                 ORDER BY category
@@ -85,10 +89,9 @@ const performanceMarketingService = {
                 WHERE ${whereSql}
                 GROUP BY keyword_name, keyword_category, month
             `;
-
+            console.log("🔍 [Service] getKeywordAnalysis Query:\n", query);
             const results = await queryClickHouse(query);
-
-            console.log("🔍 [Service] getKeywordAnalysis results count:", results.length);
+            console.log("✅ [Service] getKeywordAnalysis Results:", results.length);
 
             const keywordMap = new Map();
 
@@ -449,10 +452,10 @@ const performanceMarketingService = {
             const whereSql = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 
             // Group by keyword_category -> Date
-            const query = `
+            const queryDaily = `
                 SELECT 
                     keyword_category as Category,
-                    formatDateTime(date, '%F') as date,
+                    formatDateTime(date, '%Y-%m-%d') as date,
                     SUM(spend) as spend,
                     SUM(impressions) as impressions,
                     SUM(clicks) as clicks,
@@ -464,8 +467,9 @@ const performanceMarketingService = {
                 GROUP BY keyword_category, date
                 ORDER BY keyword_category ASC, date ASC
             `;
-
-            const dailyData = await queryClickHouse(query);
+            console.log("🔍 [Service] getFormatPerformance Query:\n", queryDaily);
+            const dailyData = await queryClickHouse(queryDaily);
+            console.log("✅ [Service] getFormatPerformance Results:", dailyData.length);
 
             // Log what dates we got from database
             console.log(`\n📊 [getFormatPerformance] Retrieved ${dailyData.length} rows from database`);
@@ -798,6 +802,7 @@ const performanceMarketingService = {
                     GROUP BY keyword_type
                     ORDER BY keyword_type ASC
                 `;
+                console.log("🔍 [Service] getKeywordTypeData Query:\n", query);
                 return await queryClickHouse(query);
             };
 

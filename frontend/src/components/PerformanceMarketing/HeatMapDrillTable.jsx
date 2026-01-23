@@ -251,11 +251,12 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : (pmSelectedPlatform || 'All'),
           brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand),
           zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone),
-          startDate: timeStart,
-          endDate: timeEnd,
+          startDate: timeStart?.format?.('YYYY-MM-DD') || timeStart,
+          endDate: timeEnd?.format?.('YYYY-MM-DD') || timeEnd,
           spendClass: selectedQuarter, // Q1, Q2, Q3, Q4 filter by acos_spend_class
           weekendFlag: activeFilters.weekendFlag?.join(','), // Send weekend/weekday filter
-          // Keywords kept client-side for now to ensure filter list population
+          category: activeFilters.categories?.join(','), // Add category filter
+          keywords: activeFilters.keywords?.join(','),   // Add keywords filter
         };
         const response = await axiosInstance.get('/performance-marketing/keyword-type-performance', { params });
         setApiData(response.data);
@@ -428,12 +429,21 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
   // visibleHierarchyCols is dynamic based strictly on expansion
   const expandedDepth = getExpandedDepth(expanded);
+
+  const filteredRows = useMemo(() => {
+    const res = filteredDataRows;
+    if (res.length === 0 && apiData?.rows?.length > 0) {
+    }
+    return res;
+  }, [filteredDataRows, apiData]);
+
   // If nothing expanded (depth 0), show 1 column. 
   // If depth 1 expanded (e.g. Magnum), show 2 columns (Type + Keyword).
   // If depth 2 expanded (e.g. Magnum > Keyword), show 3 columns.
   const visibleHierarchyCols = expandedDepth + 1;
 
-  const filteredRows = filteredDataRows;
+  // visibleHierarchyCols needs to be defined BEFORE rendering logic
+
 
   // ---------------- TOTALS -----------------
   const getDeepNodes = (nodes, exp, path = [], res = []) => {
