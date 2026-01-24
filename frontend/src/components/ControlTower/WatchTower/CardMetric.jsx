@@ -85,7 +85,12 @@ const CardMetric = ({ data, onViewTrends }) => {
         >
           {isLoading
             ? // Show skeleton cards while loading
-            [1, 2, 3, 4].map((i) => <SkeletonMetricCard key={i} />)
+            [1, 2, 3, 4].map((i) => (
+              <SkeletonMetricCard
+                key={i}
+                width={scrollNeeded ? 250 : `${100 / 4 - 1.2}%`}
+              />
+            ))
             : cards.map((card, index) => {
               const values = generateValues(card);
               const labels = Array.isArray(card.labels) && card.labels.length === values.length
@@ -113,12 +118,12 @@ const CardMetric = ({ data, onViewTrends }) => {
 };
 
 /* ------------ Skeleton Metric Card - Loading placeholder ------------ */
-const SkeletonMetricCard = () => {
+const SkeletonMetricCard = ({ width = 250 }) => {
   return (
     <Card
       sx={{
         flexShrink: 0,
-        width: 250,
+        width: width,
         borderRadius: 3,
         scrollSnapAlign: "start",
       }}
