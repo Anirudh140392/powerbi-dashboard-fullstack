@@ -68,7 +68,11 @@ const severityColor = {
     low: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
-const DetailPanel = ({ selected }) => {
+const Skeleton = ({ className }) => (
+    <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />
+);
+
+const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }) => {
     const [showModal, setShowModal] = useState(false);
     const [compareMode, setCompareMode] = useState("week");
 
@@ -80,7 +84,14 @@ const DetailPanel = ({ selected }) => {
         );
     }
 
-    const issue1Kpis = [
+    const issue1Kpis = (selected.id === 1 && apiData?.kpis?.osa) ? [
+        { name: "OSA %", value: apiData.kpis.osa.value, delta: apiData.kpis.osa.delta },
+        { name: "Fill Rate", value: apiData.kpis.fillRate.value, delta: apiData.kpis.fillRate.delta },
+        { name: "Sales MTD", value: apiData.kpis.salesMtd.value, delta: apiData.kpis.salesMtd.delta },
+        { name: "Lost Sales", value: apiData.kpis.lostSales.value, delta: apiData.kpis.lostSales.delta },
+        { name: "Active Stores", value: apiData.kpis.activeStores.value, delta: apiData.kpis.activeStores.delta },
+        { name: "Hero SKUs", value: apiData.kpis.heroSkus.value, delta: apiData.kpis.heroSkus.delta },
+    ] : [
         { name: "OSA %", value: "91.2%", delta: "-4.1 pt" },
         { name: "Fill Rate", value: "86.4%", delta: "-6.8 pt" },
         { name: "Sales MTD", value: "₹12.4 Cr", delta: "+8.2%" },
@@ -89,7 +100,7 @@ const DetailPanel = ({ selected }) => {
         { name: "Hero SKUs", value: "4", delta: "0" },
     ];
 
-    const overallTrendWeek = [
+    const overallTrendWeek = (selected.id === 1 && apiData?.graphData?.week?.length > 0) ? apiData.graphData.week : [
         { day: "D-6", current: 94, compare: 97 },
         { day: "D-5", current: 93, compare: 96 },
         { day: "D-4", current: 91, compare: 95 },
@@ -99,7 +110,7 @@ const DetailPanel = ({ selected }) => {
         { day: "Today", current: 82, compare: 92 },
     ];
 
-    const overallTrendMonth = [
+    const overallTrendMonth = (selected.id === 1 && apiData?.graphData?.month?.length > 0) ? apiData.graphData.month : [
         { day: "Wk 1", current: 95, compare: 96 },
         { day: "Wk 2", current: 93, compare: 95 },
         { day: "Wk 3", current: 90, compare: 94 },
@@ -163,15 +174,15 @@ const DetailPanel = ({ selected }) => {
         { day: "Today", current: 86.1, compare: 92 },
     ];
 
-    const osaStoreRows = [
-        { city: "Gurgaon", count: 5, osa: "91.2%", fillRate: "86.4%", sales: "₹2.2 Cr", lostSales: "₹0.4 Cr", heroSkus: "4" },
-        { city: "Delhi", count: 4, osa: "88.5%", fillRate: "82.1%", sales: "₹2.1 Cr", lostSales: "₹0.3 Cr", heroSkus: "4" },
-        { city: "Noida", count: 3, osa: "85.2%", fillRate: "79.8%", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Mumbai", count: 3, osa: "92.1%", fillRate: "88.5%", sales: "₹1.8 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Bengaluru", count: 2, osa: "94.5%", fillRate: "90.2%", sales: "₹1.5 Cr", lostSales: "₹0.1 Cr", heroSkus: "4" },
-        { city: "Hyderabad", count: 4, osa: "89.8%", fillRate: "84.5%", sales: "₹1.6 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Chennai", count: 3, osa: "87.2%", fillRate: "81.4%", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Pune", count: 2, osa: "90.5%", fillRate: "85.2%", sales: "₹0.8 Cr", lostSales: "₹0.1 Cr", heroSkus: "4" }
+    const osaStoreRows = (selected.id === 1 && osaDeepDive.length > 0) ? osaDeepDive : [
+        { city: "Gurgaon", count: 5, osa: "91.2%", fillRate: "Coming Soon", sales: "₹2.2 Cr", lostSales: "₹0.4 Cr", heroSkus: "4" },
+        { city: "Delhi", count: 4, osa: "88.5%", fillRate: "Coming Soon", sales: "₹2.1 Cr", lostSales: "₹0.3 Cr", heroSkus: "4" },
+        { city: "Noida", count: 3, osa: "85.2%", fillRate: "Coming Soon", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
+        { city: "Mumbai", count: 3, osa: "92.1%", fillRate: "Coming Soon", sales: "₹1.8 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
+        { city: "Bengaluru", count: 2, osa: "94.5%", fillRate: "Coming Soon", sales: "₹1.5 Cr", lostSales: "₹0.1 Cr", heroSkus: "4" },
+        { city: "Hyderabad", count: 4, osa: "89.8%", fillRate: "Coming Soon", sales: "₹1.6 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
+        { city: "Chennai", count: 3, osa: "87.2%", fillRate: "Coming Soon", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
+        { city: "Pune", count: 2, osa: "90.5%", fillRate: "Coming Soon", sales: "₹0.8 Cr", lostSales: "₹0.1 Cr", heroSkus: "4" }
     ];
 
     const sosStoreRows = [
@@ -275,15 +286,15 @@ const DetailPanel = ({ selected }) => {
 
     const modalConfigs = {
         1: {
-            title: "All 26 stores – OSA Deep Dive",
+            title: (selected.id === 1 && osaDeepDive.length > 0) ? `All ${osaDeepDive.reduce((acc, curr) => acc + curr.storeCount, 0)} stores – OSA Deep Dive` : "All 26 stores – OSA Deep Dive",
             headers: ["#Store", "City", "OSA %", "Fill Rate %", "Sales MTD", "Lost Sales", "Hero SKUs"],
-            rows: osaStoreRows,
+            rows: (selected.id === 1 && !loading) ? (osaDeepDive.length > 0 ? osaDeepDive : []) : osaStoreRows,
             renderRow: (row) => (
                 <tr key={row.city} className="border-b border-slate-50">
-                    <td className="px-2 py-1 text-slate-700">{row.count}</td>
+                    <td className="px-2 py-1 text-slate-700">{row.storeCount || row.count}</td>
                     <td className="px-2 py-1 font-bold text-slate-700">{row.city}</td>
                     <td className="px-2 py-1 text-rose-600 font-semibold">{row.osa}</td>
-                    <td className="px-2 py-1 text-rose-600">{row.fillRate}</td>
+                    <td className="px-2 py-1 text-slate-400 italic text-[10px]">{row.fillRate}</td>
                     <td className="px-2 py-1 text-emerald-600 font-medium">{row.sales}</td>
                     <td className="px-2 py-1 text-rose-600">{row.lostSales}</td>
                     <td className="px-2 py-1 text-slate-600">{row.heroSkus}</td>
@@ -401,7 +412,9 @@ const DetailPanel = ({ selected }) => {
 
     const trendConfigs = {
         1: {
-            title: "Average OSA of top 4 SKUs across 26 stores",
+            title: (selected.id === 1 && apiData?.counts)
+                ? `Average OSA of top ${apiData.counts.skuCount} SKUs across ${apiData.counts.darkstoreCount} stores`
+                : "Average OSA of top 4 SKUs across 26 stores",
             week: overallTrendWeek,
             month: overallTrendMonth,
             domain: [80, 100],
@@ -449,11 +462,45 @@ const DetailPanel = ({ selected }) => {
 
     return (
         <div className="relative flex h-full flex-col gap-4 rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-sm">
+            {error && (
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-white/90 backdrop-blur-[2px]">
+                    <div className="flex flex-col items-center gap-3 p-6 text-center">
+                        <div className="rounded-full bg-rose-50 p-3 text-rose-500">
+                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-slate-900">Unable to load data</p>
+                            <p className="text-xs text-slate-500 mt-1">{error}</p>
+                        </div>
+                        <button
+                            onClick={onRetry}
+                            className="mt-2 inline-flex items-center gap-2 rounded-full bg-sky-500 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-600 transition-all hover:scale-105 active:scale-95"
+                        >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Refresh Segment
+                        </button>
+                    </div>
+                </div>
+            )}
             <Header />
 
             {/* KPI GRID */}
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-3">
-                {kpis.slice(0, 6).map((kpi) => {
+                {kpis.slice(0, 6).map((kpi, idx) => {
+                    if (loading && selected.id === 1) {
+                        return (
+                            <div key={`skeleton-${idx}`} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
+                                <Skeleton className="h-3 w-16 mb-2" />
+                                <Skeleton className="h-5 w-24 mb-1" />
+                                <Skeleton className="h-3 w-12" />
+                            </div>
+                        );
+                    }
+
                     const negative = kpi.delta.trim().startsWith("-") || kpi.delta.includes("↓");
                     return (
                         <div key={kpi.name} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-xs">
@@ -476,12 +523,21 @@ const DetailPanel = ({ selected }) => {
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                     <div className="mb-2 flex items-center justify-between">
                         <div>
-                            <p className="text-xs font-medium text-slate-600" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
-                                {config.title}
-                            </p>
-                            <p className="text-[11px] text-slate-500" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}>
-                                Compare current period vs last period.
-                            </p>
+                            {loading && selected.id === 1 ? (
+                                <>
+                                    <Skeleton className="h-4 w-48 mb-2" />
+                                    <Skeleton className="h-3 w-32" />
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-medium text-slate-600" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 700, fontSize: "0.95rem" }}>
+                                        {config.title}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500" style={{ fontFamily: "Roboto, sans-serif", fontWeight: 400, fontSize: "0.75rem" }}>
+                                        Compare current period vs last period.
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -503,33 +559,37 @@ const DetailPanel = ({ selected }) => {
                     </div>
 
                     <div className="h-56">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
-                                data={compareMode === "week" ? config.week : config.month}
-                                margin={{ top: 10, left: -20, right: 10 }}
-                            >
-                                <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                                <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" domain={config.domain} />
-                                <Tooltip contentStyle={{ fontSize: 11 }} />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
-                                <Line
-                                    type="monotone"
-                                    dataKey="current"
-                                    name="Current Period"
-                                    stroke="#0f766e"
-                                    strokeWidth={2}
-                                    dot={false}
-                                />
-                                <Line
-                                    type="monotone"
-                                    dataKey="compare"
-                                    name="Last Period"
-                                    stroke="#e11d48"
-                                    strokeWidth={2}
-                                    dot={false}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
+                        {loading && selected.id === 1 ? (
+                            <Skeleton className="h-full w-full rounded-xl" />
+                        ) : (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                    data={compareMode === "week" ? config.week : config.month}
+                                    margin={{ top: 10, left: -20, right: 10 }}
+                                >
+                                    <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                                    <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" domain={config.domain} />
+                                    <Tooltip contentStyle={{ fontSize: 11 }} />
+                                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="current"
+                                        name="Current Period"
+                                        stroke="#0f766e"
+                                        strokeWidth={2}
+                                        dot={false}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="compare"
+                                        name="Last Period"
+                                        stroke="#e11d48"
+                                        strokeWidth={2}
+                                        dot={false}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
                     </div>
 
                     <div className="mt-2 flex justify-end">
@@ -578,7 +638,41 @@ const DetailPanel = ({ selected }) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {modalConfigs[selected.id].rows.map(modalConfigs[selected.id].renderRow)}
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan={modalConfigs[selected.id].headers.length} className="px-4 py-8 text-center text-slate-400 italic">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <div className="h-2 w-2 animate-bounce rounded-full bg-sky-500" />
+                                                    <div className="h-2 w-2 animate-bounce rounded-full bg-sky-500 [animation-delay:0.2s]" />
+                                                    <div className="h-2 w-2 animate-bounce rounded-full bg-sky-500 [animation-delay:0.4s]" />
+                                                    <span className="ml-2">Fetching location-level data...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : error ? (
+                                        <tr>
+                                            <td colSpan={modalConfigs[selected.id].headers.length} className="px-4 py-8 text-center">
+                                                <p className="text-rose-500 mb-2">{error}</p>
+                                                <button
+                                                    onClick={onRetry}
+                                                    className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-1.5 text-[11px] font-medium text-sky-700 hover:bg-sky-100 transition-colors"
+                                                >
+                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
+                                                    Refresh Table
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ) : modalConfigs[selected.id].rows.length > 0 ? (
+                                        modalConfigs[selected.id].rows.map(modalConfigs[selected.id].renderRow)
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={modalConfigs[selected.id].headers.length} className="px-4 py-8 text-center text-slate-400 italic">
+                                                No location-level data found for this selection.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -591,51 +685,64 @@ const DetailPanel = ({ selected }) => {
 
 const LayoutOne = () => {
     const [selectedId, setSelectedId] = useState(issues[0].id);
-    const [counts, setCounts] = useState({ darkstoreCount: 0, skuCount: 0 });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [apiData, setApiData] = useState({
+        counts: { darkstoreCount: 0, skuCount: 0 },
+        kpis: {},
+        graphData: { week: [], month: [] }
+    });
+    const [osaDeepDive, setOsaDeepDive] = useState([]);
 
     // Get filters from context
     const { platform, selectedLocation, timeStart, timeEnd } = useContext(FilterContext);
 
-    // Fetch dynamic counts when filters change
-    useEffect(() => {
-        const fetchCounts = async () => {
-            try {
-                const params = {};
+    const fetchData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const params = {};
 
-                // Add platform filter
-                if (platform && platform !== 'All') {
-                    params.platform = platform;
-                }
-
-                // Add location filter
-                if (selectedLocation && selectedLocation !== 'All') {
-                    params.location = selectedLocation;
-                }
-
-                // Add date range filters
-                if (timeStart) {
-                    params.startDate = timeStart.format('YYYY-MM-DD');
-                }
-                if (timeEnd) {
-                    params.endDate = timeEnd.format('YYYY-MM-DD');
-                }
-
-                console.log('[TopActions] Fetching counts with filters:', params);
-                const response = await axiosInstance.get('/watchtower/top-actions-counts', { params });
-                setCounts(response.data);
-            } catch (error) {
-                console.error('[TopActions] Error fetching counts:', error);
+            // Add platform filter (only if not 'All')
+            if (platform && platform !== 'All') {
+                params.platform = platform;
             }
-        };
-        fetchCounts();
-    }, [platform, selectedLocation, timeStart, timeEnd]);
+
+            // Add end date filter (pick only the end date as per request)
+            if (timeEnd) {
+                params.endDate = timeEnd.format('YYYY-MM-DD');
+            }
+
+            console.log('[TopActions] Fetching full data with params:', params);
+
+            // Fetch summary and deep dive in parallel
+            const [summaryRes, deepDiveRes] = await Promise.all([
+                axiosInstance.get('/watchtower/top-actions', { params }),
+                axiosInstance.get('/watchtower/osa-deep-dive', { params })
+            ]);
+
+            setApiData(summaryRes.data);
+            setOsaDeepDive(deepDiveRes.data);
+        } catch (error) {
+            console.error('[TopActions] Error fetching data:', error);
+            setError("Failed to load details. Click refresh to try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch dynamic data when filters change
+    useEffect(() => {
+        fetchData();
+    }, [platform, timeStart, timeEnd]);
 
     // Build dynamic issues list with updated subtitle for OSA
     const dynamicIssues = issues.map(issue => {
         if (issue.id === 1) {
             return {
                 ...issue,
-                subtitle: `${counts.darkstoreCount} stores OOS in top ${counts.skuCount} SKUs`
+                subtitle: `${apiData.counts.darkstoreCount} stores OOS in top ${apiData.counts.skuCount} SKUs`,
+                leak: apiData.kpis.lostSales ? `${apiData.kpis.lostSales.value} leak` : issue.leak
             };
         }
         return issue;
@@ -707,7 +814,14 @@ const LayoutOne = () => {
                 </div>
             </div>
 
-            <DetailPanel selected={selected} />
+            <DetailPanel
+                selected={selected}
+                apiData={apiData}
+                loading={loading}
+                osaDeepDive={osaDeepDive}
+                error={error}
+                onRetry={fetchData}
+            />
         </section>
     );
 };

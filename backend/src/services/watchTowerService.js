@@ -6106,6 +6106,12 @@ const getCompetitionBrandTrends = async (filters = {}) => {
  * @param {Object} filters - { platform, location, startDate, endDate }
  * @returns {Object} - { totalCount, byPlatform: { platform: count } }
  */
+/**
+ * Get Dark Store Count from rb_location_darkstore table
+ * Returns count of distinct merchant_name grouped by platform based on filters
+ * @param {Object} filters - { platform, location, startDate, endDate }
+ * @returns {Object} - { totalCount, byPlatform: { platform: count } }
+ */
 const getDarkStoreCount = async (filters = {}) => {
     try {
         console.log('[getDarkStoreCount] Fetching dark store count with filters:', filters);
@@ -6172,6 +6178,303 @@ const getDarkStoreCount = async (filters = {}) => {
     }
 };
 
+/**
+ * Get Top Actions counts, KPIs and Graph data
+ * @param {Object} filters - { platform, endDate }
+ * @returns {Object} - { counts, kpis, graphData }
+ */
+const getTopActions = async (filters = {}) => {
+    try {
+        const { platform = 'All' } = filters;
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build platform array
+        const platformArr = (platform && platform !== 'All')
+            ? (Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()))
+            : [];
+
+        const platCond = platformArr.length > 0
+            ? `platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+            : '1=1';
+
+        // 1. Fetch Latest Available Date from rb_pdp_olap as a baseline
+        const latestDateRes = await queryClickHouse(`
+            SELECT MAX(toDate(DATE)) as max_date 
+            FROM rb_pdp_olap 
+            WHERE ${platCond.replace('platform', 'Platform')}
+        `);
+        const maxAvailableDate = latestDateRes[0]?.max_date ? dayjs(latestDateRes[0].max_date) : dayjs();
+
+        // 2. Determine targetDate (use requested endDate but cap it at maxAvailableDate)
+        let targetDate = filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined'
+            ? dayjs(filters.endDate)
+            : maxAvailableDate;
+
+        // If requested date is beyond available data, cap it
+        if (targetDate.isAfter(maxAvailableDate)) {
+            targetDate = maxAvailableDate;
+        }
+
+        const dateVal = targetDate;
+        const endDateStr = dateVal.format('YYYY-MM-DD');
+        console.log(`[getTopActions] Requested: ${filters.endDate}, Available: ${maxAvailableDate.format('YYYY-MM-DD')}, Using: ${endDateStr}`);
+
+        // 2. Basic Counts (Active Stores and Hero SKUs)
+        // Active Stores: SELECT count(DISTINCT(merchant_name)) FROM rb_location_darkstore based on Platform and endDate
+        const storeQuery = `
+            SELECT count(DISTINCT merchant_name) as count 
+            FROM rb_location_darkstore 
+            WHERE ${platCond} AND toDate(created_on) <= '${endDateStr}'
+        `;
+
+        // Hero SKUs: distinct count of web_pid from rca_watchtower_insight
+        const skuQuery = `
+            SELECT count(DISTINCT web_pid) as count, groupArray(DISTINCT web_pid) as pids 
+            FROM rca_watchtower_insight 
+            WHERE ${platCond} AND date = '${endDateStr}'
+        `;
+
+        const [storeRes, skuRes] = await Promise.all([
+            queryClickHouse(storeQuery),
+            queryClickHouse(skuQuery)
+        ]);
+
+        const darkstoreCount = parseInt(storeRes[0]?.count || 0);
+        const skuCount = parseInt(skuRes[0]?.count || 0);
+        const topPids = skuRes[0]?.pids ? skuRes[0].pids.slice(0, 4) : [];
+        console.log('[getTopActions] Basic counts - Stores:', darkstoreCount, 'SKUs:', skuCount);
+
+        // 3. KPIs from rb_pdp_olap
+        const platCondOlap = platCond.replace('platform', 'Platform');
+
+        // OSA %
+        const osaCurrentQuery = `
+            SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) = '${endDateStr}'
+        `;
+        const osaPrevQuery = `
+            SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) = '${dateVal.subtract(7, 'day').format('YYYY-MM-DD')}'
+        `;
+
+        // Sales MTD
+        const mtdStart = dateVal.startOf('month').format('YYYY-MM-DD');
+        const salesMtdQuery = `
+            SELECT SUM(toFloat64OrZero(Sales)) as sales 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
+        `;
+        const lastMtdStart = dateVal.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+        const lastMtdEnd = dateVal.subtract(1, 'month').format('YYYY-MM-DD');
+        const lastSalesMtdQuery = `
+            SELECT SUM(toFloat64OrZero(Sales)) as sales 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${lastMtdStart}' AND '${lastMtdEnd}'
+        `;
+
+        const [osaCurr, osaPrev, salesCurr, salesPrev] = await Promise.all([
+            queryClickHouse(osaCurrentQuery),
+            queryClickHouse(osaPrevQuery),
+            queryClickHouse(salesMtdQuery),
+            queryClickHouse(lastSalesMtdQuery)
+        ]);
+
+        const currentOsa = osaCurr[0]?.deno > 0 ? (osaCurr[0].neno / osaCurr[0].deno) * 100 : 0;
+        const previousOsa = osaPrev[0]?.deno > 0 ? (osaPrev[0].neno / osaPrev[0].deno) * 100 : 0;
+        const osaDelta = currentOsa - previousOsa;
+
+        const currentSales = parseFloat(salesCurr[0]?.sales || 0);
+        const previousSales = parseFloat(salesPrev[0]?.sales || 0);
+        const salesDelta = previousSales > 0 ? ((currentSales - previousSales) / previousSales) * 100 : 0;
+
+        // Lost Sales = [(MTD Sales / currentOsa%) - MTD Sales]
+        const lostSales = currentOsa > 0 ? (currentSales / (currentOsa / 100)) - currentSales : 0;
+
+        // 4. Graph Data (7 days trend for topPids)
+        const getTrend = async (startDate, endDate) => {
+            if (topPids.length === 0) return [];
+            const pidList = topPids.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',');
+            return queryClickHouse(`
+                SELECT toDate(DATE) as day, SUM(toFloat64OrZero(neno_osa)) as n, SUM(toFloat64(deno_osa)) as d
+                FROM rb_pdp_olap
+                WHERE ${platCondOlap}
+                  AND toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
+                  AND lower(Web_Pid) IN (${pidList})
+                GROUP BY day ORDER BY day ASC
+            `);
+        };
+
+        const todayTrend = await getTrend(dateVal.subtract(6, 'day').format('YYYY-MM-DD'), endDateStr);
+        const weekTrend = await getTrend(dateVal.subtract(13, 'day').format('YYYY-MM-DD'), dateVal.subtract(7, 'day').format('YYYY-MM-DD'));
+        const monthTrend = await getTrend(dateVal.subtract(1, 'month').subtract(6, 'day').format('YYYY-MM-DD'), dateVal.subtract(1, 'month').format('YYYY-MM-DD'));
+
+        const formatGraph = (currTrend, compTrend) => {
+            const labels = ['D-6', 'D-5', 'D-4', 'D-3', 'D-2', 'D-1', 'Today'];
+            return labels.map((label, i) => {
+                const c = currTrend[i]?.d > 0 ? (currTrend[i].n / currTrend[i].d) * 100 : 0;
+                const p = compTrend[i]?.d > 0 ? (compTrend[i].n / compTrend[i].d) * 100 : 0;
+                return { day: label, current: parseFloat(c.toFixed(1)), compare: parseFloat(p.toFixed(1)) };
+            });
+        };
+
+        const result = {
+            counts: { darkstoreCount, skuCount },
+            kpis: {
+                osa: { value: `${currentOsa.toFixed(1)}%`, delta: `${osaDelta >= 0 ? '+' : ''}${osaDelta.toFixed(1)} pt` },
+                fillRate: { value: "Coming Soon", delta: "0" },
+                salesMtd: { value: `₹${(currentSales / 10000000).toFixed(1)} Cr`, delta: `${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}%` },
+                lostSales: { value: `₹${(lostSales / 10000000).toFixed(1)} Cr`, delta: "" },
+                activeStores: { value: darkstoreCount.toLocaleString(), delta: "" },
+                heroSkus: { value: skuCount.toString(), delta: "0" }
+            },
+            graphData: {
+                week: formatGraph(todayTrend, weekTrend),
+                month: formatGraph(todayTrend, monthTrend)
+            },
+            metadata: { platform, endDate: endDateStr, topPids }
+        };
+        console.log('[getTopActions] Result generated');
+        return result;
+
+    } catch (error) {
+        console.error('[getTopActions] CRITICAL ERROR:', error);
+        return { counts: { darkstoreCount: 0, skuCount: 0 }, kpis: {}, graphData: { week: [], month: [] } };
+    }
+};
+
+/**
+ * Get OSA Deep Dive table data (city-wise breakdown)
+ * @param {Object} filters - { platform, endDate }
+ * @returns {Array} - Array of city objects with KPIs
+ */
+const getOsaDeepDive = async (filters = {}) => {
+    try {
+        const { platform = 'All' } = filters;
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build platform conditions
+        const platformArr = (platform && platform !== 'All')
+            ? (Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()))
+            : [];
+
+        const platCondDarkstore = platformArr.length > 0
+            ? `platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+            : '1=1';
+        const platCondOlap = platformArr.length > 0
+            ? `Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+            : '1=1';
+
+        // 1. Fetch Latest Available Date from rb_pdp_olap
+        const latestDateRes = await queryClickHouse(`
+            SELECT MAX(toDate(DATE)) as max_date 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap}
+        `);
+        const maxAvailableDate = latestDateRes[0]?.max_date ? dayjs(latestDateRes[0].max_date) : dayjs();
+
+        let targetDate = filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined'
+            ? dayjs(filters.endDate)
+            : maxAvailableDate;
+
+        if (targetDate.isAfter(maxAvailableDate)) {
+            targetDate = maxAvailableDate;
+        }
+
+        const endDateStr = targetDate.format('YYYY-MM-DD');
+        const mtdStart = targetDate.startOf('month').format('YYYY-MM-DD');
+
+        // 2. Fetch Hero SKUs for filtering
+        const heroSkuRes = await queryClickHouse(`
+            SELECT DISTINCT lower(web_pid) as pid 
+            FROM rca_watchtower_insight 
+            WHERE ${platCondDarkstore} AND date = '${endDateStr}'
+        `);
+        const heroPids = heroSkuRes.map(r => `'${escapeStr(r.pid)}'`).join(',');
+        const heroSkuFilter = heroPids ? `AND lower(Web_Pid) IN (${heroPids})` : 'AND 1=0';
+
+        // 3. Parallel Queries for City Data
+        // a) City Store Counts from rb_location_darkstore
+        const storeCountQuery = `
+            SELECT location, count(DISTINCT merchant_name) as count 
+            FROM rb_location_darkstore 
+            WHERE ${platCondDarkstore} AND toDate(created_on) <= '${endDateStr}'
+            GROUP BY location
+        `;
+
+        // b) City KPIs from rb_pdp_olap (OSA, Sales, Hero SKUs)
+        const cityStatsQuery = `
+            SELECT 
+                Location as city,
+                SUM(toFloat64OrZero(neno_osa)) as neno, 
+                SUM(toFloat64(deno_osa)) as deno,
+                SUM(CASE WHEN toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}' THEN toFloat64OrZero(Sales) ELSE 0 END) as sales_mtd,
+                count(DISTINCT CASE WHEN toDate(DATE) = '${endDateStr}' ${heroSkuFilter} THEN Web_Pid END) as hero_skus
+            FROM rb_pdp_olap
+            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
+            GROUP BY city
+        `;
+
+        const [storeCounts, cityStats] = await Promise.all([
+            queryClickHouse(storeCountQuery),
+            queryClickHouse(cityStatsQuery)
+        ]);
+
+        // 4. Merge Results
+        const cityMap = {};
+
+        // Start with all cities from darkstore table to ensure 706 count consistency
+        storeCounts.forEach(row => {
+            const cityName = row.location || 'Other';
+            cityMap[cityName.toLowerCase()] = {
+                city: cityName,
+                osa: '0.0%',
+                fillRate: 'Coming Soon',
+                sales: '₹0.0 Cr',
+                lostSales: '₹0.0 Cr',
+                heroSkus: '0',
+                storeCount: row.count
+            };
+        });
+
+        // Overlay with actual KPIs where available
+        cityStats.forEach(row => {
+            const key = row.city.toLowerCase();
+            const osa = row.deno > 0 ? (row.neno / row.deno) * 100 : 0;
+            const sales = parseFloat(row.sales_mtd || 0);
+            const lostSales = osa > 0 ? (sales / (osa / 100)) - sales : 0;
+
+            if (cityMap[key]) {
+                cityMap[key].osa = osa.toFixed(1) + '%';
+                cityMap[key].sales = `₹${(sales / 10000000).toFixed(1)} Cr`;
+                cityMap[key].lostSales = `₹${(lostSales / 10000000).toFixed(1)} Cr`;
+                cityMap[key].heroSkus = row.hero_skus.toString();
+            } else {
+                // If it's a city in OLAP but not in Darkstore list (rare), add it too
+                cityMap[key] = {
+                    city: row.city,
+                    osa: osa.toFixed(1) + '%',
+                    fillRate: 'Coming Soon',
+                    sales: `₹${(sales / 10000000).toFixed(1)} Cr`,
+                    lostSales: `₹${(lostSales / 10000000).toFixed(1)} Cr`,
+                    heroSkus: row.hero_skus.toString(),
+                    storeCount: 0
+                };
+            }
+        });
+
+        // Convert to array and filter out cities with 0 stores
+        return Object.values(cityMap)
+            .filter(c => c.storeCount > 0 || c.osa !== '0.0%')
+            .sort((a, b) => b.storeCount - a.storeCount);
+
+    } catch (error) {
+        console.error('[getOsaDeepDive] Error:', error);
+        return [];
+    }
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -6192,5 +6495,7 @@ export default {
     getCompetitionFilterOptions,
     getCompetitionBrandTrends,
     getLatestAvailableMonth,
-    getDarkStoreCount
+    getDarkStoreCount,
+    getTopActions,
+    getOsaDeepDive
 };
