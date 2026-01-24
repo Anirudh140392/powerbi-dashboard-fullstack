@@ -377,3 +377,42 @@ export const getDarkStoreCount = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+/**
+ * Get Top Actions counts (Store count and SKU count)
+ * GET /api/watchtower/top-actions
+ */
+export const getTopActions = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            endDate: req.query.endDate
+        };
+
+        console.log('[getTopActions] Request:', filters);
+        const cacheKey = generateCacheKey('top-actions', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getTopActions(filters), CACHE_TTL.METRICS);
+        res.json(data);
+    } catch (error) {
+        console.error('[getTopActions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};/**
+ * Get OSA Deep Dive table data
+ * GET /api/watchtower/osa-deep-dive
+ */
+export const getOsaDeepDive = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            endDate: req.query.endDate
+        };
+
+        console.log('[getOsaDeepDive] Request:', filters);
+        const cacheKey = generateCacheKey('osa-deep-dive', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getOsaDeepDive(filters), CACHE_TTL.METRICS);
+        res.json(data);
+    } catch (error) {
+        console.error('[getOsaDeepDive] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
