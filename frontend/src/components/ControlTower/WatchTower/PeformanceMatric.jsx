@@ -226,7 +226,9 @@ function SkeletonKpiCard() {
   return (
     <div
       style={{
-        width: 260,
+        flex: "1 1 260px",
+        minWidth: "240px",
+        maxWidth: "350px",
         height: 150,
         background: "#FFFFFF",
         borderRadius: 18,
