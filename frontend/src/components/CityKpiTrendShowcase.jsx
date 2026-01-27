@@ -711,61 +711,163 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [localMatrixData, setLocalMatrixData] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
 
+  // Reset local state when switching tabs (title changes)
+  React.useEffect(() => {
+    setLocalMatrixData(null);
+    setAppliedFilters({
+      platform: [],
+      format: [],
+      city: [],
+      kpi: [],
+      date: [],
+      month: [],
+      zone: [],
+      pincode: [],
+      metroFlag: []
+    });
+  }, [title]);
+
   // Use local data when available (after internal filter applied), otherwise use prop data
   const activeData = localMatrixData || data;
   const { columns, rows } = activeData;
+
 
   // Refetch matrix data locally when internal filters are applied (Date/Month only)
   const refetchLocalMatrixData = async (appliedFilters, viewMode = 'Platform') => {
     try {
       setLocalLoading(true);
 
-      // Build query params from applied filters
-      let startDate, endDate;
+      const params = new URLSearchParams();
+      params.append('viewMode', viewMode);
 
-      // Priority 1: Specific Date selection
+      // 1. Handle dates from appliedFilters (priority) or global filters
+      let startDate = filters?.startDate;
+      let endDate = filters?.endDate;
+
       if (appliedFilters.date?.[0] && appliedFilters.date[0] !== 'all') {
         startDate = appliedFilters.date[0];
         endDate = appliedFilters.date[0];
-      }
-      // Priority 2: Month selection
-      else if (appliedFilters.month?.[0] && appliedFilters.month[0] !== 'all') {
+      } else if (appliedFilters.month?.[0] && appliedFilters.month[0] !== 'all') {
         const [year, month] = appliedFilters.month[0].split('-');
         const start = dayjs(`${year}-${month}-01`);
         const end = start.endOf('month');
         startDate = start.format('YYYY-MM-DD');
         endDate = end.format('YYYY-MM-DD');
       }
-      // Fallback to global filters
-      else if (filters) {
-        startDate = filters.startDate;
-        endDate = filters.endDate;
-      }
 
-      const platform = appliedFilters.platform?.[0] && appliedFilters.platform[0] !== 'all'
-        ? appliedFilters.platform[0]
-        : (filters?.platform || 'All');
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
 
-      const location = appliedFilters.city?.[0] && appliedFilters.city[0] !== 'all'
-        ? appliedFilters.city[0]
-        : (filters?.location || 'All');
+      // 2. Map applied filters to query params
+      const filterMapping = {
+        platform: 'platform',
+        city: 'location',
+        format: 'format',
+        zone: 'zone',
+        metroFlag: 'metroFlag',
+        pincode: 'pincode'
+      };
 
-      const queryParams = new URLSearchParams({
-        viewMode,
-        platform,
-        brand: filters?.brand || 'All',
-        location,
-        startDate: startDate || dayjs().startOf('month').format('YYYY-MM-DD'),
-        endDate: endDate || dayjs().format('YYYY-MM-DD')
-      }).toString();
+      Object.entries(appliedFilters).forEach(([key, values]) => {
+        const queryKey = filterMapping[key];
+        if (queryKey && Array.isArray(values)) {
+          values.forEach(v => {
+            if (v !== 'all') params.append(queryKey, v);
+          });
+        }
+      });
+
+      // 3. Add base global filters if not overridden by applied filters
+      const globalFilterMapping = {
+        platform: 'platform',
+        brand: 'brand',
+        location: 'location',
+        zones: 'zones',
+        metroFlags: 'metroFlags',
+        pincodes: 'pincodes',
+        formats: 'formats',
+        categories: 'categories',
+        dates: 'dates',
+        months: 'months'
+      };
+
+      Object.entries(filters || {}).forEach(([key, value]) => {
+        const queryKey = globalFilterMapping[key] || key;
+        if (!params.has(queryKey) && value !== undefined && value !== null && value !== 'All' && value !== '') {
+          if (Array.isArray(value)) {
+            value.forEach(v => {
+              if (v !== 'all') params.append(queryKey, v);
+            });
+          } else {
+            params.append(queryKey, value);
+          }
+        }
+      });
+
+      // Fallback defaults
+      if (!params.has('platform')) params.append('platform', 'All');
+      if (!params.has('brand')) params.append('brand', 'All');
+      if (!params.has('location')) params.append('location', 'All');
+
+      const queryParams = params.toString();
 
       console.log('[LocalMatrixRefetch] Fetching with params:', queryParams);
 
       const response = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${queryParams}`);
-      const newData = await response.json();
+      const rawData = await response.json();
 
-      console.log('[LocalMatrixRefetch] Response:', newData);
-      setLocalMatrixData(newData);
+      console.log('[LocalMatrixRefetch] Raw Response:', rawData);
+
+      // Transform API response to match expected component format
+      // (Same transformation as transformApiData in TabbedHeatmapTable)
+      if (rawData && rawData.columns && rawData.rows) {
+        const cols = rawData.columns.filter(c => c !== 'KPI');
+
+        // Helper: generate sparkline series from current value and trend
+        const generateSeries = (value, trend, pointCount = 4) => {
+          if (value === undefined || value === null || value === 'Coming Soon') {
+            return [];
+          }
+          const numValue = typeof value === 'number' ? value : parseFloat(value);
+          const numTrend = typeof trend === 'number' ? trend : 0;
+
+          if (isNaN(numValue)) return [];
+
+          const points = [];
+          const prevValue = numValue - numTrend;
+          for (let i = 0; i < pointCount; i++) {
+            const progress = i / (pointCount - 1);
+            points.push(Math.round(prevValue + (numValue - prevValue) * progress));
+          }
+          return points;
+        };
+
+        const transformedRows = rawData.rows.map(row => {
+          const series = {};
+          cols.forEach(col => {
+            series[col] = generateSeries(row[col], row.trend?.[col]);
+          });
+
+          return {
+            kpi: row.kpi,
+            ...Object.fromEntries(cols.map(col => [col, row[col]])),
+            trend: row.trend || {},
+            series: series,
+          };
+        });
+
+        const transformedData = {
+          columns: ['kpi', ...cols],
+          rows: transformedRows,
+          viewMode: rawData.viewMode
+        };
+
+        console.log('[LocalMatrixRefetch] Transformed columns:', transformedData.columns);
+        setLocalMatrixData(transformedData);
+      } else {
+        console.error('[LocalMatrixRefetch] Invalid response structure');
+        setLocalMatrixData(null);
+      }
     } catch (error) {
       console.error('[LocalMatrixRefetch] Error:', error);
     } finally {
@@ -1207,9 +1309,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                   setAppliedFilters(tentativeFilters);
                   setShowFilterPanel(false);
 
-                  // Refetch matrix data locally (do NOT update global state)
-                  // This ensures only the Platform KPI Matrix segment updates
-                  refetchLocalMatrixData(tentativeFilters, data?.viewMode || 'Platform');
+                  // Use title prop as viewMode since it correctly reflects the current tab (Platform, Format, or City)
+                  refetchLocalMatrixData(tentativeFilters, title);
                 }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >

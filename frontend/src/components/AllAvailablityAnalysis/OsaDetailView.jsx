@@ -458,16 +458,6 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                             </div>
 
                             <div className="flex items-center gap-2">
-                                {/* Refresh Button (Manual) */}
-                                <button
-                                    onClick={() => setRetryKey(k => k + 1)}
-                                    disabled={isLoading}
-                                    className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition-all hover:bg-slate-50 active:scale-95 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    title="Refresh Data"
-                                >
-                                    <RefreshCcw className={`h-3.5 w-3.5 text-slate-600 ${isLoading ? 'animate-spin' : ''}`} />
-                                </button>
-
                                 {/* Filter Button */}
                                 <button
                                     onClick={() => setShowFilterPanel(true)}
@@ -476,6 +466,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                     <SlidersHorizontal className="h-3.5 w-3.5" />
                                     <span>Filters</span>
                                 </button>
+
 
                                 {/* Status Legend - Moved from body */}
                                 <div className="hidden sm:flex items-center gap-2 ml-2">
