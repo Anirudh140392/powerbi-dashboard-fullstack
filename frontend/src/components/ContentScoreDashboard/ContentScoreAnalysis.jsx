@@ -21,6 +21,8 @@ import {
   IconButton,
   Stack,
 } from "@mui/material";
+import { FilterContext } from "../../utils/FilterContext";
+import dayjs from "dayjs";
 
 import { motion } from "framer-motion";
 import { Filter, X, ChevronRight } from "lucide-react";
@@ -37,53 +39,11 @@ import axiosInstance from "../../api/axiosInstance";
 // --------------------------------------------------------------
 // SAMPLE DATA
 // --------------------------------------------------------------
-const MOCK_ROWS = [
-  {
-    platform: "Instamart",
-    format: "Ice Cream",
-    brand: "Amul",
-    descriptionCount: 39,
-    imageCount: 3,
-    ratingCount: 0,
-    ratingValue: 0,
-    titleCount: 37,
-    descriptionScore: 9,
-    imageScore: 4,
-    ratingScore: 0,
-    reviewScore: 0,
-    titleScore: 10,
-  },
-  {
-    platform: "Instamart",
-    format: "Ice Cream",
-    brand: "Baskin Robbins",
-    descriptionCount: 43,
-    imageCount: 2,
-    ratingCount: 0,
-    ratingValue: 0,
-    titleCount: 46,
-    descriptionScore: 10,
-    imageScore: 3,
-    ratingScore: 0,
-    reviewScore: 0,
-    titleScore: 10,
-  },
-  {
-    platform: "Blinkit",
-    format: "Frozen",
-    brand: "Kwality Walls",
-    descriptionCount: 31,
-    imageCount: 4,
-    ratingCount: 10,
-    ratingValue: 4.1,
-    titleCount: 29,
-    descriptionScore: 7,
-    imageScore: 6,
-    ratingScore: 10,
-    reviewScore: 4,
-    titleScore: 7,
-  },
-];
+// --------------------------------------------------------------
+// SAMPLE DATA REMOVED - FETCHING FROM API
+// --------------------------------------------------------------
+
+
 
 // --------------------------------------------------------------
 // UTILITIES
@@ -184,7 +144,7 @@ const GlassCard = styled(motion.div)`
 const Pill = styled.div`
   padding: 5px 12px;
   border-radius: 999px;
-  background: ${(p) => p.bg || "rgba(148,163,184,0.08)"};
+  background: ${(p) => p.$bg || "rgba(148,163,184,0.08)"};
   font-size: 11px;
   font-weight: 600;
   color: ${(p) => p.color || "#475569"};
@@ -208,6 +168,7 @@ const PlatformScoreRing = ({ platform, score }) => {
     Blinkit: "#16A34A",
     Zepto: "#9333EA",
     Instamart: "#0284C7",
+    Amazon: "#F97316",
   };
 
   const data = [{ value: score, fill: COLORS[platform] || "#6366F1" }];
@@ -234,7 +195,7 @@ const PlatformScoreRing = ({ platform, score }) => {
             style={{
               marginTop: 8,
             }}
-            bg={getStatusColor(score) + "15"}
+            $bg={getStatusColor(score) + "15"}
             color={getStatusColor(score)}
           >
             {getStatusLabel(score)}
@@ -310,7 +271,7 @@ const MetricStrip = ({ label, value, max, caption }) => {
 // BRAND CARD
 // --------------------------------------------------------------
 const BrandCard = ({ row }) => {
-  const overall = getOverallScore(row);
+  const overall = row.overallScore; // Use backend score directly for consistency
   const mainColor =
     overall >= 60 ? "#22C55E" : overall >= 40 ? "#3B82F6" : "#F97316";
 
@@ -320,13 +281,13 @@ const BrandCard = ({ row }) => {
       style={{ height: "100%" }}
     >
       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-        <Box>
+        <Box sx={{ maxWidth: '70%' }}>
           <SmallLabel>{row.platform}</SmallLabel>
-          <Typography variant="h6" sx={{ mt: 0.5 }}>
-            {row.brand}
+          <Typography variant="body1" fontWeight={700} sx={{ mt: 0.5, lineHeight: 1.2, maxHeight: 44, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={row.title}>
+            {row.title || row.brand}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {row.format}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            {row.brand}
           </Typography>
         </Box>
 
@@ -448,48 +409,101 @@ const BrandCard = ({ row }) => {
 // MAIN PAGE
 // --------------------------------------------------------------
 export default function ContentScoreAnalysis() {
-  const [platform, setPlatform] = useState("All");
-  const [format, setFormat] = useState("All");
-  const [brand, setBrand] = useState("All");
+  // Consume Global Filters
+  const {
+    platform,
+    selectedBrand,
+    selectedLocation,
+    timeStart,
+    timeEnd
+  } = React.useContext(FilterContext);
+
+  // Local state for 'scoreStatus' filter
+  const [scoreStatus, setScoreStatus] = useState("All");
+
+  const [contentData, setContentData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Format dates for API
+  const startDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : null;
+  const endDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : null;
   const [tab, setTab] = useState(0);
-  const calledOnce = useRef(false);
-
   useEffect(() => {
-    if (calledOnce.current) return;
-    calledOnce.current = true;
-
     const fetchContentData = async () => {
       try {
+        console.log("REMOVE_ME: ContentScoreAnalysis Fetching with:", { platform, selectedBrand, selectedLocation });
+        setLoading(true);
+        // Pass global filters to API
         const response = await axiosInstance.get('/content-analysis', {
-          params: { platform: 'Blinkit' } // Default filter
+          params: {
+            platform: platform,
+            brand: selectedBrand,
+            location: selectedLocation,
+            startDate: startDate,
+            endDate: endDate
+          }
         });
-        console.log("Content Analysis Data:", response.data);
+        if (Array.isArray(response.data)) {
+          setContentData(response.data);
+          setError(null);
+        } else {
+          console.error("API returned non-array data:", response.data);
+          setError("Invalid data format received from server.");
+        }
       } catch (error) {
         console.error("Error fetching Content Analysis data:", error);
+        setError("Failed to load data. Please try again later.");
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchContentData();
-  }, []);
+  }, [platform, selectedBrand, selectedLocation, startDate, endDate]); // Re-fetch when global filters change
 
-  const formats = ["All", ...new Set(MOCK_ROWS.map((r) => r.format))];
-  const brands = ["All", ...new Set(MOCK_ROWS.map((r) => r.brand))];
+  const contentStatuses = ["All", "Excellent", "Good", "Needs Work", "Weak"];
+  const brands = ["All", ...new Set(contentData.map((r) => r.brand))].filter(Boolean);
 
-  const filtered = useMemo(
-    () =>
-      MOCK_ROWS.filter(
-        (r) =>
-          (platform === "All" || r.platform === platform) &&
-          (format === "All" || r.format === format) &&
-          (brand === "All" || r.brand === brand)
-      ),
-    [platform, format, brand]
-  );
+  const filtered = useMemo(() => {
+    // console.log("Filtering with status:", scoreStatus);
+    return contentData.filter((r) => {
+      const s = Number(r.overallScore) || 0;
+      if (scoreStatus === "Excellent") return s >= 70;
+      if (scoreStatus === "Good") return s >= 50 && s < 70;
+      if (scoreStatus === "Needs Work") return s >= 30 && s < 50;
+      if (scoreStatus === "Weak") return s < 30;
+      return true; // "All"
+    });
+  }, [scoreStatus, contentData]);
+
+  // Clean up unused variables if needed
+  const brand = selectedBrand; // Alias for compatibility with existing code if used
 
   const selected = filtered[0];
 
-  const platformScores = { Blinkit: 68, Zepto: 55, Instamart: 40 };
+  const platformScores = useMemo(() => {
+    const scores = {};
+    const counts = {};
+
+    filtered.forEach((r) => {
+      const p = r.platform || "Unknown";
+      if (!scores[p]) {
+        scores[p] = 0;
+        counts[p] = 0;
+      }
+      scores[p] += r.overallScore;
+      counts[p]++;
+    });
+
+    const result = {};
+    Object.keys(scores).forEach((key) => {
+      result[key] = Math.round(scores[key] / counts[key]);
+    });
+
+    return result;
+  }, [filtered]);
 
   return (
     <Box
@@ -500,6 +514,13 @@ export default function ContentScoreAnalysis() {
           "radial-gradient(circle at top left, #E0F2FE 0, transparent 45%), radial-gradient(circle at bottom right, #F5F3FF 0, #F8FAFC 55%)",
       }}
     >
+      {/* ERROR MESSAGE */}
+      {error && (
+        <Box sx={{ p: 2, mb: 2, bgcolor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 2, color: '#DC2626' }}>
+          <Typography variant="body2" fontWeight={600}>Error: {error}</Typography>
+        </Box>
+      )}
+
       {/* HEADER */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Box>
@@ -559,7 +580,7 @@ export default function ContentScoreAnalysis() {
               mx: 0.3,
               "&.Mui-selected": {
                 background:
-                  "linear-gradient(90deg,rgba(16,185,129,0.12),rgba(52,211,153,0.12))",
+                  "linear-gradient(90deg,rgba(59,130,246,0.12),rgba(129,140,248,0.12))",
               },
             }}
           />
@@ -568,164 +589,177 @@ export default function ContentScoreAnalysis() {
 
       {/* CONTENT */}
       <Box mt={1}>
+        {loading && <LinearProgress sx={{ mb: 4 }} />}
+
+        {!loading && !error && filtered.length === 0 && (
+          <Box textAlign="center" py={10}>
+            <Typography variant="h6" color="text.secondary">No data matches your filters.</Typography>
+          </Box>
+        )}
+
         {/* ---------------- TAB 0 — OVERVIEW ---------------- */}
         {tab === 0 && selected && (
-          <Grid container spacing={3}>
-            {/* Platform Score Rings */}
-            {Object.keys(platformScores).map((p) => (
-              <Grid item xs={12} sm={4} key={p}>
-                <PlatformScoreRing platform={p} score={platformScores[p]} />
-              </Grid>
-            ))}
+          <Box>
+            {/* Row 1: Platform Scores */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              {Object.keys(platformScores).map((p) => (
+                <Grid item xs={12} sm={3} key={p}>
+                  <PlatformScoreRing platform={p} score={platformScores[p]} />
+                </Grid>
+              ))}
+            </Grid>
 
-            {/* Left Column: Focused Brand */}
-            <Grid item xs={12} md={4}>
-              <GlassCard
-                whileHover={{ y: -3, boxShadow: "0 20px 50px rgba(15,23,42,0.14)" }}
-                style={{ height: "100%" }}
-              >
-                <SmallLabel>Focused Brand</SmallLabel>
-                <Typography variant="h6" sx={{ mt: 0.7 }}>
-                  {selected.brand}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {selected.platform} · {selected.format}
-                </Typography>
+            {/* Row 2: Brand & KPIs */}
+            <Grid container spacing={3}>
+              {/* Left Column: Focused Brand */}
+              <Grid item xs={12} md={4}>
+                <GlassCard
+                  whileHover={{ y: -3, boxShadow: "0 20px 50px rgba(15,23,42,0.14)" }}
+                  style={{ height: "100%" }}
+                >
+                  <SmallLabel>Focused Brand</SmallLabel>
+                  <Typography variant="h6" sx={{ mt: 0.7 }}>
+                    {selected.brand}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {selected.platform} · {selected.format}
+                  </Typography>
 
-                <Divider sx={{ my: 1.5 }} />
+                  <Divider sx={{ my: 1.5 }} />
 
-                {/* -------- Description Logic (FULL AI LOGIC ADDED) -------- */}
-                {(() => {
-                  const desc = analyzeDescription(selected.descriptionCount);
-                  return (
-                    <>
-                      <Typography variant="caption" color="text.secondary">
-                        Description Status
-                      </Typography>
+                  {/* -------- Description Logic (FULL AI LOGIC ADDED) -------- */}
+                  {(() => {
+                    const desc = analyzeDescription(selected.descriptionCount);
+                    return (
+                      <>
+                        <Typography variant="caption" color="text.secondary">
+                          Description Status
+                        </Typography>
 
-                      <Box
-                        sx={{
-                          mt: 0.5,
-                          display: "inline-block",
-                          px: 1,
-                          py: 0.5,
-                          borderRadius: 2,
-                          background: desc.color + "22",
-                        }}
-                      >
+                        <Box
+                          sx={{
+                            mt: 0.5,
+                            display: "inline-block",
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 2,
+                            background: desc.color + "22",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            fontWeight={700}
+                            sx={{ color: desc.color }}
+                          >
+                            {desc.status} · {selected.descriptionCount} words
+                          </Typography>
+                        </Box>
+
                         <Typography
                           variant="body2"
-                          fontWeight={700}
-                          sx={{ color: desc.color }}
+                          sx={{ mt: 1, color: "#374151", lineHeight: 1.4 }}
                         >
-                          {desc.status} · {selected.descriptionCount} words
+                          {desc.insight}
                         </Typography>
-                      </Box>
 
-                      <Typography
-                        variant="body2"
-                        sx={{ mt: 1, color: "#374151", lineHeight: 1.4 }}
-                      >
-                        {desc.insight}
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            mt: 1.2,
+                            display: "block",
+                            color: "#6B7280",
+                            background: "rgba(148,163,184,0.12)",
+                            p: 1.2,
+                            borderRadius: 2,
+                            fontWeight: 500,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {desc.recommendation}
+                        </Typography>
+                      </>
+                    );
+                  })()}
+
+                  <Divider sx={{ my: 1.5 }} />
+
+                  {/* Meta KPIs */}
+                  <Grid container spacing={1}>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Images
                       </Typography>
-
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          mt: 1.2,
-                          display: "block",
-                          color: "#6B7280",
-                          background: "rgba(148,163,184,0.12)",
-                          p: 1.2,
-                          borderRadius: 2,
-                          fontWeight: 500,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {desc.recommendation}
+                      <Typography variant="body2" fontWeight={600}>
+                        {selected.imageCount}
                       </Typography>
-                    </>
-                  );
-                })()}
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Ratings
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {selected.ratingValue || "N/A"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Rating Count
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {selected.ratingCount}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Title Length
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {selected.titleCount} chars
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </GlassCard>
+              </Grid>
 
-                <Divider sx={{ my: 1.5 }} />
-
-                {/* Meta KPIs */}
-                <Grid container spacing={1}>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
-                      Images
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {selected.imageCount}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
-                      Ratings
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {selected.ratingValue || "N/A"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
-                      Rating Count
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {selected.ratingCount}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="caption" color="text.secondary">
-                      Title Length
-                    </Typography>
-                    <Typography variant="body2" fontWeight={600}>
-                      {selected.titleCount} chars
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </GlassCard>
+              {/* Right Column: KPI Strips */}
+              <Grid item xs={12} md={8}>
+                <MetricStrip
+                  label="Description Score"
+                  value={selected.descriptionScore}
+                  max={20}
+                  caption={`Current description count: ${selected.descriptionCount}.`}
+                />
+                <MetricStrip
+                  label="Title Score"
+                  value={selected.titleScore}
+                  max={20}
+                  caption={`Current title length: ${selected.titleCount} characters.`}
+                />
+                <MetricStrip
+                  label="Image Score"
+                  value={selected.imageScore}
+                  max={20}
+                  caption={`You have ${selected.imageCount} images.`}
+                />
+                <MetricStrip
+                  label="Rating Score"
+                  value={selected.ratingScore}
+                  max={20}
+                  caption={
+                    selected.ratingCount === 0
+                      ? "Ratings not available for this item."
+                      : `Rating: ${selected.ratingValue} from ${selected.ratingCount} users.`
+                  }
+                />
+                <MetricStrip
+                  label="Review Score"
+                  value={selected.reviewScore}
+                  max={10}
+                  caption={"Review activity insights."}
+                />
+              </Grid>
             </Grid>
-
-            {/* Right Column: KPI Strips */}
-            <Grid item xs={12} md={8}>
-              <MetricStrip
-                label="Description Score"
-                value={selected.descriptionScore}
-                max={20}
-                caption={`Current description count: ${selected.descriptionCount}.`}
-              />
-              <MetricStrip
-                label="Title Score"
-                value={selected.titleScore}
-                max={20}
-                caption={`Current title length: ${selected.titleCount} characters.`}
-              />
-              <MetricStrip
-                label="Image Score"
-                value={selected.imageScore}
-                max={20}
-                caption={`You have ${selected.imageCount} images.`}
-              />
-              <MetricStrip
-                label="Rating Score"
-                value={selected.ratingScore}
-                max={20}
-                caption={
-                  selected.ratingCount === 0
-                    ? "Ratings not available for this item."
-                    : `Rating: ${selected.ratingValue} from ${selected.ratingCount} users.`
-                }
-              />
-              <MetricStrip
-                label="Review Score"
-                value={selected.reviewScore}
-                max={10}
-                caption={"Review activity insights."}
-              />
-            </Grid>
-          </Grid>
+          </Box>
         )}
 
         {/* ---------------- TAB 1 — BRAND COMPARISON ---------------- */}
@@ -773,40 +807,28 @@ export default function ContentScoreAnalysis() {
 
           <Divider sx={{ mb: 2 }} />
 
+
+
+          {/* Platform and Brand are now global, but Format is local */}
+          {/* We can hide Platform/Brand selectors here or keep them as readonly display? 
+              The user requested "filter accordingly to these filters" pointing to the top bar.
+              So we should probably REMOVE the redundant filters here to avoid confusion. */}
+
           <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Platform</InputLabel>
-            <Select value={platform} onChange={(e) => setPlatform(e.target.value)}>
-              {["All", "Blinkit", "Zepto", "Instamart"].map((p) => (
-                <MenuItem key={p} value={p}>
-                  {p}
+            <InputLabel>Content Health</InputLabel>
+            <Select value={scoreStatus} onChange={(e) => setScoreStatus(e.target.value)} label="Content Health">
+              {contentStatuses.map((s) => (
+                <MenuItem key={s} value={s}>
+                  {s}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
 
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Format</InputLabel>
-            <Select value={format} onChange={(e) => setFormat(e.target.value)}>
-              {formats.map((f) => (
-                <MenuItem key={f} value={f}>
-                  {f}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {/* REMOVED Platform and Brand local selectors */}
 
-          <FormControl fullWidth size="small">
-            <InputLabel>Brand</InputLabel>
-            <Select value={brand} onChange={(e) => setBrand(e.target.value)}>
-              {brands.map((b) => (
-                <MenuItem key={b} value={b}>
-                  {b}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
         </Box>
-      </Drawer>
-    </Box>
+      </Drawer >
+    </Box >
   );
 }

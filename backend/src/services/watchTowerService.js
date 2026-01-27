@@ -5737,11 +5737,57 @@ const getLatestAvailableMonth = async (filters = {}) => {
             platform = 'All',
             brand = 'All',
             location = 'All',
-            category = 'All'
+            category = 'All',
+            source // New optional parameter
         } = filters;
 
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // SPECIAL CASE: Content Analysis Page
+        // User requested: "column name extraction_timestamp... change only in the content analysis page"
+        if (source === 'content_analysis') {
+            console.log("[getLatestAvailableMonth] Content Analysis source detected. Querying tb_content_score_data.");
+            const contentConditions = [];
+
+            // Note: tb_content_score_data filters are slightly different (no category column known yet)
+            // But we respect platform/brand if possible.
+            // Platform derived from URL usually, but let's check basic availability
+
+            if (platform === 'Amazon') {
+                contentConditions.push(`url LIKE '%amazon%'`);
+            } else if (platform !== 'All') {
+                // Fallback: simple text match
+                contentConditions.push(`url LIKE '%${escapeStr(platform.toLowerCase())}%'`);
+            }
+
+            // Brand check - simplified for now as user just wants dates
+            if (brand && brand !== 'All') {
+                contentConditions.push(`lower(brand_name) = lower('${escapeStr(brand)}')`);
+            }
+
+            const contentWhere = contentConditions.length > 0 ? `WHERE ${contentConditions.join(' AND ')}` : '';
+
+            const contentResult = await queryClickHouse(`
+                SELECT MAX(toDate(extraction_timestamp)) as latestDate
+                FROM tb_content_score_data
+                ${contentWhere}
+            `);
+
+            const latestContentDate = contentResult?.[0]?.latestDate;
+            if (!latestContentDate) return { available: false };
+
+            const latestC = dayjs(latestContentDate);
+            return {
+                available: true,
+                monthLabel: latestC.format('MMMM YYYY'),
+                startDate: latestC.startOf('month').format('YYYY-MM-DD'),
+                endDate: latestC.endOf('month').format('YYYY-MM-DD'),
+                latestDate: latestC.format('YYYY-MM-DD'),
+                defaultStartDate: latestC.startOf('month').format('YYYY-MM-DD'),
+                defaultEndDate: latestC.format('YYYY-MM-DD')
+            };
+        }
 
         // Build WHERE conditions for ClickHouse
         const conditions = [];
