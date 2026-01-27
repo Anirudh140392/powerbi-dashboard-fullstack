@@ -60,6 +60,35 @@ const getGlobalOurBrandsList = async () => {
     }
 };
 
+// =====================================================
+// DYNAMIC END DATE HELPER
+// Gets the latest date available in the primary table
+// =====================================================
+let cachedMaxDate = { date: null, timestamp: 0 };
+const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get the latest available date in rb_pdp_olap
+ */
+const getCachedMaxDate = async () => {
+    if (cachedMaxDate.date && (Date.now() - cachedMaxDate.timestamp) < MAX_DATE_TTL) {
+        return cachedMaxDate.date;
+    }
+
+    try {
+        const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
+        const maxDateStr = result?.[0]?.maxDate;
+        const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
+
+        cachedMaxDate = { date: maxDate, timestamp: Date.now() };
+        console.log(`🎯 [MaxDate] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
+        return maxDate;
+    } catch (error) {
+        console.error('Error fetching max date:', error);
+        return dayjs().endOf('day'); // Fallback to today
+    }
+};
+
 // Cache for RcaSkuDim valid brand names (comp_flag=0)
 let cachedValidBrandNames = { data: null, timestamp: 0 };
 
@@ -301,7 +330,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const monthsBack = parseInt(months, 10) || 1;
 
         // Calculate date range
-        let endDate = dayjs().endOf('day');
+        let endDate = await getCachedMaxDate();
         let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
 
         if (qStartDate && qEndDate) {
@@ -3519,8 +3548,8 @@ const computeTrendData = async (filters) => {
         const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd } = filters;
 
         // 1. Determine Date Range
-        let endDate = dayjs();
-        let startDate = dayjs();
+        let endDate = await getCachedMaxDate();
+        let startDate = endDate.clone();
 
         if (period === 'Custom' && customStart && customEnd) {
             startDate = dayjs(customStart);
@@ -3834,7 +3863,7 @@ const getPlatformOverview = async (filters) => {
             const monthsBack = parseInt(months, 10) || 1;
 
             // Calculate date range
-            let endDate = dayjs().endOf('day');
+            let endDate = await getCachedMaxDate();
             let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
             if (qStartDate && qEndDate) {
                 startDate = dayjs(qStartDate).startOf('day');
@@ -4319,7 +4348,7 @@ const getMonthOverview = async (filters) => {
             }
 
             // Calculate date range
-            let endDate = dayjs().endOf('day');
+            let endDate = await getCachedMaxDate();
             let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
             if (qStartDate && qEndDate) {
                 startDate = dayjs(qStartDate).startOf('day');
@@ -5018,8 +5047,8 @@ const getKpiTrends = async (filters) => {
         const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
 
         // 1. Determine Date Range
-        let endDate = dayjs();
-        let startDate = dayjs();
+        let endDate = await getCachedMaxDate();
+        let startDate = endDate.clone();
 
         if (period === 'Custom' && customStart && customEnd) {
             startDate = dayjs(customStart);
@@ -5865,7 +5894,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             return { brands: {}, metadata: { period, location, category } };
         }
 
-        const endDate = dayjs();
+        const endDate = await getCachedMaxDate();
         const startDate = period === '1W' ? endDate.subtract(7, 'days') : endDate.subtract(30, 'days');
 
         // Helper to escape strings for ClickHouse
