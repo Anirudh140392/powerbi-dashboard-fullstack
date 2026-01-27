@@ -22,6 +22,12 @@ import { fetchSalesDrilldown } from "../../api/salesService";
 /* -------------------------------------------------------------------------- */
 /*                               RENDER HELPERS                               */
 /* -------------------------------------------------------------------------- */
+import { FilterContext } from "../../utils/FilterContext";
+import { RefreshCw, AlertCircle } from "lucide-react";
+
+/* -------------------------------------------------------------------------- */
+/*                               RENDER HELPERS                               */
+/* -------------------------------------------------------------------------- */
 const fmt = (val) => {
     if (val === undefined || val === null || isNaN(val)) return "0";
     if (val >= 10000000) return (val / 10000000).toFixed(1) + " Cr";
@@ -29,6 +35,27 @@ const fmt = (val) => {
     if (val >= 1000) return (val / 1000).toFixed(1) + " K";
     return val.toFixed(1);
 };
+
+const ErrorWithRefresh = ({ onRetry, message }) => (
+    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={12} px={3} sx={{ textAlign: 'center' }}>
+        <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 3 }}>
+            <AlertCircle size={32} color="#ef4444" />
+        </Box>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", mb: 1 }}>
+            API Reference Error
+        </Typography>
+        <Typography variant="body2" sx={{ color: "#64748b", mb: 4, maxWidth: 300 }}>
+            {message || "We encountered an issue while fetching the latest data for this segment."}
+        </Typography>
+        <button
+            onClick={onRetry}
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all active:scale-95"
+        >
+            <RefreshCw size={16} />
+            Try Refreshing
+        </button>
+    </Box>
+);
 
 const getMetricStyle = (label, val) => {
     // Return empty styles - no background colors on values
@@ -51,8 +78,10 @@ const METRIC_HEADERS = [
 
 // -------------- COMPONENT -----------------
 export default function DrillDownSalesTable({ startDate, endDate, brand }) {
+    const { refreshFilters } = React.useContext(FilterContext);
     const [hierarchyData, setHierarchyData] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [apiError, setApiError] = useState(null);
     const [expanded, setExpanded] = useState(new Set());
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -61,30 +90,38 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
     const [popupFilters, setPopupFilters] = useState({ platform: [], region: [], city: [], keyword: [] });
     const [fetchingChildrenId, setFetchingChildrenId] = useState(null);
 
+    const loadPlatforms = async () => {
+        setLoading(true);
+        setApiError(null);
+        try {
+            const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand });
+            const formatted = data.map(item => ({
+                id: item.name.toLowerCase(),
+                name: item.name,
+                type: "platform",
+                mtdSales: item.mtdSales,
+                prevMtd: item.prevMonthMtd,
+                drr: item.currentDrr,
+                ytdSales: item.ytdSales,
+                lastYear: item.lastYearSales,
+                projected: item.projectedSales,
+                children: []
+            }));
+            setHierarchyData(formatted);
+        } catch (error) {
+            console.error("Failed to fetch platforms:", error);
+            setApiError(error.message || "Failed to fetch drilldown platforms");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const retryDrilldown = async () => {
+        refreshFilters();
+        await loadPlatforms();
+    };
+
     React.useEffect(() => {
-        const loadPlatforms = async () => {
-            setLoading(true);
-            try {
-                const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand });
-                const formatted = data.map(item => ({
-                    id: item.name.toLowerCase(),
-                    name: item.name,
-                    type: "platform",
-                    mtdSales: item.mtdSales,
-                    prevMtd: item.prevMonthMtd,
-                    drr: item.currentDrr,
-                    ytdSales: item.ytdSales,
-                    lastYear: item.lastYearSales,
-                    projected: item.projectedSales,
-                    children: []
-                }));
-                setHierarchyData(formatted);
-            } catch (error) {
-                console.error("Failed to fetch platforms:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
         loadPlatforms();
     }, [startDate, endDate, brand]);
 
@@ -148,6 +185,8 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
                     }
                 } catch (error) {
                     console.error("Failed to fetch children:", error);
+                    // For children fetch errors, we could potentially show a notification or just console error
+                    // For now, let's just log it as it's partial failure
                 } finally {
                     setLoading(false);
                     setFetchingChildrenId(null);
@@ -481,71 +520,77 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
                     />
                 )}
 
-                <TableContainer sx={{ maxHeight: 600, border: 'none' }}>
-                    <Table stickyHeader size="small">
-                        <TableHead>
-                            <TableRow>
-                                {visibleHierarchyCols.map((label, i) => (
-                                    <TableCell
-                                        key={i}
-                                        sx={{
-                                            py: 1.5, fontSize: 12, fontWeight: 700,
-                                            color: "#475569", bgcolor: "#f8fafc", borderBottom: "1px solid #f1f5f9",
-                                            ...(i === 0 ? { position: "sticky", left: 0, zIndex: 20 } : {})
-                                        }}
-                                    >
-                                        {label}
-                                    </TableCell>
-                                ))}
-                                {METRIC_HEADERS.map((h, i) => (
-                                    <TableCell
-                                        key={i + visibleHierarchyCols.length}
-                                        align={h.align}
-                                        sx={{
-                                            py: 1.5, fontSize: 12, fontWeight: 700,
-                                            color: "#475569", bgcolor: "#f8fafc", borderBottom: "1px solid #f1f5f9"
-                                        }}
-                                    >
-                                        {h.label}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {loading && pageRows.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
-                                        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-                                            <CircularProgress size={40} sx={{ color: "#10b981" }} />
-                                            <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
-                                                Loading data...
-                                            </Typography>
-                                        </Box>
-                                    </TableCell>
-                                </TableRow>
-                            ) : pageRows.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
-                                        <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
-                                            No data found.
-                                        </Typography>
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                pageRows.map(row => renderRow(row))
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                {apiError ? (
+                    <ErrorWithRefresh onRetry={retryDrilldown} message={apiError} />
+                ) : (
+                    <>
+                        <TableContainer sx={{ maxHeight: 600, border: 'none' }}>
+                            <Table stickyHeader size="small">
+                                <TableHead>
+                                    <TableRow>
+                                        {visibleHierarchyCols.map((label, i) => (
+                                            <TableCell
+                                                key={i}
+                                                sx={{
+                                                    py: 1.5, fontSize: 12, fontWeight: 700,
+                                                    color: "#475569", bgcolor: "#f8fafc", borderBottom: "1px solid #f1f5f9",
+                                                    ...(i === 0 ? { position: "sticky", left: 0, zIndex: 20 } : {})
+                                                }}
+                                            >
+                                                {label}
+                                            </TableCell>
+                                        ))}
+                                        {METRIC_HEADERS.map((h, i) => (
+                                            <TableCell
+                                                key={i + visibleHierarchyCols.length}
+                                                align={h.align}
+                                                sx={{
+                                                    py: 1.5, fontSize: 12, fontWeight: 700,
+                                                    color: "#475569", bgcolor: "#f8fafc", borderBottom: "1px solid #f1f5f9"
+                                                }}
+                                            >
+                                                {h.label}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {loading && pageRows.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
+                                                <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+                                                    <CircularProgress size={40} sx={{ color: "#10b981" }} />
+                                                    <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
+                                                        Loading data...
+                                                    </Typography>
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : pageRows.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
+                                                <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
+                                                    No data found.
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        pageRows.map(row => renderRow(row))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
 
-                <PaginationFooter
-                    isVisible={true}
-                    currentPage={safePage}
-                    totalPages={totalPages}
-                    onPageChange={setPage}
-                    pageSize={rowsPerPage}
-                    onPageSizeChange={setRowsPerPage}
-                />
+                        <PaginationFooter
+                            isVisible={true}
+                            currentPage={safePage}
+                            totalPages={totalPages}
+                            onPageChange={setPage}
+                            pageSize={rowsPerPage}
+                            onPageSizeChange={setRowsPerPage}
+                        />
+                    </>
+                )}
             </div>
             {showFilterPanel && (
                 <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 transition-all backdrop-blur-sm">

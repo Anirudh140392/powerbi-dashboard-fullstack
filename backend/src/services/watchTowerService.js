@@ -60,6 +60,35 @@ const getGlobalOurBrandsList = async () => {
     }
 };
 
+// =====================================================
+// DYNAMIC END DATE HELPER
+// Gets the latest date available in the primary table
+// =====================================================
+let cachedMaxDate = { date: null, timestamp: 0 };
+const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get the latest available date in rb_pdp_olap
+ */
+const getCachedMaxDate = async () => {
+    if (cachedMaxDate.date && (Date.now() - cachedMaxDate.timestamp) < MAX_DATE_TTL) {
+        return cachedMaxDate.date;
+    }
+
+    try {
+        const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
+        const maxDateStr = result?.[0]?.maxDate;
+        const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
+
+        cachedMaxDate = { date: maxDate, timestamp: Date.now() };
+        console.log(`🎯 [MaxDate] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
+        return maxDate;
+    } catch (error) {
+        console.error('Error fetching max date:', error);
+        return dayjs().endOf('day'); // Fallback to today
+    }
+};
+
 // Cache for RcaSkuDim valid brand names (comp_flag=0)
 let cachedValidBrandNames = { data: null, timestamp: 0 };
 
@@ -301,7 +330,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const monthsBack = parseInt(months, 10) || 1;
 
         // Calculate date range
-        let endDate = dayjs().endOf('day');
+        let endDate = await getCachedMaxDate();
         let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
 
         if (qStartDate && qEndDate) {
@@ -340,7 +369,24 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             return buckets;
         };
 
+        // Helper to generate week buckets for weekly KPI graphs
+        const generateWeekBuckets = (start, end) => {
+            const buckets = [];
+            let current = start.clone().startOf('isoWeek');
+            const endWeek = end.clone().endOf('isoWeek');
+            while (current.isBefore(endWeek) || current.isSame(endWeek, 'week')) {
+                buckets.push({
+                    label: `W${current.week()}`,
+                    date: current.toDate(),
+                    value: 0
+                });
+                current = current.add(1, 'week');
+            }
+            return buckets;
+        };
+
         const monthBuckets = generateMonthBuckets(startDate, endDate);
+        const weekBuckets = generateWeekBuckets(startDate, endDate);
 
         // Helper for currency formatting
         const formatCurrency = (value) => {
@@ -953,12 +999,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     const result = await queryClickHouse(`
                         SELECT 
-                            formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
+                            toMonday(toDate(DATE)) as week_date,
                             SUM(ifNull(toFloat64(Sales), 0)) as total_sales
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
-                        ORDER BY month_date
+                        GROUP BY toMonday(toDate(DATE))
+                        ORDER BY week_date
                     `);
                     return result;
                 } catch (err) {
@@ -984,30 +1030,44 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         `created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
                         `sales IS NOT NULL`
                     ];
-                    if (platform && platform !== 'All') msBaseConditions.push(`Platform = '${escapeStrMain(platform)}'`);
-                    if (location && location !== 'All') msBaseConditions.push(`Location = '${escapeStrMain(location)}'`);
+                    // Handle multi-value Platform filter
+                    if (platformArr && platformArr.length > 0) {
+                        if (platformArr.length === 1) {
+                            msBaseConditions.push(`Platform = '${escapeStrMain(platformArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
+                        }
+                    }
+                    // Handle multi-value Location filter
+                    if (locationArr && locationArr.length > 0) {
+                        if (locationArr.length === 1) {
+                            msBaseConditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+                        }
+                    }
 
                     const [numeratorData, denominatorData] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date, SUM(toFloat64OrZero(sales)) as our_sales
+                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(sales)) as our_sales
                             FROM rb_brand_ms
                             WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})
-                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(created_on))
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date, SUM(toFloat64OrZero(sales)) as total_sales
+                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(sales)) as total_sales
                             FROM rb_brand_ms
                             WHERE ${msBaseConditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(created_on))
                         `)
                     ]);
 
-                    const numMap = new Map(numeratorData.map(r => [r.month_date, parseFloat(r.our_sales || 0)]));
+                    const numMap = new Map(numeratorData.map(r => [r.week_date, parseFloat(r.our_sales || 0)]));
                     return denominatorData.map(r => {
-                        const ourSales = numMap.get(r.month_date) || 0;
+                        const ourSales = numMap.get(r.week_date) || 0;
                         const totalSales = parseFloat(r.total_sales || 0);
                         return {
-                            month_date: r.month_date,
+                            week_date: r.week_date,
                             avg_market_share: totalSales > 0 ? (ourSales / totalSales) * 100 : 0
                         };
                     });
@@ -1030,8 +1090,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         `created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
                         `sales IS NOT NULL`
                     ];
-                    if (platform && platform !== 'All') msBaseConditions.push(`Platform = '${escapeStrMain(platform)}'`);
-                    if (location && location !== 'All') msBaseConditions.push(`Location = '${escapeStrMain(location)}'`);
+                    // Handle multi-value Platform filter
+                    if (platformArr && platformArr.length > 0) {
+                        if (platformArr.length === 1) {
+                            msBaseConditions.push(`Platform = '${escapeStrMain(platformArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
+                        }
+                    }
+                    // Handle multi-value Location filter
+                    if (locationArr && locationArr.length > 0) {
+                        if (locationArr.length === 1) {
+                            msBaseConditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
+                        } else {
+                            msBaseConditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+                        }
+                    }
 
                     const [ourSalesResult, totalSalesResult] = await Promise.all([
                         queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as our_sales FROM rb_brand_ms WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})`),
@@ -1083,13 +1157,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     return await queryClickHouse(`
                         SELECT 
-                            formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
+                            toMonday(toDate(DATE)) as week_date,
                             SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
                             SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
-                        ORDER BY month_date
+                        GROUP BY toMonday(toDate(DATE))
+                        ORDER BY week_date
                     `);
                 } catch (err) {
                     console.error('[AvailabilityTrend] ClickHouse error:', err.message);
@@ -1127,34 +1201,34 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         numeratorConditions.push(`keyword_is_rb_product = 1`);
                     }
 
-                    const [brandMonthCounts, totalMonthCounts] = await Promise.all([
+                    const [brandWeekCounts, totalWeekCounts] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                            SELECT toMonday(toDate(kw_crawl_date)) as week, count() as count
                             FROM rb_kw
                             WHERE ${numeratorConditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(kw_crawl_date))
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                            SELECT toMonday(toDate(kw_crawl_date)) as week, count() as count
                             FROM rb_kw
                             WHERE ${kwBaseConditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                            GROUP BY toMonday(toDate(kw_crawl_date))
                         `)
                     ]);
 
-                    const brandCountMap = new Map(brandMonthCounts.map(r => [r.month, parseInt(r.count)]));
-                    const totalCountMap = new Map(totalMonthCounts.map(r => [r.month, parseInt(r.count)]));
+                    const brandCountMap = new Map(brandWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
+                    const totalCountMap = new Map(totalWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
 
-                    return monthBuckets.map(bucket => {
-                        const monthKey = dayjs(bucket.date).format('YYYY-MM-01');
-                        const brandCount = brandCountMap.get(monthKey) || 0;
-                        const totalCount = totalCountMap.get(monthKey) || 0;
+                    return weekBuckets.map(bucket => {
+                        const weekKey = dayjs(bucket.date).startOf('isoWeek').format('YYYY-MM-DD');
+                        const brandCount = brandCountMap.get(weekKey) || 0;
+                        const totalCount = totalCountMap.get(weekKey) || 0;
                         const sosValue = totalCount > 0 ? (brandCount / totalCount) * 100 : 0;
-                        return { month_date: bucket.date, value: sosValue };
+                        return { week_date: bucket.date, value: sosValue };
                     });
                 } catch (error) {
                     console.error('Error calculating bulk SOS trend:', error.message);
-                    return monthBuckets.map(bucket => ({ month_date: bucket.date, value: 0 }));
+                    return weekBuckets.map(bucket => ({ week_date: bucket.date, value: 0 }));
                 }
             })(),
             // 11. Previous Offtake - USING CLICKHOUSE
@@ -1203,10 +1277,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })()
         ]);
 
-        // Process Offtake Data
-        const offtakeChart = monthBuckets.map(bucket => {
+        // Process Offtake Data - Using weekBuckets for weekly chart
+        const offtakeChart = weekBuckets.map(bucket => {
             const match = offtakeData.find(d => {
-                return dayjs(d.month_date).isSame(dayjs(bucket.date), 'month');
+                return dayjs(d.week_date).isSame(dayjs(bucket.date), 'week');
             });
             return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
         });
@@ -1224,9 +1298,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(1) + "%";
 
-        // Process Market Share Data
-        const marketShareChart = monthBuckets.map(bucket => {
-            const match = marketShareData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+        // Process Market Share Data - Using weekBuckets for weekly chart
+        const marketShareChart = weekBuckets.map(bucket => {
+            const match = marketShareData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
             return match ? parseFloat(match.avg_market_share) : 0;
         });
 
@@ -1245,9 +1319,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const availabilityChange = currentAvailability - prevAvailability;
         const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + " pp";
 
-        // Process Availability Chart
-        const availabilityChart = monthBuckets.map(bucket => {
-            const match = availabilityTrendData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+        // Process Availability Chart - Using weekBuckets for weekly chart
+        const availabilityChart = weekBuckets.map(bucket => {
+            const match = availabilityTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
             if (match) {
                 const totalNeno = parseFloat(match.total_neno || 0);
                 const totalDeno = parseFloat(match.total_deno || 0);
@@ -1263,9 +1337,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const sosChange = currentShareOfSearch - prevShareOfSearch;
         const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + " pp";
 
-        // Process Share of Search Chart
-        const shareOfSearchChart = monthBuckets.map(bucket => {
-            const match = shareOfSearchTrendData.find(d => dayjs(d.month_date).isSame(dayjs(bucket.date), 'month'));
+        // Process Share of Search Chart - Using weekBuckets for weekly chart
+        const shareOfSearchChart = weekBuckets.map(bucket => {
+            const match = shareOfSearchTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
             return match ? parseFloat(match.value) : 0;
         });
 
@@ -1286,8 +1360,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             marketShare: formattedMarketShare,
         };
 
-        // Prepare Top Metrics Array (Cards with Charts)
-        const chartLabels = monthBuckets.map(b => b.label);
+        // Prepare Top Metrics Array (Cards with Charts) - Use weekBuckets for weekly labels
+        const chartLabels = weekBuckets.map(b => b.label);
 
         // Determine subtitle based on filters
         let subtitle = `last ${monthsBack} months`;
@@ -3474,8 +3548,8 @@ const computeTrendData = async (filters) => {
         const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd } = filters;
 
         // 1. Determine Date Range
-        let endDate = dayjs();
-        let startDate = dayjs();
+        let endDate = await getCachedMaxDate();
+        let startDate = endDate.clone();
 
         if (period === 'Custom' && customStart && customEnd) {
             startDate = dayjs(customStart);
@@ -3789,7 +3863,7 @@ const getPlatformOverview = async (filters) => {
             const monthsBack = parseInt(months, 10) || 1;
 
             // Calculate date range
-            let endDate = dayjs().endOf('day');
+            let endDate = await getCachedMaxDate();
             let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
             if (qStartDate && qEndDate) {
                 startDate = dayjs(qStartDate).startOf('day');
@@ -4274,7 +4348,7 @@ const getMonthOverview = async (filters) => {
             }
 
             // Calculate date range
-            let endDate = dayjs().endOf('day');
+            let endDate = await getCachedMaxDate();
             let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
             if (qStartDate && qEndDate) {
                 startDate = dayjs(qStartDate).startOf('day');
@@ -4777,15 +4851,15 @@ const getBrandsOverview = async (filters) => {
             const buildSosBrandConds = () => {
                 const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 const platformArr = normalizeFilterArray(boPlatform);
-                if (platformArr.length > 0) {
+                if (platformArr && platformArr.length > 0) {
                     conds.push(`platform_name IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
                 const categoryArr = normalizeFilterArray(boCategory);
-                if (categoryArr.length > 0) {
+                if (categoryArr && categoryArr.length > 0) {
                     conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
                 const locArr = normalizeFilterArray(location);
-                if (locArr.length > 0) {
+                if (locArr && locArr.length > 0) {
                     conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
                 return conds.join(' AND ');
@@ -4796,18 +4870,18 @@ const getBrandsOverview = async (filters) => {
                 const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 conds.push(`sales IS NOT NULL`);
                 const platformArr = normalizeFilterArray(boPlatform);
-                if (platformArr.length > 0) {
+                if (platformArr && platformArr.length > 0) {
                     conds.push(`Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
                 const categoryArr = normalizeFilterArray(boCategory);
-                if (categoryArr.length > 0) {
+                if (categoryArr && categoryArr.length > 0) {
                     conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
                 if (brandsFilter && brandsFilter.length > 0) {
                     conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
                 }
                 const locArr = normalizeFilterArray(location);
-                if (locArr.length > 0) {
+                if (locArr && locArr.length > 0) {
                     conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
                 return conds.join(' AND ');
@@ -4973,8 +5047,8 @@ const getKpiTrends = async (filters) => {
         const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
 
         // 1. Determine Date Range
-        let endDate = dayjs();
-        let startDate = dayjs();
+        let endDate = await getCachedMaxDate();
+        let startDate = endDate.clone();
 
         if (period === 'Custom' && customStart && customEnd) {
             startDate = dayjs(customStart);
@@ -5018,19 +5092,19 @@ const getKpiTrends = async (filters) => {
             const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
 
             const catArr = normalizeFilterArray(category);
-            if (catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            if (catArr && catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
             const brandArr = normalizeFilterArray(brand);
-            if (brandArr.length > 0) {
+            if (brandArr && brandArr.length > 0) {
                 const brandConditions = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                 conds.push(`(${brandConditions})`);
             }
 
             const locArr = normalizeFilterArray(location);
-            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
             const platArr = normalizeFilterArray(platform);
-            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            if (platArr && platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
 
             return conds.join(' AND ');
         };
@@ -5291,16 +5365,16 @@ const getCompetitionData = async (filters = {}) => {
         const buildCompConds = (startDt, endDt) => {
             const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
             const platArr = normalizeFilterArray(platform);
-            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            if (platArr && platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
 
             const locArr = normalizeFilterArray(location);
-            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
             const catArr = normalizeFilterArray(category);
-            if (catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            if (catArr && catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
             const brandArr = normalizeFilterArray(brand);
-            if (brandArr.length > 0) {
+            if (brandArr && brandArr.length > 0) {
                 if (brandArr.length === 1) {
                     conds.push(`lower(Brand) = '${escapeStr(brandArr[0].toLowerCase())}'`);
                 } else {
@@ -5309,7 +5383,7 @@ const getCompetitionData = async (filters = {}) => {
             }
 
             const skuArr = normalizeFilterArray(sku);
-            if (skuArr.length > 0) conds.push(`Product IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
+            if (skuArr && skuArr.length > 0) conds.push(`Product IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
 
             return conds.join(' AND ');
         };
@@ -5866,7 +5940,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             return { brands: {}, metadata: { period, location, category } };
         }
 
-        const endDate = dayjs();
+        const endDate = await getCachedMaxDate();
         const startDate = period === '1W' ? endDate.subtract(7, 'days') : endDate.subtract(30, 'days');
 
         // Helper to escape strings for ClickHouse
@@ -5886,25 +5960,25 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         baseConds.push(`toString(Comp_flag) = '1'`);  // Competitor brands only
 
         const locArr = normalizeFilterArray(location);
-        if (locArr.length > 0) {
+        if (locArr && locArr.length > 0) {
             baseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Market Share conditions for rb_brand_ms table (platform-level totals)
         const msBaseConds = [`created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         msBaseConds.push(`sales IS NOT NULL`);
-        if (locArr.length > 0) {
+        if (locArr && locArr.length > 0) {
             msBaseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Category Share conditions for rb_brand_ms table (category-level totals)
         const catBaseConds = [`created_on BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         catBaseConds.push(`sales IS NOT NULL`);
-        if (locArr.length > 0) {
+        if (locArr && locArr.length > 0) {
             catBaseConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         const catArr = normalizeFilterArray(category);
-        if (catArr.length > 0) {
+        if (catArr && catArr.length > 0) {
             catBaseConds.push(`category_master IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
@@ -6101,6 +6175,381 @@ const getCompetitionBrandTrends = async (filters = {}) => {
     }
 };
 
+/**
+ * Get Dark Store Count from rb_location_darkstore table
+ * Returns count of distinct merchant_name grouped by platform based on filters
+ * @param {Object} filters - { platform, location, startDate, endDate }
+ * @returns {Object} - { totalCount, byPlatform: { platform: count } }
+ */
+/**
+ * Get Dark Store Count from rb_location_darkstore table
+ * Returns count of distinct merchant_name grouped by platform based on filters
+ * @param {Object} filters - { platform, location, startDate, endDate }
+ * @returns {Object} - { totalCount, byPlatform: { platform: count } }
+ */
+const getDarkStoreCount = async (filters = {}) => {
+    try {
+        console.log('[getDarkStoreCount] Fetching dark store count with filters:', filters);
+
+        const { platform, location, startDate, endDate } = filters;
+
+        // Helper to escape strings for ClickHouse
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build conditions
+        const conds = [];
+
+        // Platform filter
+        if (platform && platform !== 'All') {
+            const platformArr = Array.isArray(platform) ? platform : [platform];
+            if (platformArr.length > 0) {
+                conds.push(`platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            }
+        }
+
+        // Location filter
+        if (location && location !== 'All') {
+            const locationArr = Array.isArray(location) ? location : [location];
+            if (locationArr.length > 0) {
+                conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            }
+        }
+
+        const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+
+        // Query for dark store count grouped by platform
+        const query = `
+            SELECT 
+                platform,
+                count(DISTINCT merchant_name) as store_count
+            FROM rb_location_darkstore
+            ${whereClause}
+            GROUP BY platform
+        `;
+
+        console.log('[getDarkStoreCount] Query:', query);
+
+        const results = await queryClickHouse(query);
+
+        // Build response
+        const byPlatform = {};
+        let totalCount = 0;
+
+        results.forEach(row => {
+            const count = parseInt(row.store_count) || 0;
+            byPlatform[row.platform] = count;
+            totalCount += count;
+        });
+
+        console.log(`[getDarkStoreCount] Total: ${totalCount}, By Platform:`, byPlatform);
+
+        return {
+            totalCount,
+            byPlatform
+        };
+    } catch (error) {
+        console.error('[getDarkStoreCount] Error:', error);
+        return { totalCount: 0, byPlatform: {} };
+    }
+};
+
+/**
+ * Get Top Actions counts, KPIs and Graph data
+ * @param {Object} filters - { platform, endDate }
+ * @returns {Object} - { counts, kpis, graphData }
+ */
+const getTopActions = async (filters = {}) => {
+    try {
+        const { platform = 'All' } = filters;
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build platform array
+        const platformArr = (platform && platform !== 'All')
+            ? (Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()))
+            : [];
+
+        const platCond = platformArr.length > 0
+            ? `platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+            : '1=1';
+
+        // 1. Fetch Latest Available Date from rb_pdp_olap as a baseline
+        const latestDateRes = await queryClickHouse(`
+            SELECT MAX(toDate(DATE)) as max_date 
+            FROM rb_pdp_olap 
+            WHERE ${platCond.replace('platform', 'Platform')}
+        `);
+        const maxAvailableDate = latestDateRes[0]?.max_date ? dayjs(latestDateRes[0].max_date) : dayjs();
+
+        // 2. Determine targetDate (use requested endDate but cap it at maxAvailableDate)
+        let targetDate = filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined'
+            ? dayjs(filters.endDate)
+            : maxAvailableDate;
+
+        // If requested date is beyond available data, cap it
+        if (targetDate.isAfter(maxAvailableDate)) {
+            targetDate = maxAvailableDate;
+        }
+
+        const dateVal = targetDate;
+        const endDateStr = dateVal.format('YYYY-MM-DD');
+        console.log(`[getTopActions] Requested: ${filters.endDate}, Available: ${maxAvailableDate.format('YYYY-MM-DD')}, Using: ${endDateStr}`);
+
+        // 2. Basic Counts (Active Stores and Hero SKUs)
+        // Active Stores: SELECT count(DISTINCT(merchant_name)) FROM rb_location_darkstore based on Platform and endDate
+        const storeQuery = `
+            SELECT count(DISTINCT merchant_name) as count 
+            FROM rb_location_darkstore 
+            WHERE ${platCond} AND toDate(created_on) <= '${endDateStr}'
+        `;
+
+        // Hero SKUs: distinct count of web_pid from rca_watchtower_insight
+        const skuQuery = `
+            SELECT count(DISTINCT web_pid) as count, groupArray(DISTINCT web_pid) as pids 
+            FROM rca_watchtower_insight 
+            WHERE ${platCond} AND date = '${endDateStr}'
+        `;
+
+        const [storeRes, skuRes] = await Promise.all([
+            queryClickHouse(storeQuery),
+            queryClickHouse(skuQuery)
+        ]);
+
+        const darkstoreCount = parseInt(storeRes[0]?.count || 0);
+        const skuCount = parseInt(skuRes[0]?.count || 0);
+        const topPids = skuRes[0]?.pids ? skuRes[0].pids.slice(0, 4) : [];
+        console.log('[getTopActions] Basic counts - Stores:', darkstoreCount, 'SKUs:', skuCount);
+
+        // 3. KPIs from rb_pdp_olap
+        const platCondOlap = platCond.replace('platform', 'Platform');
+
+        // OSA %
+        const osaCurrentQuery = `
+            SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) = '${endDateStr}'
+        `;
+        const osaPrevQuery = `
+            SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) = '${dateVal.subtract(7, 'day').format('YYYY-MM-DD')}'
+        `;
+
+        // Sales MTD
+        const mtdStart = dateVal.startOf('month').format('YYYY-MM-DD');
+        const salesMtdQuery = `
+            SELECT SUM(toFloat64OrZero(Sales)) as sales 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
+        `;
+        const lastMtdStart = dateVal.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+        const lastMtdEnd = dateVal.subtract(1, 'month').format('YYYY-MM-DD');
+        const lastSalesMtdQuery = `
+            SELECT SUM(toFloat64OrZero(Sales)) as sales 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${lastMtdStart}' AND '${lastMtdEnd}'
+        `;
+
+        const [osaCurr, osaPrev, salesCurr, salesPrev] = await Promise.all([
+            queryClickHouse(osaCurrentQuery),
+            queryClickHouse(osaPrevQuery),
+            queryClickHouse(salesMtdQuery),
+            queryClickHouse(lastSalesMtdQuery)
+        ]);
+
+        const currentOsa = osaCurr[0]?.deno > 0 ? (osaCurr[0].neno / osaCurr[0].deno) * 100 : 0;
+        const previousOsa = osaPrev[0]?.deno > 0 ? (osaPrev[0].neno / osaPrev[0].deno) * 100 : 0;
+        const osaDelta = currentOsa - previousOsa;
+
+        const currentSales = parseFloat(salesCurr[0]?.sales || 0);
+        const previousSales = parseFloat(salesPrev[0]?.sales || 0);
+        const salesDelta = previousSales > 0 ? ((currentSales - previousSales) / previousSales) * 100 : 0;
+
+        // Lost Sales = [(MTD Sales / currentOsa%) - MTD Sales]
+        const lostSales = currentOsa > 0 ? (currentSales / (currentOsa / 100)) - currentSales : 0;
+
+        // 4. Graph Data (7 days trend for topPids)
+        const getTrend = async (startDate, endDate) => {
+            if (topPids.length === 0) return [];
+            const pidList = topPids.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',');
+            return queryClickHouse(`
+                SELECT toDate(DATE) as day, SUM(toFloat64OrZero(neno_osa)) as n, SUM(toFloat64(deno_osa)) as d
+                FROM rb_pdp_olap
+                WHERE ${platCondOlap}
+                  AND toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
+                  AND lower(Web_Pid) IN (${pidList})
+                GROUP BY day ORDER BY day ASC
+            `);
+        };
+
+        const todayTrend = await getTrend(dateVal.subtract(6, 'day').format('YYYY-MM-DD'), endDateStr);
+        const weekTrend = await getTrend(dateVal.subtract(13, 'day').format('YYYY-MM-DD'), dateVal.subtract(7, 'day').format('YYYY-MM-DD'));
+        const monthTrend = await getTrend(dateVal.subtract(1, 'month').subtract(6, 'day').format('YYYY-MM-DD'), dateVal.subtract(1, 'month').format('YYYY-MM-DD'));
+
+        const formatGraph = (currTrend, compTrend) => {
+            const labels = ['D-6', 'D-5', 'D-4', 'D-3', 'D-2', 'D-1', 'Today'];
+            return labels.map((label, i) => {
+                const c = currTrend[i]?.d > 0 ? (currTrend[i].n / currTrend[i].d) * 100 : 0;
+                const p = compTrend[i]?.d > 0 ? (compTrend[i].n / compTrend[i].d) * 100 : 0;
+                return { day: label, current: parseFloat(c.toFixed(1)), compare: parseFloat(p.toFixed(1)) };
+            });
+        };
+
+        const result = {
+            counts: { darkstoreCount, skuCount },
+            kpis: {
+                osa: { value: `${currentOsa.toFixed(1)}%`, delta: `${osaDelta >= 0 ? '+' : ''}${osaDelta.toFixed(1)} pt` },
+                fillRate: { value: "Coming Soon", delta: "0" },
+                salesMtd: { value: `₹${(currentSales / 10000000).toFixed(1)} Cr`, delta: `${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}%` },
+                lostSales: { value: `₹${(lostSales / 10000000).toFixed(1)} Cr`, delta: "" },
+                activeStores: { value: darkstoreCount.toLocaleString(), delta: "" },
+                heroSkus: { value: skuCount.toString(), delta: "0" }
+            },
+            graphData: {
+                week: formatGraph(todayTrend, weekTrend),
+                month: formatGraph(todayTrend, monthTrend)
+            },
+            metadata: { platform, endDate: endDateStr, topPids }
+        };
+        console.log('[getTopActions] Result generated');
+        return result;
+
+    } catch (error) {
+        console.error('[getTopActions] CRITICAL ERROR:', error);
+        return { counts: { darkstoreCount: 0, skuCount: 0 }, kpis: {}, graphData: { week: [], month: [] } };
+    }
+};
+
+/**
+ * Get OSA Deep Dive table data (city-wise breakdown)
+ * @param {Object} filters - { platform, endDate }
+ * @returns {Array} - Array of city objects with KPIs
+ */
+const getOsaDeepDive = async (filters = {}) => {
+    try {
+        const { platform = 'All' } = filters;
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build platform conditions
+        const platformArr = (platform && platform !== 'All')
+            ? (Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()))
+            : [];
+
+        const platCondDarkstore = platformArr.length > 0
+            ? `platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+            : '1=1';
+        const platCondOlap = platformArr.length > 0
+            ? `Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+            : '1=1';
+
+        // 1. Fetch Latest Available Date from rb_pdp_olap
+        const latestDateRes = await queryClickHouse(`
+            SELECT MAX(toDate(DATE)) as max_date 
+            FROM rb_pdp_olap 
+            WHERE ${platCondOlap}
+        `);
+        const maxAvailableDate = latestDateRes[0]?.max_date ? dayjs(latestDateRes[0].max_date) : dayjs();
+
+        let targetDate = filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined'
+            ? dayjs(filters.endDate)
+            : maxAvailableDate;
+
+        if (targetDate.isAfter(maxAvailableDate)) {
+            targetDate = maxAvailableDate;
+        }
+
+        const endDateStr = targetDate.format('YYYY-MM-DD');
+        const mtdStart = targetDate.startOf('month').format('YYYY-MM-DD');
+
+        // 2. Fetch Hero SKUs for filtering
+        const heroSkuRes = await queryClickHouse(`
+            SELECT DISTINCT lower(web_pid) as pid 
+            FROM rca_watchtower_insight 
+            WHERE ${platCondDarkstore} AND date = '${endDateStr}'
+        `);
+        const heroPids = heroSkuRes.map(r => `'${escapeStr(r.pid)}'`).join(',');
+        const heroSkuFilter = heroPids ? `AND lower(Web_Pid) IN (${heroPids})` : 'AND 1=0';
+
+        // 3. Parallel Queries for City Data
+        // a) City Store Counts from rb_location_darkstore
+        const storeCountQuery = `
+            SELECT location, count(DISTINCT merchant_name) as count 
+            FROM rb_location_darkstore 
+            WHERE ${platCondDarkstore} AND toDate(created_on) <= '${endDateStr}'
+            GROUP BY location
+        `;
+
+        // b) City KPIs from rb_pdp_olap (OSA, Sales, Hero SKUs)
+        const cityStatsQuery = `
+            SELECT 
+                Location as city,
+                SUM(toFloat64OrZero(neno_osa)) as neno, 
+                SUM(toFloat64(deno_osa)) as deno,
+                SUM(CASE WHEN toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}' THEN toFloat64OrZero(Sales) ELSE 0 END) as sales_mtd,
+                count(DISTINCT CASE WHEN toDate(DATE) = '${endDateStr}' ${heroSkuFilter} THEN Web_Pid END) as hero_skus
+            FROM rb_pdp_olap
+            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
+            GROUP BY city
+        `;
+
+        const [storeCounts, cityStats] = await Promise.all([
+            queryClickHouse(storeCountQuery),
+            queryClickHouse(cityStatsQuery)
+        ]);
+
+        // 4. Merge Results
+        const cityMap = {};
+
+        // Start with all cities from darkstore table to ensure 706 count consistency
+        storeCounts.forEach(row => {
+            const cityName = row.location || 'Other';
+            cityMap[cityName.toLowerCase()] = {
+                city: cityName,
+                osa: '0.0%',
+                fillRate: 'Coming Soon',
+                sales: '₹0.0 Cr',
+                lostSales: '₹0.0 Cr',
+                heroSkus: '0',
+                storeCount: row.count
+            };
+        });
+
+        // Overlay with actual KPIs where available
+        cityStats.forEach(row => {
+            const key = row.city.toLowerCase();
+            const osa = row.deno > 0 ? (row.neno / row.deno) * 100 : 0;
+            const sales = parseFloat(row.sales_mtd || 0);
+            const lostSales = osa > 0 ? (sales / (osa / 100)) - sales : 0;
+
+            if (cityMap[key]) {
+                cityMap[key].osa = osa.toFixed(1) + '%';
+                cityMap[key].sales = `₹${(sales / 10000000).toFixed(1)} Cr`;
+                cityMap[key].lostSales = `₹${(lostSales / 10000000).toFixed(1)} Cr`;
+                cityMap[key].heroSkus = row.hero_skus.toString();
+            } else {
+                // If it's a city in OLAP but not in Darkstore list (rare), add it too
+                cityMap[key] = {
+                    city: row.city,
+                    osa: osa.toFixed(1) + '%',
+                    fillRate: 'Coming Soon',
+                    sales: `₹${(sales / 10000000).toFixed(1)} Cr`,
+                    lostSales: `₹${(lostSales / 10000000).toFixed(1)} Cr`,
+                    heroSkus: row.hero_skus.toString(),
+                    storeCount: 0
+                };
+            }
+        });
+
+        // Convert to array and filter out cities with 0 stores
+        return Object.values(cityMap)
+            .filter(c => c.storeCount > 0 || c.osa !== '0.0%')
+            .sort((a, b) => b.storeCount - a.storeCount);
+
+    } catch (error) {
+        console.error('[getOsaDeepDive] Error:', error);
+        return [];
+    }
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -6120,5 +6569,8 @@ export default {
     getCompetitionData,
     getCompetitionFilterOptions,
     getCompetitionBrandTrends,
-    getLatestAvailableMonth
+    getLatestAvailableMonth,
+    getDarkStoreCount,
+    getTopActions,
+    getOsaDeepDive
 };

@@ -2,14 +2,41 @@ import React, { useState, useMemo, useEffect, useContext } from "react";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 import {
     X,
     SlidersHorizontal,
     ChevronLeft,
     ChevronRight,
     ArrowUpDown,
-    Download
+    Download,
+    RefreshCw,
+    AlertCircle
 } from "lucide-react";
+
+/* ------------------------------------------------------
+   Error Component
+-------------------------------------------------------*/
+const ErrorWithRefresh = ({ onRetry, message }) => (
+    <div className="flex flex-col items-center justify-center py-12 px-3 text-center">
+        <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mb-4">
+            <AlertCircle size={32} color="#ef4444" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-1">
+            API Reference Error
+        </h3>
+        <p className="text-sm text-slate-500 mb-6 max-w-[300px]">
+            {message || "We encountered an issue while fetching the latest data for this segment."}
+        </p>
+        <button
+            onClick={onRetry}
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all active:scale-95"
+        >
+            <RefreshCw size={16} />
+            Try Refreshing
+        </button>
+    </div>
+);
 
 /* ------------------------------------------------------
    KPI ORDER CONFIG
@@ -1048,6 +1075,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
     const [skusData, setSkusData] = useState([]);
     const [isUsingApiData, setIsUsingApiData] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [apiError, setApiError] = useState(null);
 
     // Reset pagination when tab or signal type changes
     useEffect(() => {
@@ -1062,8 +1090,14 @@ function SignalLabBase({ metricType, usePagination = true }) {
         timeStart,
         timeEnd,
         compareStart,
-        compareEnd
+        compareEnd,
+        refreshFilters
     } = useContext(FilterContext);
+
+    const retrySignalLab = async () => {
+        refreshFilters();
+        // The useEffect will trigger automatically due to filters/dates dependency
+    };
 
     // Fetch data from API - use API data if successful, otherwise keep sample data
     useEffect(() => {
@@ -1074,6 +1108,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
         const fetchSignalLabData = async () => {
             try {
                 setLoading(true);
+                setApiError(null);
 
                 // Build query parameters from FilterContext
                 const queryParams = new URLSearchParams({
@@ -1092,16 +1127,12 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
                 console.log(`[SignalLabVisibility] Fetching Top ${signalType}s for ${metricType} (Limit 50)`);
 
-                const response = await fetch(
-                    `http://localhost:5000/api/availability-analysis/signal-lab?${queryParams}`,
+                const response = await axiosInstance.get(
+                    `/availability-analysis/signal-lab?${queryParams}`,
                     { signal }
                 );
 
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
-                }
-
-                const data = await response.json();
+                const data = response.data;
 
                 if (isMounted) {
                     console.log('[SignalLabVisibility] API Response received');
@@ -1147,7 +1178,8 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 }
                 if (isMounted) {
                     console.error('[SignalLabVisibility] Error fetching API data:', err);
-                    // If API fails, show empty state instead of sample data as requested
+                    setApiError(err.message || "Failed to fetch signal lab data");
+                    // If API fails, show empty state instead of sample data
                     setSkusData([]);
                     setTotalCount(0);
                     setIsUsingApiData(true);
@@ -1215,8 +1247,13 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 </div>
             )}
 
+            {/* Error State */}
+            {apiError && !loading && (
+                <ErrorWithRefresh onRetry={retrySignalLab} message={apiError} />
+            )}
+
             {/* No Data Found */}
-            {!loading && filtered.length === 0 && (
+            {!loading && !apiError && filtered.length === 0 && (
                 <div className="mt-5 flex items-center justify-center py-12 text-center">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4 mx-auto">
                         <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
