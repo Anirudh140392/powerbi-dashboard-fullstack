@@ -114,7 +114,9 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     } else if (months && Array.isArray(months) && months.length > 0) {
         conditions.push(`formatDateTime(${prefix}DATE, '%Y-%m') IN (${months.map(m => `'${m}'`).join(',')})`);
     } else if (startDate && endDate) {
-        conditions.push(`${prefix}DATE BETWEEN '${startDate}' AND '${endDate}'`);
+        const startStr = dayjs(startDate).format('YYYY-MM-DD');
+        const endStr = dayjs(endDate).format('YYYY-MM-DD');
+        conditions.push(`${prefix}DATE BETWEEN '${startStr}' AND '${endStr}'`);
     }
 
     // Advanced filters requiring subqueries on rb_location_darkstore
@@ -132,6 +134,21 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     }
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+};
+
+/**
+ * Helper to get the latest available date from rb_pdp_olap
+ */
+const getLatestDate = async () => {
+    try {
+        const query = 'SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap';
+        const result = await queryClickHouse(query);
+        const date = result[0]?.maxDate ? dayjs(result[0].maxDate) : dayjs();
+        return date;
+    } catch (error) {
+        console.error('[getLatestDate] Error:', error);
+        return dayjs();
+    }
 };
 
 const getAssortment = async (filters) => {
@@ -1044,8 +1061,14 @@ const getAvailabilityKpiTrends = async (filters) => {
             const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
             const days = periodDays[period] || 30;
 
-            const currentEndDate = filterEnd ? dayjs(filterEnd) : dayjs();
-            const currentStartDate = filterStart ? dayjs(filterStart) : currentEndDate.subtract(days - 1, 'days');
+            let currentEndDate, currentStartDate;
+            if (filterStart && filterEnd) {
+                currentEndDate = dayjs(filterEnd);
+                currentStartDate = dayjs(filterStart);
+            } else {
+                currentEndDate = await getLatestDate();
+                currentStartDate = currentEndDate.subtract(days - 1, 'days');
+            }
 
             // Build filter conditions using the enhanced where clause
             const whereClause = buildAvailabilityWhereClause(filters);
@@ -1131,7 +1154,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 endDate = dayjs(fEnd);
             } else {
                 const days = periodDays[period] || 30;
-                endDate = dayjs();
+                endDate = await getLatestDate();
                 startDate = endDate.subtract(days, 'days');
             }
 
@@ -1341,7 +1364,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             } else {
                 const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                 const days = periodDays[period] || 30;
-                endDate = dayjs();
+                endDate = await getLatestDate();
                 startDate = endDate.subtract(days, 'days');
             }
 
