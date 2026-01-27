@@ -15,6 +15,7 @@ const debugAer = async () => {
         const endDate = dayjs('2025-12-09');
         const dateFilter = { [Op.between]: [startDate.toDate(), endDate.toDate()] };
 
+
         // 1. Check RbPdpOlap (Top Cards Source)
         const pdpWhere = {
             DATE: dateFilter,

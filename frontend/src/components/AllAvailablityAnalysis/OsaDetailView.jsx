@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, RefreshCcw, AlertCircle, FileQuestion } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 
 // Single-file React component (JSX)
@@ -137,6 +137,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
     // State for selected filter values (for cascading)
     const [selectedPlatform, setSelectedPlatform] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(null);
+    const [selectedMonth, setSelectedMonth] = useState(null);
 
     // State for dynamic category OSA data from API
     const [categoryData, setCategoryData] = useState([]);
@@ -150,104 +151,98 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
     // State to track the applied filters (set when Apply button is clicked)
     const [appliedFilters, setAppliedFilters] = useState({});
 
+    // New error and refresh states
+    const [hasError, setHasError] = useState(false);
+    const [retryKey, setRetryKey] = useState(0);
+
     // Fetch category OSA data from API - Uses global filters from props + local advanced filters
     useEffect(() => {
         const fetchCategoryOsaData = async () => {
             try {
                 setIsLoading(true);
+                setHasError(false);
                 const params = new URLSearchParams({});
 
-                // ✅ Use GLOBAL Platform filter from props (top dropdown)
-                const globalPlatform = filters.platform || selectedPlatform;
-                if (globalPlatform && globalPlatform !== 'All') {
-                    params.append('platform', globalPlatform);
+                // 1. Base filters from props (Global Headers)
+                const platform = filters.platform || 'All';
+                const brand = filters.brand || 'All';
+                const location = filters.location || 'All';
+                const startDate = filters.startDate;
+                const endDate = filters.endDate;
+
+                // 2. Local Advanced Filters (from Filter Panel)
+                const {
+                    platform: localPlatforms,
+                    brand: localBrands,
+                    city: localCities,
+                    category: localCategories,
+                    date: localDates,
+                    month: localMonths
+                } = appliedFilters;
+
+                // Collect params - prioritizing local filters if they exist
+                if (localPlatforms && localPlatforms.length > 0) {
+                    params.append('platform', localPlatforms.join(','));
+                } else if (platform !== 'All') {
+                    params.append('platform', platform);
                 }
 
-                // ✅ Use GLOBAL Brand filter from props (top dropdown)
-                if (filters.brand && filters.brand !== 'All') {
-                    params.append('brand', filters.brand);
+                if (localBrands && localBrands.length > 0) {
+                    params.append('brand', localBrands.join(','));
+                } else if (brand !== 'All') {
+                    params.append('brand', brand);
                 }
 
-                // ✅ Use GLOBAL Location filter from props (top dropdown)
-                if (filters.location && filters.location !== 'All') {
-                    params.append('location', filters.location);
+                if (localCities && localCities.length > 0) {
+                    params.append('cities', localCities.join(','));
+                } else if (location !== 'All') {
+                    params.append('location', location);
                 }
 
-                // ✅ Use GLOBAL Date Range from props (date picker)
-                if (filters.startDate) {
-                    params.append('startDate', filters.startDate);
-                }
-                if (filters.endDate) {
-                    params.append('endDate', filters.endDate);
-                }
-
-                // Local advanced filter overrides (from Filters panel)
-                // Date filter - pass selected dates (overrides global date range if set)
-                if (appliedFilters.date && appliedFilters.date.length > 0) {
-                    params.append('dates', appliedFilters.date.join(','));
+                // Time Period logic: Internal Date/Month overrides global Start/End Date
+                if (localDates && localDates.length > 0) {
+                    params.append('dates', localDates.join(','));
+                } else if (localMonths && localMonths.length > 0) {
+                    params.append('months', localMonths.join(','));
+                } else {
+                    if (startDate) params.append('startDate', startDate);
+                    if (endDate) params.append('endDate', endDate);
                 }
 
-                // Month filter
-                if (appliedFilters.month && appliedFilters.month.length > 0) {
-                    params.append('months', appliedFilters.month.join(','));
-                }
-
-                // City filter
-                if (appliedFilters.city && appliedFilters.city.length > 0) {
-                    params.append('cities', appliedFilters.city.join(','));
-                }
-
-                // Category filter
-                if (appliedFilters.category && appliedFilters.category.length > 0) {
-                    params.append('categories', appliedFilters.category.join(','));
-                }
-
-                // KPI filter
-                if (appliedFilters.kpi && appliedFilters.kpi.length > 0) {
-                    params.append('kpis', appliedFilters.kpi.join(','));
+                // Other advanced filters
+                if (localCategories && localCategories.length > 0) {
+                    params.append('categories', localCategories.join(','));
                 }
 
                 const url = `/api/availability-analysis/osa-detail-by-category?${params}`;
                 console.log('[OsaDetailView] REQUEST:', url);
 
                 const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 const data = await res.json();
 
-                console.log('[OsaDetailView] RESPONSE:', JSON.stringify(data, null, 2));
-
-                if (data.categories && data.categories.length > 0) {
-                    // Transform API data to match expected format
-                    const transformedData = data.categories.map(cat => ({
-                        name: cat.name,
-                        sku: cat.sku,
-                        values: cat.values,
-                        avg7: cat.values.length >= 7
-                            ? Math.round(cat.values.slice(-7).reduce((a, b) => a + b, 0) / 7)
-                            : cat.avg31,
-                        avg31: cat.avg31,
-                        status: cat.status
-                    }));
-                    setCategoryData(transformedData);
-                    if (data.dates) {
-                        setApiDates(data.dates);
-                        // Update visible days based on actual date range returned
-                        setVisibleDays(Math.min(data.dates.length, 31));
-                    }
+                if (data && data.categories) {
+                    setCategoryData(data.categories);
                 } else {
-                    // No data - clear state
                     setCategoryData([]);
+                }
+
+                if (data && data.dates) {
+                    setApiDates(data.dates);
+                    setVisibleDays(Math.min(data.dates.length, 31));
+                } else {
                     setApiDates([]);
                 }
-                console.log('[OsaDetailView] Loaded', data.categories?.length, 'categories');
             } catch (error) {
-                console.error('Error fetching category OSA data:', error);
+                console.error('[OsaDetailView] FETCH ERROR:', error);
+                setHasError(true);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchCategoryOsaData();
-    }, [filters.platform, filters.brand, filters.location, filters.startDate, filters.endDate, selectedPlatform, appliedFilters]);
+    }, [filters, appliedFilters, retryKey]);
 
     // Fetch filter options from API
     useEffect(() => {
@@ -322,20 +317,40 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
         fetchCityOptions();
     }, [selectedPlatform, selectedCategory]);
 
+    // Fetch date options when month or platform changes
+    useEffect(() => {
+        const fetchDateOptions = async () => {
+            try {
+                const params = new URLSearchParams({ filterType: 'dates' });
+                if (selectedPlatform) params.append('platform', selectedPlatform);
+                if (selectedMonth) params.append('months', selectedMonth);
+
+                const res = await fetch(`/api/availability-analysis/filter-options?${params}`);
+                const data = await res.json();
+                if (data.options) {
+                    setDateOptions(data.options.map(d => ({ id: d, label: d })));
+                }
+            } catch (error) {
+                console.error('Error fetching date options:', error);
+            }
+        };
+
+        fetchDateOptions();
+    }, [selectedPlatform, selectedMonth]);
+
     // Build filter options from loaded data
     const filterOptions = useMemo(() => {
         return [
-            { id: "date", label: "Date", options: dateOptions.length > 0 ? dateOptions : [] },
-            { id: "month", label: "Month", options: monthOptions.length > 0 ? [{ id: "all", label: "All" }, ...monthOptions] : [{ id: "all", label: "All" }] },
             { id: "platform", label: "Platform", options: platformOptions.length > 0 ? platformOptions : [] },
+            { id: "month", label: "Month", options: monthOptions.length > 0 ? [{ id: "all", label: "All" }, ...monthOptions] : [{ id: "all", label: "All" }] },
+            { id: "date", label: "Date", options: dateOptions.length > 0 ? dateOptions : [] },
             { id: "city", label: "City", options: cityOptions.length > 0 ? cityOptions : [] },
             { id: "category", label: "Category", options: categoryOptions.length > 0 ? categoryOptions : [] },
-            { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
         ];
     }, [platformOptions, cityOptions, categoryOptions, monthOptions, dateOptions]);
 
-    // Use API data if available, otherwise fall back to sample data
-    const dataSource = categoryData.length > 0 ? categoryData : SAMPLE_ROWS;
+    // Use API data, removed SAMPLE_ROWS fallback as per request
+    const dataSource = categoryData;
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -452,15 +467,16 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                     <span>Filters</span>
                                 </button>
 
+
                                 {/* Status Legend - Moved from body */}
-                                <div className="flex items-center gap-2 ml-2">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
+                                <div className="hidden sm:flex items-center gap-2 ml-2">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 min-w-max py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2 min-w-max py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
                                         <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
                                     </span>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2 min-w-max py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
                                         <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
                                     </span>
                                 </div>
@@ -579,10 +595,46 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                             );
                                         })}
 
-                                        {pageRows.length === 0 && (
+                                        {pageRows.length === 0 && !isLoading && !hasError && (
                                             <tr>
-                                                <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
-                                                    No rows found.
+                                                <td colSpan={4 + dayCols.length} className="px-4 py-20 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-3">
+                                                        <div className="rounded-full bg-slate-50 p-4 ring-1 ring-slate-100">
+                                                            <FileQuestion className="h-8 w-8 text-slate-300" />
+                                                        </div>
+                                                        <div className="max-w-[200px] text-xs font-medium text-slate-500 leading-relaxed">
+                                                            No data found for the selected filters and time period.
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setAppliedFilters({})}
+                                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline"
+                                                        >
+                                                            Reset Filters
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+
+                                        {hasError && !isLoading && (
+                                            <tr>
+                                                <td colSpan={4 + dayCols.length} className="px-4 py-20 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-4">
+                                                        <div className="rounded-full bg-rose-50 p-4 ring-1 ring-rose-100">
+                                                            <AlertCircle className="h-8 w-8 text-rose-500" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <div className="text-sm font-bold text-slate-900">Oops! Something went wrong</div>
+                                                            <div className="text-xs text-slate-500">Failed to load OSA detail data.</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setRetryKey(k => k + 1)}
+                                                            className="flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2 text-xs font-bold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95"
+                                                        >
+                                                            <RefreshCcw className="h-3.5 w-3.5" />
+                                                            Try Again
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )}
@@ -669,41 +721,59 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                             }));
 
                                             // Handle cascading filters - Platform selection affects Category and City
-                                            if (sectionId === 'platform' && values?.length > 0) {
-                                                // Get the label of the first selected platform
-                                                const selectedOption = platformOptions.find(p => values.includes(p.id));
-                                                setSelectedPlatform(selectedOption?.label || null);
-                                                // Reset dependent filters
-                                                setSelectedCategory(null);
-                                                // Clear dependent filter selections
-                                                setFilterSelections(prev => ({
-                                                    ...prev,
-                                                    [sectionId]: values,
-                                                    category: [],
-                                                    city: []
-                                                }));
-                                            } else if (sectionId === 'platform' && (!values || values.length === 0)) {
-                                                setSelectedPlatform(null);
-                                                setSelectedCategory(null);
+                                            if (sectionId === 'platform') {
+                                                const selectedLabels = platformOptions
+                                                    .filter(p => values.includes(p.id))
+                                                    .map(p => p.label);
+
+                                                setSelectedPlatform(selectedLabels.length > 0 ? selectedLabels.join(',') : null);
+
+                                                // Reset dependent filters if platform changed
+                                                if (values?.length > 0) {
+                                                    setSelectedCategory(null);
+                                                    setFilterSelections(prev => ({
+                                                        ...prev,
+                                                        [sectionId]: values,
+                                                        category: [],
+                                                        city: []
+                                                    }));
+                                                } else {
+                                                    setSelectedPlatform(null);
+                                                    setSelectedCategory(null);
+                                                }
                                             }
 
                                             // Handle Category selection - affects City
-                                            if (sectionId === 'category' && values?.length > 0) {
-                                                const selectedOption = categoryOptions.find(c => values.includes(c.id));
-                                                setSelectedCategory(selectedOption?.label || null);
-                                                // Clear city selection when category changes
+                                            if (sectionId === 'category') {
+                                                const selectedLabels = categoryOptions
+                                                    .filter(c => values.includes(c.id))
+                                                    .map(c => c.label);
+
+                                                setSelectedCategory(selectedLabels.length > 0 ? selectedLabels.join(',') : null);
+
+                                                if (values?.length > 0) {
+                                                    // Clear city selection when category changes
+                                                    setFilterSelections(prev => ({
+                                                        ...prev,
+                                                        [sectionId]: values,
+                                                        city: []
+                                                    }));
+                                                } else {
+                                                    setSelectedCategory(null);
+                                                }
+                                            }
+
+                                            // Handle Month selection - affects Date
+                                            if (sectionId === 'month') {
+                                                const selectedValues = values || [];
+                                                setSelectedMonth(selectedValues.length > 0 ? selectedValues.join(',') : null);
+
+                                                // Clear date selection when month changes
                                                 setFilterSelections(prev => ({
                                                     ...prev,
                                                     [sectionId]: values,
-                                                    city: []
+                                                    date: []
                                                 }));
-                                            } else if (sectionId === 'category' && (!values || values.length === 0)) {
-                                                setSelectedCategory(null);
-                                            }
-
-                                            // Handle KPI filter changes
-                                            if (sectionId === 'kpi') {
-                                                console.log("Selected KPIs:", values);
                                             }
                                         }}
                                     />

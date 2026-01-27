@@ -327,6 +327,48 @@ function TrendModal({ context, onClose }) {
    MAIN COMPONENT
 ------------------------------------------------------------------ */
 
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+  return (
+    <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+        <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+        <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={isRetrying}
+        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+          }`}
+      >
+        {isRetrying ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+            <span>Retrying...</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 function InventeryConceptMain() {
   // Get global filter values from FilterContext (Header date picker)
   const {
@@ -337,7 +379,8 @@ function InventeryConceptMain() {
     platform,
     selectedBrand,
     selectedLocation,
-    datesInitialized
+    datesInitialized,
+    refreshFilters
   } = useContext(FilterContext);
 
   const [drrUplift, setDrrUplift] = useState(20);
@@ -369,56 +412,65 @@ function InventeryConceptMain() {
   const [expandedCities, setExpandedCities] = useState({});
   const [expandedFormats, setExpandedFormats] = useState({});
 
+  // Fetch function extracted for reuse
+  const fetchInventoryData = async () => {
+    try {
+      setIsLoading(true);
+      setApiError(null);
+
+      // Format dates from FilterContext (dayjs objects)
+      const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
+      const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
+      const compStartDate = compareStart?.format?.('YYYY-MM-DD') || compareStart;
+      const compEndDate = compareEnd?.format?.('YYYY-MM-DD') || compareEnd;
+
+      // Helper to formatting array/string params
+      const formatParam = (param) => {
+        if (Array.isArray(param)) {
+          return param.length > 0 ? param.join(',') : 'All';
+        }
+        return param || 'All';
+      };
+
+      const params = {
+        startDate,
+        endDate,
+        compareStartDate: compStartDate,
+        compareEndDate: compEndDate,
+        platform: formatParam(platform),
+        brand: formatParam(selectedBrand),
+        location: formatParam(selectedLocation),
+      };
+
+      console.log("📊 [InventoryOverview] Fetching with params:", params);
+
+      const response = await axiosInstance.get(
+        `/inventory-analysis/overview`,
+        { params }
+      );
+
+      console.log("📊 [InventoryOverview] API Response:", response.data);
+      setInventoryData(response.data);
+    } catch (error) {
+      console.error("❌ [InventoryOverview] Error fetching data:", error);
+      setApiError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Retry function
+  const retryOverview = () => {
+    if (refreshFilters) {
+      refreshFilters();
+    }
+    fetchInventoryData();
+  };
+
   // Fetch inventory overview data from API - connected to FilterContext
   useEffect(() => {
     // Wait for dates to be initialized from context
     if (!datesInitialized) return;
-
-    const fetchInventoryData = async () => {
-      try {
-        setIsLoading(true);
-        setApiError(null);
-
-        // Format dates from FilterContext (dayjs objects)
-        const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
-        const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
-        const compStartDate = compareStart?.format?.('YYYY-MM-DD') || compareStart;
-        const compEndDate = compareEnd?.format?.('YYYY-MM-DD') || compareEnd;
-
-        // Helper to formatting array/string params
-        const formatParam = (param) => {
-          if (Array.isArray(param)) {
-            return param.length > 0 ? param.join(',') : 'All';
-          }
-          return param || 'All';
-        };
-
-        const params = {
-          startDate,
-          endDate,
-          compareStartDate: compStartDate,
-          compareEndDate: compEndDate,
-          platform: formatParam(platform),
-          brand: formatParam(selectedBrand),
-          location: formatParam(selectedLocation),
-        };
-
-        console.log("📊 [InventoryOverview] Fetching with params:", params);
-
-        const response = await axiosInstance.get(
-          `/inventory-analysis/overview`,
-          { params }
-        );
-
-        console.log("📊 [InventoryOverview] API Response:", response.data);
-        setInventoryData(response.data);
-      } catch (error) {
-        console.error("❌ [InventoryOverview] Error fetching data:", error);
-        setApiError(error.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
     fetchInventoryData();
   }, [timeStart, timeEnd, compareStart, compareEnd, platform, selectedBrand, selectedLocation, datesInitialized]);
@@ -578,12 +630,20 @@ function InventeryConceptMain() {
     <div className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900" >
       {/* Top Inventory & DOH Overview */}
       < div className="mx-auto max-w-6xl space-y-6" >
-        {/* REPLACED WITH METRIC CARD CONTAINER */}
-        < MetricCardContainer
-          title="Inventory & DOH Overview"
-          cards={cards}
-          loading={isLoading}
-        />
+        {/* INVENTORY & DOH OVERVIEW - with error handling */}
+        {apiError ? (
+          <ErrorWithRefresh
+            segmentName="Inventory & DOH Overview"
+            errorMessage={apiError}
+            onRetry={retryOverview}
+          />
+        ) : (
+          <MetricCardContainer
+            title="Inventory & DOH Overview"
+            cards={cards}
+            loading={isLoading}
+          />
+        )}
 
 
         {/* MATRIX + FILTERS */}

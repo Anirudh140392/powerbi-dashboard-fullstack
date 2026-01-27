@@ -11,7 +11,15 @@ export default function AvailablityAnalysis() {
     selectedBrand,
     selectedLocation,
     timeStart,
-    timeEnd
+    timeEnd,
+    selectedZone,
+    pmSelectedPlatform,
+    pmSelectedBrand,
+    setPlatform,
+    setSelectedLocation,
+    setTimeStart,
+    setTimeEnd,
+    refreshFilters
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
@@ -21,11 +29,37 @@ export default function AvailablityAnalysis() {
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
+    zones: selectedZone || "All",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
     endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
   });
+
+  // Wrapper to sync context when filters change locally (e.g. from internal matrix filters)
+  const handleFiltersChange = (newFilters) => {
+    setFilters(newFilters);
+
+    // Sync back to FilterContext to update global header
+    if (newFilters.platform && newFilters.platform !== platform) {
+      setPlatform(newFilters.platform);
+    }
+    if (newFilters.location && newFilters.location !== selectedLocation) {
+      setSelectedLocation(newFilters.location);
+    }
+    if (newFilters.startDate) {
+      const newStart = dayjs(newFilters.startDate);
+      if (!newStart.isSame(timeStart, 'day')) {
+        setTimeStart(newStart);
+      }
+    }
+    if (newFilters.endDate) {
+      const newEnd = dayjs(newFilters.endDate);
+      if (!newEnd.isSame(timeEnd, 'day')) {
+        setTimeEnd(newEnd);
+      }
+    }
+  };
 
   // Ref to track last fetched filters to prevent duplicate API calls
   const lastFetchedFiltersRef = useRef(null);
@@ -37,10 +71,11 @@ export default function AvailablityAnalysis() {
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
       location: selectedLocation || prev.location,
+      zones: selectedZone || prev.zones,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
       endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate
     }));
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, selectedZone]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -102,6 +137,167 @@ export default function AvailablityAnalysis() {
   const [apiData, setApiData] = useState({});
   // Dedicated loading state - true when API calls are in progress
   const [isLoading, setIsLoading] = useState(true);
+  // Per-segment error tracking
+  const [apiErrors, setApiErrors] = useState({});
+
+  // Build query params helper
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
+
+    // Iterate over all active filters and add to params
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== 'All' && value !== '') {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            value.forEach(v => params.append(key, v));
+          }
+        } else {
+          params.append(key, value);
+        }
+      }
+    });
+
+    // Ensure defaults for required fields if not present
+    if (!params.has('platform')) params.append('platform', 'All');
+    if (!params.has('brand')) params.append('brand', 'All');
+    if (!params.has('location')) params.append('location', 'All');
+
+    return params.toString();
+  };
+
+  // Individual segment fetch functions for retry capability
+  const fetchOverview = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, overview: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, overview: data }));
+      return true;
+    } catch (err) {
+      console.error('[Overview] API error:', err);
+      setApiErrors(prev => ({ ...prev, overview: err.message }));
+      return false;
+    }
+  };
+
+  const fetchPlatformKpi = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, platformKpi: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, platformKpi: data }));
+      return true;
+    } catch (err) {
+      console.error('[PlatformKpi] API error:', err);
+      setApiErrors(prev => ({ ...prev, platformKpi: err.message }));
+      return false;
+    }
+  };
+
+  const fetchFormatKpi = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, formatKpi: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, formatKpi: data }));
+      return true;
+    } catch (err) {
+      console.error('[FormatKpi] API error:', err);
+      setApiErrors(prev => ({ ...prev, formatKpi: err.message }));
+      return false;
+    }
+  };
+
+  const fetchCityKpi = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, cityKpi: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, cityKpi: data }));
+      return true;
+    } catch (err) {
+      console.error('[CityKpi] API error:', err);
+      setApiErrors(prev => ({ ...prev, cityKpi: err.message }));
+      return false;
+    }
+  };
+
+  const fetchDoi = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, doi: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, doi: data }));
+      return true;
+    } catch (err) {
+      console.error('[DOI] API error:', err);
+      setApiErrors(prev => ({ ...prev, doi: err.message }));
+      return false;
+    }
+  };
+
+  const fetchMetroCity = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, metroCity: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, metroCity: data }));
+      return true;
+    } catch (err) {
+      console.error('[MetroCity] API error:', err);
+      setApiErrors(prev => ({ ...prev, metroCity: err.message }));
+      return false;
+    }
+  };
+
+  const fetchOsaDetail = async (osaDetailParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, osaDetail: null }));
+      const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, osaDetail: data }));
+      return true;
+    } catch (err) {
+      console.error('[OsaDetail] API error:', err);
+      setApiErrors(prev => ({ ...prev, osaDetail: err.message }));
+      return false;
+    }
+  };
+
+  // Retry handlers for each segment
+  const retrySegment = async (segmentKey) => {
+    // First, refresh the filter options to ensure dropdowns show updated values
+    if (refreshFilters) {
+      refreshFilters();
+    }
+
+    const queryParams = buildQueryParams();
+    const osaDetailParams = new URLSearchParams({
+      platform: 'All',
+      brand: 'All',
+      location: 'All',
+      startDate: filters.startDate,
+      endDate: filters.endDate
+    }).toString();
+
+    switch (segmentKey) {
+      case 'overview': return fetchOverview(queryParams);
+      case 'platformKpi': return fetchPlatformKpi(queryParams);
+      case 'formatKpi': return fetchFormatKpi(queryParams);
+      case 'cityKpi': return fetchCityKpi(queryParams);
+      case 'doi': return fetchDoi(queryParams);
+      case 'metroCity': return fetchMetroCity(queryParams);
+      case 'osaDetail': return fetchOsaDetail(osaDetailParams);
+      default: return false;
+    }
+  };
 
   useEffect(() => {
     // Create a stable key to detect actual filter changes
@@ -125,92 +321,39 @@ export default function AvailablityAnalysis() {
     // Set loading true and reset all data to trigger skeleton loaders
     setIsLoading(true);
     setApiData({});
+    setApiErrors({});
 
     const fetchData = async () => {
       try {
-        // Build query params from current filter state (synced with FilterContext)
-        const queryParams = new URLSearchParams({
-          platform: filters.platform || 'All',
-          brand: filters.brand || 'All',
-          location: filters.location || 'All',
+        const queryParams = buildQueryParams();
+
+        // OSA Detail - Following global date range
+        const osaDetailParams = new URLSearchParams({
+          platform: 'All',
+          brand: 'All',
+          location: 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();
 
-        console.log('📡 Fetching availability data with filters:', filters.platform, filters.brand, filters.location);
+        console.log('📡 Fetching availability data. Global filters:', filters.platform, filters.brand, filters.location);
 
-        // Fetch each section independently - update state as each completes
-        // This allows sections to render as soon as their data is available
+        // Fetch all segments (errors are tracked per-segment)
+        await Promise.allSettled([
+          fetchOverview(queryParams),
+          fetchPlatformKpi(queryParams),
+          fetchFormatKpi(queryParams),
+          fetchCityKpi(queryParams),
+          fetchDoi(queryParams),
+          fetchMetroCity(queryParams),
+          fetchOsaDetail(osaDetailParams)
+        ]);
 
-        // Availability Overview (Stock Availability) - Sets isLoading=false when done
-        fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`)
-          .then(res => res.json())
-          .then(overview => {
-            console.log('✅ Overview fetched');
-            setApiData(prev => ({ ...prev, overview }));
-            setIsLoading(false); // Hide skeleton after primary data loads
-          })
-          .catch(err => {
-            console.error('❌ Overview fetch error:', err);
-            setIsLoading(false); // Hide skeleton on error too
-          });
-
-        // Platform KPI Matrix (viewMode=Platform)
-        fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`)
-          .then(res => res.json())
-          .then(platformKpi => {
-            console.log('✅ Platform KPI Matrix fetched');
-            setApiData(prev => ({ ...prev, platformKpi }));
-          })
-          .catch(err => console.error('❌ Platform KPI Matrix fetch error:', err));
-
-        // Format KPI Matrix (viewMode=Format) - fetched in parallel
-        fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`)
-          .then(res => res.json())
-          .then(formatKpi => {
-            console.log('✅ Format KPI Matrix fetched');
-            setApiData(prev => ({ ...prev, formatKpi }));
-          })
-          .catch(err => console.error('❌ Format KPI Matrix fetch error:', err));
-
-        // City KPI Matrix (viewMode=City) - fetched in parallel
-        fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`)
-          .then(res => res.json())
-          .then(cityKpi => {
-            console.log('✅ City KPI Matrix fetched');
-            setApiData(prev => ({ ...prev, cityKpi }));
-          })
-          .catch(err => console.error('❌ City KPI Matrix fetch error:', err));
-
-        // DOI (Days of Inventory)
-        fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`)
-          .then(res => res.json())
-          .then(doi => {
-            console.log('✅ DOI fetched');
-            setApiData(prev => ({ ...prev, doi }));
-          })
-          .catch(err => console.error('❌ DOI fetch error:', err));
-
-        // Metro City Stock Availability
-        fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`)
-          .then(res => res.json())
-          .then(metroCity => {
-            console.log('✅ Metro City fetched');
-            setApiData(prev => ({ ...prev, metroCity }));
-          })
-          .catch(err => console.error('❌ Metro City fetch error:', err));
-
-        // OSA Detail (keep for completeness)
-        fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${queryParams}`)
-          .then(res => res.json())
-          .then(osaDetail => {
-            console.log('✅ OSA Detail fetched');
-            setApiData(prev => ({ ...prev, osaDetail }));
-          })
-          .catch(err => console.error('❌ OSA Detail fetch error:', err));
-
+        console.log('✅ All availability data segments processed');
       } catch (error) {
-        console.error("Error setting up availability data fetch:", error);
+        console.error("Error fetching availability data:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -222,9 +365,16 @@ export default function AvailablityAnalysis() {
       <CommonContainer
         title="Availability Analysis"
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={handleFiltersChange}
       >
-        <AvailablityAnalysisData apiData={apiData} filters={filters} loading={isLoading} />
+        <AvailablityAnalysisData
+          apiData={apiData}
+          apiErrors={apiErrors}
+          onRetry={retrySegment}
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          loading={isLoading}
+        />
       </CommonContainer>
     </>
   );

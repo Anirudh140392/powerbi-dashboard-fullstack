@@ -57,6 +57,48 @@ const statusChip = {
   critical: { label: 'Critical', className: 'bg-rose-100 text-rose-700' },
 }
 
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+  return (
+    <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+        <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+        <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={isRetrying}
+        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+          }`}
+      >
+        {isRetrying ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+            <span>Retrying...</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 const KpiTile = ({ title, value, trend, deltaPeriod, target, status, filtersLabel }) => {
   const spark = trend.map((v, idx) => ({ idx, value: v }))
   return (
@@ -502,6 +544,8 @@ const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
 
 const VisiblityAnalysisData = ({
   apiData = {},
+  apiErrors = {},
+  onRetry,
   filters = {},
   topSearchFilter = "All",
   setTopSearchFilter
@@ -803,18 +847,34 @@ const VisiblityAnalysisData = ({
       </div>
 
       {/* MODAL SECTION */}
-      {/* Visibility Overview - show skeleton when loading and no data */}
-      <MetricCardContainer
-        title="Visibility Overview"
-        cards={overviewLoading ? [] : (overviewData?.cards || cards)}
-        loading={overviewLoading}
-      />
-      {/* Platform KPI Matrix - skeleton during loading, then show component with API data */}
-      {matrixLoading ? (
+      {/* Visibility Overview - show error if failed, skeleton when loading */}
+      {apiErrors.overview ? (
+        <ErrorWithRefresh
+          segmentName="Visibility Overview"
+          errorMessage={apiErrors.overview}
+          onRetry={() => onRetry?.('overview')}
+        />
+      ) : (
+        <MetricCardContainer
+          title="Visibility Overview"
+          cards={overviewLoading ? [] : (overviewData?.cards || cards)}
+          loading={overviewLoading}
+        />
+      )}
+
+      {/* Platform KPI Matrix - show error if failed, skeleton during loading */}
+      {apiErrors.matrix ? (
+        <ErrorWithRefresh
+          segmentName="Platform KPI Matrix"
+          errorMessage={apiErrors.matrix}
+          onRetry={() => onRetry?.('matrix')}
+        />
+      ) : matrixLoading ? (
         <TabbedHeatmapTableSkeleton />
       ) : (
         <TabbedHeatmapTable matrixData={matrixData} loading={matrixLoading} />
       )}
+
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
@@ -854,42 +914,62 @@ const VisiblityAnalysisData = ({
           />
 
         // </div> */}
+
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
-      {/* Keywords at a Glance - skeleton during loading, then show component with API data */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        {keywordsLoading ? (
-          <VisibilityDrilldownSkeleton />
-        ) : (
-          <VisibilityDrilldownTable data={keywordsData?.hierarchy} loading={keywordsLoading} />
-        )}
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-            {["All", "Branded", "Competition", "Generic"].map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setTopSearchFilter(tab)}
-                className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+
+      {/* Keywords at a Glance - show error if failed, skeleton during loading */}
+      {apiErrors.keywords ? (
+        <ErrorWithRefresh
+          segmentName="Keywords at a Glance"
+          errorMessage={apiErrors.keywords}
+          onRetry={() => onRetry?.('keywords')}
+        />
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {keywordsLoading ? (
+            <VisibilityDrilldownSkeleton />
+          ) : (
+            <VisibilityDrilldownTable data={keywordsData?.hierarchy} loading={keywordsLoading} />
+          )}
         </div>
-        {topSearchLoading && !topSearchData ? (
-          <TopSearchTermsSkeleton />
-        ) : (
-          <TopSearchTerms
-            filter={topSearchFilter}
-            data={topSearchData?.terms}
-            loading={topSearchLoading}
-            filters={filters}
-          />
-        )}
-      </div>
+      )}
+
+      {/* Top Search Terms - show error if failed */}
+      {apiErrors.searchTerms ? (
+        <ErrorWithRefresh
+          segmentName="Top Search Terms"
+          errorMessage={apiErrors.searchTerms}
+          onRetry={() => onRetry?.('searchTerms')}
+        />
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+              {["All", "Branded", "Competition", "Generic"].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setTopSearchFilter(tab)}
+                  className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+          {topSearchLoading && !topSearchData ? (
+            <TopSearchTermsSkeleton />
+          ) : (
+            <TopSearchTerms
+              filter={topSearchFilter}
+              data={topSearchData?.terms}
+              loading={topSearchLoading}
+              filters={filters}
+            />
+          )}
+        </div>
+      )}
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <VisibilityLayoutOne />

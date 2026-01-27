@@ -3,6 +3,19 @@ import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheH
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+/**
+ * Robust filter parsing to handle strings, arrays, and comma-separated values.
+ * Prevents crashes when multiple values are passed from the frontend.
+ */
+const parseFilter = (val) => {
+    if (!val || val === 'All' || val === 'all' || val === 'undefined') return 'All';
+    if (Array.isArray(val)) return val.length > 0 ? val : 'All';
+    if (typeof val === 'string' && val.includes(',')) {
+        return val.split(',').map(v => v.trim()).filter(v => v !== '');
+    }
+    return val;
+};
+
 export const AvailabilityControlTower = async (req, res) => {
     try {
         const filters = req.query;
@@ -31,11 +44,19 @@ export const AvailabilityControlTower = async (req, res) => {
 export const getAvailabilityOverview = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -59,18 +80,28 @@ export const getPlatformKpiMatrix = async (req, res) => {
     try {
         const filters = {
             viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
+        console.log('[DEBUG] viewMode from query:', req.query.viewMode);
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getAbsoluteOsaPlatformKpiMatrix(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[RESPONSE] viewMode:', data.viewMode);
+        console.log('[RESPONSE] Columns:', JSON.stringify(data.columns));
         console.log('==============================================\n');
 
         res.json(data);
@@ -86,11 +117,19 @@ export const getPlatformKpiMatrix = async (req, res) => {
 export const getOsaPercentageDetail = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -113,11 +152,19 @@ export const getOsaPercentageDetail = async (req, res) => {
 export const getDOI = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -140,11 +187,19 @@ export const getDOI = async (req, res) => {
 export const getMetroCityStockAvailability = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -168,16 +223,18 @@ export const getMetroCityStockAvailability = async (req, res) => {
  */
 export const getAvailabilityFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category, city } = req.query;
+        const { filterType, platform, brand, category, format, city, months, metroFlag } = req.query;
         console.log('\n========== AVAILABILITY FILTER OPTIONS API ==========');
-        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'city:', city);
+        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'format:', format, 'city:', city, 'months:', months, 'metroFlag:', metroFlag);
 
         const data = await availabilityService.getAvailabilityFilterOptions({
             filterType: filterType || 'platforms',
-            platform: platform && platform !== 'undefined' ? platform : 'All',
-            brand: brand && brand !== 'undefined' ? brand : 'All',
-            category: category && category !== 'undefined' ? category : 'All',
-            city: city && city !== 'undefined' ? city : 'All'
+            platform: parseFilter(platform),
+            brand: parseFilter(brand),
+            category: parseFilter(category || format),
+            city: parseFilter(city),
+            months: parseFilter(months),
+            metroFlag: parseFilter(metroFlag)
         });
 
         console.log('[RESPONSE]:', data.options?.length, 'options returned');
@@ -197,17 +254,20 @@ export const getAvailabilityFilterOptions = async (req, res) => {
 export const getOsaDetailByCategory = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            // New filter params from OSA Detail View filter panel
-            dates: req.query.dates ? req.query.dates.split(',') : null,
-            months: req.query.months ? req.query.months.split(',') : null,
-            cities: req.query.cities ? req.query.cities.split(',') : null,
-            categories: req.query.categories ? req.query.categories.split(',') : null,
-            kpis: req.query.kpis ? req.query.kpis.split(',') : null
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes),
+            kpis: parseFilter(req.query.kpis)
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -566,10 +626,12 @@ export const getSignalLabData = async (req, res) => {
 
                 const qty = Number(item.totalQtySold || 0);
                 const price = Number(item.avgPrice || 0);
-                const revenue = qty * price;
+                const currSalesVal = Number(item.currSales || 0);
+                const revenue = currSalesVal; // Use actual sales, not qty * price
                 const inventory = Number(item.avgInventory || 0);
                 const drr = qty / daysInPeriod;
                 const doi = drr > 0 ? inventory / drr : 0;
+
 
                 let kpis = {};
                 if (metricType === 'sales') {
@@ -701,13 +763,28 @@ export const getCityDetailsForProduct = async (req, res) => {
             // Helper to escape strings
             const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
+            // First get the category of this product for category share calculation
+            const categoryQuery = `
+                SELECT any(Category) as category FROM rb_pdp_olap WHERE Web_Pid = '${escapeStr(webPid)}'
+            `;
+            const catResult = await queryClickHouse(categoryQuery);
+            const productCategory = catResult[0]?.category || '';
+
+            // Main query with all metrics
             const query = `
                 SELECT
                     Location as city,
+                    -- OSA metrics
                     (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
                     (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS compOsa,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS offtake,
-                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS compOfftake
+                    -- Sales/Offtake metrics
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Sales), 0.0)) AS offtake,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64OrZero(Sales), 0.0)) AS compOfftake,
+                    -- Discount calculation: (MRP - Selling_Price) / MRP * 100
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64OrZero(MRP) > 0, 
+                        (toFloat64OrZero(MRP) - toFloat64OrZero(Selling_Price)) / toFloat64OrZero(MRP) * 100, 0.0)) AS discount,
+                    -- For category share - we need total sales for this location
+                    count() as rowCount
                 FROM rb_pdp_olap
                 WHERE Web_Pid = '${escapeStr(webPid)}'
                   AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
@@ -716,6 +793,25 @@ export const getCityDetailsForProduct = async (req, res) => {
             `;
 
             const rows = await queryClickHouse(query);
+
+            // Get category total sales per location for category share calculation
+            let catShareData = {};
+            if (productCategory) {
+                const catShareQuery = `
+                    SELECT
+                        Location,
+                        sum(toFloat64OrZero(Sales)) AS catTotal
+                    FROM rb_pdp_olap
+                    WHERE Category = '${escapeStr(productCategory)}'
+                      AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                      AND toString(Comp_flag) = '0'
+                    GROUP BY Location
+                `;
+                const catShareRows = await queryClickHouse(catShareQuery);
+                catShareRows.forEach(r => {
+                    catShareData[r.Location] = Number(r.catTotal || 0);
+                });
+            }
 
             const cities = rows.map(row => {
                 const osa = Number(row.osa || 0);
@@ -726,17 +822,23 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const compOfftake = Number(row.compOfftake || 0);
                 const offtakeChange = compOfftake > 0 ? ((offtake - compOfftake) / compOfftake) * 100 : 0;
 
+                // Category share: product sales / category total sales * 100
+                const catTotal = catShareData[row.city] || 0;
+                const catShare = catTotal > 0 ? (offtake / catTotal) * 100 : 0;
+
+                const discount = Number(row.discount || 0);
+
                 return {
                     city: row.city,
-                    estOfftake: offtake / 100000,
+                    estOfftake: offtake / 100000, // Convert to lacs
                     estOfftakeChange: offtakeChange,
-                    estCatShare: 0,
-                    estCatShareChange: 0,
+                    estCatShare: catShare,
+                    estCatShareChange: 0, // Would need comparison period calc
                     wtOsa: osa,
                     wtOsaChange: osaChange,
-                    overallSos: 0,
-                    adSos: 0,
-                    wtDisc: 0
+                    overallSos: 0, // SOS requires rb_kw table, not in rb_pdp_olap
+                    adSos: 0, // SOS requires rb_kw table
+                    wtDisc: discount
                 };
             });
 
@@ -749,3 +851,4 @@ export const getCityDetailsForProduct = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: err.message });
     }
 };
+

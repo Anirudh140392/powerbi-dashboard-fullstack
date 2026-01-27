@@ -62,6 +62,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     pmBrands,
     pmSelectedBrand,
     setPmSelectedBrand,
+    darkStoreData
   } = React.useContext(FilterContext);
 
 
@@ -144,23 +145,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       color: "#64748b",
                     }}
                   >
-                    {(() => {
-                      const darkStorePlatforms = ["Blinkit", "Zepto", "Instamart"];
-                      const marketplacePlatforms = ["Flipkart", "Amazon"];
-
-                      const selectedList = platform === "All"
-                        ? [...darkStorePlatforms, ...marketplacePlatforms]
-                        : (Array.isArray(platform) ? platform : [platform]);
-
-                      const dCount = selectedList.filter(p => darkStorePlatforms.includes(p)).length;
-                      const mCount = selectedList.filter(p => marketplacePlatforms.includes(p)).length;
-
-                      const parts = [];
-                      if (dCount > 0) parts.push(`${dCount} Active Dark Store${dCount > 1 ? 's' : ''}`);
-                      if (mCount > 0) parts.push(`${mCount} Active Marketplace${mCount > 1 ? 's' : ''}`);
-
-                      return parts.length > 0 ? parts.join(" & ") : "0 Active Platforms";
-                    })()}
+                    {darkStoreData?.totalCount || 0} Active Dark Store{(darkStoreData?.totalCount || 0) !== 1 ? 's' : ''}
                   </Typography>
                 </Box>
               )}

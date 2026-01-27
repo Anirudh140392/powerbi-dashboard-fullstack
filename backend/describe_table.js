@@ -1,15 +1,30 @@
-import 'dotenv/config';
-import sequelize from './src/config/db.js';
+
+import dotenv from 'dotenv';
+import { createClient } from '@clickhouse/client';
+dotenv.config();
+
+const clickhouse = createClient({
+    url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
+    username: process.env.CLICKHOUSE_USER || 'default',
+    password: process.env.CLICKHOUSE_PASSWORD || '',
+    database: process.env.CLICKHOUSE_DB || 'GCPL',
+});
 
 async function describeTable() {
     try {
-        await sequelize.authenticate();
-        const [results, metadata] = await sequelize.query("DESCRIBE tb_zepto_ads_keyword_data");
-        console.log("TABLE_SCHEMA:", JSON.stringify(results, null, 2));
-    } catch (error) {
-        console.error('ERROR:', error);
-    } finally {
-        await sequelize.close();
+        console.log('Using URL:', process.env.CLICKHOUSE_URL);
+        console.log('Using User:', process.env.CLICKHOUSE_USER);
+
+        const result = await clickhouse.query({
+            query: 'DESCRIBE TABLE rb_pdp_olap',
+            format: 'JSONEachRow',
+        });
+        const data = await result.json();
+        console.log(JSON.stringify(data, null, 2));
+        process.exit(0);
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
     }
 }
 
