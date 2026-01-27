@@ -40,7 +40,7 @@ async function getEcpComparison(filters = {}) {
             // Build dynamic WHERE conditions
             let whereConditions = [
                 "Selling_Price IS NOT NULL",
-                "Selling_Price > 0",
+                "toFloat64(Selling_Price) > 0",
                 "Brand IS NOT NULL",
                 "Platform IS NOT NULL"
             ];
