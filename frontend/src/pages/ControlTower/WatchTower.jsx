@@ -309,9 +309,6 @@ function WatchTower() {
   const lastFetchedFiltersRef = useRef(null);
 
   // Refs to track if section data was loaded from parallel fetch (prevents duplicate calls from separate useEffects)
-  const monthOverviewLoadedRef = useRef(false);
-  const categoryOverviewLoadedRef = useRef(false);
-  const brandsOverviewLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!datesInitialized) {
@@ -365,11 +362,7 @@ function WatchTower() {
       }));
       setMonthOverviewData([]);
       setCategoryOverviewData([]);
-      // Reset loaded refs for fresh fetch
-      monthOverviewLoadedRef.current = false;
-      categoryOverviewLoadedRef.current = false;
-      brandsOverviewLoadedRef.current = false;
-
+      // Reset data for fresh fetch
       setBrandsOverviewData(null);
 
       // Reset all errors when starting fresh fetch
@@ -449,7 +442,7 @@ function WatchTower() {
           setDashboardData(prev => ({ ...prev, categoryOverview: categoryRes.data }));
           setApiErrors(prev => ({ ...prev, categoryOverview: null }));
           setCategoryOverviewLoading(false);
-          categoryOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
+          setCategoryOverviewLoading(false);
           console.log(`✅ [4/6] Category Overview loaded in ${((performance.now() - step4Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
@@ -470,7 +463,7 @@ function WatchTower() {
           setDashboardData(prev => ({ ...prev, monthOverview: monthRes.data }));
           setApiErrors(prev => ({ ...prev, monthOverview: null }));
           setMonthOverviewLoading(false);
-          monthOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
+          setMonthOverviewLoading(false);
           console.log(`✅ [5/6] Month Overview loaded in ${((performance.now() - step5Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
@@ -491,7 +484,7 @@ function WatchTower() {
           setDashboardData(prev => ({ ...prev, brandsOverview: brandsRes.data }));
           setApiErrors(prev => ({ ...prev, brandsOverview: null }));
           setBrandsOverviewLoading(false);
-          brandsOverviewLoadedRef.current = true; // Mark as loaded from parallel fetch
+          setBrandsOverviewLoading(false);
           console.log(`✅ [6/6] Brand Overview loaded in ${((performance.now() - step6Start) / 1000).toFixed(2)}s`);
         })
         .catch(err => {
@@ -612,13 +605,6 @@ function WatchTower() {
       }
     };
 
-    // Only run if monthOverviewPlatform changes AFTER initial parallel load
-    // Skip if already loaded from parallel fetch (to prevent double API call)
-    if (!loading && monthOverviewLoadedRef.current) {
-      // Reset ref so future changes trigger fetch
-      monthOverviewLoadedRef.current = false;
-      return; // Skip - data was just loaded by parallel fetch
-    }
     if (!loading) {
       fetchMonthOverview();
     }
@@ -662,13 +648,6 @@ function WatchTower() {
       }
     };
 
-    // Only run if categoryOverviewPlatform changes AFTER initial parallel load
-    // Skip if already loaded from parallel fetch (to prevent double API call)
-    if (!loading && categoryOverviewLoadedRef.current) {
-      // Reset ref so future changes trigger fetch
-      categoryOverviewLoadedRef.current = false;
-      return; // Skip - data was just loaded by parallel fetch
-    }
     if (!loading) {
       fetchCategoryOverview();
     }
@@ -712,13 +691,6 @@ function WatchTower() {
       }
     };
 
-    // Only run if platform/category changes AFTER initial parallel load
-    // Skip if already loaded from parallel fetch (to prevent double API call)
-    if (!loading && brandsOverviewLoadedRef.current) {
-      // Reset ref so future changes trigger fetch
-      brandsOverviewLoadedRef.current = false;
-      return; // Skip - data was just loaded by parallel fetch
-    }
     if (!loading) {
       fetchBrandsOverview();
     }
