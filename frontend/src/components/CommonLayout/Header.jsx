@@ -213,20 +213,23 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 width={150}
               />
 
-              <CustomHeaderDropdown
-                label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
-                options={title === "Performance Marketing" ? zones : locations}
-                value={title === "Performance Marketing" ? selectedZone : selectedLocation}
-                onChange={(newValue) => {
-                  if (title === "Performance Marketing") {
-                    setSelectedZone(newValue);
-                  } else {
-                    setSelectedLocation(newValue);
-                  }
-                }}
-                width={150}
-                multi={title === "Inventory Analysis"}
-              />
+              {/* Hide Location filter for Content Analysis page */}
+              {!location.pathname.includes("content-score") && !location.pathname.includes("content-analysis") && (
+                <CustomHeaderDropdown
+                  label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
+                  options={title === "Performance Marketing" ? zones : locations}
+                  value={title === "Performance Marketing" ? selectedZone : selectedLocation}
+                  onChange={(newValue) => {
+                    if (title === "Performance Marketing") {
+                      setSelectedZone(newValue);
+                    } else {
+                      setSelectedLocation(newValue);
+                    }
+                  }}
+                  width={150}
+                  multi={title === "Inventory Analysis"}
+                />
+              )}
 
 
 

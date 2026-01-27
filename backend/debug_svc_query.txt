@@ -1,0 +1,20 @@
+
+            SELECT 
+                product_id,
+                brand_name as brand,
+                title,
+                title_char_count as titleCount,
+                bullet_points_count,
+                description_char_count as descriptionCount,
+                thumbnail_image_count as imageCount,
+                thumbnail_video_count,
+                url,
+                title_length_score as titleScore,
+                prod_desc_score as descriptionScore,
+                thumbnail_media_score as imageScore,
+                aplus_image_score,
+                aplus_description_score,
+                product_platform_total as overallScore
+            FROM tb_content_score_data
+            WHERE 1=1
+         AND toDate(extraction_timestamp) BETWEEN '2026-01-01' AND '2026-01-21' AND (url LIKE '%amazon%' OR url LIKE '%blinkit%' OR url LIKE '%zepto%') LIMIT 5000
