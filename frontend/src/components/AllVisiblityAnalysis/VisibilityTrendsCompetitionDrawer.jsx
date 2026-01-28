@@ -1103,8 +1103,10 @@ export default function VisibilityTrendsCompetitionDrawer({
             {/* RANGE + TIMESTEP */}
             <Box
               display="flex"
-              flexDirection="column"
+              justifyContent="space-between"
+              alignItems="center"
               gap={2}
+              flexWrap="wrap"
             >
               <PillToggleGroup
                 value={range}
@@ -1112,8 +1114,8 @@ export default function VisibilityTrendsCompetitionDrawer({
                 options={trendMeta.rangeOptions}
               />
 
-              <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} gap={{ xs: 1, sm: 2 }}>
-                <Typography variant="body2" fontWeight={500} sx={{ color: "#64748b" }}>Time Step:</Typography>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
@@ -1217,19 +1219,26 @@ export default function VisibilityTrendsCompetitionDrawer({
               </Typography>
             </Box>
 
-            {/* Range + Timestep */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            {/* RANGE + TIMESTEP */}
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              gap={2}
+              flexWrap="wrap"
+            >
               <PillToggleGroup
                 value={range}
                 onChange={setRange}
-                options={compareMeta.rangeOptions}
+                options={trendMeta.rangeOptions}
               />
-              <Box display="flex" alignItems="center" gap={1}>
+
+              <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
-                  options={compareMeta.timeSteps}
+                  options={trendMeta.timeSteps}
                 />
               </Box>
             </Box>

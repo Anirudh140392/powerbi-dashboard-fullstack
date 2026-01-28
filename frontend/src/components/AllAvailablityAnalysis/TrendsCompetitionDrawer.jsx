@@ -1657,25 +1657,14 @@ export default function TrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box
-              display="flex"
-              flexDirection="column"
-              gap={1.5}
-              width="100%"
-            >
+            <Box display="flex" flexDirection="column" gap={1.5}>
               {/* Title */}
               <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              <Box
-                display="flex"
-                alignItems="center"
-                gap={1}
-                flexWrap="wrap"
-                sx={{ width: "100%" }}
-              >
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                 <Select
                   size="small"
                   value={allTrendMeta.context.audience}
@@ -1710,84 +1699,59 @@ export default function TrendsCompetitionDrawer({
                   <MenuItem value="City">City</MenuItem>
                 </Select>
 
-
-                {/* DYNAMIC PILLS */}
-                {/* DYNAMIC PILLS */}
+                {/* DYNAMIC PILLS - with scroll for many options */}
                 {showPlatformPills && (
                   <Box
+                    display="flex"
+                    gap={0.5}
                     sx={{
-                      display: "flex",
-                      gap: 0.5,
-                      overflowX: "auto",
-                      width: "100%",
-                      pb: 0.5, // Space for custom scrollbar
-                      whiteSpace: "nowrap",
-                      px: 0.5,
-                      "&::-webkit-scrollbar": {
-                        height: "4px",
+                      maxWidth: { xs: '100%', md: '500px' },
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      flexWrap: 'nowrap',
+                      pb: 0.5,
+                      '&::-webkit-scrollbar': {
+                        height: '4px',
                       },
-                      "&::-webkit-scrollbar-track": {
-                        background: "transparent",
-                      },
-                      "&::-webkit-scrollbar-thumb": {
-                        background: "#E2E8F0",
-                        borderRadius: "10px",
-                      },
-                      "&::-webkit-scrollbar-thumb:hover": {
-                        background: "#CBD5E1",
+                      '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: '#cbd5e1',
+                        borderRadius: '4px',
                       },
                     }}
                   >
-                    {filtersLoading ? (
-                      // Skeleton pills while loading
-                      Array.from({ length: 4 }).map((_, idx) => (
-                        <Skeleton
-                          key={idx}
-                          variant="rounded"
-                          width={80}
-                          height={32}
-                          sx={{ borderRadius: '999px', flexShrink: 0 }}
-                        />
-                      ))
-                    ) : (
-                      (allTrendMeta.context.audience === "Platform"
-                        ? PLATFORM_OPTIONS
-                        : allTrendMeta.context.audience === "Format"
-                          ? FORMAT_OPTIONS
-                          : allTrendMeta.context.audience === "City"
-                            ? CITY_OPTIONS
-                            : allTrendMeta.context.audience === "Brand"
-                              ? BRAND_OPTIONS
-                              : []
-                      ).map((p) => (
-                        <Box
-                          key={p}
-                          onClick={() => {
-                            setSelectedPlatform(p); // only select the pill
-                          }}
-                          sx={{
-                            px: 1.5,
-                            py: 0.7,
-                            borderRadius: "999px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            border: "1px solid #E5E7EB",
-                            flexShrink: 0, // Prevent pills from shrinking
-                            backgroundColor:
-                              selectedPlatform === p ? "#0ea5e9" : "white",
-                            color: selectedPlatform === p ? "white" : "#0f172a",
-                            transition: "all 0.2s ease",
-                            "&:hover": {
-                              borderColor: selectedPlatform === p ? "#0ea5e9" : "#CBD5E1",
-                              backgroundColor: selectedPlatform === p ? "#0389c4" : "#F8FAFC",
-                            },
-                          }}
-                        >
-                          {p}
-                        </Box>
-                      ))
-                    )}
+                    {(allTrendMeta.context.audience === "Platform"
+                      ? PLATFORM_OPTIONS
+                      : allTrendMeta.context.audience === "Format"
+                        ? FORMAT_OPTIONS
+                        : allTrendMeta.context.audience === "City"
+                          ? CITY_OPTIONS
+                          : allTrendMeta.context.audience === "Brand"
+                            ? BRAND_OPTIONS
+                            : []
+                    ).map((p) => (
+                      <Box
+                        key={p}
+                        onClick={() => {
+                          setSelectedPlatform(p);
+                        }}
+                        sx={{
+                          px: 1.5,
+                          py: 0.7,
+                          borderRadius: "999px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          border: "1px solid #E5E7EB",
+                          backgroundColor:
+                            selectedPlatform === p ? "#0ea5e9" : "white",
+                          color: selectedPlatform === p ? "white" : "#0f172a",
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {p}
+                      </Box>
+                    ))}
                   </Box>
                 )}
               </Box>
@@ -1798,8 +1762,10 @@ export default function TrendsCompetitionDrawer({
             {/* RANGE + TIMESTEP */}
             <Box
               display="flex"
-              flexDirection="column"
+              justifyContent="space-between"
+              alignItems="center"
               gap={2}
+              flexWrap="wrap"
             >
               <PillToggleGroup
                 value={range}
@@ -1807,8 +1773,8 @@ export default function TrendsCompetitionDrawer({
                 options={trendMeta.rangeOptions}
               />
 
-              <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} gap={{ xs: 1, sm: 2 }}>
-                <Typography variant="body2" fontWeight={500} sx={{ color: "#64748b" }}>Time Step:</Typography>
+              <Box display="flex" alignItems="center" gap={2}>
+                <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
@@ -1824,7 +1790,7 @@ export default function TrendsCompetitionDrawer({
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: { xs: 1.5, sm: 2.5 },
+                p: { xs: 1.5, md: 2.5 },
               }}
             >
               {/* Metric Row */}
@@ -1876,10 +1842,18 @@ export default function TrendsCompetitionDrawer({
                 </Box>
               </Box>
 
-              {/* Chart with Skeleton Loader */}
+              {/* Chart */}
               <Box sx={{ height: 340 }}>
                 {loading ? (
-                  <Skeleton variant="rounded" width="100%" height={340} sx={{ borderRadius: 2 }} />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%', justifyContent: 'center' }}>
+                    <Skeleton variant="rectangular" width="100%" height={280} animation="wave" sx={{ borderRadius: 2 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                    </Box>
+                  </Box>
                 ) : (
                   <ReactECharts
                     style={{ height: "100%", width: "100%" }}
