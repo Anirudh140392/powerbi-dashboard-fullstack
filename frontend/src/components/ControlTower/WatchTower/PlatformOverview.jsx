@@ -442,9 +442,10 @@ const PlatformOverview = ({
             sx={{
               display: "flex",
               gap: 2,
-              overflow: "auto",
+              flexDirection: { xs: "column", sm: "row" },
+              overflowX: { xs: "visible", sm: "auto" },
               pb: 2,
-              height: "650px",
+              height: { xs: "auto", sm: "650px" },
               /* Custom Scrollbar for Premium Feel */
               "&::-webkit-scrollbar": {
                 width: "6px",
@@ -465,7 +466,7 @@ const PlatformOverview = ({
             }}
           >
             {paginatedPlatforms.map((platform) => (
-              <Box key={platform.key} sx={{ minWidth: 280 }}>
+              <Box key={platform.key} sx={{ minWidth: { xs: "100%", sm: 280 } }}>
                 <Card
                   sx={{
                     p: 2,
@@ -650,9 +651,9 @@ const PlatformOverview = ({
           {isPagination && (
             <Box
               sx={{
-                mt: 1,
+                mt: 2,
                 display: "flex",
-                justifyContent: "right",
+                justifyContent: { xs: "center", sm: "right" },
               }}
             >
               <Box

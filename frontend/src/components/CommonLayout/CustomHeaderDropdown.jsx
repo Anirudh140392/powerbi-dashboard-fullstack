@@ -84,7 +84,7 @@ const CustomHeaderDropdown = ({
                 sx={{
                     fontSize: "0.7rem",
                     fontWeight: 600,
-                    mb: 0.5,
+                    mb: 0.1,
                     opacity: 0.7,
                     textTransform: "uppercase",
                 }}
@@ -96,7 +96,7 @@ const CustomHeaderDropdown = ({
             <Box
                 onClick={handleTriggerClick}
                 sx={{
-                    height: "38px",
+                    height: { xs: "34px", sm: "38px" },
                     bgcolor: "white",
                     borderRadius: "8px",
                     border: "1px solid",

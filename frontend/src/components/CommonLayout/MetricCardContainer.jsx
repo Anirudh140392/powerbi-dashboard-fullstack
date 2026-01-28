@@ -96,10 +96,11 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           sx={{
             display: "flex",
             gap: 2,
-            overflowX: { xs: "auto", sm: "auto", md: scrollNeeded ? "auto" : "visible" },
+            flexWrap: { xs: "wrap", sm: "nowrap" },
+            overflowX: { xs: "visible", sm: "auto", md: scrollNeeded ? "auto" : "visible" },
             pb: 1,
-            scrollSnapType: { xs: "x mandatory", sm: "x mandatory", md: scrollNeeded ? "x mandatory" : "none" },
-            // Ensure smooth scrolling on mobile
+            scrollSnapType: { xs: "none", sm: "x mandatory", md: scrollNeeded ? "x mandatory" : "none" },
+            // Ensure smooth scrolling on desktop/tablet
             WebkitOverflowScrolling: "touch",
           }}
         >
