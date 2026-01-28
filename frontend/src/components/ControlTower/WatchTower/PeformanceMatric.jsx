@@ -178,7 +178,8 @@ export default function PerformanceMatric({
         sx={{
           display: "flex",
           gap: { xs: 1.5, sm: 2 },
-          overflowX: "auto",
+          flexWrap: { xs: "wrap", sm: "nowrap" },
+          overflowX: { xs: "visible", sm: "auto" },
           pb: 1,
           pt: 1.2,
           px: { xs: 0.5, sm: 1.5 },
@@ -228,7 +229,7 @@ function SkeletonKpiCard() {
   return (
     <Box
       sx={{
-        width: { xs: 220, sm: 260 },
+        width: { xs: "100%", sm: 260 },
         height: 150,
         background: "#FFFFFF",
         borderRadius: "18px",
@@ -267,7 +268,7 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
   return (
     <Box
       sx={{
-        width: { xs: 260, sm: 260 },
+        width: { xs: "100%", sm: 260 },
         flexShrink: 0,
         height: 150,
         background: "#FFFFFF",

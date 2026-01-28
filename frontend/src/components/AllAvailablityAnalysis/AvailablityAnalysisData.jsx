@@ -231,12 +231,12 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
       <FloatingLoader loading={active.loading} label={`Loading ${active.label}...`} />
 
       {/* -------- TABS -------- */}
-      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-full sm:w-max overflow-x-auto no-scrollbar">
+      <div className="flex flex-wrap sm:flex-nowrap gap-2 bg-gray-100 border border-slate-300 rounded-2xl sm:rounded-full p-1 w-full sm:w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-1.5 text-sm rounded-full transition-all flex-shrink-0
+            className={`px-4 py-1.5 text-sm rounded-full transition-all flex-shrink-0 w-full sm:w-auto
               ${activeTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             {t.label}
