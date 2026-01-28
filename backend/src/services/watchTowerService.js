@@ -1505,7 +1505,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             const data = dataByMonth.get(monthKey);
                             data.sales += parseFloat(row.Sales || 0);
                             data.adSales += parseFloat(row.Ad_sales || 0);
-                            data.orders += parseFloat(row.Ad_Orders || 0);
+                            data.orders += parseFloat(row.Ad_Quanity_sold || 0);
                             data.clicks += parseFloat(row.Ad_Clicks || 0);
                             data.impressions += parseFloat(row.Ad_Impressions || 0);
                             data.spend += parseFloat(row.Ad_Spend || 0);
@@ -1556,7 +1556,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                                 formatDateTime(toDate(DATE), '%Y-%m-01') as month,
                                 SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
                                 SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                                SUM(ifNull(toFloat64(Ad_Orders), 0)) as total_orders,
+                                SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
                                 SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
                                 SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
                                 SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend
@@ -3034,7 +3034,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_ad_orders'],
+                    [Sequelize.fn('SUM', Sequelize.col('Ad_Quanity_sold')), 'total_ad_orders'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
                     [Sequelize.fn('AVG', Sequelize.col('Discount')), 'avg_discount'],
@@ -3091,7 +3091,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_ad_orders'],
+                    [Sequelize.fn('SUM', Sequelize.col('Ad_Quanity_sold')), 'total_ad_orders'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
                     [Sequelize.fn('AVG', Sequelize.col('Discount')), 'avg_discount'],
@@ -3121,7 +3121,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_ad_orders'],
+                    [Sequelize.fn('SUM', Sequelize.col('Ad_Quanity_sold')), 'total_ad_orders'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
                     [Sequelize.fn('AVG', Sequelize.col('Discount')), 'avg_discount'],
@@ -3366,7 +3366,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 };
 
 const getPlatforms = async () => {
-    return getCachedOrCompute('watchtower:platforms:all', async () => {
+    return getCachedOrCompute('watchtower:platforms:all:v2', async () => {
         try {
             // ClickHouse query
             const query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
@@ -4008,7 +4008,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(ifNull(toFloat64(Ad_sales), 0)) as ad_sales,
                         SUM(ifNull(toFloat64(Ad_Clicks), 0)) as clicks,
                         SUM(ifNull(toFloat64(Ad_Impressions), 0)) as impressions,
-                        SUM(ifNull(toFloat64(Ad_Orders), 0)) as orders,
+                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as orders,
                         SUM(ifNull(toFloat64(neno_osa), 0)) as neno,
                         SUM(ifNull(toFloat64(deno_osa), 0)) as deno
                     FROM rb_pdp_olap
@@ -4023,7 +4023,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(ifNull(toFloat64(Ad_sales), 0)) as ad_sales,
                         SUM(ifNull(toFloat64(Ad_Clicks), 0)) as clicks,
                         SUM(ifNull(toFloat64(Ad_Impressions), 0)) as impressions,
-                        SUM(ifNull(toFloat64(Ad_Orders), 0)) as orders,
+                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as orders,
                         SUM(ifNull(toFloat64(neno_osa), 0)) as neno,
                         SUM(ifNull(toFloat64(deno_osa), 0)) as deno
                     FROM rb_pdp_olap
@@ -4453,7 +4453,7 @@ const getMonthOverview = async (filters) => {
                         SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
                         SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
                         SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(Ad_Orders), 0)) as total_orders,
+                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
                         SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
                         SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
                     FROM rb_pdp_olap
@@ -4672,7 +4672,7 @@ const getCategoryOverview = async (filters) => {
             // ⚡ OPTIMIZED: Run all queries in PARALLEL with ClickHouse
             const [distinctCategories, categoryData, sosNumCat, sosDenomCat, msNumCat, msDenomCat] = await Promise.all([
                 // Query 1: Distinct categories
-                queryClickHouse(`SELECT DISTINCT Category FROM rca_sku_dim WHERE toString(status) = '1' AND Category IS NOT NULL AND Category != ''`),
+                queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1' AND category IS NOT NULL AND category != ''`),
                 // Query 2: Category metrics
                 queryClickHouse(`
                     SELECT Category,
@@ -4681,7 +4681,7 @@ const getCategoryOverview = async (filters) => {
                         SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
                         SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
                         SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(Ad_Orders), 0)) as total_orders,
+                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
                         SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
                         SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
                     FROM rb_pdp_olap
@@ -4718,7 +4718,7 @@ const getCategoryOverview = async (filters) => {
                 `)
             ]);
 
-            const categories = distinctCategories.map(c => c.Category).filter(Boolean);
+            const categories = distinctCategories.map(c => c.category).filter(Boolean);
             const sosNumCatMap = new Map(sosNumCat.map(r => [r.keyword_category?.toLowerCase(), parseInt(r.count) || 0]));
             const sosDenomCatMap = new Map(sosDenomCat.map(r => [r.keyword_category?.toLowerCase(), parseInt(r.count) || 0]));
             const msNumCatMap = new Map(msNumCat.map(r => [r.category_master?.toLowerCase(), parseFloat(r.our_sales || 0)]));
@@ -4921,7 +4921,7 @@ const getBrandsOverview = async (filters) => {
                         SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
                         SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
                         SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Orders), 0)) as total_orders,
+                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
                         SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
                         SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
                         SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
@@ -5119,7 +5119,7 @@ const getKpiTrends = async (filters) => {
                 SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
                 SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
                 SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_ad_spend,
-                SUM(ifNull(toFloat64(Ad_Orders), 0)) as total_ad_orders,
+                SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_ad_orders,
                 SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_ad_clicks,
                 SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_ad_impressions,
                 SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno_osa,
@@ -5289,13 +5289,13 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         }
 
         if (filterType === 'categories') {
-            // Fetch unique categories (Category) from rca_sku_dim (comp_flag=0, status=1)
-            const conditions = [`comp_flag = 0`, `status = 1`, `Category IS NOT NULL`, `Category != ''`];
+            // Fetch unique categories (category) from rca_sku_dim (comp_flag=0, status=1)
+            const conditions = [`comp_flag = 0`, `status = 1`, `category IS NOT NULL`, `category != ''`];
             if (platform && platform !== 'All') {
                 conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
             }
 
-            const query = `SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+            const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
             const results = await queryClickHouse(query);
             const categoryList = results.map(c => c.category).filter(c => c && c.trim()).sort();
             return { options: [...categoryList] };
@@ -5742,8 +5742,8 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct categories filtered by platform/location
             (() => {
                 const conds = buildBaseConds();
-                conds.push(`Category IS NOT NULL`, `Category != ''`);
-                return queryClickHouse(`SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
+                conds.push(`category IS NOT NULL`, `category != ''`);
+                return queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
             })(),
 
             // Fetch distinct competitor brands filtered by platform/location + category
@@ -5752,7 +5752,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 conds.push(`brand_name IS NOT NULL`, `brand_name != ''`, `toString(comp_flag) = '1'`);
                 const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
                 if (catArr.length > 0) {
-                    conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+                    conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
                 return queryClickHouse(`SELECT DISTINCT brand_name as brand FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY brand`);
             })(),

@@ -241,21 +241,22 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(options);
                     setBackendAvailable(true);
 
-                    if (options.length > 0 && !platform) {
-                        setPlatform(options[0]);
+                    // If current platform is not in dynamic options, reset to 'All' or first option
+                    if (!options.includes(platform)) {
+                        setPlatform("All");
                     }
                 } else {
                     // Empty response, use fallback
                     throw new Error("Empty platform data");
                 }
             } catch (error) {
-                console.warn("⚠️ Backend unavailable, using fallback data for platforms:", error.message);
+                console.warn("⚠️ [FilterContext] Backend platforms API failed:", error.message);
                 setBackendAvailable(false);
                 // Use hardcoded platforms
                 const fallbackPlatforms = Object.keys(platformData);
                 setPlatforms(fallbackPlatforms);
-                if (!platform && fallbackPlatforms.length > 0) {
-                    setPlatform(fallbackPlatforms[0]);
+                if (!fallbackPlatforms.includes(platform)) {
+                    setPlatform(fallbackPlatforms[0] || "Zepto");
                 }
             }
         };
