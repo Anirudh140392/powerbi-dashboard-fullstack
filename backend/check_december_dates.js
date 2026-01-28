@@ -19,7 +19,6 @@ async function checkDatesInDatabase() {
             ORDER BY DATE(date);
         `;
 
-
         const results = await sequelize.query(query, {
             type: Sequelize.QueryTypes.SELECT
         });
