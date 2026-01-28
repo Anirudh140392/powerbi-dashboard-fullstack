@@ -1,11 +1,7 @@
 {
-  "platform[]": [
-    "Amazon",
-    "Blinkit",
-    "Zepto"
-  ],
+  "platform": "Amazon",
   "brand": "All",
   "location": "All",
-  "startDate": "2026-01-01",
+  "startDate": "2026-01-21",
   "endDate": "2026-01-21"
 }
