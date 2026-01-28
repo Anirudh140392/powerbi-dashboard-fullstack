@@ -2,9 +2,38 @@ import RbPdpOlap from '../models/RbPdpOlap.js';
 import { Op, Sequelize } from 'sequelize';
 import dayjs from 'dayjs';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
+import { queryClickHouse } from '../config/clickhouse.js';
 
 /**
- * Helper to handle multi-select filters (comma-separated strings)
+ * Helper to escape ClickHouse strings
+ */
+const escapeCH = (str) => String(str || '').replace(/'/g, "''");
+
+/**
+ * Helper to build ClickHouse multi-select conditions
+ */
+const buildCHMultiCondition = (value, column, options = {}) => {
+    if (!value || value === 'All') return '1=1';
+
+    const values = String(value).split(',').map(v => v.trim()).filter(Boolean);
+    if (values.length === 0) return '1=1';
+
+    if (options.isBrand) {
+        // Use LIKE for brand matching
+        if (values.length === 1) {
+            return `positionCaseInsensitive(${column}, '${escapeCH(values[0])}') > 0`;
+        }
+        return `(${values.map(v => `positionCaseInsensitive(${column}, '${escapeCH(v)}') > 0`).join(' OR ')})`;
+    }
+
+    if (values.length === 1) {
+        return `${column} = '${escapeCH(values[0])}'`;
+    }
+    return `${column} IN (${values.map(v => `'${escapeCH(v)}'`).join(',')})`;
+};
+
+/**
+ * Helper to handle multi-select filters (comma-separated strings) - MySQL version kept for backwards compatibility
  */
 const handleMultiSelect = (value, column, baseWhere) => {
     if (!value || value === 'All') return;
@@ -28,117 +57,117 @@ const handleMultiSelect = (value, column, baseWhere) => {
 };
 
 /**
- * Sales Overview - KPI Cards
+ * Sales Overview - KPI Cards (ClickHouse version)
  */
 export const getSalesOverview = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('sales_overview', req.query);
+        const cacheKey = generateCacheKey('sales_overview_ch', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { platform, brand, location, region, startDate, endDate, compareStartDate, compareEndDate } = req.query;
 
-            // Base filters
-            const baseWhere = { Comp_flag: 0 };
-            handleMultiSelect(platform, 'Platform', baseWhere);
-            handleMultiSelect(brand, 'Brand', baseWhere);
-            handleMultiSelect(location, 'Location', baseWhere);
+            // Build base conditions
+            const platformCondition = buildCHMultiCondition(platform, 'Platform');
+            const brandCondition = buildCHMultiCondition(brand, 'Brand', { isBrand: true });
+            const locationCondition = buildCHMultiCondition(location, 'Location');
+            const compFlagCondition = "toString(Comp_flag) = '0'";
 
-            // Region filter requires checking the mapping table via EXISTS
-            if (region && region !== 'All') {
-                const regionClause = region === 'Unknown'
-                    ? 'NOT EXISTS'
-                    : `EXISTS (SELECT 1 FROM rb_location_darkstore WHERE location_sales = \`rb_pdp_olap\`.\`Location\` AND region = '${region.replace(/'/g, "''")}')`;
-
-                baseWhere[Op.and] = [Sequelize.literal(regionClause)];
-            }
+            const baseWhere = `${compFlagCondition} AND ${platformCondition} AND ${brandCondition} AND ${locationCondition}`;
 
             const currentEnd = endDate ? dayjs(endDate) : dayjs();
             const daysInInterval = startDate && endDate ? dayjs(endDate).diff(dayjs(startDate), 'day') + 1 : 1;
 
             // 1. Overall Sales in selected range
-            const overallWhere = { ...baseWhere };
+            let overallSales = 0;
             if (startDate && endDate) {
-                overallWhere.DATE = { [Op.between]: [new Date(startDate), new Date(endDate)] };
+                const overallQuery = `
+                    SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                    FROM rb_pdp_olap
+                    WHERE ${baseWhere}
+                      AND toDate(DATE) BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'
+                `;
+                const overallRes = await queryClickHouse(overallQuery);
+                overallSales = parseFloat(overallRes[0]?.total || 0);
             }
-            const overallRes = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Sales')), 0), 'total']],
-                where: overallWhere,
-                raw: true
-            });
-            const overallSales = parseFloat(overallRes?.total || 0);
 
             // 2. Comparison Period Sales
             let comparisonSales = 0;
             if (compareStartDate && compareEndDate) {
-                const compWhere = { ...baseWhere, DATE: { [Op.between]: [new Date(compareStartDate), new Date(compareEndDate)] } };
-                const compRes = await RbPdpOlap.findOne({
-                    attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Sales')), 0), 'total']],
-                    where: compWhere,
-                    raw: true
-                });
-                comparisonSales = parseFloat(compRes?.total || 0);
+                const compQuery = `
+                    SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                    FROM rb_pdp_olap
+                    WHERE ${baseWhere}
+                      AND toDate(DATE) BETWEEN '${dayjs(compareStartDate).format('YYYY-MM-DD')}' AND '${dayjs(compareEndDate).format('YYYY-MM-DD')}'
+                `;
+                const compRes = await queryClickHouse(compQuery);
+                comparisonSales = parseFloat(compRes[0]?.total || 0);
             }
 
             // 3. MTD Sales (Month of the endDate)
-            const mtdStart = currentEnd.startOf('month').toDate();
-            const mtdWhere = { ...baseWhere, DATE: { [Op.between]: [mtdStart, currentEnd.toDate()] } };
-            const mtdRes = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Sales')), 0), 'total']],
-                where: mtdWhere,
-                raw: true
-            });
-            const mtdSales = parseFloat(mtdRes?.total || 0);
+            const mtdStart = currentEnd.startOf('month').format('YYYY-MM-DD');
+            const mtdEnd = currentEnd.format('YYYY-MM-DD');
+            const mtdQuery = `
+                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                FROM rb_pdp_olap
+                WHERE ${baseWhere}
+                  AND toDate(DATE) BETWEEN '${mtdStart}' AND '${mtdEnd}'
+            `;
+            const mtdRes = await queryClickHouse(mtdQuery);
+            const mtdSales = parseFloat(mtdRes[0]?.total || 0);
 
             // 4. Calculations
             const drr = daysInInterval > 0 ? overallSales / daysInInterval : 0;
             const mtdDaysElapsed = currentEnd.date() || 1;
             const projectedSales = (mtdSales / mtdDaysElapsed) * currentEnd.daysInMonth();
 
-            // 5. Daily Trend for Sparklines
-            const trendRes = await RbPdpOlap.findAll({
-                attributes: [
-                    [Sequelize.fn('DATE', Sequelize.col('DATE')), 'date'],
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'value']
-                ],
-                where: overallWhere,
-                group: [Sequelize.fn('DATE', Sequelize.col('DATE'))],
-                order: [[Sequelize.fn('DATE', Sequelize.col('DATE')), 'ASC']],
-                raw: true
-            });
+            // 5. Daily Trend for Sparklines (selected date range)
+            let trend = [];
+            if (startDate && endDate) {
+                const trendQuery = `
+                    SELECT 
+                        toDate(DATE) as date,
+                        SUM(toFloat64OrZero(Sales)) as value
+                    FROM rb_pdp_olap
+                    WHERE ${baseWhere}
+                      AND toDate(DATE) BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'
+                    GROUP BY toDate(DATE)
+                    ORDER BY date ASC
+                `;
+                const trendRes = await queryClickHouse(trendQuery);
+                trend = trendRes.map(t => ({
+                    date: dayjs(t.date).format('DD MMM'),
+                    value: parseFloat(t.value || 0)
+                }));
+            }
 
             // 6. MTD Trend for Sparklines
-            const mtdTrendRes = await RbPdpOlap.findAll({
-                attributes: [
-                    [Sequelize.fn('DATE', Sequelize.col('DATE')), 'date'],
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'value']
-                ],
-                where: mtdWhere,
-                group: [Sequelize.fn('DATE', Sequelize.col('DATE'))],
-                order: [[Sequelize.fn('DATE', Sequelize.col('DATE')), 'ASC']],
-                raw: true
-            });
-
-            // Map and format trends
-            const trend = trendRes.map(t => ({
-                date: dayjs(t.date).format('DD MMM'),
-                value: parseFloat(t.value || 0)
-            }));
-
+            const mtdTrendQuery = `
+                SELECT 
+                    toDate(DATE) as date,
+                    SUM(toFloat64OrZero(Sales)) as value
+                FROM rb_pdp_olap
+                WHERE ${baseWhere}
+                  AND toDate(DATE) BETWEEN '${mtdStart}' AND '${mtdEnd}'
+                GROUP BY toDate(DATE)
+                ORDER BY date ASC
+            `;
+            const mtdTrendRes = await queryClickHouse(mtdTrendQuery);
             const mtdTrend = mtdTrendRes.map(t => ({
                 date: dayjs(t.date).format('DD MMM'),
                 value: parseFloat(t.value || 0)
             }));
 
-            // Calculate change percentages
-            const mtdPrevStart = currentEnd.subtract(1, 'month').startOf('month').toDate();
-            const mtdPrevEnd = currentEnd.subtract(1, 'month').toDate(); // same day last month
-            const mtdPrevWhere = { ...baseWhere, DATE: { [Op.between]: [mtdPrevStart, mtdPrevEnd] } };
-            const mtdPrevRes = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Sales')), 0), 'total']],
-                where: mtdPrevWhere,
-                raw: true
-            });
-            const mtdPrevSales = parseFloat(mtdPrevRes?.total || 0);
+            // Calculate change percentages - Previous Month MTD
+            const mtdPrevStart = currentEnd.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+            const mtdPrevEnd = currentEnd.subtract(1, 'month').format('YYYY-MM-DD');
+            const mtdPrevQuery = `
+                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                FROM rb_pdp_olap
+                WHERE ${baseWhere}
+                  AND toDate(DATE) BETWEEN '${mtdPrevStart}' AND '${mtdPrevEnd}'
+            `;
+            const mtdPrevRes = await queryClickHouse(mtdPrevQuery);
+            const mtdPrevSales = parseFloat(mtdPrevRes[0]?.total || 0);
 
             return {
                 overallSales,
@@ -161,12 +190,12 @@ export const getSalesOverview = async (req, res) => {
 };
 
 /**
- * Sales Drilldown - Hierarchical Table
+ * Sales Drilldown - Hierarchical Table (ClickHouse version)
  * Platform -> Region -> City -> Category
  */
 export const getSalesDrilldown = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('sales_drilldown', req.query);
+        const cacheKey = generateCacheKey('sales_drilldown_ch', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { level, platform, region, location, startDate, endDate, brand } = req.query;
@@ -180,39 +209,40 @@ export const getSalesDrilldown = async (req, res) => {
             const lastYearS = end.subtract(1, 'year').startOf('month').format('YYYY-MM-DD');
             const lastYearE = end.subtract(1, 'year').format('YYYY-MM-DD');
 
-            const RbLocationDarkstore = (await import('../models/RbLocationDarkstore.js')).default;
+            // Build ClickHouse conditions
+            const conditions = ["toString(Comp_flag) = '0'"];
+            if (brand && brand !== 'All') {
+                conditions.push(buildCHMultiCondition(brand, 'Brand', { isBrand: true }));
+            }
+            if (platform && platform !== 'All') {
+                conditions.push(buildCHMultiCondition(platform, 'Platform'));
+            }
+            if (location && location !== 'All') {
+                conditions.push(buildCHMultiCondition(location, 'Location'));
+            }
+            const whereClause = conditions.join(' AND ');
 
-            // Base Filters
-            const where = { Comp_flag: 0 };
-            handleMultiSelect(brand, 'Brand', where);
-            handleMultiSelect(platform, 'Platform', where);
-
-            // Contextual filters from drilldown
-            handleMultiSelect(location, 'Location', where);
-            // Region filter is handled by JS mapping for consistency on drilldown from Platform -> Region
-
-            let groupByField = 'Location'; // Default for Region and City level
+            let groupByField = 'Location';
             if (level === 'platform' || !level) groupByField = 'Platform';
             else if (level === 'category') groupByField = 'Category';
 
-            const attributes = [
-                [groupByField, 'groupKey'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${mtdS}' AND '${mtdE}' THEN \`Sales\` ELSE 0 END), 0)`), 'mtd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${prevMtdS}' AND '${prevMtdE}' THEN \`Sales\` ELSE 0 END), 0)`), 'prevMtd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` >= '${ytdS}' THEN \`Sales\` ELSE 0 END), 0)`), 'ytd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${lastYearS}' AND '${lastYearE}' THEN \`Sales\` ELSE 0 END), 0)`), 'lastYear'],
-            ];
+            const query = `
+                SELECT 
+                    ${groupByField} as groupKey,
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
+                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(Sales), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYear
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                GROUP BY ${groupByField}
+            `;
 
-            // Fetch aggregated data
-            const results = await RbPdpOlap.findAll({
-                attributes,
-                where,
-                group: [groupByField],
-                raw: true
-            });
+            const results = await queryClickHouse(query);
 
-            // Load Mapping table for Region association
-            const mappingRows = await RbLocationDarkstore.findAll({ attributes: ['location_sales', 'region'], raw: true });
+            // Load location mapping for region association
+            const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
+            const mappingRows = await queryClickHouse(mappingQuery);
             const locMap = {};
             mappingRows.forEach(m => {
                 if (m.location_sales) {
@@ -227,45 +257,41 @@ export const getSalesDrilldown = async (req, res) => {
             let intermediateData = [];
 
             if (level === 'region') {
-                // Aggregate cities into regions
                 const regMap = {};
                 results.forEach(r => {
                     const k = (r.groupKey || '').toLowerCase().trim();
                     const reg = locMap[k] || 'Unknown';
                     if (!regMap[reg]) regMap[reg] = { name: reg, mtd: 0, prevMtd: 0, ytd: 0, lastYear: 0 };
-                    regMap[reg].mtd += parseFloat(r.mtd);
-                    regMap[reg].prevMtd += parseFloat(r.prevMtd);
-                    regMap[reg].ytd += parseFloat(r.ytd);
-                    regMap[reg].lastYear += parseFloat(r.lastYear);
+                    regMap[reg].mtd += parseFloat(r.mtd || 0);
+                    regMap[reg].prevMtd += parseFloat(r.prevMtd || 0);
+                    regMap[reg].ytd += parseFloat(r.ytd || 0);
+                    regMap[reg].lastYear += parseFloat(r.lastYear || 0);
                 });
                 intermediateData = Object.values(regMap);
             } else if (level === 'city') {
-                // Filter cities by the selected region
                 results.forEach(r => {
                     const k = (r.groupKey || '').toLowerCase().trim();
                     const reg = locMap[k] || 'Unknown';
                     if (!region || region === 'All' || reg === region) {
                         intermediateData.push({
                             name: r.groupKey,
-                            mtd: parseFloat(r.mtd),
-                            prevMtd: parseFloat(r.prevMtd),
-                            ytd: parseFloat(r.ytd),
-                            lastYear: parseFloat(r.lastYear)
+                            mtd: parseFloat(r.mtd || 0),
+                            prevMtd: parseFloat(r.prevMtd || 0),
+                            ytd: parseFloat(r.ytd || 0),
+                            lastYear: parseFloat(r.lastYear || 0)
                         });
                     }
                 });
             } else {
-                // Platform or Category level
                 intermediateData = results.map(r => ({
                     name: r.groupKey || 'Unknown',
-                    mtd: parseFloat(r.mtd),
-                    prevMtd: parseFloat(r.prevMtd),
-                    ytd: parseFloat(r.ytd),
-                    lastYear: parseFloat(r.lastYear)
+                    mtd: parseFloat(r.mtd || 0),
+                    prevMtd: parseFloat(r.prevMtd || 0),
+                    ytd: parseFloat(r.ytd || 0),
+                    lastYear: parseFloat(r.lastYear || 0)
                 }));
             }
 
-            // Final formatting with business logic
             return intermediateData.map(d => {
                 const mtdValue = d.mtd || 0;
                 const dailyRate = mtdValue / elapsed;
@@ -288,12 +314,13 @@ export const getSalesDrilldown = async (req, res) => {
     }
 };
 
+
 /**
- * Category Sales Matrix
+ * Category Sales Matrix (ClickHouse version)
  */
 export const getCategorySalesMatrix = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('sales_category_matrix', req.query);
+        const cacheKey = generateCacheKey('sales_category_matrix_ch', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { platform, brand, location, region, startDate, endDate } = req.query;
@@ -302,7 +329,6 @@ export const getCategorySalesMatrix = async (req, res) => {
             const mtdS = end.startOf('month').format('YYYY-MM-DD');
             const mtdE = end.format('YYYY-MM-DD');
 
-            // Comparison periods
             const prevMtdS = end.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
             const prevMtdE = end.subtract(1, 'month').format('YYYY-MM-DD');
             const prevMonthFullE = end.subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
@@ -313,52 +339,53 @@ export const getCategorySalesMatrix = async (req, res) => {
             const lastYearFullS = end.subtract(1, 'year').startOf('year').format('YYYY-MM-DD');
             const lastYearFullE = end.subtract(1, 'year').endOf('year').format('YYYY-MM-DD');
 
-            // Base filters
-            const where = { Comp_flag: 0 };
-            handleMultiSelect(platform, 'Platform', where);
-            handleMultiSelect(brand, 'Brand', where);
-            handleMultiSelect(location, 'Location', where);
-
-            // Region filter (using the same logic as getSalesOverview)
-            if (region && region !== 'All') {
-                const regionClause = region === 'Unknown'
-                    ? 'NOT EXISTS'
-                    : `EXISTS (SELECT 1 FROM rb_location_darkstore WHERE location_sales = \`rb_pdp_olap\`.\`Location\` AND region = '${region.replace(/'/g, "''")}')`;
-                where[Op.and] = [Sequelize.literal(regionClause)];
+            // Build ClickHouse conditions
+            const conditions = ["toString(Comp_flag) = '0'"];
+            if (platform && platform !== 'All') {
+                conditions.push(buildCHMultiCondition(platform, 'Platform'));
+            }
+            if (brand && brand !== 'All') {
+                conditions.push(buildCHMultiCondition(brand, 'Brand', { isBrand: true }));
+            }
+            if (location && location !== 'All') {
+                conditions.push(buildCHMultiCondition(location, 'Location'));
             }
 
-            const attributes = [
-                ['Category', 'category'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${mtdS}' AND '${mtdE}' THEN \`Sales\` ELSE 0 END), 0)`), 'mtd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${prevMtdS}' AND '${prevMtdE}' THEN \`Sales\` ELSE 0 END), 0)`), 'prevMtd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${prevMtdS}' AND '${prevMonthFullE}' THEN \`Sales\` ELSE 0 END), 0)`), 'prevMonthFull'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${ytdS}' AND '${mtdE}' THEN \`Sales\` ELSE 0 END), 0)`), 'ytd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${lastYearS}' AND '${lastYearE}' THEN \`Sales\` ELSE 0 END), 0)`), 'lastYearMtd'],
-                [Sequelize.literal(`COALESCE(SUM(CASE WHEN \`DATE\` BETWEEN '${lastYearFullS}' AND '${lastYearFullE}' THEN \`Sales\` ELSE 0 END), 0)`), 'lastYearFull'],
-            ];
+            // Filter by active categories from rca_sku_dim
+            conditions.push(`Category IN (SELECT DISTINCT Category FROM rca_sku_dim WHERE toString(status) = '1')`);
 
-            const results = await RbPdpOlap.findAll({
-                attributes,
-                where,
-                group: ['Category'],
-                raw: true
-            });
+            const whereClause = conditions.join(' AND ');
 
-            // Fetch daily trend data for all categories in the MTD range
-            const trendResults = await RbPdpOlap.findAll({
-                attributes: [
-                    'Category',
-                    [Sequelize.fn('DATE', Sequelize.col('DATE')), 'date'],
-                    [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Sales')), 0), 'dailySales']
-                ],
-                where: {
-                    ...where,
-                    DATE: { [Op.between]: [new Date(mtdS), new Date(mtdE)] }
-                },
-                group: ['Category', Sequelize.fn('DATE', Sequelize.col('DATE'))],
-                order: [[Sequelize.fn('DATE', Sequelize.col('DATE')), 'ASC']],
-                raw: true
-            });
+            const query = `
+                SELECT 
+                    Category as category,
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(Sales), 0)) as prevMonthFull,
+                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYearMtd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(Sales), 0)) as lastYearFull
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                GROUP BY Category
+            `;
+
+            const results = await queryClickHouse(query);
+
+            // Fetch daily trend data
+            const trendQuery = `
+                SELECT 
+                    Category,
+                    toDate(DATE) as date,
+                    sum(toFloat64OrZero(Sales)) as dailySales
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                  AND toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}'
+                GROUP BY Category, toDate(DATE)
+                ORDER BY date ASC
+            `;
+
+            const trendResults = await queryClickHouse(trendQuery);
 
             const trendMap = {};
             trendResults.forEach(tr => {
@@ -411,51 +438,57 @@ export const getCategorySalesMatrix = async (req, res) => {
     }
 };
 
+
 /**
- * Sales Trends - for Detailed Chart Drawer
+ * Sales Trends - for Detailed Chart Drawer (ClickHouse version)
  */
 export const getSalesTrends = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('sales_trends', req.query);
+        const cacheKey = generateCacheKey('sales_trends_ch', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { platform, brand, location, region, startDate, endDate, category } = req.query;
 
-            const baseWhere = { Comp_flag: 0 };
-            handleMultiSelect(platform, 'Platform', baseWhere);
-            handleMultiSelect(brand, 'Brand', baseWhere);
-            handleMultiSelect(location, 'Location', baseWhere);
-            if (category && category !== 'All') baseWhere.Category = category;
-
-            if (region && region !== 'All') {
-                const regionClause = region === 'Unknown'
-                    ? 'NOT EXISTS'
-                    : `EXISTS (SELECT 1 FROM rb_location_darkstore WHERE location_sales = \`rb_pdp_olap\`.\`Location\` AND region = '${region.replace(/'/g, "''")}')`;
-                baseWhere[Op.and] = [Sequelize.literal(regionClause)];
+            // Build ClickHouse conditions
+            const conditions = ["toString(Comp_flag) = '0'"];
+            if (platform && platform !== 'All') {
+                conditions.push(buildCHMultiCondition(platform, 'Platform'));
+            }
+            if (brand && brand !== 'All') {
+                conditions.push(buildCHMultiCondition(brand, 'Brand', { isBrand: true }));
+            }
+            if (location && location !== 'All') {
+                conditions.push(buildCHMultiCondition(location, 'Location'));
+            }
+            if (category && category !== 'All') {
+                conditions.push(`Category = '${escapeCH(category)}'`);
             }
 
             const start = startDate ? dayjs(startDate) : dayjs().startOf('month');
             const end = endDate ? dayjs(endDate) : dayjs();
+            const startStr = start.format('YYYY-MM-DD');
+            const endStr = end.format('YYYY-MM-DD');
 
-            const dailyData = await RbPdpOlap.findAll({
-                attributes: [
-                    'DATE',
-                    [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('Sales')), 0), 'sales']
-                ],
-                where: {
-                    ...baseWhere,
-                    DATE: { [Op.between]: [start.toDate(), end.toDate()] }
-                },
-                group: ['DATE'],
-                order: [['DATE', 'ASC']],
-                raw: true
-            });
+            conditions.push(`toDate(DATE) BETWEEN '${startStr}' AND '${endStr}'`);
+            const whereClause = conditions.join(' AND ');
+
+            const query = `
+                SELECT 
+                    toDate(DATE) as date,
+                    sum(toFloat64OrZero(Sales)) as sales
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                GROUP BY toDate(DATE)
+                ORDER BY date ASC
+            `;
+
+            const dailyData = await queryClickHouse(query);
 
             let cumulative = 0;
             const daysInMonth = end.daysInMonth();
 
             return dailyData.map((d, index) => {
-                const dateObj = dayjs(d.DATE);
+                const dateObj = dayjs(d.date);
                 const sales = parseFloat(d.sales || 0);
                 cumulative += sales;
                 const dayOfMonth = dateObj.date();
@@ -477,28 +510,17 @@ export const getSalesTrends = async (req, res) => {
     }
 };
 
+
 export const getSalesFilterOptions = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('sales_filter_options', req.query);
+        const cacheKey = generateCacheKey('sales_filter_options_ch', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            const { platform, brand, location } = req.query;
-
-            // Optional filters for cross-filtering
-            const baseWhere = { Comp_flag: 0 };
-            handleMultiSelect(platform, 'Platform', baseWhere);
-            handleMultiSelect(brand, 'Brand', baseWhere);
-            handleMultiSelect(location, 'Location', baseWhere);
-
             const [platforms, brands, categories, locations] = await Promise.all([
-                RbPdpOlap.findAll({ attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Platform')), 'Platform']], raw: true }),
-                RbPdpOlap.findAll({ attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Brand')), 'Brand']], raw: true }),
-                RbPdpOlap.findAll({
-                    attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Category')), 'Category']],
-                    where: baseWhere,
-                    raw: true
-                }),
-                RbPdpOlap.findAll({ attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Location')), 'Location']], raw: true }),
+                queryClickHouse(`SELECT DISTINCT Platform FROM rb_pdp_olap WHERE Platform != '' ORDER BY Platform`),
+                queryClickHouse(`SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND toString(Comp_flag) = '0' ORDER BY Brand`),
+                queryClickHouse(`SELECT DISTINCT Category FROM rb_pdp_olap WHERE Category != '' AND toString(Comp_flag) = '0' ORDER BY Category`),
+                queryClickHouse(`SELECT DISTINCT Location FROM rb_pdp_olap WHERE Location != '' ORDER BY Location`),
             ]);
 
             return {
@@ -515,3 +537,4 @@ export const getSalesFilterOptions = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+

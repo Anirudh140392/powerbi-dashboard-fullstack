@@ -1,6 +1,7 @@
 import React, { useState, useContext } from "react";
 import CityDetailedTable from "./CityDetailedTable";
 import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 
 /* -------------------------------------------------------------------------- */
 /*                               KPI DEFINITIONS                              */
@@ -816,10 +817,10 @@ export function VisibilityLayoutOne() {
 
         console.log('[VisibilityLayoutOne] Fetching signals with params:', queryParams.toString());
 
-        const response = await fetch(
-          `http://localhost:5000/api/visibility-analysis/visibility-signals?${queryParams}`
+        const response = await axiosInstance.get(
+          `/visibility-analysis/visibility-signals?${queryParams}`
         );
-        const data = await response.json();
+        const data = response.data;
 
         if (data.success && data.signals && data.signals.length > 0) {
           setSignals(data.signals);

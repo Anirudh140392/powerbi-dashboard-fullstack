@@ -1,5 +1,6 @@
 import React from "react";
 import { useState } from "react";
+import dayjs from "dayjs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -638,7 +639,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI", filters, onFiltersChange }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -655,23 +656,41 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
-  const { columns, rows } = data;
 
   // Filter states
   const [showValue, setShowValue] = useState(true);
   const [selectedKPIs, setSelectedKPIs] = useState([]);
   const [isKPIOptionsOpen, setKPIOptionsOpen] = useState(false);
+  const [hoveredCell, setHoveredCell] = useState(null); // { kpi: string, col: string }
 
   // New KpiFilterPanel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterRules, setFilterRules] = useState(null);
 
-  // Selected filters state for cascading logic
-  const [selectedFilters, setSelectedFilters] = useState({
-    platform: 'All',
-    format: 'All',
-    city: 'All',
-    metroFlag: 'All'
+  // Selected filters state for cascading logic (tentative selection)
+  const [tentativeFilters, setTentativeFilters] = useState({
+    platform: [],
+    format: [],
+    city: [],
+    kpi: [],
+    date: [],
+    month: [],
+    zone: [],
+    pincode: [],
+    metroFlag: []
+  });
+
+  // Applied filters (the ones that actually filter the data in the UI)
+  const [appliedFilters, setAppliedFilters] = useState({
+    platform: [],
+    format: [],
+    city: [],
+    kpi: [],
+    date: [],
+    month: [],
+    zone: [],
+    pincode: [],
+    metroFlag: []
   });
 
   // Dynamic filter options state
@@ -688,6 +707,213 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     loading: true
   });
 
+  // Local matrix data state (for independent refetching when internal filters change)
+  const [localMatrixData, setLocalMatrixData] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  // Create a stable key for global data to detect actual content changes
+  const globalDataKey = React.useMemo(() => {
+    if (!data) return '';
+    return `${data.columns?.length || 0}_${data.rows?.length || 0}_${data.rows?.[0]?.kpi || ''}`;
+  }, [data]);
+
+  // Reset local state when switching tabs (title changes) or global filters change (verified by globalDataKey)
+  React.useEffect(() => {
+    console.log('[CityKpiTrendShowcase] Resetting local matrix state due to title or global data change');
+    setLocalMatrixData(null);
+    setAppliedFilters({
+      platform: [],
+      format: [],
+      city: [],
+      kpi: [],
+      date: [],
+      month: [],
+      zone: [],
+      pincode: [],
+      metroFlag: []
+    });
+  }, [title, globalDataKey]);
+
+  // Use local data when available (after internal filter applied), otherwise use prop data
+  const activeData = localMatrixData || data;
+  const { columns, rows } = activeData;
+
+
+  // Refetch matrix data locally when internal filters are applied
+  const refetchLocalMatrixData = async (targetFilters, viewMode = 'Platform') => {
+    try {
+      setLocalLoading(true);
+
+      const params = new URLSearchParams();
+      params.append('viewMode', viewMode);
+
+      // 1. Handle dates from appliedFilters (priority) or global filters
+      let startDate = filters?.startDate;
+      let endDate = filters?.endDate;
+
+      if (targetFilters.date?.[0] && targetFilters.date[0] !== 'all' && targetFilters.date[0] !== 'All') {
+        startDate = targetFilters.date[0];
+        endDate = targetFilters.date[0];
+      } else if (targetFilters.month?.[0] && targetFilters.month[0] !== 'all' && targetFilters.month[0] !== 'All') {
+        const [year, month] = targetFilters.month[0].split('-');
+        const start = dayjs(`${year}-${month}-01`);
+        const end = start.endOf('month');
+        startDate = start.format('YYYY-MM-DD');
+        endDate = end.format('YYYY-MM-DD');
+      }
+
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      // 2. Map applied filters to query params
+      const filterMapping = {
+        platform: 'platform',
+        city: 'location',
+        format: 'format',
+        zone: 'zone',
+        metroFlag: 'metroFlag',
+        pincode: 'pincode'
+      };
+
+      Object.entries(targetFilters).forEach(([key, values]) => {
+        const queryKey = filterMapping[key];
+        if (queryKey && Array.isArray(values)) {
+          values.forEach(v => {
+            if (v !== 'all' && v !== 'All') params.append(queryKey, v);
+          });
+        }
+      });
+
+      // 3. Add base global filters if not overridden by applied filters
+      const globalFilterMapping = {
+        platform: 'platform',
+        brand: 'brand',
+        location: 'location',
+        zones: 'zones',
+        metroFlags: 'metroFlags',
+        pincodes: 'pincodes',
+        formats: 'formats',
+        categories: 'categories',
+        dates: 'dates',
+        months: 'months'
+      };
+
+      Object.entries(filters || {}).forEach(([key, value]) => {
+        const queryKey = globalFilterMapping[key] || key;
+        if (!params.has(queryKey) && value !== undefined && value !== null && value !== 'All' && value !== '') {
+          if (Array.isArray(value)) {
+            value.forEach(v => {
+              if (v !== 'all') params.append(queryKey, v);
+            });
+          } else {
+            params.append(queryKey, value);
+          }
+        }
+      });
+
+      // Fallback defaults
+      if (!params.has('platform')) params.append('platform', 'All');
+      if (!params.has('brand')) params.append('brand', 'All');
+      if (!params.has('location')) params.append('location', 'All');
+
+      // Ensure platform is 'All' if not specifically selected in the LOCAL filter modal
+      // This prevents inheriting a global 'Amazon' filter and showing only 1 column
+      if (!targetFilters.platform?.length || targetFilters.platform.includes('all')) {
+        params.set('platform', 'All');
+      }
+
+      const queryParams = params.toString();
+
+      console.log('[LocalMatrixRefetch] Fetching with params:', queryParams, 'dynamicKey:', dynamicKey);
+
+      // Use correct API endpoint based on dynamicKey (availability vs visibility)
+      // Path should be relative to axiosInstance baseURL ('/api')
+      const apiEndpoint = dynamicKey === 'visibility'
+        ? `/visibility-analysis/platform-kpi-matrix`
+        : `/availability-analysis/absolute-osa/platform-kpi-matrix`;
+
+      const response = await axiosInstance.get(`${apiEndpoint}?${queryParams}`);
+      const rawData = response.data;
+
+      console.log('[LocalMatrixRefetch] Raw Response:', rawData);
+
+      // Determine the actual data to use based on API response structure
+      // Availability API returns flat: { columns, rows }
+      // Visibility API returns nested: { platformData, formatData, cityData }
+      let dataToTransform = rawData;
+
+      if (dynamicKey === 'visibility') {
+        // For visibility, extract the correct nested data based on viewMode/title
+        const viewModeKey = viewMode.toLowerCase();  // 'platform', 'format', or 'city'
+        if (viewModeKey === 'platform' && rawData.platformData) {
+          dataToTransform = rawData.platformData;
+        } else if (viewModeKey === 'format' && rawData.formatData) {
+          dataToTransform = rawData.formatData;
+        } else if (viewModeKey === 'city' && rawData.cityData) {
+          dataToTransform = rawData.cityData;
+        }
+        console.log('[LocalMatrixRefetch] Visibility - extracted', viewModeKey, 'data');
+      }
+
+      // Transform API response to match expected component format
+      // (Same transformation as transformApiData in TabbedHeatmapTable)
+      if (dataToTransform && dataToTransform.columns && dataToTransform.rows) {
+        const cols = dataToTransform.columns.filter(c => c !== 'KPI' && c !== 'kpi');
+
+        // Helper: generate sparkline series from current value and trend
+        const generateSeries = (value, trend, pointCount = 4) => {
+          if (value === undefined || value === null || value === 'Coming Soon') {
+            return [];
+          }
+          const numValue = typeof value === 'number' ? value : parseFloat(value);
+          const numTrend = typeof trend === 'number' ? trend : 0;
+
+          if (isNaN(numValue)) return [];
+
+          const points = [];
+          const prevValue = numValue - numTrend;
+          for (let i = 0; i < pointCount; i++) {
+            const progress = i / (pointCount - 1);
+            points.push(Math.round(prevValue + (numValue - prevValue) * progress));
+          }
+          return points;
+        };
+
+        const transformedRows = dataToTransform.rows.map(row => {
+          const series = {};
+          cols.forEach(col => {
+            series[col] = generateSeries(row[col], row.trend?.[col]);
+          });
+
+          return {
+            kpi: row.kpi,
+            ...Object.fromEntries(cols.map(col => [col, row[col]])),
+            trend: row.trend || {},
+            series: row.series || series,
+          };
+        });
+
+        const transformedData = {
+          columns: ['kpi', ...cols],
+          rows: transformedRows,
+          viewMode: dataToTransform.viewMode || viewMode
+        };
+
+        console.log('[LocalMatrixRefetch] Transformed columns:', transformedData.columns);
+        console.log('[LocalMatrixRefetch] Transformed rows:', transformedData.rows.map(r => r.kpi));
+        setLocalMatrixData(transformedData);
+      } else {
+        console.error('[LocalMatrixRefetch] Invalid response structure:', dataToTransform);
+        setLocalMatrixData(null);
+      }
+
+    } catch (error) {
+      console.error('[LocalMatrixRefetch] Error:', error);
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
   // Helper to fetch a single filter type with cascade params
   const fetchFilterType = async (filterType, cascadeParams = {}) => {
     try {
@@ -696,7 +922,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
         platform: cascadeParams.platform || 'All',
         format: cascadeParams.format || 'All',
         city: cascadeParams.city || 'All',
-        metroFlag: cascadeParams.metroFlag || 'All'
+        metroFlag: cascadeParams.metroFlag || 'All',
+        months: cascadeParams.month || 'All'
       }).toString();
 
       // Use visibility-analysis API for visibility page
@@ -721,11 +948,11 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
         // Fetch all filter types in parallel (from rb_kw and rb_location_darkstore)
         const [platforms, formats, cities, months, dates, pincodes, zones, metroFlags, kpis] = await Promise.all([
           fetchFilterType('platforms'),
-          fetchFilterType('formats', selectedFilters),
-          fetchFilterType('cities', selectedFilters),
-          fetchFilterType('months', selectedFilters),
-          fetchFilterType('dates', selectedFilters),
-          fetchFilterType('pincodes', selectedFilters),
+          fetchFilterType('formats', tentativeFilters),
+          fetchFilterType('cities', tentativeFilters),
+          fetchFilterType('months', tentativeFilters),
+          fetchFilterType('dates', tentativeFilters),
+          fetchFilterType('pincodes', tentativeFilters),
           fetchFilterType('zones'),
           fetchFilterType('metroFlags'),
           fetchFilterType('kpis')
@@ -759,49 +986,89 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     fetchAllFilterOptions();
   }, []); // Initial load only
 
-  // Re-fetch dependent filters when platform changes
+  // Re-fetch dependent filters when platform changes (cascading logic)
   React.useEffect(() => {
-    if (selectedFilters.platform === 'All') return; // Skip on initial render
+    const selectedPlatform = tentativeFilters.platform?.[0];
+    if (!selectedPlatform || selectedPlatform === 'All') return;
 
     const refetchDependentFilters = async () => {
-      console.log('[Cascading] Platform changed to:', selectedFilters.platform, '- refetching dependent filters');
+      console.log('[Cascading] Platform changed to:', selectedPlatform, '- refetching dependent filters');
+      const cascadeParams = {
+        platform: selectedPlatform,
+        format: tentativeFilters.format?.[0] || 'All',
+        city: tentativeFilters.city?.[0] || 'All',
+        metroFlag: tentativeFilters.metroFlag?.[0] || 'All'
+      };
       const [formats, cities, months, pincodes] = await Promise.all([
-        fetchFilterType('formats', selectedFilters),
-        fetchFilterType('cities', selectedFilters),
-        fetchFilterType('months', selectedFilters),
-        fetchFilterType('pincodes', selectedFilters)
+        fetchFilterType('formats', cascadeParams),
+        fetchFilterType('cities', cascadeParams),
+        fetchFilterType('months', cascadeParams),
+        fetchFilterType('pincodes', cascadeParams)
       ]);
       setDynamicFilterData(prev => ({ ...prev, formats, cities, months, pincodes }));
     };
 
     refetchDependentFilters();
-  }, [selectedFilters.platform]);
+  }, [tentativeFilters.platform]);
 
   // Re-fetch cities when metroFlag changes
   React.useEffect(() => {
-    if (selectedFilters.metroFlag === 'All') return;
+    const selectedMetro = tentativeFilters.metroFlag?.[0];
+    if (!selectedMetro || selectedMetro === 'All') return;
 
     const refetchCities = async () => {
-      console.log('[Cascading] MetroFlag changed to:', selectedFilters.metroFlag, '- refetching cities');
-      const cities = await fetchFilterType('cities', selectedFilters);
+      console.log('[Cascading] MetroFlag changed to:', selectedMetro, '- refetching cities');
+      const cascadeParams = {
+        platform: tentativeFilters.platform?.[0] || 'All',
+        metroFlag: selectedMetro
+      };
+      const cities = await fetchFilterType('cities', cascadeParams);
       setDynamicFilterData(prev => ({ ...prev, cities }));
     };
 
     refetchCities();
-  }, [selectedFilters.metroFlag]);
+  }, [tentativeFilters.metroFlag]);
 
   // Re-fetch pincodes when city changes
   React.useEffect(() => {
-    if (selectedFilters.city === 'All') return;
+    const selectedCity = tentativeFilters.city?.[0];
+    if (!selectedCity || selectedCity === 'All') return;
 
     const refetchPincodes = async () => {
-      console.log('[Cascading] City changed to:', selectedFilters.city, '- refetching pincodes');
-      const pincodes = await fetchFilterType('pincodes', selectedFilters);
+      console.log('[Cascading] City changed to:', selectedCity, '- refetching pincodes');
+      const cascadeParams = {
+        platform: tentativeFilters.platform?.[0] || 'All',
+        city: selectedCity
+      };
+      const pincodes = await fetchFilterType('pincodes', cascadeParams);
       setDynamicFilterData(prev => ({ ...prev, pincodes }));
     };
 
     refetchPincodes();
-  }, [selectedFilters.city]);
+  }, [tentativeFilters.city]);
+
+  // Re-fetch dates when month changes (Cascading Month -> Date)
+  React.useEffect(() => {
+    const selectedMonth = tentativeFilters.month?.[0];
+    if (!selectedMonth || selectedMonth === 'all') {
+      // If 'all' months, we might want to fetch all dates or leave as is.
+      // Usually, selecting a month filters dates.
+      return;
+    }
+
+    const refetchDates = async () => {
+      console.log('[Cascading] Month changed to:', selectedMonth, '- refetching dates');
+      const cascadeParams = {
+        platform: tentativeFilters.platform?.[0] || 'All',
+        city: tentativeFilters.city?.[0] || 'All',
+        month: selectedMonth
+      };
+      const dates = await fetchFilterType('dates', cascadeParams);
+      setDynamicFilterData(prev => ({ ...prev, dates }));
+    };
+
+    refetchDates();
+  }, [tentativeFilters.month]);
 
   // Build filter options from dynamic data (per user requirements)
   const filterOptions = React.useMemo(() => {
@@ -841,7 +1108,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
     // Availability page filter config (original)
     return [
-      { id: "date", label: "Date", options: [] },
+      { id: "date", label: "Date", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.dates)] },
       { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
       { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
       { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
@@ -897,23 +1164,52 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     }
   };
 
-  // Calculate Pagination
+  // Calculate Filtered Rows (Local Pagination and KPI filter)
   const filteredRows = React.useMemo(() => {
-    if (selectedKPIs.length === 0) return rows;
-    return rows.filter(row => selectedKPIs.includes(row.kpi));
-  }, [rows, selectedKPIs]);
+    let result = rows;
+
+    // 1. Filter by KPI selection from the Advanced Filters
+    const kpiFilter = appliedFilters.kpi;
+    if (kpiFilter && kpiFilter.length > 0 && !kpiFilter.some(k => k.toLowerCase() === 'all')) {
+      // Logic: KPI names in ClickHouse might be uppercase, match case-insensitively or exactly
+      result = result.filter(row =>
+        kpiFilter.some(kf => kf.toLowerCase() === row.kpi.toLowerCase())
+      );
+    }
+
+    // 2. Original selectedKPIs toggle logic (if any)
+    if (selectedKPIs.length > 0 && selectedKPIs.length !== allKPIs.length) {
+      result = result.filter(row => selectedKPIs.includes(row.kpi));
+    }
+
+    return result;
+  }, [rows, appliedFilters.kpi, selectedKPIs, allKPIs]);
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
 
   const paginatedRows = React.useMemo(() => {
-    if (isColumnPagination) return filteredRows; // Show all rows for column pagination mode
+    if (isColumnPagination) return filteredRows; // Show all filtered rows for column pagination mode
     if (!showPagination) return filteredRows;
     const startIndex = (currentPage - 1) * pageSize;
     return filteredRows.slice(startIndex, startIndex + pageSize);
   }, [filteredRows, currentPage, pageSize, showPagination, isColumnPagination]);
 
-  // Column Pagination Logic
-  const allDataColumns = React.useMemo(() => columns.slice(1), [columns]);
+  // Column Filtering Logic (Advanced Filters)
+  const filteredAllDataColumns = React.useMemo(() => {
+    const allCols = columns.slice(1);
+    const filterKey = title.toLowerCase(); // 'platform', 'format', or 'city'
+    const currentFilter = appliedFilters[filterKey];
+
+    if (!currentFilter || currentFilter.length === 0 || currentFilter.some(f => f.toLowerCase() === 'all')) {
+      return allCols;
+    }
+
+    return allCols.filter(col =>
+      currentFilter.some(f => f.toLowerCase() === col.toLowerCase())
+    );
+  }, [columns, appliedFilters, title]);
+
+  const allDataColumns = filteredAllDataColumns;
   const totalColPages = Math.ceil(allDataColumns.length / colPageSize);
 
   const visibleColumns = React.useMemo(() => {
@@ -977,7 +1273,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
             {/* KpiFilterPanel Integration */}
             <button
-              onClick={() => setShowFilterPanel(true)}
+              onClick={() => {
+                setTentativeFilters(appliedFilters);
+                setShowFilterPanel(true);
+              }}
               className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -1024,17 +1323,12 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <KpiFilterPanel
                 sectionConfig={filterOptions}
                 keywords={mockKeywords}
+                sectionValues={tentativeFilters}
                 onSectionChange={(sectionId, values) => {
-                  // Update selectedFilters for cascading logic
-                  if (sectionId === 'platform' && values?.length > 0) {
-                    setSelectedFilters(prev => ({ ...prev, platform: values[0] || 'All' }));
-                  } else if (sectionId === 'format' && values?.length > 0) {
-                    setSelectedFilters(prev => ({ ...prev, format: values[0] || 'All' }));
-                  } else if (sectionId === 'city' && values?.length > 0) {
-                    setSelectedFilters(prev => ({ ...prev, city: values[0] || 'All' }));
-                  } else if (sectionId === 'metroFlag' && values?.length > 0) {
-                    setSelectedFilters(prev => ({ ...prev, metroFlag: values[0] || 'All' }));
-                  }
+                  setTentativeFilters(prev => ({
+                    ...prev,
+                    [sectionId]: values || []
+                  }));
                   console.log(`[Filter Selection] ${sectionId}:`, values);
                 }}
               />
@@ -1050,7 +1344,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                 Cancel
               </button>
               <button
-                onClick={() => setShowFilterPanel(false)}
+                onClick={() => {
+                  setAppliedFilters(tentativeFilters);
+                  setShowFilterPanel(false);
+
+                  // Use title prop as viewMode since it correctly reflects the current tab (Platform, Format, or City)
+                  refetchLocalMatrixData(tentativeFilters, title);
+                }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >
                 Apply Filters
@@ -1061,7 +1361,16 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       )}
 
       {/* ------------------ BODY ------------------ */}
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 relative">
+        {/* Local Loading Overlay */}
+        {localLoading && (
+          <div className="absolute inset-x-6 inset-y-0 z-30 flex items-center justify-center bg-white/60 backdrop-blur-[1px] rounded-xl">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
+              <span className="text-xs font-medium text-slate-600">Updating matrix...</span>
+            </div>
+          </div>
+        )}
         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60 transition-all hover:bg-slate-50/80">
           <div className="w-max min-w-full">
 
@@ -1105,6 +1414,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <tbody className="bg-white">
                 {paginatedRows.map((row) => {
                   const isDisplaySOS = row.kpi?.toLowerCase().includes("display sos");
+                  const isFillRate = row.kpi?.toLowerCase().includes("fill") && row.kpi?.toLowerCase().includes("rate") || row.kpi?.toLowerCase() === "fillrate";
+                  const isComingSoon = isDisplaySOS || isFillRate;
                   return (
                     <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
@@ -1112,10 +1423,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                       <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
                                        text-xs font-bold text-slate-900 border-b border-slate-100 
                                        shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                        {row.kpi.toUpperCase()}
+                        {row.kpi}
                       </td>
 
-                      {isDisplaySOS ? (
+                      {isComingSoon ? (
                         <td colSpan={visibleColumns.length} className="py-2 px-3 border-b border-slate-50 text-center italic text-slate-400 bg-slate-50/30 font-medium">
                           Coming Soon...
                         </td>
@@ -1130,11 +1441,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
                           return (
                             <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
-                              <Popover>
+                              <Popover open={hoveredCell?.kpi === row.kpi && hoveredCell?.col === col}>
                                 <PopoverTrigger asChild>
 
                                   {/* CITY-STYLE CELL BUTTON */}
                                   <button
+                                    onMouseEnter={() => setHoveredCell({ kpi: row.kpi, col })}
+                                    onMouseLeave={() => setHoveredCell(null)}
                                     className={`flex w-max mx-auto items-center justify-center gap-2 
                                                rounded-md border border-transparent px-2 py-1.5 
                                                text-xs font-semibold 
@@ -1223,6 +1536,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
+          filters={filters}
         />
       ) : dynamicKey === 'sales_category_table' ? (
         <SalesTrendsDrawer
@@ -1508,12 +1822,12 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel, filters, onFiltersChange }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} filters={filters} onFiltersChange={onFiltersChange} />;
 }
 

@@ -561,6 +561,8 @@ export default function DrilldownLatestTable() {
           endDate: timeEnd?.format?.("YYYY-MM-DD")
         };
 
+        console.log("🚀 [DrilldownLatestTable] Fetching with params:", params);
+
         const response = await axiosInstance.get('/performance-marketing/format-performance', { params });
         setApiData(response.data);
 
@@ -582,7 +584,7 @@ export default function DrilldownLatestTable() {
     // Group by Category
     const byCategory = new Map();
 
-    apiData.forEach(item => {
+    apiData.forEach((item) => {
       const cat = item.Category || 'Other';
       if (!byCategory.has(cat)) byCategory.set(cat, []);
       byCategory.get(cat).push(item);
@@ -819,9 +821,13 @@ export default function DrilldownLatestTable() {
                   type: 'number'
                 }))}
                 onKeywordChange={(ids) => setActiveFilters(prev => ({ ...prev, keywords: ids }))}
-                onBrandChange={(ids) => setActiveFilters(prev => ({ ...prev, brands: ids }))}
+                onBrandChange={(ids) => {
+                  console.log("🛠️ [DrilldownLatestTable] onBrandChange:", ids);
+                  setActiveFilters(prev => ({ ...prev, brands: ids }));
+                }}
                 onCategoryChange={(ids) => setActiveFilters(prev => ({ ...prev, categories: ids }))}
                 onWeekendChange={(vals) => {
+                  console.log("🛠️ [DrilldownLatestTable] onWeekendChange:", vals);
                   const sel = (vals || []);
                   let wf = 'All';
                   if (sel.length === 1) wf = sel[0] === 'Weekend' ? 'Weekend' : sel[0] === 'Weekday' ? 'Weekday' : 'All';

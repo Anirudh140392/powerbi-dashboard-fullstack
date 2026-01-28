@@ -61,6 +61,48 @@ const FloatingLoader = ({ loading = false, label = "Loading..." }) => {
   );
 };
 
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+  return (
+    <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+        <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+        <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={isRetrying}
+        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+          }`}
+      >
+        {isRetrying ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+            <span>Retrying...</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-slate-100 p-4 flex flex-col gap-4">
@@ -110,7 +152,13 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loading = false }) => {
+const TabbedHeatmapTable = ({
+  olaMode = "absolute",
+  apiData,
+  filters = {},
+  onFiltersChange,
+  loading = false,
+}) => {
   const [activeTab, setActiveTab] = useState("platform");
 
   // Check loading state - data is loading if apiData doesn't have the required property yet OR parent is loading
@@ -162,54 +210,14 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
     return { columns: ['kpi', ...columns], rows };
   };
 
-  // 🔥 Utility to compute unified trend + series for ANY item (for fallback hardcoded data)
-  const buildRows = (dataArray, columnList) => {
-    return dataArray.map((item) => {
-      const primaryTrendSeries = item.trend?.["Spend"] || [];
-      const valid = primaryTrendSeries.length >= 2;
-
-      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
-
-      const globalDelta = Number((lastVal - prevVal).toFixed(1));
-
-      const trendObj = {};
-      const seriesObj = {};
-
-      columnList.forEach((col) => {
-        trendObj[col] = globalDelta;
-        seriesObj[col] = primaryTrendSeries;
-      });
-
-      return {
-        kpi: item.kpi,
-        ...item.values,
-        trend: trendObj,
-        series: seriesObj,
-      };
-    });
-  };
-
   // ---------------- PLATFORM (uses apiData.platformKpi) ----------------
-  const apiPlatformData = transformApiData(apiData?.platformKpi);
-  const platformData = apiPlatformData || {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns),
-  };
+  const platformData = transformApiData(apiData?.platformKpi);
 
   // ---------------- FORMAT (uses apiData.formatKpi) ----------------
-  const apiFormatData = transformApiData(apiData?.formatKpi);
-  const formatData = apiFormatData || {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns),
-  };
+  const formatData = transformApiData(apiData?.formatKpi);
 
   // ---------------- CITY (uses apiData.cityKpi) ----------------
-  const apiCityData = transformApiData(apiData?.cityKpi);
-  const cityData = apiCityData || {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns),
-  };
+  const cityData = transformApiData(apiData?.cityKpi);
 
   // ---------------- TABS ----------------
   const tabs = [
@@ -220,8 +228,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
 
   const active = tabs.find((t) => t.key === activeTab);
 
-  // If loading and no data, show skeleton (same pattern as Visibility page)
-  if (loading && !apiData?.platformKpi) {
+  // If loading, show skeleton
+  if (loading || (active.loading && !active.data)) {
     return <PlatformKpiMatrixSkeleton />;
   }
 
@@ -245,7 +253,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", apiData, filters = {}, loadi
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} filters={filters} onFiltersChange={onFiltersChange} />
     </div>
   );
 };
@@ -1091,7 +1099,7 @@ const cardsAbsolute = [
   },
   {
     title: "Fill Rate",
-    value: "Coming soon",
+    value: "Coming Soon...",
     sub: "Supplier fulfillment rate",
     change: "",
     changeColor: "gray",
@@ -1099,6 +1107,7 @@ const cardsAbsolute = [
     extra: "",
     extraChange: "",
     extraChangeColor: "gray",
+    isComingSoon: true,
   },
   {
     title: "Metro City Stock Availability",
@@ -1138,7 +1147,7 @@ const cardsWeighted = [
   },
   {
     title: "Fill Rate",
-    value: "Coming soon",
+    value: "Coming Soon...",
     sub: "Supplier fulfillment rate",
     change: "",
     changeColor: "gray",
@@ -1146,6 +1155,7 @@ const cardsWeighted = [
     extra: "",
     extraChange: "",
     extraChangeColor: "gray",
+    isComingSoon: true,
   },
   {
     title: "Metro City Stock Availability",
@@ -1169,7 +1179,14 @@ const cards = {
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false }) => {
+export const AvailablityAnalysisData = ({
+  apiData,
+  apiErrors = {},
+  onRetry,
+  filters = {},
+  onFiltersChange,
+  loading = false,
+}) => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
 
@@ -1276,11 +1293,11 @@ export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false
             endDate: filters.endDate,
           };
         } else if (metroCity && isMetroCity === false) {
-          // User selected a non-metro city location - show N/A
+          // User selected a non-metro city location - show Not A Metro City
           return {
             ...card,
-            value: "N/A",
-            sub: "Selected location is not a metro city",
+            value: "Not A Metro City",
+            sub: "Selected location is not a Tier 1 city",
             change: "",
             changeColor: "gray",
             prevText: "",
@@ -1311,6 +1328,21 @@ export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false
 
 
 
+  // Filters for segments that ignore platform/brand/location header selections
+  const pblUnfilteredFilters = {
+    ...filters,
+    platform: 'All',
+    brand: 'All',
+    location: 'All',
+  };
+
+  // KPI Matrix strictly ignores EVERYTHING (including Time as per initial request)
+  const matrixUnfilteredFilters = {
+    ...pblUnfilteredFilters,
+    startDate: null,
+    endDate: null
+  };
+
   return (
 
     <div className="max-w-7xl mx-auto space-y-5 px-4 sm:px-6">
@@ -1319,21 +1351,57 @@ export const AvailablityAnalysisData = ({ apiData, filters = {}, loading = false
 
         {/* AVAILABILITY MODE - Only Absolute (Weighted option removed) */}
 
-        {/* Availability Overview - show skeleton if loading and no data */}
-        {loading && !apiData?.overview ? (
+        {/* Availability Overview - show skeleton if loading, error if failed */}
+        {loading ? (
           <AvailabilityOverviewSkeleton />
+        ) : apiErrors.overview ? (
+          <ErrorWithRefresh
+            segmentName="Availability Overview"
+            errorMessage={apiErrors.overview}
+            onRetry={() => onRetry?.('overview')}
+          />
         ) : (
           <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
         )}
 
         {/* <SignalLabVisibility type="availability" /> */}
-        <TabbedHeatmapTable olaMode={availability} apiData={apiData} filters={filters} loading={loading} />
 
-        {/* OSA Detail View - show skeleton if loading and no osaDetail data */}
-        {loading && !apiData?.osaDetail ? (
-          <OsaDetailViewSkeleton />
+        {/* Platform KPI Matrix - show error if any matrix API failed */}
+        {apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi ? (
+          <ErrorWithRefresh
+            segmentName="Platform KPI Matrix"
+            errorMessage={apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi}
+            onRetry={() => {
+              if (apiErrors.platformKpi) onRetry?.('platformKpi');
+              if (apiErrors.formatKpi) onRetry?.('formatKpi');
+              if (apiErrors.cityKpi) onRetry?.('cityKpi');
+            }}
+          />
         ) : (
-          <OsaHeatmapTable olaMode={availability} filters={filters} initialLoading={loading} />
+          <TabbedHeatmapTable
+            olaMode={availability}
+            apiData={apiData}
+            filters={matrixUnfilteredFilters}
+            onFiltersChange={onFiltersChange}
+            loading={loading}
+          />
+        )}
+
+        {/* OSA Detail View - show skeleton if loading, error if failed */}
+        {loading ? (
+          <OsaDetailViewSkeleton />
+        ) : apiErrors.osaDetail ? (
+          <ErrorWithRefresh
+            segmentName="OSA % Detail View"
+            errorMessage={apiErrors.osaDetail}
+            onRetry={() => onRetry?.('osaDetail')}
+          />
+        ) : (
+          <OsaHeatmapTable
+            olaMode={availability}
+            filters={pblUnfilteredFilters}
+            initialLoading={loading}
+          />
         )}
 
       </div>

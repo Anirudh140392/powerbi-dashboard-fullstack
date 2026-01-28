@@ -1,327 +1,309 @@
-import React, { useMemo, useState } from "react";
-import { Typography } from "@mui/material";
+import React, { useMemo, useState, useEffect, useContext } from "react";
+import { Typography, Skeleton } from "@mui/material";
 import { SlidersHorizontal, X } from "lucide-react";
-
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 
-/* ---------------- SAMPLE DATA ---------------- */
+const formatNumber = (v, decimals = null) => {
+    if (v === undefined || v === null || isNaN(v)) return "—";
+    const num = parseFloat(v);
+    if (!Number.isFinite(num)) return "—";
 
-const SAMPLE = [
+    if (decimals !== null) return num.toFixed(decimals);
+    if (Math.abs(num) >= 100) return Math.round(num).toString();
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+};
 
-    { city: "ahmedabad", category: "Cone", brand: "Kwality Walls", sku: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", drrQty: 894, currentDoh: 10, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "ahmedabad", category: "Cone", brand: "Kwality Walls", sku: "85047 : KW CORNETTO - BUTTERSCOTCH", drrQty: 269, currentDoh: 11, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "ahmedabad", category: "Tub", brand: "Kwality Walls", sku: "85123 : KW Cassatta", drrQty: 71, currentDoh: 12, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "ahmedabad", category: "Bar", brand: "Kwality Walls", sku: "85339 : KW Magnum Almond 90 ml", drrQty: 140, currentDoh: 14, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "ahmedabad", category: "Bar", brand: "Kwality Walls", sku: "85350 : KW CDO- FRUIT & NUT", drrQty: 65, currentDoh: 18, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "ahmedabad", category: "Bar", brand: "Kwality Walls", sku: "85437 : COR DISC OREO 120ML", drrQty: 329, currentDoh: 13, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "pune", category: "Cone", brand: "Kwality Walls", sku: "85045 : KW CORNETTO - DOUBLE CHOCOLATE", drrQty: 120, currentDoh: 9, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "pune", category: "Bar", brand: "Kwality Walls", sku: "85339 : KW Magnum Almond 90 ml", drrQty: 80, currentDoh: 11, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-    { city: "pune", category: "Tub", brand: "Kwality Walls", sku: "85123 : KW Cassatta", drrQty: 55, currentDoh: 15, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 8 },
-
-];
-
-const kpiFields = [
-
-    { id: "drrQty", label: "DRR Qty", type: "number" },
-
-    { id: "currentDoh", label: "Current DOH", type: "number" },
-
-    { id: "reqPoQty", label: "Req PO Qty", type: "number" },
-
-    { id: "reqBoxes", label: "Req Boxes", type: "number" },
-
-    { id: "thresholdDoh", label: "Threshold DOH", type: "number" },
-
-];
-
-const formatNumber = (v) => {
-
-    if (!Number.isFinite(v)) return "—";
-
-    if (Math.abs(v) >= 100) return v.toFixed(0);
-
-    return v.toFixed(2);
-
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+    return (
+        <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div className="text-center">
+                <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+                <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+            </div>
+            <button
+                onClick={onRetry}
+                disabled={isRetrying}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+                    }`}
+            >
+                {isRetrying ? (
+                    <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+                        <span>Retrying...</span>
+                    </>
+                ) : (
+                    <>
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Refresh</span>
+                    </>
+                )}
+            </button>
+        </div>
+    );
 };
 
 export default function CitySkuInventoryDrill() {
-
     const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-
     const [pageSize, setPageSize] = useState(20);
-
     const [page, setPage] = useState(0);
-
-    const [viewMode, setViewMode] = useState("Platform");
-
     const [expanded, setExpanded] = useState(new Set());
+    const [matrixData, setMatrixData] = useState([]);
+    const [metadata, setMetadata] = useState({ platforms: [], brands: [], categories: [], skus: [], cities: [] });
+    const [isLoading, setIsLoading] = useState(false);
+    const [apiError, setApiError] = useState(null);
 
     const [filters, setFilters] = useState({
-
-        category: "All",
-
-        brand: "All",
-
-        city: "",
-
-        sku: "",
-
+        category: [],
+        brand: [],
+        city: [],
+        sku: [],
+        platform: [],
+        weekend: []
     });
 
-    const cityOptions = useMemo(
+    // Access global filters from context
+    const {
+        timeStart,
+        timeEnd,
+        platform: globalPlatform,
+        selectedBrand: globalBrand,
+        selectedLocation: globalLocation,
+        datesInitialized,
+        refreshFilters
+    } = useContext(FilterContext);
 
-        () => [...new Set(SAMPLE.map((r) => r.city))].map((c) => ({ id: c, label: c })),
+    // Fetch function extracted for reuse
+    const fetchData = async () => {
+        try {
+            setIsLoading(true);
+            setApiError(null);
 
-        []
+            const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
+            const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
 
-    );
+            // Helper to get filter value (local override or global default)
+            const getFilter = (local, global) => {
+                if (local && local.length > 0) return local.join(',');
+                if (global && global !== 'All') return Array.isArray(global) ? global.join(',') : global;
+                return 'All';
+            };
 
-    const skuOptions = useMemo(
+            const params = {
+                startDate,
+                endDate,
+                platform: getFilter(filters.platform, globalPlatform),
+                brand: getFilter(filters.brand, globalBrand),
+                location: getFilter(filters.city, globalLocation),
+                category: filters.category.length > 0 ? filters.category.join(',') : 'All',
+                weekend: filters.weekend.length > 0 ? filters.weekend.join(',') : 'All'
+            };
 
-        () => [...new Set(SAMPLE.map((r) => r.sku))].map((s) => ({ id: s, label: s })),
+            const response = await axiosInstance.get(`/inventory-analysis/city-sku-matrix`, { params });
+            setMatrixData(response.data.data);
+            setMetadata(response.data.metadata);
+        } catch (error) {
+            console.error("Failed to fetch city-sku matrix:", error);
+            setApiError(error.message || "Failed to load drill table data");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        []
+    // Retry function
+    const retryFetch = () => {
+        if (refreshFilters) {
+            refreshFilters();
+        }
+        fetchData();
+    };
 
-    );
+    // Fetch data from backend
+    useEffect(() => {
+        if (!datesInitialized) return;
 
-    const brandOptions = useMemo(
+        fetchData();
+    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation, datesInitialized]);
 
-        () => [...new Set(SAMPLE.map((r) => r.brand))].map((b) => ({ id: b, label: b })),
+    const platformOptions = useMemo(() => {
+        return (metadata.platforms || []).map(p => ({ id: p, label: p }));
+    }, [metadata.platforms]);
 
-        []
+    const brandOptions = useMemo(() => {
+        return (metadata.brands || []).map(b => ({ id: b, label: b }));
+    }, [metadata.brands]);
 
-    );
+    const categoryOptions = useMemo(() => {
+        return (metadata.categories || []).map(c => ({ id: c, label: c }));
+    }, [metadata.categories]);
 
-    const categoryOptions = useMemo(
+    const cityOptions = useMemo(() => {
+        return (metadata.cities || []).map(c => ({ id: c, label: c }));
+    }, [metadata.cities]);
 
-        () => [...new Set(SAMPLE.map((r) => r.category))].map((c) => ({ id: c, label: c })),
-
-        []
-
-    );
+    const skuOptions = useMemo(() => {
+        return (metadata.skus || []).map(s => ({ id: s, label: s }));
+    }, [metadata.skus]);
 
     const filtered = useMemo(() => {
-
-        return SAMPLE.filter((r) => {
-
-            if (filters.category !== "All" && r.category !== filters.category) return false;
-
-            if (filters.brand !== "All" && r.brand !== filters.brand) return false;
-
-            if (filters.city && !r.city.toLowerCase().includes(filters.city.toLowerCase())) return false;
-
-            if (filters.sku && r.sku !== filters.sku) return false;
-
+        return matrixData.filter((r) => {
+            if (filters.sku.length > 0 && !filters.sku.includes(r.sku)) return false;
+            // Additional client-side filtering can be added here if needed,
+            // but backend handles most per the getFilter logic.
             return true;
-
         });
+    }, [matrixData, filters.sku]);
 
-    }, [filters]);
+    const sectionValues = useMemo(() => ({
+        brands: filters.brand,
+        categories: filters.category,
+        skus: filters.sku,
+        cities: filters.city,
+        platforms: filters.platform,
+        weekendFlag: filters.weekend
+    }), [filters]);
 
     const tree = useMemo(() => {
-
         const out = [];
-
         const byCity = new Map();
 
         filtered.forEach((r) => {
-
             if (!byCity.has(r.city)) byCity.set(r.city, []);
-
             byCity.get(r.city).push(r);
-
         });
 
-        [...byCity.entries()].forEach(([city, rows]) => {
-
+        [...byCity.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([city, rows]) => {
             const cityAgg = rows.reduce(
-
                 (a, r) => ({
-
-                    drrQty: a.drrQty + r.drrQty,
-
-                    currentDoh: a.currentDoh + r.currentDoh,
-
-                    reqPoQty: a.reqPoQty + r.reqPoQty,
-
-                    reqBoxes: a.reqBoxes + r.reqBoxes,
-
-                    thresholdDoh: a.thresholdDoh + r.thresholdDoh,
-
+                    drr_qty: a.drr_qty + (parseFloat(r.drr_qty) || 0),
+                    current_inventory: a.current_inventory + (parseFloat(r.current_inventory) || 0),
+                    req_po_qty: a.req_po_qty + (parseFloat(r.req_po_qty) || 0),
+                    req_boxes: a.req_boxes + (parseFloat(r.req_boxes) || 0),
+                    threshold_doh: r.threshold_doh || 8,
                 }),
-
-                { drrQty: 0, currentDoh: 0, reqPoQty: 0, reqBoxes: 0, thresholdDoh: 0 }
-
+                { drr_qty: 0, current_inventory: 0, req_po_qty: 0, req_boxes: 0, threshold_doh: 8 }
             );
 
-            const cityId = `city-${city}`;
+            // Calculate weighted average DOH for city
+            cityAgg.current_doh = cityAgg.drr_qty > 0 ? cityAgg.current_inventory / cityAgg.drr_qty : 0;
 
+            const cityId = `city-${city}`;
             out.push({ id: cityId, level: "city", city, metrics: cityAgg, hasChildren: true });
 
             if (expanded.has(cityId)) {
-
-                rows.forEach((r, i) =>
-
+                rows.sort((a, b) => a.sku.localeCompare(b.sku)).forEach((r, i) =>
                     out.push({
-
                         id: `${cityId}-sku-${i}`,
-
                         level: "sku",
-
                         city,
-
                         sku: r.sku,
-
                         metrics: r,
-
                         hasChildren: false,
-
                     })
-
                 );
-
             }
-
         });
 
         return out;
-
     }, [filtered, expanded]);
 
-    const totalPages = Math.max(1, Math.ceil(tree.length / pageSize));
 
+    const totalPages = Math.max(1, Math.ceil(tree.length / pageSize));
     const pageRows = tree.slice(page * pageSize, page * pageSize + pageSize);
 
     const toggle = (id) => {
-
         setExpanded((p) => {
-
             const n = new Set(p);
-
             n.has(id) ? n.delete(id) : n.add(id);
-
             return n;
-
         });
-
     };
 
-
-
     const filterOptions = useMemo(() => ({
-        keywords: [],
         brands: brandOptions,
         categories: categoryOptions,
         skus: skuOptions,
         cities: cityOptions,
-        platforms: [],
-        kpiFields: kpiFields
-    }), [brandOptions, categoryOptions, skuOptions, cityOptions]);
+        platforms: platformOptions
+    }), [brandOptions, categoryOptions, skuOptions, cityOptions, platformOptions]);
 
     return (
         <div className="flex h-full w-full flex-col px-4 py-4 text-slate-900 relative">
-            {/* ------------------ KPI FILTER MODAL ------------------ */}
+            {/* KPI FILTER MODAL */}
             {filterPanelOpen && (
                 <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
                     <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        {/* Modal Header */}
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
                                 <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Advanced Filters</Typography>
                                 <Typography variant="caption" color="text.secondary">Configure data visibility and rules</Typography>
                             </div>
-                            <button
-                                onClick={() => setFilterPanelOpen(false)}
-                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-                            >
+                            <button onClick={() => setFilterPanelOpen(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
 
-                        {/* Panel Content */}
                         <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
                             <KpiFilterPanel
-                                keywords={filterOptions.keywords}
+                                sectionConfig={[
+                                    { id: "brands", label: "Brands" },
+                                    { id: "categories", label: "Categories" },
+                                    { id: "skus", label: "SKUs" },
+                                    { id: "weekendFlag", label: "Weekend Flag" },
+                                    { id: "cities", label: "Cities" },
+                                    { id: "platforms", label: "Platforms" }
+                                ]}
                                 brands={filterOptions.brands}
                                 categories={filterOptions.categories}
                                 skus={filterOptions.skus}
                                 cities={filterOptions.cities}
                                 platforms={filterOptions.platforms}
-                                kpiFields={filterOptions.kpiFields}
-                                // onRulesChange={setFilterRules}
-                                // Mock handlers
-                                onKeywordChange={(ids) => console.log("Keywords:", ids)}
-                                onBrandChange={(ids) => setFilters(prev => ({ ...prev, brand: ids[0] || "All" }))}
-                                onCategoryChange={(ids) => setFilters(prev => ({ ...prev, category: ids[0] || "All" }))}
-                                onSkuChange={(ids) => setFilters(prev => ({ ...prev, sku: ids[0] || "" }))}
-                                onCityChange={(ids) => setFilters(prev => ({ ...prev, city: ids[0] || "" }))}
-                                onPlatformChange={(ids) => console.log("Platforms:", ids)}
+                                sectionValues={sectionValues}
+                                onBrandChange={(ids) => setFilters(prev => ({ ...prev, brand: ids }))}
+                                onCategoryChange={(ids) => setFilters(prev => ({ ...prev, category: ids }))}
+                                onSkuChange={(ids) => setFilters(prev => ({ ...prev, sku: ids }))}
+                                onCityChange={(ids) => setFilters(prev => ({ ...prev, city: ids }))}
+                                onPlatformChange={(ids) => setFilters(prev => ({ ...prev, platform: ids }))}
+                                onWeekendChange={(ids) => setFilters(prev => ({ ...prev, weekend: ids }))}
                             />
                         </div>
 
-                        {/* Modal Footer */}
                         <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
-                            <button
-                                onClick={() => setFilterPanelOpen(false)}
-                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => setFilterPanelOpen(false)}
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                            >
-                                Apply Filters
-                            </button>
+                            <button onClick={() => setFilterPanelOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                            <button onClick={() => setFilterPanelOpen(false)} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200">Apply Filters</button>
                         </div>
                     </div>
                 </div>
             )}
-            <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
 
-                {/* HEADER */}
+            <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
                 <div className="flex items-center justify-between px-6 pt-6 pb-2">
                     <div className="flex flex-col items-start gap-1">
                         <Typography variant="body2" color="text.secondary" sx={{ textTransform: "uppercase", fontWeight: 700 }}>Drill Table</Typography>
                         <Typography variant="h5" fontWeight={600}>City Level Inventory</Typography>
                     </div>
-
                     <div className="flex items-center gap-6">
-                        {/* Filters Button */}
-                        <button
-                            onClick={() => setFilterPanelOpen(true)}
-                            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-                        >
+                        <button onClick={() => setFilterPanelOpen(true)} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors">
                             <SlidersHorizontal className="h-3.5 w-3.5" />
                             <span>Filters</span>
                         </button>
-
-                        {/* <div className="flex rounded-lg bg-slate-100 p-1">
-                            {["Platform", "Format", "City"].map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setViewMode(mode)}
-                                    className={`rounded-md px-4 py-1.5 text-xs font-semibold transition-all ${viewMode === mode
-                                        ? "bg-white text-slate-900 shadow-sm"
-                                        : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                >
-                                    {mode}
-                                </button>
-                            ))}
-                        </div> */}
                     </div>
                 </div>
 
-                {/* TABLE */}
                 <div className="flex-1 overflow-auto">
                     <table className="min-w-full text-xs">
                         <thead className="bg-slate-50 text-slate-600">
@@ -338,77 +320,77 @@ export default function CitySkuInventoryDrill() {
                             </tr>
                         </thead>
                         <tbody>
-                            {pageRows.map((row) => (
-                                <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/50">
-                                    <td className="sticky left-0 bg-white px-6 py-3">
-                                        {row.hasChildren && (
-                                            <button onClick={() => toggle(row.id)} className="mr-2 text-slate-400 hover:text-slate-600">
-                                                {expanded.has(row.id) ? "−" : "+"}
-                                            </button>
-                                        )}
-                                        <span className={row.level === "city" ? "font-semibold text-slate-900 capitalize" : "text-slate-600 capitalize"}>
-                                            {row.level === "city" ? row.city : ""}
-                                        </span>
+                            {isLoading ? (
+                                Array.from({ length: 5 }).map((_, idx) => (
+                                    <tr key={idx} className="border-b border-slate-50">
+                                        <td className="px-6 py-3"><Skeleton variant="text" width={120} /></td>
+                                        {expanded.size > 0 && <td><Skeleton variant="text" width={180} /></td>}
+                                        <td className="px-3 py-3"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                                        <td className="px-3 py-3"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                                        <td className="px-3 py-3"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                                        <td className="px-3 py-3"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                                        <td className="px-3 py-3"><Skeleton variant="text" width={40} className="ml-auto" /></td>
+                                    </tr>
+                                ))
+                            ) : apiError ? (
+                                <tr>
+                                    <td colSpan={expanded.size > 0 ? 7 : 6} className="px-6 py-10">
+                                        <ErrorWithRefresh
+                                            segmentName="Drill Table"
+                                            errorMessage={apiError}
+                                            onRetry={retryFetch}
+                                        />
                                     </td>
-                                    {expanded.size > 0 && (
-                                        <td className="sticky left-[220px] bg-white px-3 py-3 text-slate-600">
-                                            {row.level === "sku" ? row.sku : ""}
-                                        </td>
-                                    )}
-                                    <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drrQty)}</td>
-                                    <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.currentDoh)}</td>
-                                    <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.reqPoQty)}</td>
-                                    <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.reqBoxes)}</td>
-                                    <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.thresholdDoh)}</td>
                                 </tr>
-                            ))}
+                            ) : pageRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={expanded.size > 0 ? 7 : 6} className="px-6 py-10 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-2 text-slate-400">
+                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>No data found for the selected filters.</Typography>
+                                            <Typography variant="caption">Try adjusting your date range or filter selections.</Typography>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                pageRows.map((row) => (
+                                    <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/50">
+                                        <td className="sticky left-0 bg-white px-6 py-3">
+                                            {row.hasChildren && (
+                                                <button onClick={() => toggle(row.id)} className="mr-2 text-slate-400 hover:text-slate-600">
+                                                    {expanded.has(row.id) ? "−" : "+"}
+                                                </button>
+                                            )}
+                                            <span className={row.level === "city" ? "font-semibold text-slate-900 capitalize" : "text-slate-600 capitalize"}>
+                                                {row.level === "city" ? row.city : ""}
+                                            </span>
+                                        </td>
+                                        {expanded.size > 0 && (
+                                            <td className="sticky left-[220px] bg-white px-3 py-3 text-slate-600 truncate max-w-[220px]" title={row.sku}>
+                                                {row.level === "sku" ? row.sku : ""}
+                                            </td>
+                                        )}
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drr_qty, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.current_doh, 2)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_po_qty, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_boxes, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.threshold_doh, 2)}</td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                {/* PAGINATION */}
                 <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4">
                     <div className="flex items-center gap-4">
-                        <button
-                            disabled={page === 0}
-                            onClick={() => setPage(page - 1)}
-                            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Prev
-                        </button>
-                        <span className="text-xs font-medium text-slate-600">
-                            Page {page + 1} / {totalPages}
-                        </span>
-                        <button
-                            disabled={page + 1 >= totalPages}
-                            onClick={() => setPage(page + 1)}
-                            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Next
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>Rows/page</span>
-                        <select
-                            value={pageSize}
-                            onChange={(e) => {
-                                setPageSize(Number(e.target.value));
-                                setPage(0);
-                            }}
-                            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-700 focus:border-blue-500 focus:outline-none"
-                        >
-                            {[10, 20, 50, 100].map((size) => (
-                                <option key={size} value={size}>
-                                    {size}
-                                </option>
-                            ))}
-                        </select>
+                        <button disabled={page === 0} onClick={() => setPage(page - 1)} className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50">Prev</button>
+                        <span className="text-xs font-medium text-slate-600">Page {page + 1} / {totalPages}</span>
+                        <button disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)} className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50">Next</button>
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
-
 }
+
 

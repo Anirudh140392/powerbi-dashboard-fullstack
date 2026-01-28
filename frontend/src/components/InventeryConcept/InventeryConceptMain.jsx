@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useContext } from "react";
 import { Typography } from "@mui/material";
 import CitySkuInventoryDrill from "./CitySkuInventoryDrill";
 import InventoryDrill from "./InventoryMainDrill";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
+import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
+
 
 // Single-page Inventory & DOH dashboard
 // Layout intentionally mirrors your Visibility page: overview cards, KPI matrix tabs,
@@ -324,10 +327,68 @@ function TrendModal({ context, onClose }) {
    MAIN COMPONENT
 ------------------------------------------------------------------ */
 
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+  return (
+    <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+        <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
+        <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
+      </div>
+      <button
+        onClick={onRetry}
+        disabled={isRetrying}
+        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+          ${isRetrying
+            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+          }`}
+      >
+        {isRetrying ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+            <span>Retrying...</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 function InventeryConceptMain() {
-  const [dateFrom, setDateFrom] = useState("2025-12-01");
-  const [dateTo, setDateTo] = useState("2025-12-12");
+  // Get global filter values from FilterContext (Header date picker)
+  const {
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+    platform,
+    selectedBrand,
+    selectedLocation,
+    datesInitialized,
+    refreshFilters
+  } = useContext(FilterContext);
+
   const [drrUplift, setDrrUplift] = useState(20);
+
+  // API state for real data
+  const [inventoryData, setInventoryData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
 
   const allFormats = useMemo(
     () => Array.from(new Set(SAMPLE_SKUS.map((s) => s.format))).sort(),
@@ -350,6 +411,71 @@ function InventeryConceptMain() {
   const [trendContext, setTrendContext] = useState(null);
   const [expandedCities, setExpandedCities] = useState({});
   const [expandedFormats, setExpandedFormats] = useState({});
+
+  // Fetch function extracted for reuse
+  const fetchInventoryData = async () => {
+    try {
+      setIsLoading(true);
+      setApiError(null);
+
+      // Format dates from FilterContext (dayjs objects)
+      const startDate = timeStart?.format?.('YYYY-MM-DD') || timeStart;
+      const endDate = timeEnd?.format?.('YYYY-MM-DD') || timeEnd;
+      const compStartDate = compareStart?.format?.('YYYY-MM-DD') || compareStart;
+      const compEndDate = compareEnd?.format?.('YYYY-MM-DD') || compareEnd;
+
+      // Helper to formatting array/string params
+      const formatParam = (param) => {
+        if (Array.isArray(param)) {
+          return param.length > 0 ? param.join(',') : 'All';
+        }
+        return param || 'All';
+      };
+
+      const params = {
+        startDate,
+        endDate,
+        compareStartDate: compStartDate,
+        compareEndDate: compEndDate,
+        platform: formatParam(platform),
+        brand: formatParam(selectedBrand),
+        location: formatParam(selectedLocation),
+      };
+
+      console.log("📊 [InventoryOverview] Fetching with params:", params);
+
+      const response = await axiosInstance.get(
+        `/inventory-analysis/overview`,
+        { params }
+      );
+
+      console.log("📊 [InventoryOverview] API Response:", response.data);
+      setInventoryData(response.data);
+    } catch (error) {
+      console.error("❌ [InventoryOverview] Error fetching data:", error);
+      setApiError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Retry function
+  const retryOverview = () => {
+    if (refreshFilters) {
+      refreshFilters();
+    }
+    fetchInventoryData();
+  };
+
+  // Fetch inventory overview data from API - connected to FilterContext
+  useEffect(() => {
+    // Wait for dates to be initialized from context
+    if (!datesInitialized) return;
+
+    fetchInventoryData();
+  }, [timeStart, timeEnd, compareStart, compareEnd, platform, selectedBrand, selectedLocation, datesInitialized]);
+
+
 
   const filteredSkus = useMemo(() => {
     return SAMPLE_SKUS.filter(
@@ -427,51 +553,98 @@ function InventeryConceptMain() {
     return num.toString();
   };
 
-  const cards = [
-    {
-      title: "DOH",
-      value: overview.totalDoiFeBe.toFixed(1),
-      sub: "Days",
-      change: "▲3.1 pts (from 82.1%)",
-      changeColor: "green",
-      prevText: "vs Comparison Period",
-      extra: "High risk stores: 12",
-      extraChange: "▼4 stores",
-      extraChangeColor: "green",
-      sparklineData: [90, 40, 45, 75, 65, 50, 85],
-    },
-    {
-      title: "DRR",
-      value: Math.round(overview.totalDrr).toString(),
-      sub: "Daily Rate",
-      change: "▼5.3% (from 65.9)",
-      changeColor: "red",
-      prevText: "vs Comparison Period",
-      extra: "Target band: 55-65 days",
-      extraChange: "Within target range",
-      extraChangeColor: "green",
-      sparklineData: [55, 75, 45, 46, 45, 48, 60],
-    },
-    {
-      title: "Total Boxes Required",
-      value: formatLargeNumber(overview.totalBoxesRequired),
-      sub: "Replenishment",
-      change: "▼2.0 pts (from 80.5%)",
-      changeColor: "red",
-      prevText: "vs Comparison Period",
-      extra: "Orders delayed: 6%",
-      extraChange: "▼1.2 pts",
-      extraChangeColor: "green",
-      sparklineData: [50, 60, 35, 38, 40, 45, 55],
-    },
-  ];
+  // Build cards from API data or fallback to calculated values
+  const cards = useMemo(() => {
+    const metrics = inventoryData?.metrics;
+
+    // Use API data if available, otherwise fallback to calculated overview
+    const dohValue = metrics?.doh?.value ?? overview.totalDoiFeBe.toFixed(1);
+    const dohChange = metrics?.doh?.changePoints ?? "0";
+    const dohPrevValue = metrics?.doh?.previousValue ?? "0";
+    const dohIsPositive = metrics?.doh?.isPositive ?? true;
+    const dohSparkline = metrics?.doh?.sparkline ?? [90, 40, 45, 75, 65, 50, 85];
+
+    const drrValue = metrics?.drr?.value ?? Math.round(overview.totalDrr);
+    const drrChange = metrics?.drr?.change ?? "0";
+    const drrPrevValue = metrics?.drr?.previousValue ?? 0;
+    const drrIsPositive = metrics?.drr?.isPositive ?? true;
+    const drrSparkline = metrics?.drr?.sparkline ?? [55, 75, 45, 46, 45, 48, 60];
+
+    const boxesValue = metrics?.totalBoxesRequired?.value ?? formatLargeNumber(overview.totalBoxesRequired);
+    const boxesChange = metrics?.totalBoxesRequired?.change ?? "0";
+    const boxesPrevValue = metrics?.totalBoxesRequired?.previousValue ?? 0;
+    const boxesIsPositive = metrics?.totalBoxesRequired?.isPositive ?? true;
+    const boxesSparkline = metrics?.totalBoxesRequired?.sparkline ?? [50, 60, 35, 38, 40, 45, 55];
+
+    return [
+      {
+        title: "DOH",
+        value: dohValue,
+        sub: "Days",
+        change: `${dohIsPositive ? "▲" : "▼"}${Math.abs(parseFloat(dohChange))} pts (from ${dohPrevValue})`,
+        changeColor: dohIsPositive ? "green" : "red",
+        prevText: "vs Comparison Period",
+        extra: `Threshold: ${inventoryData?.summary?.thresholdDoh ?? THRESHOLD_DOH} days`,
+        extraChange: dohIsPositive ? "Above threshold" : "Below threshold",
+        extraChangeColor: dohIsPositive ? "green" : "red",
+        sparklineData: dohSparkline,
+        months: metrics?.doh?.labels || [],
+        startDate: timeStart,
+        endDate: timeEnd,
+      },
+      {
+        title: "DRR",
+        value: drrValue.toString(),
+        sub: "Daily Rate",
+        change: `${drrIsPositive ? "▲" : "▼"}${Math.abs(parseFloat(drrChange))}% (from ${drrPrevValue})`,
+        changeColor: drrIsPositive ? "green" : "red",
+        prevText: "vs Comparison Period",
+        extra: `Period: ${inventoryData?.summary?.periodDays ?? 7} days`,
+        extraChange: "Avg daily sales",
+        extraChangeColor: "green",
+        sparklineData: drrSparkline,
+        months: metrics?.drr?.labels || [],
+        startDate: timeStart,
+        endDate: timeEnd,
+      },
+      {
+        title: "Total Boxes Required",
+        value: boxesValue,
+        sub: "Replenishment",
+        change: `${boxesIsPositive ? "▼" : "▲"}${Math.abs(parseFloat(boxesChange))}% (from ${boxesPrevValue})`,
+        changeColor: boxesIsPositive ? "green" : "red",
+        prevText: "vs Comparison Period",
+        extra: `Total inventory: ${inventoryData?.summary?.totalInventory ?? "N/A"}`,
+        extraChange: "24 units/box",
+        extraChangeColor: "green",
+        sparklineData: boxesSparkline,
+        months: metrics?.totalBoxesRequired?.labels || [],
+        startDate: timeStart,
+        endDate: timeEnd,
+      },
+    ];
+  }, [inventoryData, overview]);
+
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900" >
       {/* Top Inventory & DOH Overview */}
       < div className="mx-auto max-w-6xl space-y-6" >
-        {/* REPLACED WITH METRIC CARD CONTAINER */}
-        < MetricCardContainer title="Inventory & DOH Overview" cards={cards} />
+        {/* INVENTORY & DOH OVERVIEW - with error handling */}
+        {apiError ? (
+          <ErrorWithRefresh
+            segmentName="Inventory & DOH Overview"
+            errorMessage={apiError}
+            onRetry={retryOverview}
+          />
+        ) : (
+          <MetricCardContainer
+            title="Inventory & DOH Overview"
+            cards={cards}
+            loading={isLoading}
+          />
+        )}
+
 
         {/* MATRIX + FILTERS */}
         {/* <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">

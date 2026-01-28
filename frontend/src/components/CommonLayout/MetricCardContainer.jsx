@@ -54,19 +54,16 @@ const FloatingLoader = ({ loading = false, label = "Updating..." }) => {
   );
 };
 
-export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false }) {
+export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false, isLoading = false }) {
   const scrollNeeded = cards.length > 5;
 
-  // Show skeleton cards during initial load (when no data exists yet)
-  const showSkeletonCards = loading && cards.length === 0;
+  // Show skeleton cards whenever loading is true
+  const showSkeletonCards = loading || isLoading;
 
   return (
     <Box sx={{ mb: 4 }}>
       <Card sx={{ p: 3, borderRadius: 4, boxShadow: 4, position: "relative" }}>
-        {/* Floating loader overlay - only when cards exist and refreshing */}
-        {loading && cards.length > 0 && (
-          <FloatingLoader loading={true} label="Updating overview..." />
-        )}
+        {/* Floating loader removed as requested - skeletons are used instead */}
 
         {/* Header */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>

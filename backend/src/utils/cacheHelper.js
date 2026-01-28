@@ -56,7 +56,17 @@ export function generateCacheKey(section, filters) {
         signalType = '',
         type = '', // Often used in Signal Lab instead of section
         webPid = '',
-        filterType = '' // Filter type for filter-options endpoints
+        filterType = '', // Filter type for filter-options endpoints
+        filter = '', // Keyword type filter for Top Search Terms (All, Branded, Generic, Competition)
+        // Section-specific platform/category overrides
+        monthOverviewPlatform = '',
+        categoryOverviewPlatform = '',
+        brandsOverviewPlatform = '',
+        brandsOverviewCategory = '',
+        // New filters for Visibility Analysis
+        zone = '',
+        metroFlag = '',
+        pincode = ''
     } = filters;
 
     // 4. Append secondary filters
@@ -64,8 +74,16 @@ export function generateCacheKey(section, filters) {
     if (viewMode) key += `:vm_${normalize(viewMode)}`;
     if (level) key += `:lv_${normalize(level)}`;
     if (region && region !== 'all') key += `:reg_${normalize(region)}`;
+
+    // Visibility filters
+    if (zone && zone !== 'all' && zone !== 'All') key += `:zn_${normalize(zone)}`;
+    if (metroFlag && metroFlag !== 'all' && metroFlag !== 'All') key += `:mf_${normalize(metroFlag)}`;
+    if (pincode && pincode !== 'all' && pincode !== 'All') key += `:pc_${normalize(pincode)}`;
+
     if (category && category !== 'all') key += `:cat_${normalize(category)}`;
+
     if (type && type !== 'all') key += `:tp_${normalize(type)}`;
+    if (filter && filter !== 'all' && filter !== 'All') key += `:flt_${normalize(filter)}`;
     if (signalType) key += `:sig_${normalize(signalType)}`;
     if (webPid) key += `:pid_${normalize(webPid)}`;
 
@@ -84,6 +102,12 @@ export function generateCacheKey(section, filters) {
     // Trends specific
     if (period) key += `:pd_${normalize(period)}`;
     if (timeStep) key += `:ts_${normalize(timeStep)}`;
+
+    // Section-specific platform/category overrides (for By Month, By Category, By Brands tabs)
+    if (monthOverviewPlatform) key += `:mop_${normalize(monthOverviewPlatform)}`;
+    if (categoryOverviewPlatform) key += `:cop_${normalize(categoryOverviewPlatform)}`;
+    if (brandsOverviewPlatform) key += `:bop_${normalize(brandsOverviewPlatform)}`;
+    if (brandsOverviewCategory) key += `:boc_${normalize(brandsOverviewCategory)}`;
 
     return key;
 }
@@ -158,19 +182,13 @@ export async function warmCommonCaches() {
 
         // Import services (lazy to avoid circular dependencies)
         const { default: watchTowerService } = await import('../services/watchTowerService.js');
-        const { getAllMetricKeys } = await import('../services/keyMetricsService.js');
 
-        // Warm platform list (used in every dropdown)
+        // Warm platform list (used in every dropdown) - uses ClickHouse
         const platformKey = 'watchtower:platforms:all';
         const platforms = await watchTowerService.getPlatforms();
         await setCached(platformKey, platforms, CACHE_TTL.VERY_STATIC);
 
-        // Warm metric keys (used in SKU metrics dropdown)
-        const metricKeysKey = 'metric_keys';
-        const metricKeys = await getAllMetricKeys();
-        await setCached(metricKeysKey, metricKeys, CACHE_TTL.VERY_STATIC);
-
-        console.log('✅ Cache warming complete: platforms, metric keys');
+        console.log('✅ Cache warming complete: platforms');
     } catch (error) {
         console.error('❌ Error warming cache:', error.message);
         // Don't throw - cache warming is optional
