@@ -88,15 +88,13 @@ export default function MiniSparkline({ months, values, color, title = "" }) {
         </svg>
       </Box>
 
-      {/* Dots Layer - positioned absolutely within the same container */}
-      {/* Only show dots if we have a reasonable number of points (e.g., <= 40) to avoid clutter */}
+      {/* Dots Layer */}
       {normalizedValues.length <= 40 && normalizedValues.map((v, i) => {
         const x = (i / (normalizedValues.length - 1 || 1)) * 100;
-        const y = 100 - v; // Same calculation as in createSmoothPath
+        const y = 100 - v;
 
         return (
           <Box key={i}>
-            {/* Tooltip */}
             {hover === i && (
               <Box
                 sx={{
@@ -120,7 +118,6 @@ export default function MiniSparkline({ months, values, color, title = "" }) {
               </Box>
             )}
 
-            {/* Dot */}
             <Box
               sx={{
                 position: "absolute",
@@ -142,6 +139,7 @@ export default function MiniSparkline({ months, values, color, title = "" }) {
           </Box>
         );
       })}
+
     </Box>
   );
 }

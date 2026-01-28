@@ -1,94 +1,39 @@
-/**
- * Visibility Analysis Service
- * Provides business logic for visibility analysis APIs
- */
-
-import sequelize from '../config/db.js';
-import { Op } from 'sequelize';
 import dayjs from 'dayjs';
+import { queryClickHouse } from '../config/clickhouse.js';
+import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
-/**
- * Generic helper to parse and format multi-select filters for SQL IN clauses
- * @param {string|Array} value - Filter value(s) from request
- * @param {string} column - Database column name
- * @param {Object} replacements - Sequelize replacements object to populate
- * @param {string} prefix - Prefix for replacement keys
- * @param {Object} options - { isBrand: boolean, caseInsensitive: boolean }
- * @returns {string} SQL condition (e.g., "column_name IN (:prefix0, :prefix1)")
- */
-function parseMultiSelectFilter(value, column, replacements, prefix, options = {}) {
-    const { isBrand = false, caseInsensitive = false } = options;
+const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 
-    // special handling for "All" in brands
-    if (isBrand && (!value || value === 'All')) return "keyword_is_rb_product = 1";
-
-    // skip filter if "All" or empty
-    if (!value || value === 'All') return "1=1";
-
+function buildCHCondition(value, column, options = {}) {
+    const { isBrand = false } = options;
+    if (isBrand && (!value || value === 'All' || value === 'All India')) return "toString(keyword_is_rb_product) = '1'";
+    if (!value || value === 'All' || value === 'All India') return "1=1";
     const list = typeof value === 'string'
-        ? value.split(',').map(v => v.trim()).filter(Boolean)
-        : Array.isArray(value) ? value : [value];
-
-    if (list.length === 0) return isBrand ? "keyword_is_rb_product = 1" : "1=1";
-
-    const keys = list.map((v, i) => {
-        const key = `${prefix}${i}`;
-        replacements[key] = v;
-        return `:${key}`;
-    });
-
-    const col = caseInsensitive ? `LOWER(${column})` : column;
-    const vals = caseInsensitive ? keys.map(k => `LOWER(${k})`) : keys;
-
-    return `${col} IN (${vals.join(', ')})`;
+        ? value.split(',').map(v => v.trim()).filter(v => v && v !== 'All' && v !== 'All India')
+        : Array.isArray(value) ? value.filter(v => v && v !== 'All' && v !== 'All India') : [value];
+    if (list.length === 0) return isBrand ? "toString(keyword_is_rb_product) = '1'" : "1=1";
+    return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
 async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null) {
     try {
-        const replacements = { dateFrom, dateTo };
+        const platformCondition = buildCHCondition(platform, 'platform_name');
+        const locationCondition = buildCHCondition(location, 'location_name');
+        const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
 
-        const platformCondition = parseMultiSelectFilter(platform, 'platform_name', replacements, 'plat', { caseInsensitive: true });
-        const locationCondition = parseMultiSelectFilter(location, 'location_name', replacements, 'loc', { caseInsensitive: true });
-        const brandSOSCondition = parseMultiSelectFilter(brand, 'brand_name', replacements, 'sosBrand', { isBrand: true });
-
-        // Optimization: Add YEAR and MONTH filters to help partition pruning
-        const start = dayjs(dateFrom);
-        const end = dayjs(dateTo);
-        const startYear = start.year();
-        const startMonth = start.month() + 1; // dayjs is 0-indexed
-        const endYear = end.year();
-        const endMonth = end.month() + 1;
-
-        let partitionCondition = '';
-        if (startYear === endYear && startMonth === endMonth) {
-            partitionCondition = `AND YEAR = ${startYear} AND MONTH = ${startMonth}`;
-        } else if (startYear === endYear) {
-            partitionCondition = `AND YEAR = ${startYear} AND MONTH BETWEEN ${startMonth} AND ${endMonth}`;
-        } else {
-            // Basic cross-year/month handling
-            partitionCondition = `AND (
-                (YEAR = ${startYear} AND MONTH >= ${startMonth}) OR 
-                (YEAR = ${endYear} AND MONTH <= ${endMonth})
-             )`;
-        }
-
-        // Single query that calculates ALL SOS types at once
+        // Single query that calculates ALL SOS types at once - ClickHouse syntax
         const query = `
             SELECT 
-                ROUND(SUM(CASE WHEN ${brandSOSCondition} THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS overall_sos,
-                ROUND(SUM(CASE WHEN ${brandSOSCondition} AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS sponsored_sos,
-                ROUND(SUM(CASE WHEN ${brandSOSCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS organic_sos
+                ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
             FROM rb_kw
-            WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+            WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${locationCondition}
-              ${partitionCondition}
         `;
 
-        const result = await sequelize.query(query, {
-            replacements,
-            type: sequelize.QueryTypes.SELECT
-        });
+        const result = await queryClickHouse(query);
 
         return {
             overall: Number(result[0]?.overall_sos) || 0,
@@ -96,7 +41,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
             organic: Number(result[0]?.organic_sos) || 0
         };
     } catch (error) {
-        console.error('Error calculating all SOS:', error);
+        console.error('Error calculating all SOS (ClickHouse):', error);
         return { overall: 0, sponsored: 0, organic: 0 };
     }
 }
@@ -110,44 +55,39 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
  */
 async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null) {
     try {
-        const today = new Date();
-        const startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - (days - 1));
+        const today = dayjs();
+        const startDate = today.subtract(days - 1, 'day');
 
-        const dateFrom = startDate.toISOString().split('T')[0];
-        const dateTo = today.toISOString().split('T')[0];
+        const dateFrom = startDate.format('YYYY-MM-DD');
+        const dateTo = today.format('YYYY-MM-DD');
 
-        const replacements = { dateFrom, dateTo };
-        const platformCondition = parseMultiSelectFilter(platform, 'platform_name', replacements, 'trendPlat', { caseInsensitive: true });
-        const locationCondition = parseMultiSelectFilter(location, 'location_name', replacements, 'trendLoc', { caseInsensitive: true });
-        const brandSOSCondition = parseMultiSelectFilter(brand, 'brand_name', replacements, 'trendBrand', { isBrand: true });
+        const platformCondition = buildCHCondition(platform, 'platform_name');
+        const locationCondition = buildCHCondition(location, 'location_name');
+        const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
 
         const query = `
             SELECT 
-                DATE(kw_crawl_date) as crawl_date,
-                ROUND(SUM(CASE WHEN ${brandSOSCondition} THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS overall_sos,
-                ROUND(SUM(CASE WHEN ${brandSOSCondition} AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS sponsored_sos,
-                ROUND(SUM(CASE WHEN ${brandSOSCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS organic_sos
+                toDate(kw_crawl_date) as crawl_date,
+                ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
             FROM rb_kw
-            WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+            WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${locationCondition}
-            GROUP BY DATE(kw_crawl_date)
+            GROUP BY crawl_date
             ORDER BY crawl_date ASC
         `;
 
-        const results = await sequelize.query(query, {
-            replacements,
-            type: sequelize.QueryTypes.SELECT
-        });
+        const results = await queryClickHouse(query);
 
         const overall = { dates: [], values: [] };
         const sponsored = { dates: [], values: [] };
         const organic = { dates: [], values: [] };
 
         results.forEach(row => {
-            const date = new Date(row.crawl_date);
-            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const date = dayjs(row.crawl_date);
+            const dateStr = date.format('MMM D');
 
             overall.dates.push(dateStr);
             overall.values.push(Number(row.overall_sos) || 0);
@@ -161,7 +101,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
 
         return { overall, sponsored, organic };
     } catch (error) {
-        console.error('Error getting all SOS trends:', error);
+        console.error('Error getting all SOS trends (ClickHouse):', error);
         return {
             overall: { dates: [], values: [] },
             sponsored: { dates: [], values: [] },
@@ -764,8 +704,12 @@ class VisibilityService {
      */
     async getVisibilityOverview(filters) {
         console.log('[VisibilityService] getVisibilityOverview called with filters:', filters);
-        // Use dynamic data from database
-        return await getVisibilityOverviewData(filters);
+        const cacheKey = generateCacheKey('visibility_overview', filters);
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            // Use dynamic data from database
+            return await getVisibilityOverviewData(filters);
+        }, CACHE_TTL.ONE_HOUR);
     }
 
     /**
@@ -774,147 +718,257 @@ class VisibilityService {
      */
     async getPlatformKpiMatrix(filters) {
         console.log('[VisibilityService] getPlatformKpiMatrix called with filters:', filters);
+        const cacheKey = generateCacheKey('visibility_platform_matrix', filters);
 
-        try {
-            // Build WHERE clause based on date filters
-            let startDate = filters.startDate;
-            let endDate = filters.endDate;
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                // Build WHERE clause based on date filters
+                let startDate = filters.startDate;
+                let endDate = filters.endDate;
 
-            if (!startDate || !endDate) {
-                // Default to last 30 days
-                endDate = dayjs().format('YYYY-MM-DD');
-                startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-            }
+                if (!startDate || !endDate) {
+                    // Default to last 30 days
+                    endDate = dayjs().format('YYYY-MM-DD');
+                    startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                }
 
-            const replacements = { startDate, endDate };
+                const replacements = { startDate, endDate };
 
-            // Base WHERE clause
-            let baseWhere = `kw_crawl_date BETWEEN :startDate AND :endDate`;
+                // Base WHERE clause
+                let baseWhere = `toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'`;
 
-            // Apply platform filter if provided
-            if (filters.platform && filters.platform !== 'All') {
-                const platCond = parseMultiSelectFilter(filters.platform, 'platform_name', replacements, 'matrixPlat', { caseInsensitive: true });
-                baseWhere += ` AND ${platCond}`;
-            }
+                // Apply platform filter if provided
+                if (filters.platform && filters.platform !== 'All') {
+                    const platCond = buildCHCondition(filters.platform, 'platform_name');
+                    baseWhere += ` AND ${platCond}`;
+                }
 
-            // Apply location filter if provided
-            if (filters.location && filters.location !== 'All') {
-                const locCond = parseMultiSelectFilter(filters.location, 'location_name', replacements, 'matrixLoc', { caseInsensitive: true });
-                baseWhere += ` AND ${locCond}`;
-            }
+                // Apply location filter if provided
+                if (filters.location && filters.location !== 'All') {
+                    const locCond = buildCHCondition(filters.location, 'location_name');
+                    baseWhere += ` AND ${locCond}`;
+                }
 
-            // KPI definitions (rows)
-            const kpis = ['OVERALL WEIGHTED SOS', 'SPONSORED SOS', 'ORGANIC SOS'];
+                // Apply pincode filter if provided
+                if (filters.pincode && filters.pincode !== 'All') {
+                    const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
+                    const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
+                    if (filteredPins.length > 0) {
+                        const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
+                        baseWhere += ` AND toString(pincode) IN (${pinList})`;
+                    }
+                }
 
-            // ========== PLATFORM DATA ==========
-            const platformQuery = `
-                SELECT 
-                    platform_name,
-                    ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS overall_sos,
-                    ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END), 0), 1) AS sponsored_sos,
-                    ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 0 OR spons_flag IS NULL THEN 1 ELSE 0 END), 0), 1) AS organic_sos
-                FROM rb_kw
-                WHERE ${baseWhere}
-                  AND platform_name IS NOT NULL AND platform_name != ''
-                GROUP BY platform_name
-                ORDER BY COUNT(*) DESC
-                LIMIT 10
-            `;
+                // Handle Zone/MetroFlag filters: fetch cities first to ensure reliable filtering
+                if ((filters.zone && filters.zone !== 'All') || (filters.metroFlag && filters.metroFlag !== 'All')) {
+                    let cityQueryConditions = [];
 
-            // ========== FORMAT DATA (Category from rca_sku_dim where status=1) ==========
-            const formatQuery = `
-                SELECT 
-                    Category as format_name,
-                    0 as overall_sos,
-                    0 as sponsored_sos,
-                    0 as organic_sos
-                FROM rca_sku_dim
-                WHERE status = 1 
-                  AND Category IS NOT NULL AND Category != ''
-                GROUP BY Category
-                ORDER BY Category
-            `;
-
-            // ========== CITY DATA (location_name) - ALL CITIES ==========
-            const cityQuery = `
-                SELECT 
-                    location_name as city,
-                    ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS overall_sos,
-                    ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END), 0), 1) AS sponsored_sos,
-                    ROUND(SUM(CASE WHEN keyword_is_rb_product = 1 AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(SUM(CASE WHEN spons_flag = 0 OR spons_flag IS NULL THEN 1 ELSE 0 END), 0), 1) AS organic_sos
-                FROM rb_kw
-                WHERE ${baseWhere}
-                  AND location_name IS NOT NULL AND location_name != ''
-                GROUP BY location_name
-                ORDER BY location_name
-            `;
-
-            // Execute all queries in parallel
-            const [platformResults, formatResults, cityResults] = await Promise.all([
-                sequelize.query(platformQuery, { replacements, type: sequelize.QueryTypes.SELECT }),
-                sequelize.query(formatQuery, { replacements, type: sequelize.QueryTypes.SELECT }),
-                sequelize.query(cityQuery, { replacements, type: sequelize.QueryTypes.SELECT })
-            ]);
-
-            console.log('[VisibilityService] Matrix query results:', {
-                platforms: platformResults.length,
-                formats: formatResults.length,
-                cities: cityResults.length
-            });
-
-            // Helper to build matrix data structure
-            const buildMatrixData = (results, nameKey) => {
-                const columns = ['kpi', ...results.map(r => r[nameKey])];
-
-                const rows = kpis.map(kpi => {
-                    const row = { kpi };
-                    const trend = {};
-                    const series = {};
-
-                    results.forEach(r => {
-                        const colName = r[nameKey];
-                        let value = 0;
-
-                        if (kpi === 'OVERALL WEIGHTED SOS') {
-                            value = Number(r.overall_sos) || 0;
-                        } else if (kpi === 'SPONSORED SOS') {
-                            value = Number(r.sponsored_sos) || 0;
-                        } else if (kpi === 'ORGANIC SOS') {
-                            value = Number(r.organic_sos) || 0;
+                    if (filters.zone && filters.zone !== 'All') {
+                        const zones = Array.isArray(filters.zone) ? filters.zone : [filters.zone];
+                        const filteredZones = zones.filter(z => z && z !== 'all' && z !== 'All');
+                        if (filteredZones.length > 0) {
+                            const zoneList = filteredZones.map(z => `'${escapeCH(z)}'`).join(',');
+                            cityQueryConditions.push(`region IN (${zoneList})`);
                         }
+                    }
 
-                        row[colName] = value;
-                        trend[colName] = Math.round((Math.random() - 0.5) * 10); // Placeholder trend
-                        series[colName] = [value * 0.95, value * 0.97, value * 0.99, value]; // Placeholder sparkline
+                    if (filters.metroFlag && filters.metroFlag !== 'All') {
+                        const flags = Array.isArray(filters.metroFlag) ? filters.metroFlag : [filters.metroFlag];
+                        const filteredFlags = flags.filter(f => f && f !== 'all' && f !== 'All');
+                        if (filteredFlags.length > 0) {
+                            const flagList = filteredFlags.map(f => `'${escapeCH(f)}'`).join(',');
+                            cityQueryConditions.push(`tier IN (${flagList})`);
+                        }
+                    }
+
+                    if (cityQueryConditions.length > 0) {
+                        const cityQuery = `
+                            SELECT DISTINCT location as city 
+                            FROM rb_location_darkstore 
+                            WHERE ${cityQueryConditions.join(' AND ')}
+                              AND location IS NOT NULL AND location != ''
+                        `;
+                        const cities = await queryClickHouse(cityQuery);
+                        const cityList = cities.map(c => `'${escapeCH(c.city)}'`).join(',');
+
+                        if (cityList) {
+                            baseWhere += ` AND location_name IN (${cityList})`;
+                        } else {
+                            baseWhere += ` AND 1=0`;
+                        }
+                    }
+                }
+
+                // Brand Condition for SOS calculation
+                const brandSOSCondition = buildCHCondition(filters.brand, 'brand_name', { isBrand: true });
+
+                // Date ranges for trend calculation (Current vs Previous)
+                const start = dayjs(startDate);
+                const end = dayjs(endDate);
+                const durationDays = end.diff(start, 'day') + 1;
+                const prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
+                const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                // Base WHERE for previous period
+                let prevBaseWhere = `toDate(kw_crawl_date) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                if (filters.platform && filters.platform !== 'All') {
+                    prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
+                }
+                if (filters.location && filters.location !== 'All') {
+                    prevBaseWhere += ` AND ${buildCHCondition(filters.location, 'location_name')}`;
+                }
+                if (filters.pincode && filters.pincode !== 'All') {
+                    const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
+                    const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
+                    if (filteredPins.length > 0) {
+                        const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
+                        prevBaseWhere += ` AND toString(pincode) IN (${pinList})`;
+                    }
+                }
+                // Re-apply city list filter to previous where if needed
+                if (baseWhere.includes('location_name IN')) {
+                    const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
+                    if (cityListMatch) {
+                        prevBaseWhere += ` AND location_name IN (${cityListMatch[1]})`;
+                    }
+                }
+
+                // Query builder helper for current/prev/sparkline
+                const getMatrixQueries = (dimColumn, dimAlias) => {
+                    const current = `
+                        SELECT 
+                            ${dimColumn} as ${dimAlias},
+                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
+                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                        FROM rb_kw
+                        WHERE ${baseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        GROUP BY ${dimColumn}
+                        ORDER BY count() DESC
+                        LIMIT 15
+                    `;
+
+                    const previous = `
+                        SELECT 
+                            ${dimColumn} as ${dimAlias},
+                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
+                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                        FROM rb_kw
+                        WHERE ${prevBaseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        GROUP BY ${dimColumn}
+                    `;
+
+                    const sparkline = `
+                        SELECT 
+                            ${dimColumn} as ${dimAlias},
+                            toDate(kw_crawl_date) as date,
+                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
+                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                        FROM rb_kw
+                        WHERE ${baseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        GROUP BY ${dimColumn}, date
+                        ORDER BY date ASC
+                    `;
+
+                    return { current, previous, sparkline };
+                };
+
+                const platQueries = getMatrixQueries('platform_name', 'name');
+                const formatQueries = getMatrixQueries('keyword_category', 'name');
+                const cityQueries = getMatrixQueries('location_name', 'name');
+
+                // Execute all queries in parallel
+                const [
+                    platRes, platPrev, platSpark,
+                    formRes, formPrev, formSpark,
+                    cityRes, cityPrev, citySpark
+                ] = await Promise.all([
+                    queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
+                    queryClickHouse(formatQueries.current), queryClickHouse(formatQueries.previous), queryClickHouse(formatQueries.sparkline),
+                    queryClickHouse(cityQueries.current), queryClickHouse(cityQueries.previous), queryClickHouse(cityQueries.sparkline)
+                ]);
+
+                // Helper to process results into the final matrix format
+                const processResults = (current, previous, sparklines) => {
+                    const kpis = ['Overall SOS', 'Sponsored SOS', 'Organic SOS', 'Display SOS'];
+                    const columns = ['kpi', ...current.map(r => r.name)];
+
+                    const prevMap = {};
+                    previous.forEach(p => { prevMap[p.name] = p; });
+
+                    const sparkMap = {};
+                    sparklines.forEach(s => {
+                        if (!sparkMap[s.name]) {
+                            sparkMap[s.name] = { overall: [], sponsored: [], organic: [], display: [] };
+                        }
+                        sparkMap[s.name].overall.push(Number(s.overall_sos) || 0);
+                        sparkMap[s.name].sponsored.push(Number(s.sponsored_sos) || 0);
+                        sparkMap[s.name].organic.push(Number(s.organic_sos) || 0);
+                        sparkMap[s.name].display.push(Number(s.display_sos) || 0);
                     });
 
-                    row.trend = trend;
-                    row.series = series;
-                    return row;
-                });
+                    const rows = kpis.map(kpi => {
+                        const row = { kpi };
+                        const trend = {};
+                        const series = {};
 
-                return { columns, rows };
-            };
+                        current.forEach(curr => {
+                            const name = curr.name;
+                            let val = 0;
+                            let prevVal = 0;
+                            let sparkKey = 'overall';
 
-            return {
-                platformData: buildMatrixData(platformResults, 'platform_name'),
-                formatData: buildMatrixData(formatResults, 'format_name'),
-                cityData: buildMatrixData(cityResults, 'city')
-            };
+                            if (kpi === 'Overall SOS') {
+                                val = Number(curr.overall_sos) || 0;
+                                prevVal = Number(prevMap[name]?.overall_sos) || 0;
+                                sparkKey = 'overall';
+                            } else if (kpi === 'Sponsored SOS') {
+                                val = Number(curr.sponsored_sos) || 0;
+                                prevVal = Number(prevMap[name]?.sponsored_sos) || 0;
+                                sparkKey = 'sponsored';
+                            } else if (kpi === 'Organic SOS') {
+                                val = Number(curr.organic_sos) || 0;
+                                prevVal = Number(prevMap[name]?.organic_sos) || 0;
+                                sparkKey = 'organic';
+                            } else if (kpi === 'Display SOS') {
+                                val = Number(curr.display_sos) || 0;
+                                prevVal = Number(prevMap[name]?.display_sos) || 0;
+                                sparkKey = 'display';
+                            }
 
-        } catch (error) {
-            console.error('[VisibilityService] Error in getPlatformKpiMatrix:', error);
-            // Fallback to mock data on error
-            return getPlatformKpiMatrixMockData();
-        }
+                            row[name] = val;
+                            trend[name] = Number((val - prevVal).toFixed(1));
+                            series[name] = sparkMap[name]?.[sparkKey] || [val];
+                        });
+
+                        row.trend = trend;
+                        row.series = series;
+                        return row;
+                    });
+
+                    return { columns, rows };
+                };
+
+                return {
+                    platformData: processResults(platRes, platPrev, platSpark),
+                    formatData: processResults(formRes, formPrev, formSpark),
+                    cityData: processResults(cityRes, cityPrev, citySpark)
+                };
+
+            } catch (error) {
+                console.error('[VisibilityService] Error in getPlatformKpiMatrix:', error);
+                // Fallback to mock data on error
+                return getPlatformKpiMatrixMockData();
+            }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
 
-    /**
-     * Get Keywords at a Glance hierarchical data
-     * Fetches real data from rb_kw table with hierarchy:
-     * Keyword Type → Keyword → Brand → SKU → City
-     */
     /**
      * Get Keywords at a Glance hierarchical data
      * Fetches real data from rb_kw table with hierarchy:
@@ -922,363 +976,324 @@ class VisibilityService {
      */
     async getKeywordsAtGlance(filters) {
         console.log('[VisibilityService] getKeywordsAtGlance called with filters:', filters);
+        const cacheKey = generateCacheKey('visibility_keywords_at_glance', filters);
 
-        try {
-            // Build WHERE clause based on filters
-            let whereConditions = ["keyword_type IS NOT NULL AND keyword_type != ''"];
-            const replacements = {};
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                // Build WHERE clause based on filters
+                let whereConditions = ["keyword_type IS NOT NULL AND keyword_type != ''"];
+                const replacements = {};
 
-            if (filters.platform && filters.platform !== 'All') {
-                const platCond = parseMultiSelectFilter(filters.platform, 'platform_name', replacements, 'hierPlat', { caseInsensitive: true });
-                whereConditions.push(platCond);
-            }
-            if (filters.keyword && filters.keyword !== 'All') {
-                whereConditions.push("LOWER(keyword) LIKE LOWER(:keyword)");
-                replacements.keyword = `%${filters.keyword}%`;
-            }
-            if (filters.location && filters.location !== 'All') {
-                const locCond = parseMultiSelectFilter(filters.location, 'location_name', replacements, 'hierLoc', { caseInsensitive: true });
-                whereConditions.push(locCond);
-            }
-            if (filters.startDate && filters.endDate) {
-                whereConditions.push("kw_crawl_date BETWEEN :startDate AND :endDate");
-                replacements.startDate = filters.startDate;
-                replacements.endDate = filters.endDate;
-            } else {
-                // Default to latest date using subquery for precision
-                whereConditions.push("kw_crawl_date = (SELECT MAX(kw_crawl_date) FROM rb_kw)");
-            }
+                if (filters.platform && filters.platform !== 'All') {
+                    const platCond = buildCHCondition(filters.platform, 'platform_name');
+                    whereConditions.push(platCond);
+                }
+                if (filters.keyword && filters.keyword !== 'All') {
+                    whereConditions.push(`LOWER(keyword) LIKE LOWER('%${escapeCH(filters.keyword)}%')`);
+                }
+                if (filters.location && filters.location !== 'All') {
+                    const locCond = buildCHCondition(filters.location, 'location_name');
+                    whereConditions.push(locCond);
+                }
+                if (filters.startDate && filters.endDate) {
+                    whereConditions.push(`toDate(kw_crawl_date) BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
+                } else {
+                    // Default to latest date using subquery for precision
+                    whereConditions.push("toDate(kw_crawl_date) = (SELECT MAX(toDate(kw_crawl_date)) FROM rb_kw)");
+                }
 
-            // Define the brand condition for SOS calculation
-            const sosBrandCondition = parseMultiSelectFilter(filters.brand, 'brand_name', replacements, 'hierarchyBrand', { isBrand: true });
+                const sosBrandCondition = buildCHCondition(filters.brand, 'brand_name', { isBrand: true });
 
-            // If a specific brand is selected, we filter the results BY that brand(s)
-            if (filters.brand && filters.brand !== 'All') {
-                whereConditions.push(sosBrandCondition);
-            }
+                // If a specific brand is selected, we filter the results BY that brand(s)
+                if (filters.brand && filters.brand !== 'All') {
+                    whereConditions.push(sosBrandCondition);
+                }
 
-            const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+                const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
-            // Stage 1: Fast fetch of top keywords per type
-            const topKeywordsQuery = `
-                SELECT keyword, keyword_type, rb_results
-                FROM (
+                // Stage 1: Fast fetch of top keywords per type - ClickHouse
+                const topKeywordsQuery = `
+                    SELECT keyword, keyword_type, rb_results
+                    FROM (
+                        SELECT 
+                            keyword, 
+                            keyword_type, 
+                            count() as row_count,
+                            countIf(${sosBrandCondition}) as rb_results,
+                            ROW_NUMBER() OVER(PARTITION BY keyword_type ORDER BY countIf(${sosBrandCondition}) DESC, count() DESC) as rnk
+                        FROM rb_kw
+                        ${whereClause}
+                        GROUP BY keyword, keyword_type
+                    ) t
+                    WHERE rnk <= 15
+                    ${filters.brand && filters.brand !== 'All' ? 'AND rb_results > 0' : ''}
+                `;
+
+                console.log('[VisibilityService] Fetching top keywords (ClickHouse)...');
+                const selectedKeywords = await queryClickHouse(topKeywordsQuery);
+
+                console.log(`[VisibilityService] Found ${selectedKeywords.length} top keywords`);
+                if (selectedKeywords.length === 0) {
+                    return { hierarchy: [] };
+                }
+
+                // Group keywords by type for a multi-IN condition
+                const keywordList = selectedKeywords.map(sk => `'${sk.keyword.replace(/'/g, "''")}'`).join(',');
+                const typeList = [...new Set(selectedKeywords.map(sk => `'${sk.keyword_type.replace(/'/g, "''")}'`))].join(',');
+                const keywordCondition = `AND keyword IN (${keywordList}) AND keyword_type IN (${typeList})`;
+
+                // Stage 2: Detailed hierarchy for selected keywords - ClickHouse
+                const query = `
                     SELECT 
-                        keyword, 
                         keyword_type, 
-                        COUNT(*) as row_count,
-                        SUM(CASE WHEN ${sosBrandCondition} THEN 1 ELSE 0 END) as rb_results,
-                        ROW_NUMBER() OVER(PARTITION BY keyword_type ORDER BY SUM(CASE WHEN ${sosBrandCondition} THEN 1 ELSE 0 END) DESC, COUNT(*) DESC) as rnk
+                        keyword, 
+                        brand_name, 
+                        keyword_search_product as sku, 
+                        location_name as city, 
+                        platform_name,
+                        count() as total,
+                        countIf(${sosBrandCondition}) as rbr,
+                        countIf(toString(spons_flag) = '1' AND ${sosBrandCondition}) as rbs,
+                        countIf(toString(spons_flag) != '1' AND ${sosBrandCondition}) as rbo,
+                        avgIf(toFloat64(keyword_search_rank), toString(spons_flag) = '1' AND ${sosBrandCondition} AND toFloat64(keyword_search_rank) > 0) as aap,
+                        avgIf(toFloat64(keyword_search_rank), toString(spons_flag) != '1' AND ${sosBrandCondition} AND toFloat64(keyword_search_rank) > 0) as aop
                     FROM rb_kw
                     ${whereClause}
-                    GROUP BY keyword, keyword_type
-                ) t
-                WHERE rnk <= 15
-                ${filters.brand && filters.brand !== 'All' ? 'AND rb_results > 0' : ''}
-            `;
+                    ${keywordCondition}
+                    GROUP BY keyword_type, keyword, brand_name, sku, city, platform_name
+                `;
 
-            console.log('[VisibilityService] Fetching top keywords...');
-            const selectedKeywords = await sequelize.query(topKeywordsQuery, {
-                replacements,
-                type: sequelize.QueryTypes.SELECT
-            });
+                console.log('[VisibilityService] Fetching hierarchy details (ClickHouse)...');
+                const results = await queryClickHouse(query);
 
-            console.log(`[VisibilityService] Found ${selectedKeywords.length} top keywords`);
-            if (selectedKeywords.length === 0) {
+                console.log(`[VisibilityService] Fetched ${results.length} rows for hierarchy`);
+
+                // Build hierarchy in memory
+                const typeMap = new Map();
+
+                results.forEach(row => {
+                    const {
+                        keyword_type: kt,
+                        keyword: kw,
+                        brand_name: brand,
+                        sku,
+                        city,
+                        total,
+                        rbr,
+                        rbs,
+                        rbo,
+                        aap,
+                        aop
+                    } = row;
+
+                    if (!kt || !kw || !brand || !sku || !city) return;
+
+                    // Helper to initialize or get level node
+                    if (!typeMap.has(kt)) {
+                        typeMap.set(kt, {
+                            id: kt.toLowerCase().replace(/\s+/g, '-'),
+                            label: kt, level: 'keyword-type',
+                            children: new Map(),
+                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                        });
+                    }
+                    const ktNode = typeMap.get(kt);
+
+                    if (!ktNode.children.has(kw)) {
+                        ktNode.children.set(kw, {
+                            id: `${kt}-${kw}`.toLowerCase().replace(/\s+/g, '-'),
+                            label: kw, level: 'keyword',
+                            children: new Map(),
+                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                        });
+                    }
+                    const kwNode = ktNode.children.get(kw);
+
+                    if (!kwNode.children.has(brand)) {
+                        kwNode.children.set(brand, {
+                            id: `${kt}-${kw}-${brand}`.toLowerCase().replace(/\s+/g, '-'),
+                            label: brand, level: 'brand',
+                            children: new Map(),
+                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                        });
+                    }
+                    const brandNode = kwNode.children.get(brand);
+
+                    if (!brandNode.children.has(sku)) {
+                        brandNode.children.set(sku, {
+                            id: `${kt}-${kw}-${brand}-${sku}`.toLowerCase().replace(/\s+/g, '-'),
+                            label: sku, level: 'sku',
+                            children: new Map(),
+                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                        });
+                    }
+                    const skuNode = brandNode.children.get(sku);
+
+                    if (!skuNode.children.has(city)) {
+                        skuNode.children.set(city, {
+                            id: `${kt}-${kw}-${brand}-${sku}-${city}`.toLowerCase().replace(/\s+/g, '-'),
+                            label: city, level: 'city',
+                            children: [],
+                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                        });
+                    }
+                    const cityNode = skuNode.children.get(city);
+
+                    // Update metrics for all levels in the path
+                    [ktNode, kwNode, brandNode, skuNode, cityNode].forEach(node => {
+                        node.metrics.rb += Number(rbr || 0);
+                        node.metrics.total += Number(total || 0);
+                        node.metrics.rbs += Number(rbs || 0);
+                        node.metrics.rbo += Number(rbo || 0);
+                        if (aap !== null && aap !== undefined) node.metrics.aap.push(Number(aap));
+                        if (aop !== null && aop !== undefined) node.metrics.aop.push(Number(aop));
+                    });
+                });
+
+                // Post-process to calculate final percentages and convert Maps to arrays
+                const finalizeNode = (node) => {
+                    const total = node.metrics.total || 1;
+                    const finalMetrics = {
+                        catImpShare: Number(((node.metrics.rb / total) * 100).toFixed(2)),
+                        overallSos: Number(((node.metrics.rb / total) * 100).toFixed(2)),
+                        adSos: Number(((node.metrics.rbs / total) * 100).toFixed(2)),
+                        orgSos: Number(((node.metrics.rbo / total) * 100).toFixed(2)),
+                        adPos: node.metrics.aap.length > 0 ? Number((node.metrics.aap.reduce((a, b) => a + b, 0) / node.metrics.aap.length).toFixed(1)) : 0,
+                        orgPos: node.metrics.aop.length > 0 ? Number((node.metrics.aop.reduce((a, b) => a + b, 0) / node.metrics.aop.length).toFixed(1)) : 0,
+                    };
+                    node.metrics = finalMetrics;
+
+                    if (node.children instanceof Map) {
+                        const childrenArray = Array.from(node.children.values());
+                        node.children = childrenArray.map(finalizeNode).sort((a, b) => b.metrics.overallSos - a.metrics.overallSos);
+                    }
+                    return node;
+                };
+
+                const hierarchy = Array.from(typeMap.values()).map(finalizeNode);
+
+                console.log('[VisibilityService] Built hierarchy tree with', hierarchy.length, 'root types');
+                return { hierarchy };
+            } catch (error) {
+                console.error('[VisibilityService] Error fetching keywords at glance:', error);
                 return { hierarchy: [] };
             }
-
-            // Group keywords by type for a multi-IN condition
-            const keywordList = selectedKeywords.map(sk => `'${sk.keyword.replace(/'/g, "''")}'`).join(',');
-            const typeList = [...new Set(selectedKeywords.map(sk => `'${sk.keyword_type.replace(/'/g, "''")}'`))].join(',');
-            const keywordCondition = `AND keyword IN (${keywordList}) AND keyword_type IN (${typeList})`;
-
-            // Stage 2: Detailed hierarchy for selected keywords
-            const query = `
-                SELECT 
-                    keyword_type, 
-                    keyword, 
-                    brand_name, 
-                    keyword_search_product as sku, 
-                    location_name as city,
-                    COUNT(*) as total_results,
-                    SUM(CASE WHEN ${sosBrandCondition} THEN 1 ELSE 0 END) as rb_results,
-                    SUM(CASE WHEN ${sosBrandCondition} AND spons_flag = 1 THEN 1 ELSE 0 END) as rb_sponsored,
-                    SUM(CASE WHEN ${sosBrandCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) as rb_organic,
-                    AVG(CASE WHEN ${sosBrandCondition} AND spons_flag = 1 THEN keyword_search_rank ELSE NULL END) as avg_ad_pos,
-                    AVG(CASE WHEN ${sosBrandCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN keyword_search_rank ELSE NULL END) as avg_org_pos
-                FROM rb_kw
-                ${whereClause}
-                ${keywordCondition}
-                GROUP BY keyword_type, keyword, brand_name, keyword_search_product, location_name
-                ORDER BY keyword_type ASC, total_results DESC
-            `;
-
-            console.log('[VisibilityService] Fetching hierarchy data...');
-            const results = await sequelize.query(query, {
-                replacements,
-                type: sequelize.QueryTypes.SELECT
-            });
-
-            console.log(`[VisibilityService] Fetched ${results.length} rows for hierarchy`);
-
-            // Build hierarchy in memory
-            const typeMap = new Map();
-
-            results.forEach(row => {
-                const {
-                    keyword_type: kt,
-                    keyword: kw,
-                    brand_name: brand,
-                    sku,
-                    city,
-                    total_results: total,
-                    rb_results: rbr,
-                    rb_sponsored: rbs,
-                    rb_organic: rbo,
-                    avg_ad_pos: aap,
-                    avg_org_pos: aop
-                } = row;
-
-                if (!kt || !kw || !brand || !sku || !city) return;
-
-                // Helper to initialize or get level node
-                if (!typeMap.has(kt)) {
-                    typeMap.set(kt, {
-                        id: kt.toLowerCase().replace(/\s+/g, '-'),
-                        label: kt, level: 'keyword-type',
-                        children: new Map(),
-                        metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
-                    });
-                }
-                const ktNode = typeMap.get(kt);
-
-                if (!ktNode.children.has(kw)) {
-                    ktNode.children.set(kw, {
-                        id: `${kt}-${kw}`.toLowerCase().replace(/\s+/g, '-'),
-                        label: kw, level: 'keyword',
-                        children: new Map(),
-                        metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
-                    });
-                }
-                const kwNode = ktNode.children.get(kw);
-
-                if (!kwNode.children.has(brand)) {
-                    kwNode.children.set(brand, {
-                        id: `${kt}-${kw}-${brand}`.toLowerCase().replace(/\s+/g, '-'),
-                        label: brand, level: 'brand',
-                        children: new Map(),
-                        metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
-                    });
-                }
-                const brandNode = kwNode.children.get(brand);
-
-                if (!brandNode.children.has(sku)) {
-                    brandNode.children.set(sku, {
-                        id: `${kt}-${kw}-${brand}-${sku}`.toLowerCase().replace(/\s+/g, '-'),
-                        label: sku, level: 'sku',
-                        children: new Map(),
-                        metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
-                    });
-                }
-                const skuNode = brandNode.children.get(sku);
-
-                if (!skuNode.children.has(city)) {
-                    skuNode.children.set(city, {
-                        id: `${kt}-${kw}-${brand}-${sku}-${city}`.toLowerCase().replace(/\s+/g, '-'),
-                        label: city, level: 'city',
-                        children: [],
-                        metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
-                    });
-                }
-                const cityNode = skuNode.children.get(city);
-
-                // Update metrics for all levels in the path
-                [ktNode, kwNode, brandNode, skuNode, cityNode].forEach(node => {
-                    node.metrics.rb += Number(rbr || 0);
-                    node.metrics.total += Number(total || 0);
-                    node.metrics.rbs += Number(rbs || 0);
-                    node.metrics.rbo += Number(rbo || 0);
-                    if (aap !== null) node.metrics.aap.push(Number(aap));
-                    if (aop !== null) node.metrics.aop.push(Number(aop));
-                });
-            });
-
-            // Post-process to calculate final percentages and convert Maps to arrays
-            const finalizeNode = (node) => {
-                const total = node.metrics.total || 1;
-                const finalMetrics = {
-                    catImpShare: Number(((node.metrics.rb / total) * 100).toFixed(2)),
-                    overallSos: Number(((node.metrics.rb / total) * 100).toFixed(2)),
-                    adSos: Number(((node.metrics.rbs / total) * 100).toFixed(2)),
-                    orgSos: Number(((node.metrics.rbo / total) * 100).toFixed(2)),
-                    adPos: node.metrics.aap.length > 0 ? Number((node.metrics.aap.reduce((a, b) => a + b, 0) / node.metrics.aap.length).toFixed(1)) : 0,
-                    orgPos: node.metrics.aop.length > 0 ? Number((node.metrics.aop.reduce((a, b) => a + b, 0) / node.metrics.aop.length).toFixed(1)) : 0,
-                };
-                node.metrics = finalMetrics;
-
-                if (node.children instanceof Map) {
-                    const childrenArray = Array.from(node.children.values());
-                    node.children = childrenArray.map(finalizeNode).sort((a, b) => b.metrics.overallSos - a.metrics.overallSos);
-                }
-                return node;
-            };
-
-            const hierarchy = Array.from(typeMap.values()).map(finalizeNode);
-
-            console.log('[VisibilityService] Built hierarchy tree with', hierarchy.length, 'root types');
-            return { hierarchy };
-        } catch (error) {
-            console.error('[VisibilityService] Error fetching keywords at glance:', error);
-            return { hierarchy: [] };
-        }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
-    async getTopSearchTerms(filters) {
+    async getTopSearchTerms(filters = {}) {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
-        try {
-            const replacements = {};
-            const whereConditions = ["1=1"];
+        const cacheKey = generateCacheKey('visibility_top_search_terms', filters);
 
-            let platCond = "1=1";
-            if (filters.platform && filters.platform !== 'All') {
-                platCond = parseMultiSelectFilter(filters.platform, 'platform_name', replacements, 'topPlat', { caseInsensitive: true });
-                whereConditions.push(platCond);
-            }
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const platform = filters.platform || 'All';
+                const location = filters.location || 'All';
+                const brand = filters.brand || 'All';
 
-            let locCond = "1=1";
-            if (filters.location && filters.location !== 'All') {
-                locCond = parseMultiSelectFilter(filters.location, 'location_name', replacements, 'topLoc', { caseInsensitive: true });
-                whereConditions.push(locCond);
-            }
+                const platformCondition = buildCHCondition(platform, 'platform_name');
+                const locationCondition = buildCHCondition(location, 'location_name');
+                const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
 
-            // Map frontend filter tabs to keyword_type
-            if (filters.filter && filters.filter !== 'All') {
-                const typeMap = {
-                    'Branded': 'Branded',
-                    'Competition': 'Competition',
-                    'Generic': 'Generic'
-                };
-                const mappedType = typeMap[filters.filter];
-                if (mappedType) {
-                    whereConditions.push("keyword_type = :type");
-                    replacements.type = mappedType;
+                // 1. Get latest date
+                const maxDateRes = await queryClickHouse(`
+                    SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                    FROM rb_kw
+                    WHERE kw_crawl_date IS NOT NULL
+                `);
+                const maxDate = maxDateRes[0]?.maxDate;
+
+                if (!maxDate || maxDate === '0000-00-00') {
+                    return { terms: [] };
                 }
-            }
 
-            // Get max date first for better performance
-            const [maxDateResult] = await sequelize.query("SELECT MAX(kw_crawl_date) as maxDate FROM rb_kw", { type: sequelize.QueryTypes.SELECT });
-            let maxDate = maxDateResult ? maxDateResult.maxDate : null;
+                let dateCondition = `toDate(kw_crawl_date) = '${maxDate}'`;
+                if (filters.startDate && filters.endDate) {
+                    dateCondition = `toDate(kw_crawl_date) BETWEEN '${dayjs(filters.startDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.endDate).format('YYYY-MM-DD')}'`;
+                }
 
-            // Format date for MySQL compatibility if it's a Date object
-            if (maxDate instanceof Date) {
-                maxDate = maxDate.toISOString().slice(0, 19).replace('T', ' ');
-            }
-            console.log('[VisibilityService] Using maxDate:', maxDate);
+                // 2. Aggregate metrics for keywords
+                const typeFilter = filters.filter && filters.filter !== 'All'
+                    ? `AND keyword_type = '${escapeCH(filters.filter)}'`
+                    : '';
 
-            if (filters.startDate && filters.endDate) {
-                whereConditions.push("kw_crawl_date BETWEEN :startDate AND :endDate");
-                replacements.startDate = filters.startDate;
-                replacements.endDate = filters.endDate;
-            } else if (maxDate) {
-                whereConditions.push("kw_crawl_date = :maxDate");
-                replacements.maxDate = maxDate;
-            }
+                const metricsQuery = `
+                    SELECT 
+                        keyword,
+                        MAX(keyword_type) as type,
+                        count() as total_results,
+                        countIf(${brandSOSCondition}) as rb_results,
+                        countIf(${brandSOSCondition} AND toString(spons_flag) != '1') as rb_organic,
+                        countIf(${brandSOSCondition} AND toString(spons_flag) = '1') as rb_sponsored,
+                        avgIf(toFloat64(keyword_search_rank), toFloat64(keyword_search_rank) > 0) as avg_overall_pos,
+                        avgIf(toFloat64(keyword_search_rank), ${brandSOSCondition} AND toString(spons_flag) != '1' AND toFloat64(keyword_search_rank) > 0) as avg_org_pos,
+                        avgIf(toFloat64(keyword_search_rank), ${brandSOSCondition} AND toString(spons_flag) = '1' AND toFloat64(keyword_search_rank) > 0) as avg_ad_pos
+                    FROM rb_kw
+                    WHERE ${dateCondition}
+                      AND ${platformCondition}
+                      AND ${locationCondition}
+                      ${typeFilter}
+                    GROUP BY keyword
+                    ${brand && brand !== 'All' ? 'HAVING rb_results > 0' : ''}
+                    ORDER BY (toFloat64(rb_results) / nullIf(count(), 0)) DESC, total_results DESC
+                    LIMIT 50
+                `;
 
-            const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+                const keywordMetrics = await queryClickHouse(metricsQuery);
 
-            // Define the brand condition for SOS calculation
-            // If a specific brand is selected, we calculate SOS for THAT brand(s).
-            // If "All" is selected, we calculate SOS for all "RB" products.
-            const sosBrandCondition = parseMultiSelectFilter(filters.brand, 'brand_name', replacements, 'searchBrand', { isBrand: true });
+                if (keywordMetrics.length === 0) return { terms: [] };
 
-            // Step 1: Get top keywords and their SOS metrics
-            // If a specific brand is selected, we prioritize keywords where THAT brand has most visibility
-            const metricsQuery = `
-                SELECT 
-                    keyword,
-                    MAX(keyword_type) as type,
-                    COUNT(*) as total_results,
-                    SUM(CASE WHEN ${sosBrandCondition} THEN 1 ELSE 0 END) as rb_results,
-                    SUM(CASE WHEN ${sosBrandCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) as rb_organic,
-                    SUM(CASE WHEN ${sosBrandCondition} AND spons_flag = 1 THEN 1 ELSE 0 END) as rb_sponsored,
-                    AVG(CASE WHEN ${sosBrandCondition} THEN keyword_search_rank ELSE NULL END) as avg_overall_pos,
-                    AVG(CASE WHEN ${sosBrandCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN keyword_search_rank ELSE NULL END) as avg_org_pos,
-                    AVG(CASE WHEN ${sosBrandCondition} AND spons_flag = 1 THEN keyword_search_rank ELSE NULL END) as avg_ad_pos
-                FROM rb_kw
-                ${whereClause}
-                GROUP BY keyword
-                ${filters.brand && filters.brand !== 'All' ? 'HAVING rb_results > 0' : ''}
-                ORDER BY (SUM(CASE WHEN ${sosBrandCondition} THEN 1 ELSE 0 END) / COUNT(*)) DESC, total_results DESC
-                LIMIT 50
-            `;
-
-            console.log('[VisibilityService] Executing metrics query...');
-            const keywordMetrics = await sequelize.query(metricsQuery, {
-                replacements,
-                type: sequelize.QueryTypes.SELECT
-            });
-
-            console.log(`[VisibilityService] Found ${keywordMetrics.length} keywords`);
-            if (keywordMetrics.length === 0) return { terms: [] };
-
-            // Step 2: Get leading brands for these keywords
-            // MUST include platform/location filters to match Step 1 context
-            const keywordsForIn = keywordMetrics.map(k => `'${k.keyword.replace(/'/g, "''")}'`).join(',');
-            const leadingBrandQuery = `
-                WITH BrandCounts AS (
+                // 3. Get leading brand for each keyword (the brand with most shelf share)
+                const keywordList = keywordMetrics.map(k => `'${escapeCH(k.keyword)}'`).join(',');
+                const leadingBrandQuery = `
                     SELECT 
                         keyword,
                         brand_name,
-                        COUNT(*) as brand_count,
-                        ROW_NUMBER() OVER(PARTITION BY keyword ORDER BY COUNT(*) DESC) as rnk
+                        count() as brand_count
                     FROM rb_kw
-                    WHERE keyword IN (${keywordsForIn})
-                      AND kw_crawl_date = :maxDate
-                      AND ${platCond}
-                      AND ${locCond}
+                    WHERE toDate(kw_crawl_date) = '${maxDate}'
+                      AND keyword IN (${keywordList})
+                      AND ${platformCondition}
+                      AND ${locationCondition}
                     GROUP BY keyword, brand_name
-                )
-                SELECT keyword, brand_name FROM BrandCounts WHERE rnk = 1
-            `;
+                    ORDER BY keyword, brand_count DESC
+                `;
 
-            const leadingBrands = await sequelize.query(leadingBrandQuery, {
-                replacements: { ...replacements, maxDate },
-                type: sequelize.QueryTypes.SELECT
-            });
+                const brandResults = await queryClickHouse(leadingBrandQuery);
 
-            const brandMap = new Map(leadingBrands.map(lb => [lb.keyword, lb.brand_name]));
+                // ClickHouse doesn't have a direct ROW_NUMBER equivalent in simple GROUP BY, 
+                // so we'll pick the top one per keyword in JS or use argMax
+                const brandMap = {};
+                brandResults.forEach(r => {
+                    if (!brandMap[r.keyword]) {
+                        brandMap[r.keyword] = r.brand_name;
+                    }
+                });
 
-            // Format results for frontend
-            const terms = keywordMetrics.map(km => {
-                const total = Number(km.total_results) || 1;
-                const rbResults = Number(km.rb_results) || 0;
-                const rbOrganic = Number(km.rb_organic) || 0;
-                const rbSponsored = Number(km.rb_sponsored) || 0;
+                const terms = keywordMetrics.map(km => {
+                    const total = Number(km.total_results) || 1;
+                    const rbResults = Number(km.rb_results) || 0;
+                    const rbOrganic = Number(km.rb_organic) || 0;
+                    const rbSponsored = Number(km.rb_sponsored) || 0;
 
-                // Average positions (cast string to number safely)
-                const avgOverall = Number(km.avg_overall_pos) || 0;
-                const avgOrg = Number(km.avg_org_pos) || 0;
-                const avgAd = Number(km.avg_ad_pos) || 0;
+                    return {
+                        keyword: km.keyword,
+                        topBrand: brandMap[km.keyword] || 'N/A',
+                        overallSos: Number(((rbResults / total) * 100).toFixed(1)),
+                        overallPos: Number(Number(km.avg_overall_pos || 0).toFixed(1)),
+                        organicSos: Number(((rbOrganic / total) * 100).toFixed(1)),
+                        organicPos: Number(Number(km.avg_org_pos || 0).toFixed(1)),
+                        paidSos: Number(((rbSponsored / total) * 100).toFixed(1)),
+                        paidPos: Number(Number(km.avg_ad_pos || 0).toFixed(1)),
+                    };
+                });
 
-                return {
-                    keyword: km.keyword,
-                    topBrand: brandMap.get(km.keyword) || 'N/A',
-                    overallSos: Number(((rbResults / total) * 100).toFixed(1)),
-                    overallPos: Number(avgOverall.toFixed(1)),
-                    organicSos: Number(((rbOrganic / total) * 100).toFixed(1)),
-                    organicPos: Number(avgOrg.toFixed(1)),
-                    paidSos: Number(((rbSponsored / total) * 100).toFixed(1)),
-                    paidPos: Number(avgAd.toFixed(1)),
-                };
-            });
-
-            console.log(`[VisibilityService] Returning ${terms.length} terms`);
-            return { terms };
-        } catch (error) {
-            console.error('[VisibilityService] Error in getTopSearchTerms:', error);
-            return { terms: [] };
-        }
+                return { terms };
+            } catch (error) {
+                console.error('[VisibilityService] Error in getTopSearchTerms (ClickHouse):', error);
+                return { terms: [] };
+            }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
     /**
@@ -1287,139 +1302,118 @@ class VisibilityService {
      * @param {Object} filters - { keyword, platform, location, startDate, endDate }
      */
     async getBrandDrilldown(filters) {
-        try {
-            console.log(`[VisibilityService] getBrandDrilldown: keyword="${filters.keyword}"`);
+        console.log(`[VisibilityService] getBrandDrilldown (ClickHouse): keyword="${filters.keyword}"`);
+        const cacheKey = generateCacheKey('visibility_brand_drilldown', filters);
 
-            // Base where conditions for main filters
-            // Using case-insensitive and trimmed keyword matching
-            const whereConditions = ["LOWER(TRIM(keyword)) = LOWER(TRIM(:keyword))"];
-            const replacements = { keyword: filters.keyword };
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                if (!filters.keyword) return { brands: [], topLosers: [] };
 
-            let platCond = "1=1";
-            if (filters.platform && filters.platform !== 'All') {
-                platCond = parseMultiSelectFilter(filters.platform, 'platform_name', replacements, 'drillPlat', { caseInsensitive: true });
-                whereConditions.push(platCond);
-            }
+                const platform = filters.platform || 'All';
+                const location = filters.location || 'All';
 
-            let locCond = "1=1";
-            if (filters.location && filters.location !== 'All') {
-                locCond = parseMultiSelectFilter(filters.location, 'location_name', replacements, 'drillLoc', { caseInsensitive: true });
-                whereConditions.push(locCond);
-            }
+                const platformCondition = buildCHCondition(platform, 'platform_name');
+                const locationCondition = buildCHCondition(location, 'location_name');
+                const keyword = escapeCH(filters.keyword);
 
-            // Get two most recent crawl dates for comparison
-            const dateResult = await sequelize.query(
-                "SELECT DISTINCT kw_crawl_date FROM rb_kw WHERE LOWER(TRIM(keyword)) = LOWER(TRIM(:keyword)) ORDER BY kw_crawl_date DESC LIMIT 2",
-                { replacements: { keyword: filters.keyword }, type: sequelize.QueryTypes.SELECT }
-            );
+                // 1. Get two most recent crawl dates for this keyword
+                const dateQuery = `
+                    SELECT DISTINCT toDate(kw_crawl_date) as crawl_date
+                    FROM rb_kw
+                    WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
+                    ORDER BY crawl_date DESC
+                    LIMIT 2
+                `;
+                const dateResults = await queryClickHouse(dateQuery);
 
-            if (!dateResult || dateResult.length === 0) return { brands: [], topLosers: [] };
+                if (dateResults.length === 0) return { brands: [], topLosers: [] };
 
-            // Format dates precisely to avoid matching issues
-            const latestDate = dayjs(dateResult[0].kw_crawl_date).format('YYYY-MM-DD');
-            const previousDate = dateResult[1] ? dayjs(dateResult[1].kw_crawl_date).format('YYYY-MM-DD') : latestDate;
+                const latestDate = dayjs(dateResults[0].crawl_date).format('YYYY-MM-DD');
+                const previousDate = dateResults[1] ? dayjs(dateResults[1].crawl_date).format('YYYY-MM-DD') : latestDate;
 
-            console.log(`[VisibilityService] Dates: Latest=${latestDate}, Previous=${previousDate}`);
+                // 2. Fetch metrics for ALL brands for both dates
+                const drilldownQuery = `
+                    SELECT 
+                        brand_name,
+                        toDate(kw_crawl_date) as crawl_date,
+                        count() as brand_results,
+                        countIf(toString(spons_flag) != '1') as brand_organic,
+                        countIf(toString(spons_flag) = '1') as brand_sponsored
+                    FROM rb_kw
+                    WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
+                      AND toDate(kw_crawl_date) IN ('${latestDate}', '${previousDate}')
+                      AND ${platformCondition}
+                      AND ${locationCondition}
+                    GROUP BY brand_name, crawl_date
+                `;
 
-            // Fetch metrics for ALL brands for both dates
-            const drilldownQuery = `
-                SELECT 
-                    brand_name,
-                    DATE_FORMAT(kw_crawl_date, '%Y-%m-%d') as crawl_date,
-                    COUNT(*) as brand_results,
-                    SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) as brand_organic,
-                    SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) as brand_sponsored
-                FROM rb_kw
-                WHERE LOWER(TRIM(keyword)) = LOWER(TRIM(:keyword))
-                  AND DATE(kw_crawl_date) IN (:latestDate, :previousDate)
-                  AND ${platCond}
-                  AND ${locCond}
-                GROUP BY brand_name, crawl_date
-            `;
+                const results = await queryClickHouse(drilldownQuery);
 
-            const results = await sequelize.query(drilldownQuery, {
-                replacements: { ...replacements, latestDate, previousDate },
-                type: sequelize.QueryTypes.SELECT
-            });
+                // 3. Get total results per date for SOS normalization
+                const totalsQuery = `
+                    SELECT toDate(kw_crawl_date) as crawl_date, count() as total 
+                    FROM rb_kw 
+                    WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
+                      AND toDate(kw_crawl_date) IN ('${latestDate}', '${previousDate}')
+                      AND ${platformCondition}
+                      AND ${locationCondition}
+                    GROUP BY crawl_date
+                `;
 
-            // Get total results per date for SOS normalization
-            const totalsQuery = `
-                SELECT DATE_FORMAT(kw_crawl_date, '%Y-%m-%d') as crawl_date, COUNT(*) as total 
-                FROM rb_kw 
-                WHERE LOWER(TRIM(keyword)) = LOWER(TRIM(:keyword))
-                  AND DATE(kw_crawl_date) IN (:latestDate, :previousDate)
-                  AND ${platCond}
-                  AND ${locCond}
-                GROUP BY crawl_date
-            `;
+                const totalResults = await queryClickHouse(totalsQuery);
+                const totalMap = {};
+                totalResults.forEach(t => {
+                    totalMap[dayjs(t.crawl_date).format('YYYY-MM-DD')] = Number(t.total);
+                });
 
-            const totalResults = await sequelize.query(totalsQuery, {
-                replacements: { ...replacements, latestDate, previousDate },
-                type: sequelize.QueryTypes.SELECT
-            });
+                // 4. Process results into a map of brands
+                const brandData = {};
+                results.forEach(row => {
+                    const brand = row.brand_name || 'Unknown';
+                    const dateStr = dayjs(row.crawl_date).format('YYYY-MM-DD');
+                    const total = totalMap[dateStr] || 1;
 
-            const totalMap = new Map(totalResults.map(t => [String(t.crawl_date), t.total]));
+                    if (!brandData[brand]) {
+                        brandData[brand] = {
+                            brand,
+                            current: { overall: 0, organic: 0, paid: 0 },
+                            previous: { overall: 0, organic: 0, paid: 0 }
+                        };
+                    }
 
-            // Process results into a map of brands
-            const brandData = {};
-            results.forEach(row => {
-                const brand = row.brand_name || 'Unknown';
-                const dateStr = String(row.crawl_date);
-                const total = totalMap.get(dateStr) || 1;
+                    const sosOverall = Number(((Number(row.brand_results) / total) * 100).toFixed(1));
+                    const sosOrganic = Number(((Number(row.brand_organic) / total) * 100).toFixed(1));
+                    const sosPaid = Number(((Number(row.brand_sponsored) / total) * 100).toFixed(1));
 
-                if (!brandData[brand]) {
-                    brandData[brand] = {
-                        brand,
-                        current: { overall: 0, organic: 0, paid: 0 },
-                        previous: { overall: 0, organic: 0, paid: 0 }
-                    };
-                }
+                    if (dateStr === latestDate) {
+                        brandData[brand].current = { overall: sosOverall, organic: sosOrganic, paid: sosPaid };
+                    } else if (dateStr === previousDate) {
+                        brandData[brand].previous = { overall: sosOverall, organic: sosOrganic, paid: sosPaid };
+                    }
+                });
 
-                const metrics = {
-                    overall: (row.brand_results / total) * 100,
-                    organic: (row.brand_organic / total) * 100,
-                    paid: (row.brand_sponsored / total) * 100
-                };
-
-                if (dateStr === latestDate) {
-                    brandData[brand].current = metrics;
-                } else if (dateStr === previousDate && latestDate !== previousDate) {
-                    brandData[brand].previous = metrics;
-                }
-            });
-
-            // Format final array and calculate deltas
-            const brands = Object.values(brandData).map(b => {
-                const delta = b.current.overall - b.previous.overall;
-                return {
+                // 5. Final formatting with deltas
+                const brands = Object.values(brandData).map(b => ({
                     brand: b.brand,
-                    overall: Number(b.current.overall.toFixed(1)),
-                    organic: Number(b.current.organic.toFixed(1)),
-                    paid: Number(b.current.paid.toFixed(1)),
-                    delta: Number(delta.toFixed(1)),
-                    prevOverall: Number(b.previous.overall.toFixed(1))
-                };
-            }).sort((a, b) => b.overall - a.overall);
+                    overallSos: { value: b.current.overall, delta: Number((b.current.overall - b.previous.overall).toFixed(1)) },
+                    organicSos: { value: b.current.organic, delta: Number((b.current.organic - b.previous.organic).toFixed(1)) },
+                    paidSos: { value: b.current.paid, delta: Number((b.current.paid - b.previous.paid).toFixed(1)) }
+                })).sort((a, b) => b.overallSos.value - a.overallSos.value);
 
-            // "Top Losers" are brands with the most negative delta
-            const topLosers = [...brands]
-                .filter(b => b.delta < 0)
-                .sort((a, b) => a.delta - b.delta) // Most negative first
-                .slice(0, 5);
+                // 6. Identify top losers (most negative delta in overall SOS)
+                const topLosers = brands
+                    .filter(b => b.overallSos.delta < 0)
+                    .sort((a, b) => a.overallSos.delta - b.overallSos.delta)
+                    .slice(0, 5);
 
-            return { brands, topLosers };
-        } catch (error) {
-            console.error('[VisibilityService] Error in getBrandDrilldown:', error);
-            return { brands: [], topLosers: [] };
-        }
+                return { brands, topLosers };
+            } catch (error) {
+                console.error('[VisibilityService] Error in getBrandDrilldown (ClickHouse):', error);
+                return { brands: [], topLosers: [] };
+            }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
-    /**
-     * Get dynamic filter options for visibility analysis cascading filters
-     * Uses rb_kw as primary source (main visibility data table)
-     * @param {Object} params - { filterType, platform, format, city, metroFlag }
-     * @returns {Object} { options: [...] }
-     */
     /**
      * Get dynamic filter options for visibility analysis cascading filters
      * Uses rb_kw as primary source (main visibility data table)
@@ -1427,128 +1421,177 @@ class VisibilityService {
      * @returns {Object} { options: [...] }
      */
     async getVisibilityFilterOptions({ filterType, platform, format, city }) {
-        try {
-            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
+        console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
+        const cacheKey = generateCacheKey('visibility_filters', { filterType, platform, format, city });
 
-            // Base WHERE clause
-            let whereClause = "WHERE 1=1";
-            if (platform && platform !== 'All') {
-                whereClause += ` AND LOWER(platform_name) = LOWER('${platform}')`;
-            }
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
 
-            // PLATFORMS: from rb_kw.platform_name
-            if (filterType === 'platforms') {
-                const [results] = await sequelize.query(`
+                // Shared conditions for cascading filters
+                const platformFilter = platform || null;
+                const formatFilter = format || null;
+                const cityFilter = city || null;
+
+                const platformCondition = buildCHCondition(platformFilter, 'platform_name');
+                const formatCondition = buildCHCondition(formatFilter, 'keyword_search_product');
+                const cityCondition = buildCHCondition(cityFilter, 'location_name');
+
+                // PLATFORMS: from rb_kw.platform_name
+                if (filterType === 'platforms') {
+                    const results = await queryClickHouse(`
                     SELECT DISTINCT platform_name as platform
-                    FROM rb_kw 
+                    FROM rb_kw
                     WHERE platform_name IS NOT NULL AND platform_name != ''
                     ORDER BY platform_name
                 `);
-                const options = results.map(r => r.platform).filter(Boolean);
-                return { options };
-            }
+                    const options = results.map(r => r.platform).filter(Boolean);
+                    return { options };
+                }
 
-            // MONTHS: from rb_kw.kw_crawl_date (Active Months)
-            if (filterType === 'months') {
-                const [results] = await sequelize.query(`
-                    SELECT DISTINCT DATE_FORMAT(kw_crawl_date, '%Y-%m') as month
+                // MONTHS: from rb_kw.kw_crawl_date
+                if (filterType === 'months') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT toStartOfMonth(toDate(kw_crawl_date)) as date
                     FROM rb_kw
-                    ${whereClause} AND kw_crawl_date IS NOT NULL
-                    ORDER BY month DESC
-                    LIMIT 36
-                `);
-                const options = results.map(r => r.month).filter(Boolean);
-                return { options };
-            }
-
-            // DATES: from rb_kw.kw_crawl_date (Active Dates)
-            if (filterType === 'dates') {
-                const [results] = await sequelize.query(`
-                    SELECT DISTINCT DATE_FORMAT(kw_crawl_date, '%Y-%m-%d') as date
-                    FROM rb_kw
-                    ${whereClause} AND kw_crawl_date IS NOT NULL
+                    WHERE kw_crawl_date IS NOT NULL
                     ORDER BY date DESC
-                    LIMIT 365
+                    LIMIT 12
                 `);
-                const options = results.map(r => r.date).filter(Boolean);
-                return { options };
-            }
+                    const options = results.map(r => dayjs(r.date).format('YYYY-MM-DD')).filter(Boolean);
+                    return { options };
+                }
 
-            // FORMATS (Category): from rca_sku_dim.Category where status = 1
-            if (filterType === 'formats') {
-                const [results] = await sequelize.query(`
+                // DATES: from rb_kw.kw_crawl_date (Active Dates) - This was removed in the new implementation, keeping it for now as it was not explicitly removed.
+                // If the intention was to remove it, it should be removed. For now, I'll assume the new code is additive/replacement for specific filter types.
+                // However, the new code structure implies a complete replacement of the function's logic.
+                // Given the instruction "Migrate filtering and trends logic to ClickHouse" and the provided code block,
+                // it seems the intent is to replace the entire function with the ClickHouse-based logic.
+                // The new code does not have a 'dates' filter type. So, the old 'dates' filter type should be removed.
+
+                // FORMATS (Category): from rca_sku_dim.Category where status = 1
+                if (filterType === 'formats') {
+                    const results = await queryClickHouse(`
                     SELECT DISTINCT Category as format
                     FROM rca_sku_dim
-                    WHERE status = 1 AND Category IS NOT NULL AND Category != ''
+                    WHERE toString(status) = '1' AND Category IS NOT NULL AND Category != ''
                     ORDER BY Category
                 `);
-                const options = results.map(r => r.format).filter(Boolean);
-                return { options };
-            }
-
-            // CITIES: from rb_kw.location_name
-            if (filterType === 'cities') {
-                // Cascading: Filter by format (keyword_search_product) if selected
-                if (format && format !== 'All') {
-                    whereClause += ` AND LOWER(keyword_search_product) = LOWER('${format}')`;
+                    const options = results.map(r => r.format).filter(Boolean);
+                    return { options };
                 }
 
-                const [results] = await sequelize.query(`
+                // Shared WHERE clause for other filters
+                const whereConditions = ["1=1"];
+                if (platform && platform !== 'All') {
+                    whereConditions.push(platformCondition);
+                }
+                const baseWhere = `WHERE ${whereConditions.join(' AND ')}`;
+
+                // CITIES: from rb_kw.location_name
+                if (filterType === 'cities') {
+                    let cityWhere = baseWhere;
+                    if (format && format !== 'All') {
+                        cityWhere += ` AND ${formatCondition}`;
+                    }
+
+                    const results = await queryClickHouse(`
                     SELECT DISTINCT location_name as city
                     FROM rb_kw
-                    ${whereClause} AND location_name IS NOT NULL AND location_name != ''
+                    ${cityWhere} AND location_name IS NOT NULL AND location_name != ''
                     ORDER BY location_name
                 `);
-                const options = results.map(r => r.city).filter(Boolean);
-                return { options };
-            }
-
-            // PINCODES: from rb_kw.pincode
-            if (filterType === 'pincodes') {
-                if (city && city !== 'All') {
-                    whereClause += ` AND LOWER(location_name) = LOWER('${city}')`;
+                    const options = results.map(r => r.city).filter(Boolean);
+                    return { options };
                 }
-                const [results] = await sequelize.query(`
-                    SELECT DISTINCT pincode
-                    FROM rb_kw
-                    ${whereClause} AND pincode IS NOT NULL
-                    ORDER BY pincode
-                `);
-                const options = results.map(r => r.pincode).filter(Boolean);
-                return { options };
-            }
 
-            // PRODUCT NAMES: from rb_kw.keyword (or brand_name/keyword_search_product_id depending on need)
-            // Assuming "Product Name" refers to the search keyword or the specific product
-            if (filterType === 'productName') {
-                const [results] = await sequelize.query(`
+                // DATES: from rb_kw.kw_crawl_date
+                if (filterType === 'dates') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT toDate(kw_crawl_date) as date
+                    FROM rb_kw
+                    WHERE kw_crawl_date IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT 60
+                `);
+                    const options = results.map(r => r.date).filter(Boolean);
+                    return { options };
+                }
+
+                // ZONES (regions): from rb_location_darkstore.region
+                if (filterType === 'zones') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT region as zone
+                    FROM rb_location_darkstore
+                    WHERE region IS NOT NULL AND region != ''
+                    ORDER BY region
+                `);
+                    const options = results.map(r => r.zone).filter(Boolean);
+                    return { options };
+                }
+
+                // METRO FLAGS: from rb_location_darkstore.tier
+                if (filterType === 'metroFlags') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT tier as metroFlag
+                    FROM rb_location_darkstore
+                    WHERE tier IS NOT NULL AND tier != ''
+                    ORDER BY tier
+                `);
+                    const options = results.map(r => r.metroFlag).filter(Boolean);
+                    return { options };
+                }
+
+                // PINCODES: from rb_kw.pincode (handle type conversion)
+                if (filterType === 'pincodes') {
+                    let pinWhere = baseWhere;
+                    if (city && city !== 'All') {
+                        pinWhere += ` AND ${cityCondition}`;
+                    }
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT toString(pincode) as pincode_str
+                    FROM rb_kw
+                    ${pinWhere} AND pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
+                    ORDER BY pincode_str
+                    LIMIT 500
+                `);
+                    const options = results.map(r => r.pincode_str).filter(Boolean);
+                    return { options };
+                }
+
+
+                // PRODUCT NAMES: from rb_kw.keyword
+                if (filterType === 'productName') {
+                    const results = await queryClickHouse(`
                     SELECT DISTINCT keyword as productName
                     FROM rb_kw
-                    ${whereClause} AND keyword IS NOT NULL AND keyword != ''
+                    ${baseWhere} AND keyword IS NOT NULL AND keyword != ''
                     ORDER BY keyword
+                    LIMIT 200
                 `);
-                const options = results.map(r => r.productName).filter(Boolean);
-                return { options };
-            }
+                    const options = results.map(r => r.productName).filter(Boolean);
+                    return { options };
+                }
 
-            // BRANDS: from rb_kw.brand_crawl (competitor brands where is_competitor_product=1)
-            if (filterType === 'brands') {
-                const [results] = await sequelize.query(`
+                // BRANDS: from rb_kw.brand_crawl (competitor brands where is_competitor_product=1)
+                if (filterType === 'brands') {
+                    const results = await queryClickHouse(`
                     SELECT DISTINCT brand_crawl as brand
                     FROM rb_kw
-                    ${whereClause} AND brand_crawl IS NOT NULL AND brand_crawl != '' AND is_competitor_product = 1
+                    ${baseWhere} AND brand_crawl IS NOT NULL AND brand_crawl != '' AND toString(is_competitor_product) = '1'
                     ORDER BY brand_crawl
-                    LIMIT 50
+                    LIMIT 200
                 `);
-                const options = results.map(r => r.brand).filter(Boolean);
-                return { options };
-            }
+                    const options = results.map(r => r.brand).filter(Boolean);
+                    return { options };
+                }
 
-            return { options: [] };
-        } catch (error) {
-            console.error('[VisibilityService] Error getting filter options:', error);
-            return { options: [] };
-        }
+                return { options: [] };
+            } catch (error) {
+                console.error('[VisibilityService] Error getting filter options (ClickHouse):', error);
+                return { options: [] };
+            }
+        }, CACHE_TTL.LONG);
     }
 
     /**
@@ -1556,58 +1599,60 @@ class VisibilityService {
      * Returns the date range of the latest month that has data
      */
     async getLatestAvailableDates() {
-        try {
-            console.log('[VisibilityService] getLatestAvailableDates called');
+        console.log('[VisibilityService] getLatestAvailableDates (ClickHouse) called');
+        const cacheKey = 'visibility_latest_dates';
 
-            // Get the max date from rb_kw table
-            const [maxDateResult] = await sequelize.query(`
-                SELECT MAX(kw_crawl_date) as maxDate
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+
+                // Get the max date from rb_kw table - ClickHouse
+                const results = await queryClickHouse(`
+                SELECT MAX(toDate(kw_crawl_date)) as maxDate
                 FROM rb_kw
                 WHERE kw_crawl_date IS NOT NULL
-            `, { type: sequelize.QueryTypes.SELECT });
+            `);
 
-            if (!maxDateResult?.maxDate) {
-                console.log('[VisibilityService] No data found in rb_kw table, returning current month');
-                // Fallback to current month if no data
+                const maxDate = results[0]?.maxDate;
+
+                if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
+                    console.log('[VisibilityService] No valid data found in rb_kw table, returning current month');
+                    // Fallback to current month if no data
+                    const now = dayjs();
+                    return {
+                        available: false,
+                        startDate: now.startOf('month').format('YYYY-MM-DD'),
+                        endDate: now.format('YYYY-MM-DD'),
+                        latestDate: now.format('YYYY-MM-DD'),
+                        defaultStartDate: now.startOf('month').format('YYYY-MM-DD')
+                    };
+                }
+
+                const latestDate = dayjs(maxDate);
+                const startOfMonth = latestDate.startOf('month');
+
+                console.log('[VisibilityService] Found latest date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
+
+                return {
+                    available: true,
+                    startDate: startOfMonth.format('YYYY-MM-DD'),
+                    endDate: latestDate.format('YYYY-MM-DD'),
+                    latestDate: latestDate.format('YYYY-MM-DD'),
+                    defaultStartDate: startOfMonth.format('YYYY-MM-DD')
+                };
+            } catch (error) {
+                console.error('[VisibilityService] Error getting latest available dates (ClickHouse):', error);
+                // Fallback to current month on error
                 const now = dayjs();
                 return {
                     available: false,
                     startDate: now.startOf('month').format('YYYY-MM-DD'),
                     endDate: now.format('YYYY-MM-DD'),
                     latestDate: now.format('YYYY-MM-DD'),
-                    defaultStartDate: now.startOf('month').format('YYYY-MM-DD')
+                    defaultStartDate: now.startOf('month').format('YYYY-MM-DD'),
+                    error: error.message
                 };
             }
-
-            const latestDate = dayjs(maxDateResult.maxDate);
-            const startOfMonth = latestDate.startOf('month');
-
-            console.log('[VisibilityService] Found latest date:', latestDate.format('YYYY-MM-DD'));
-            console.log('[VisibilityService] Returning date range:', {
-                startDate: startOfMonth.format('YYYY-MM-DD'),
-                endDate: latestDate.format('YYYY-MM-DD')
-            });
-
-            return {
-                available: true,
-                startDate: startOfMonth.format('YYYY-MM-DD'),
-                endDate: latestDate.format('YYYY-MM-DD'),
-                latestDate: latestDate.format('YYYY-MM-DD'),
-                defaultStartDate: startOfMonth.format('YYYY-MM-DD')
-            };
-        } catch (error) {
-            console.error('[VisibilityService] Error getting latest available dates:', error);
-            // Fallback to current month on error
-            const now = dayjs();
-            return {
-                available: false,
-                startDate: now.startOf('month').format('YYYY-MM-DD'),
-                endDate: now.format('YYYY-MM-DD'),
-                latestDate: now.format('YYYY-MM-DD'),
-                defaultStartDate: now.startOf('month').format('YYYY-MM-DD'),
-                error: error.message
-            };
-        }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
     /**
@@ -1618,72 +1663,85 @@ class VisibilityService {
      */
     async getVisibilityKpiTrends(filters = {}) {
         console.log('[VisibilityService] getVisibilityKpiTrends called with filters:', filters);
+        const cacheKey = generateCacheKey('visibility_kpi_trends', filters);
 
-        try {
-            // Determine date range based on period or explicit dates
-            let startDate, endDate;
-            const period = filters.period || '1M';
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                // Determine date range based on period or explicit dates
+                let startDate, endDate;
+                const period = filters.period || '1M';
 
-            if (filters.startDate && filters.endDate) {
-                startDate = dayjs(filters.startDate);
-                endDate = dayjs(filters.endDate);
-            } else {
-                endDate = dayjs();
-                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-                const days = periodToDays[period] || 30;
-                startDate = endDate.subtract(days, 'day');
-            }
+                if (filters.startDate && filters.endDate) {
+                    startDate = dayjs(filters.startDate);
+                    endDate = dayjs(filters.endDate);
+                } else {
+                    // Fetch the latest available date from ClickHouse
+                    const maxDateRes = await queryClickHouse(`
+                        SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                        FROM rb_kw
+                        WHERE kw_crawl_date IS NOT NULL
+                    `);
+                    const maxDate = maxDateRes[0]?.maxDate;
 
-            const dateFrom = startDate.format('YYYY-MM-DD');
-            const dateTo = endDate.format('YYYY-MM-DD');
+                    if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
+                        endDate = dayjs(maxDate);
+                    } else {
+                        endDate = dayjs();
+                    }
 
-            const replacements = { dateFrom, dateTo };
-            const platform = filters.platform || null;
-            const location = filters.location || null;
-            const brand = filters.brand || null;
+                    const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                    const days = periodToDays[period] || 30;
+                    startDate = endDate.subtract(days, 'day');
+                }
 
-            const platformCondition = parseMultiSelectFilter(platform, 'platform_name', replacements, 'trendPlat', { caseInsensitive: true });
-            const locationCondition = parseMultiSelectFilter(location, 'location_name', replacements, 'trendLoc', { caseInsensitive: true });
-            const brandSOSCondition = parseMultiSelectFilter(brand, 'brand_name', replacements, 'trendBrand', { isBrand: true });
+                const dateFrom = startDate.format('YYYY-MM-DD');
+                const dateTo = endDate.format('YYYY-MM-DD');
 
-            // Aggregate by day (timeStep could extend to weekly/monthly later)
-            const query = `
+                const platform = filters.platform || null;
+                const location = filters.location || null;
+                const brand = filters.brand || null;
+
+                const platformCondition = buildCHCondition(platform, 'platform_name');
+                const locationCondition = buildCHCondition(location, 'location_name');
+                const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+
+                // Aggregate by day - ClickHouse
+                const query = `
                 SELECT 
-                    DATE(kw_crawl_date) as crawl_date,
-                    ROUND(SUM(CASE WHEN ${brandSOSCondition} THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS overall_sos,
-                    ROUND(SUM(CASE WHEN ${brandSOSCondition} AND spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS sponsored_sos,
-                    ROUND(SUM(CASE WHEN ${brandSOSCondition} AND (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS organic_sos
+                    toDate(kw_crawl_date) as crawl_date,
+                    ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
+                    ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 2) AS display_sos
                 FROM rb_kw
-                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${locationCondition}
-                GROUP BY DATE(kw_crawl_date)
+                GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
 
-            const results = await sequelize.query(query, {
-                replacements,
-                type: sequelize.QueryTypes.SELECT
-            });
+                const results = await queryClickHouse(query);
 
-            // Format dates like "06 Sep'25"
-            const timeSeries = results.map(row => {
-                const date = dayjs(row.crawl_date);
-                return {
-                    date: date.format("DD MMM'YY"),
-                    overall_sos: Number(row.overall_sos) || 0,
-                    sponsored_sos: Number(row.sponsored_sos) || 0,
-                    organic_sos: Number(row.organic_sos) || 0,
-                    display_sos: 0 // Display SOS not yet implemented
-                };
-            });
+                // Format dates like "06 Sep'25"
+                const timeSeries = results.map(row => {
+                    const date = dayjs(row.crawl_date);
+                    return {
+                        date: date.format("DD MMM'YY"),
+                        overall_sos: Number(row.overall_sos) || 0,
+                        sponsored_sos: Number(row.sponsored_sos) || 0,
+                        organic_sos: Number(row.organic_sos) || 0,
+                        display_sos: Number(row.display_sos) || 0
+                    };
+                });
 
-            console.log('[VisibilityService] Returning', timeSeries.length, 'trend data points');
-            return { timeSeries };
-        } catch (error) {
-            console.error('[VisibilityService] Error getting visibility KPI trends:', error);
-            return { timeSeries: [] };
-        }
+                console.log('[VisibilityService] Returning', timeSeries.length, 'trend data points');
+                return { timeSeries };
+            } catch (error) {
+                console.error('[VisibilityService] Error getting visibility KPI trends:', error);
+                return { timeSeries: [] };
+            }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
     /**
@@ -1693,207 +1751,156 @@ class VisibilityService {
      * @returns {Promise<{brands: Array, skus: Array}>}
      */
     async getVisibilityCompetition(filters = {}) {
-        console.error('[VisibilityService] getVisibilityCompetition called with filters:', filters);
+        console.log('[VisibilityService] getVisibilityCompetition called with filters:', filters);
+        const cacheKey = generateCacheKey('visibility_competition', filters);
 
-        try {
-            // First, get the latest available date from the database
-            const maxDateRes = await sequelize.query(`
-                SELECT MAX(kw_crawl_date) as maxDate
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                // First, get the latest available date from ClickHouse
+                const maxDateRes = await queryClickHouse(`
+                SELECT MAX(toDate(kw_crawl_date)) as maxDate
                 FROM rb_kw
                 WHERE kw_crawl_date IS NOT NULL
-            `, { type: sequelize.QueryTypes.SELECT });
+            `);
 
-            console.error('[VisibilityService] maxDateRes:', JSON.stringify(maxDateRes));
-            const maxDateResult = maxDateRes[0];
+                const maxDate = maxDateRes[0]?.maxDate;
 
-            if (!maxDateResult?.maxDate) {
-                console.error('[VisibilityService] No data found in rb_kw table');
-                return { brands: [], skus: [] };
-            }
+                if (!maxDate || maxDate === '0000-00-00') {
+                    console.error('[VisibilityService] No data found in rb_kw table');
+                    return { brands: [], skus: [] };
+                }
 
-            const latestDate = dayjs(maxDateResult.maxDate);
-            console.log('[VisibilityService] Using latest available date:', latestDate.format('YYYY-MM-DD'));
+                const latestDate = dayjs(maxDate);
+                console.log('[VisibilityService] Using latest available date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
 
-            // Determine date ranges based on latest available date (not current date)
-            const period = filters.period || '1M';
-            const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-            const days = periodToDays[period] || 30;
+                // Determine date ranges
+                const period = filters.period || '1M';
+                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodToDays[period] || 30;
 
-            const currentEnd = latestDate;
-            const currentStart = currentEnd.subtract(days, 'day');
-            const prevEnd = currentStart.subtract(1, 'day');
-            const prevStart = prevEnd.subtract(days, 'day');
+                const currentEnd = latestDate;
+                const currentStart = currentEnd.subtract(days, 'day');
+                const prevEnd = currentStart.subtract(1, 'day');
+                const prevStart = prevEnd.subtract(days, 'day');
 
-            const platform = filters.platform || null;
-            const location = filters.location || null;
+                const dateFrom = currentStart.format('YYYY-MM-DD');
+                const dateTo = currentEnd.format('YYYY-MM-DD');
+                const prevDateFrom = prevStart.format('YYYY-MM-DD');
+                const prevDateTo = prevEnd.format('YYYY-MM-DD');
 
-            // Build conditions
-            const currentReplacements = {
-                dateFrom: currentStart.format('YYYY-MM-DD'),
-                dateTo: currentEnd.format('YYYY-MM-DD')
-            };
-            const prevReplacements = {
-                dateFrom: prevStart.format('YYYY-MM-DD'),
-                dateTo: prevEnd.format('YYYY-MM-DD')
-            };
+                // Build conditions
+                const platform = filters.platform || null;
+                const location = filters.location || null;
+                const format = filters.format || null;
+                const productName = filters.productName || null;
+                const brandFilter = filters.brand || null;
 
-            console.log('[VisibilityService] Competition date range:', currentReplacements);
+                const platformCondition = buildCHCondition(platform, 'platform_name');
+                const locationCondition = buildCHCondition(location, 'location_name');
+                const formatCondition = buildCHCondition(format, 'keyword_search_product');
+                const productCondition = buildCHCondition(productName, 'keyword');
+                const brandCondition = buildCHCondition(brandFilter, 'brand_crawl');
 
-            // Build filter conditions for current period
-            const platCondCurrent = parseMultiSelectFilter(platform, 'platform_name', currentReplacements, 'compPlat', { caseInsensitive: true });
-            const locCondCurrent = parseMultiSelectFilter(location, 'location_name', currentReplacements, 'compLoc', { caseInsensitive: true });
+                const allFilters = `
+                AND ${platformCondition}
+                AND ${locationCondition}
+                AND ${formatCondition}
+                AND ${productCondition}
+                AND ${brandCondition}
+            `;
 
-            // Add new filter conditions for format, productName, and brand
-            const format = filters.format || null;
-            const productName = filters.productName || null;
-            const brandFilter = filters.brand || null;
+                // 1. Get total volume for both periods
+                const volumeQuery = `
+                SELECT 
+                    countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}') as current_total,
+                    countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total
+                FROM rb_kw
+                WHERE (toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
+                ${allFilters}
+            `;
 
-            const formatCondCurrent = parseMultiSelectFilter(format, 'keyword_search_product', currentReplacements, 'compFormat', { caseInsensitive: true });
-            const productCondCurrent = parseMultiSelectFilter(productName, 'keyword', currentReplacements, 'compProduct', { caseInsensitive: true });
-            // Use brand_crawl column for brand filter (matches the filter dropdown data source)
-            const brandCondCurrent = parseMultiSelectFilter(brandFilter, 'brand_crawl', currentReplacements, 'compBrand', { caseInsensitive: true });
+                const volumeRes = await queryClickHouse(volumeQuery);
+                const currentVolume = Number(volumeRes[0]?.current_total) || 1;
+                const prevVolume = Number(volumeRes[0]?.prev_total) || 1;
 
-            // Build filter conditions for previous period
-            const platCondPrev = parseMultiSelectFilter(platform, 'platform_name', prevReplacements, 'prevPlat', { caseInsensitive: true });
-            const locCondPrev = parseMultiSelectFilter(location, 'location_name', prevReplacements, 'prevLoc', { caseInsensitive: true });
-            const formatCondPrev = parseMultiSelectFilter(format, 'keyword_search_product', prevReplacements, 'prevFormat', { caseInsensitive: true });
-            const productCondPrev = parseMultiSelectFilter(productName, 'keyword', prevReplacements, 'prevProduct', { caseInsensitive: true });
-            // Use brand_crawl column for brand filter (matches the filter dropdown data source)
-            const brandCondPrev = parseMultiSelectFilter(brandFilter, 'brand_crawl', prevReplacements, 'prevBrand', { caseInsensitive: true });
+                console.log(`[VisibilityService] Competition Volume (ClickHouse) - Current: ${currentVolume}, Prev: ${prevVolume}`);
 
-            // Combined filter conditions
-            const allCurrentFilters = `${platCondCurrent} AND ${locCondCurrent} AND ${formatCondCurrent} AND ${productCondCurrent} AND ${brandCondCurrent}`;
-            const allPrevFilters = `${platCondPrev} AND ${locCondPrev} AND ${formatCondPrev} AND ${productCondPrev} AND ${brandCondPrev}`;
-
-            console.log('[VisibilityService] Current filter conditions:', allCurrentFilters);
-
-            // 1. Get total volume for both periods to serve as denominator for SOS
-            const [currentTotalRes, prevTotalRes] = await Promise.all([
-                sequelize.query(`
-                    SELECT COUNT(*) as total
-                    FROM rb_kw
-                    WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                      AND ${allCurrentFilters}
-                `, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT }),
-                sequelize.query(`
-                    SELECT COUNT(*) as total
-                    FROM rb_kw
-                    WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                      AND ${allPrevFilters}
-                `, { replacements: prevReplacements, type: sequelize.QueryTypes.SELECT })
-            ]);
-
-            const currentVolume = Number(currentTotalRes[0]?.total) || 1;
-            const prevVolume = Number(prevTotalRes[0]?.total) || 1;
-
-            console.log(`[VisibilityService] Competition Volume - Current: ${currentVolume}, Prev: ${prevVolume}`);
-
-            // 2. Query for brand-level competition (current period)
-            // SOS is calculated as (Brand Rows / Total Shelf Rows) * 100
-            // Using brand_crawl column with is_competitor_product=1 to show competitor brands
-            const brandCurrentQuery = `
+                // 2. Query for brand-level competition
+                const brandQuery = `
                 SELECT 
                     brand_crawl as brand_name,
-                    ROUND(COUNT(*) * 100.0 / ${currentVolume}, 2) AS overall_sos,
-                    ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
-                    ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS organic_sos,
-                    COUNT(*) as impressions
+                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
+                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
+                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
+                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
+                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) = '1') * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
+                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) != '1') * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
+                    countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
                 FROM rb_kw
-                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                  AND ${allCurrentFilters}
+                WHERE (toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
+                  ${allFilters}
                   AND brand_crawl IS NOT NULL AND brand_crawl != ''
-                  AND is_competitor_product = 1
+                  AND toString(is_competitor_product) = '1'
                 GROUP BY brand_crawl
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
 
-            // 3. Query for brand-level competition (previous period)
-            // Using brand_crawl column with is_competitor_product=1 for competitor brands
-            const brandPrevQuery = `
-                SELECT 
-                    brand_crawl as brand_name,
-                    ROUND(COUNT(*) * 100.0 / ${prevVolume}, 2) AS overall_sos,
-                    ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${prevVolume}, 2) AS sponsored_sos,
-                    ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${prevVolume}, 2) AS organic_sos
-                FROM rb_kw
-                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                  AND ${allPrevFilters}
-                  AND brand_crawl IS NOT NULL AND brand_crawl != ''
-                  AND is_competitor_product = 1
-                GROUP BY brand_crawl
-            `;
+                const brandResults = await queryClickHouse(brandQuery);
 
-            // 4. Query for SKU-level competition (current period)
-            // Note: rb_kw table uses keyword_search_product for SKU/product name
-            // Using brand_crawl column with is_competitor_product=1 for competitor products
-            const skuCurrentQuery = `
+                const brands = brandResults.map(b => ({
+                    brand: b.brand_name,
+                    overall_sos: {
+                        value: Number(b.current_overall_sos) || 0,
+                        delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
+                    },
+                    sponsored_sos: {
+                        value: Number(b.current_sponsored_sos) || 0,
+                        delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
+                    },
+                    organic_sos: {
+                        value: Number(b.current_organic_sos) || 0,
+                        delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
+                    },
+                    display_sos: { value: 0, delta: 0 }
+                }));
+
+                // 3. Query for SKU-level competition
+                const skuQuery = `
                 SELECT 
                     keyword_search_product as sku_name,
                     brand_crawl as brand_name,
-                    ROUND(COUNT(*) * 100.0 / ${currentVolume}, 2) AS overall_sos,
-                    ROUND(SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
-                    ROUND(SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) * 100.0 / ${currentVolume}, 2) AS organic_sos,
-                    COUNT(*) as impressions
+                    ROUND(count() * 100.0 / ${currentVolume}, 2) AS overall_sos,
+                    ROUND(countIf(toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
+                    ROUND(countIf(toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS organic_sos,
+                    count() as impressions
                 FROM rb_kw
-                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                  AND ${allCurrentFilters}
+                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  ${allFilters}
                   AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
-                  AND is_competitor_product = 1
+                  AND toString(is_competitor_product) = '1'
                 GROUP BY keyword_search_product, brand_crawl
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
 
-            const [brandCurrent, brandPrev, skuCurrent] = await Promise.all([
-                sequelize.query(brandCurrentQuery, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT }),
-                sequelize.query(brandPrevQuery, { replacements: prevReplacements, type: sequelize.QueryTypes.SELECT }),
-                sequelize.query(skuCurrentQuery, { replacements: currentReplacements, type: sequelize.QueryTypes.SELECT })
-            ]);
+                const skuResults = await queryClickHouse(skuQuery);
 
-            // Create lookup for previous period brand data
-            const brandPrevMap = {};
-            brandPrev.forEach(b => {
-                brandPrevMap[b.brand_name] = b;
-            });
-
-            // Format brand data with deltas
-            const brands = brandCurrent.map(b => {
-                const prev = brandPrevMap[b.brand_name] || {};
-                return {
-                    brand: b.brand_name,
-                    overall_sos: {
-                        value: Number(b.overall_sos) || 0,
-                        delta: Number((b.overall_sos - (prev.overall_sos || 0)).toFixed(1))
-                    },
-                    sponsored_sos: {
-                        value: Number(b.sponsored_sos) || 0,
-                        delta: Number((b.sponsored_sos - (prev.sponsored_sos || 0)).toFixed(1))
-                    },
-                    organic_sos: {
-                        value: Number(b.organic_sos) || 0,
-                        delta: Number((b.organic_sos - (prev.organic_sos || 0)).toFixed(1))
-                    },
+                const skus = skuResults.map(s => ({
+                    brand: s.sku_name,
+                    brandName: s.brand_name,
+                    overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
+                    sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
+                    organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
                     display_sos: { value: 0, delta: 0 }
-                };
-            });
+                }));
 
-            // Format SKU data (simple format, no delta calculation for SKUs to keep it lightweight)
-            const skus = skuCurrent.map(s => ({
-                brand: s.sku_name,
-                brandName: s.brand_name,
-                overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
-                sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
-                organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
-                display_sos: { value: 0, delta: 0 }
-            }));
-
-            console.log('[VisibilityService] Returning', brands.length, 'brands and', skus.length, 'skus');
-            return { brands, skus };
-        } catch (error) {
-            console.error('[VisibilityService] Error getting visibility competition:', error);
-            return { brands: [], skus: [] };
-        }
+                return { brands, skus };
+            } catch (error) {
+                console.error('[VisibilityService] Error getting visibility competition (ClickHouse):', error);
+                return { brands: [], skus: [] };
+            }
+        }, CACHE_TTL.ONE_HOUR);
     }
 
     /**
@@ -1903,170 +1910,156 @@ class VisibilityService {
      * @returns {Promise<{brands: {[brandName]: {timeSeries: Array, color: string}}, days: string[]}>}
      */
     async getBrandComparisonTrends(filters = {}) {
-        console.error('[VisibilityService] getBrandComparisonTrends called with filters:', filters);
+        console.log('[VisibilityService] getBrandComparisonTrends called with filters:', filters);
+        const cacheKey = generateCacheKey('visibility_brand_comparison', filters);
 
-        try {
-            // Predefined colors for brand lines (up to 10 brands)
-            const BRAND_COLORS = [
-                '#3B82F6', // blue
-                '#10B981', // emerald
-                '#F59E0B', // amber
-                '#EF4444', // red
-                '#8B5CF6', // violet
-                '#EC4899', // pink
-                '#06B6D4', // cyan
-                '#84CC16', // lime
-                '#F97316', // orange
-                '#6366F1', // indigo
-            ];
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                // Predefined colors for brand lines (up to 10 brands)
+                const BRAND_COLORS = [
+                    '#3B82F6', // blue
+                    '#10B981', // emerald
+                    '#F59E0B', // amber
+                    '#EF4444', // red
+                    '#8B5CF6', // violet
+                    '#EC4899', // pink
+                    '#06B6D4', // cyan
+                    '#84CC16', // lime
+                    '#F97316', // orange
+                    '#6366F1', // indigo
+                ];
 
-            // Get latest available date from database
-            const [maxDateResult] = await sequelize.query(`
-                SELECT MAX(kw_crawl_date) as maxDate FROM rb_kw WHERE kw_crawl_date IS NOT NULL
-            `, { type: sequelize.QueryTypes.SELECT });
+                const platform = filters.platform || null;
+                const location = filters.location || null;
+                const selectedBrands = Array.isArray(filters.brands)
+                    ? filters.brands
+                    : (filters.brands ? filters.brands.split(',') : []);
 
-            if (!maxDateResult?.maxDate) {
-                return { brands: {}, days: [] };
-            }
+                if (selectedBrands.length === 0) {
+                    return { brands: {}, days: [] };
+                }
 
-            const latestDate = dayjs(maxDateResult.maxDate);
+                // Determine date range
+                let startDate, endDate;
+                const period = filters.period || '1M';
 
-            // Determine date range
-            let startDate, endDate;
-            const period = filters.period || '1M';
+                if (filters.startDate && filters.endDate) {
+                    startDate = dayjs(filters.startDate);
+                    endDate = dayjs(filters.endDate);
+                } else {
+                    // Fetch the latest available date from ClickHouse
+                    const maxDateRes = await queryClickHouse(`
+                        SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                        FROM rb_kw
+                        WHERE kw_crawl_date IS NOT NULL
+                    `);
+                    const maxDate = maxDateRes[0]?.maxDate;
 
-            if (filters.startDate && filters.endDate) {
-                startDate = dayjs(filters.startDate);
-                endDate = dayjs(filters.endDate);
-            } else {
-                endDate = latestDate;
-                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-                const days = periodToDays[period] || 30;
-                startDate = endDate.subtract(days, 'day');
-            }
+                    if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
+                        endDate = dayjs(maxDate);
+                    } else {
+                        endDate = dayjs();
+                    }
 
-            const dateFrom = startDate.format('YYYY-MM-DD');
-            const dateTo = endDate.format('YYYY-MM-DD');
+                    const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                    const days = periodToDays[period] || 30;
+                    startDate = endDate.subtract(days, 'day');
+                }
 
-            // Parse filter values
-            const selectedBrands = filters.brands || [];
-            const platform = filters.platform || null;
-            const location = filters.location || null;
+                const dateFrom = startDate.format('YYYY-MM-DD');
+                const dateTo = endDate.format('YYYY-MM-DD');
 
-            if (selectedBrands.length === 0) {
-                console.error('[VisibilityService] No brands selected for comparison');
-                return { brands: {}, days: [] };
-            }
+                const platformCondition = buildCHCondition(platform, 'platform_name');
+                const locationCondition = buildCHCondition(location, 'location_name');
+                const brandsCondition = buildCHCondition(selectedBrands, 'brand_crawl');
 
-            // Build platform and location conditions
-            const replacements = { dateFrom, dateTo };
-            const platformCondition = parseMultiSelectFilter(platform, 'platform_name', replacements, 'compTrendPlat', { caseInsensitive: true });
-            const locationCondition = parseMultiSelectFilter(location, 'location_name', replacements, 'compTrendLoc', { caseInsensitive: true });
-
-            // First get total shelf volume per day for SOS calculation
-            const totalVolumeQuery = `
+                // 1. Get total volume by date for denominator
+                const volumeQuery = `
                 SELECT 
-                    DATE(kw_crawl_date) as crawl_date,
-                    COUNT(*) as total_volume
+                    toDate(kw_crawl_date) as crawl_date,
+                    count() as total_volume
                 FROM rb_kw
-                WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
+                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${locationCondition}
-                GROUP BY DATE(kw_crawl_date)
+                GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
 
-            const volumeResults = await sequelize.query(totalVolumeQuery, {
-                replacements,
-                type: sequelize.QueryTypes.SELECT
-            });
-
-            // Create volume lookup by date
-            const volumeByDate = {};
-            const allDays = [];
-            volumeResults.forEach(row => {
-                const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
-                volumeByDate[dateStr] = Number(row.total_volume) || 1;
-                allDays.push(dateStr);
-            });
-
-            // Query brand-specific data for each selected brand
-            const brandDataPromises = selectedBrands.map(async (brandName, index) => {
-                const brandReplacements = { ...replacements, brandName };
-
-                const brandQuery = `
-                    SELECT 
-                        DATE(kw_crawl_date) as crawl_date,
-                        COUNT(*) as brand_volume,
-                        SUM(CASE WHEN spons_flag = 1 THEN 1 ELSE 0 END) as sponsored_volume,
-                        SUM(CASE WHEN (spons_flag = 0 OR spons_flag IS NULL) THEN 1 ELSE 0 END) as organic_volume
-                    FROM rb_kw
-                    WHERE kw_crawl_date BETWEEN :dateFrom AND :dateTo
-                      AND ${platformCondition}
-                      AND ${locationCondition}
-                      AND LOWER(brand_crawl) = LOWER(:brandName)
-                      AND is_competitor_product = 1
-                    GROUP BY DATE(kw_crawl_date)
-                    ORDER BY crawl_date ASC
-                `;
-
-                const brandResults = await sequelize.query(brandQuery, {
-                    replacements: brandReplacements,
-                    type: sequelize.QueryTypes.SELECT
+                const volumeResults = await queryClickHouse(volumeQuery);
+                const volumeByDate = {};
+                const allDays = [];
+                volumeResults.forEach(row => {
+                    const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
+                    volumeByDate[dateStr] = Number(row.total_volume) || 1;
+                    allDays.push(dateStr);
                 });
 
-                // Map brand data to time series with SOS calculation
-                const brandDataByDate = {};
+                // 2. Query brand-specific data for all selected brands at once
+                const brandDataQuery = `
+                SELECT 
+                    brand_crawl as brand_name,
+                    toDate(kw_crawl_date) as crawl_date,
+                    count() as brand_volume,
+                    countIf(toString(spons_flag) = '1') as sponsored_volume,
+                    countIf(toString(spons_flag) != '1') as organic_volume,
+                    countIf(toDate(created_on) < '2025-01-01' OR spons_flag = '1') as display_volume
+                FROM rb_kw
+                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${platformCondition}
+                  AND ${locationCondition}
+                  AND ${brandsCondition}
+                  AND toString(is_competitor_product) = '1'
+                GROUP BY brand_name, crawl_date
+                ORDER BY crawl_date ASC
+            `;
+
+                const brandResults = await queryClickHouse(brandDataQuery);
+
+                // Group results by brand
+                const brandDataMap = {};
                 brandResults.forEach(row => {
+                    if (!brandDataMap[row.brand_name]) brandDataMap[row.brand_name] = {};
                     const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
-                    brandDataByDate[dateStr] = {
+                    brandDataMap[row.brand_name][dateStr] = {
                         brand_volume: Number(row.brand_volume) || 0,
                         sponsored_volume: Number(row.sponsored_volume) || 0,
                         organic_volume: Number(row.organic_volume) || 0,
+                        display_volume: Number(row.display_volume) || 0
                     };
                 });
 
-                // Build time series for all days
-                const timeSeries = allDays.map(dateStr => {
-                    const totalVol = volumeByDate[dateStr] || 1;
-                    const brandData = brandDataByDate[dateStr] || { brand_volume: 0, sponsored_volume: 0, organic_volume: 0 };
+                const brandsResult = {};
+                selectedBrands.forEach((brandName, index) => {
+                    const brandHistory = brandDataMap[brandName] || {};
+                    const timeSeries = allDays.map(dateStr => {
+                        const totalVol = volumeByDate[dateStr] || 1;
+                        const data = brandHistory[dateStr] || { brand_volume: 0, sponsored_volume: 0, organic_volume: 0 };
+                        return {
+                            date: dateStr,
+                            overall_sos: Number(((data.brand_volume / totalVol) * 100).toFixed(2)),
+                            sponsored_sos: Number(((data.sponsored_volume / totalVol) * 100).toFixed(2)),
+                            organic_sos: Number(((data.organic_volume / totalVol) * 100).toFixed(2)),
+                            display_sos: Number(((data.display_volume / totalVol) * 100).toFixed(2))
+                        };
+                    });
 
-                    return {
-                        date: dateStr,
-                        overall_sos: Number(((brandData.brand_volume / totalVol) * 100).toFixed(2)),
-                        sponsored_sos: Number(((brandData.sponsored_volume / totalVol) * 100).toFixed(2)),
-                        organic_sos: Number(((brandData.organic_volume / totalVol) * 100).toFixed(2)),
-                        display_sos: 0, // Not implemented
+                    brandsResult[brandName] = {
+                        color: BRAND_COLORS[index % BRAND_COLORS.length],
+                        timeSeries
                     };
                 });
 
+                console.log('[VisibilityService] Returning trends for', Object.keys(brandsResult).length, 'brands');
                 return {
-                    brandName,
-                    color: BRAND_COLORS[index % BRAND_COLORS.length],
-                    timeSeries
+                    brands: brandsResult,
+                    days: allDays
                 };
-            });
-
-            const brandDataList = await Promise.all(brandDataPromises);
-
-            // Format response
-            const brandsResult = {};
-            brandDataList.forEach(brandData => {
-                brandsResult[brandData.brandName] = {
-                    color: brandData.color,
-                    timeSeries: brandData.timeSeries
-                };
-            });
-
-            console.error('[VisibilityService] Returning trends for', Object.keys(brandsResult).length, 'brands');
-            return {
-                brands: brandsResult,
-                days: allDays
-            };
-        } catch (error) {
-            console.error('[VisibilityService] Error getting brand comparison trends:', error);
-            return { brands: {}, days: [] };
-        }
+            } catch (error) {
+                console.error('[VisibilityService] Error getting brand comparison trends (ClickHouse):', error);
+                return { brands: {}, days: [] };
+            }
+        }, CACHE_TTL.ONE_HOUR);
     }
 }
 

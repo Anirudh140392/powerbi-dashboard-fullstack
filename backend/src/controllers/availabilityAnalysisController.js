@@ -1,5 +1,20 @@
 import availabilityService from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
+import { queryClickHouse } from '../config/clickhouse.js';
+import dayjs from 'dayjs';
+
+/**
+ * Robust filter parsing to handle strings, arrays, and comma-separated values.
+ * Prevents crashes when multiple values are passed from the frontend.
+ */
+const parseFilter = (val) => {
+    if (!val || val === 'All' || val === 'all' || val === 'undefined') return 'All';
+    if (Array.isArray(val)) return val.length > 0 ? val : 'All';
+    if (typeof val === 'string' && val.includes(',')) {
+        return val.split(',').map(v => v.trim()).filter(v => v !== '');
+    }
+    return val;
+};
 
 export const AvailabilityControlTower = async (req, res) => {
     try {
@@ -29,11 +44,19 @@ export const AvailabilityControlTower = async (req, res) => {
 export const getAvailabilityOverview = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -57,18 +80,28 @@ export const getPlatformKpiMatrix = async (req, res) => {
     try {
         const filters = {
             viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
+        console.log('[DEBUG] viewMode from query:', req.query.viewMode);
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getAbsoluteOsaPlatformKpiMatrix(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[RESPONSE] viewMode:', data.viewMode);
+        console.log('[RESPONSE] Columns:', JSON.stringify(data.columns));
         console.log('==============================================\n');
 
         res.json(data);
@@ -84,11 +117,19 @@ export const getPlatformKpiMatrix = async (req, res) => {
 export const getOsaPercentageDetail = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -111,11 +152,19 @@ export const getOsaPercentageDetail = async (req, res) => {
 export const getDOI = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -138,11 +187,19 @@ export const getDOI = async (req, res) => {
 export const getMetroCityStockAvailability = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -166,16 +223,18 @@ export const getMetroCityStockAvailability = async (req, res) => {
  */
 export const getAvailabilityFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category, city } = req.query;
+        const { filterType, platform, brand, category, format, city, months, metroFlag } = req.query;
         console.log('\n========== AVAILABILITY FILTER OPTIONS API ==========');
-        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'city:', city);
+        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'format:', format, 'city:', city, 'months:', months, 'metroFlag:', metroFlag);
 
         const data = await availabilityService.getAvailabilityFilterOptions({
             filterType: filterType || 'platforms',
-            platform: platform || 'All',
-            brand: brand || 'All',
-            category: category || 'All',
-            city: city || 'All'
+            platform: parseFilter(platform),
+            brand: parseFilter(brand),
+            category: parseFilter(category || format),
+            city: parseFilter(city),
+            months: parseFilter(months),
+            metroFlag: parseFilter(metroFlag)
         });
 
         console.log('[RESPONSE]:', data.options?.length, 'options returned');
@@ -195,17 +254,20 @@ export const getAvailabilityFilterOptions = async (req, res) => {
 export const getOsaDetailByCategory = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            // New filter params from OSA Detail View filter panel
-            dates: req.query.dates ? req.query.dates.split(',') : null,
-            months: req.query.months ? req.query.months.split(',') : null,
-            cities: req.query.cities ? req.query.cities.split(',') : null,
-            categories: req.query.categories ? req.query.categories.split(',') : null,
-            kpis: req.query.kpis ? req.query.kpis.split(',') : null
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes),
+            kpis: parseFilter(req.query.kpis)
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -243,7 +305,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
 
         const data = await availabilityService.getAvailabilityKpiTrends(filters);
 
-        console.log('[RESPONSE]:', data.points?.length, 'trend points returned');
+        console.log('[RESPONSE]:', data.timeSeries?.length, 'trend points returned');
         console.log('==================================================\n');
 
         res.json(data);
@@ -264,7 +326,9 @@ export const getAvailabilityCompetition = async (req, res) => {
             location: req.query.location || 'All',
             category: req.query.category || 'All',
             brand: req.query.brand || 'All',
-            period: req.query.period || '1M'
+            period: req.query.period || '1M',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -287,14 +351,15 @@ export const getAvailabilityCompetition = async (req, res) => {
  */
 export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
     try {
-        const { location, category, brand } = req.query;
+        const { platform, location, category, brand } = req.query;
         console.log('\n========== AVAILABILITY COMPETITION FILTER OPTIONS API ==========');
-        console.log('[REQUEST] location:', location, 'category:', category, 'brand:', brand);
+        console.log('[REQUEST] platform:', platform, 'location:', location, 'category:', category, 'brand:', brand);
 
         const data = await availabilityService.getAvailabilityCompetitionFilterOptions({
-            location: location || null,
-            category: category || null,
-            brand: brand || null
+            platform: platform || 'All',
+            location: location || 'All',
+            category: category || 'All',
+            brand: brand || 'All'
         });
 
         console.log('[RESPONSE]:', data.locations?.length, 'locations,', data.categories?.length, 'categories,', data.brands?.length, 'brands');
@@ -313,15 +378,17 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
  */
 export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period } = req.query;
+        const { brands, location, category, period, startDate, endDate } = req.query;
         console.log('\n========== AVAILABILITY COMPETITION BRAND TRENDS API ==========');
-        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period);
+        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
 
         const data = await availabilityService.getAvailabilityCompetitionBrandTrends({
             brands: brands || 'All',
             location: location || 'All',
             category: category || 'All',
-            period: period || '1M'
+            period: period || '1M',
+            startDate,
+            endDate
         });
 
         console.log('[RESPONSE]:', Object.keys(data.timeSeries || {}).length, 'brands with trends');
@@ -335,7 +402,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
 };
 
 /**
- * Get Signal Lab Data for Availability Analysis
+ * Get Signal Lab Data for Availability Analysis - ClickHouse Version
  * Formulas:
  * - OSA = sum(neno_osa) / sum(deno_osa)
  * - DOI = Inventory / (sum(Qty_Sold in 30 days) / 30)
@@ -363,11 +430,6 @@ export const getSignalLabData = async (req, res) => {
             const limitNum = Number(limit) || 4;
             const offsetNum = (pageNum - 1) * limitNum;
 
-            // Dynamically Import Model
-            const RbPdpOlap = (await import('../models/RbPdpOlap.js')).default;
-            const sequelize = RbPdpOlap.sequelize;
-            const dayjs = (await import('dayjs')).default;
-
             const end = endDate || dayjs().format('YYYY-MM-DD');
             const start = startDate || dayjs(end).subtract(30, 'day').format('YYYY-MM-DD');
 
@@ -378,6 +440,8 @@ export const getSignalLabData = async (req, res) => {
             const daysInPeriod = dayjs(end).diff(dayjs(start), 'day') + 1;
 
             /* ================= 1. FILTER LOGIC (MULTI-SELECT) ================= */
+            // Helper to escape strings for SQL
+            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
             const processFilter = (val) => {
                 if (!val || val === 'All') return null;
@@ -391,169 +455,156 @@ export const getSignalLabData = async (req, res) => {
             const locationFilter = processFilter(location);
             const brandFilter = processFilter(brand);
 
-            const replacements = { start, end };
-            let whereClause = `DATE BETWEEN :start AND :end`;
+            // Build WHERE clause for ClickHouse
+            const buildWhereClause = (includeCompDates = false) => {
+                const conditions = [];
 
-            if (platformFilter) {
-                if (Array.isArray(platformFilter)) {
-                    whereClause += ` AND Platform IN (:platform)`;
+                if (includeCompDates) {
+                    conditions.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
                 } else {
-                    whereClause += ` AND Platform = :platform`;
+                    conditions.push(`toDate(DATE) BETWEEN '${start}' AND '${end}'`);
                 }
-                replacements.platform = platformFilter;
-            }
 
-            if (locationFilter) {
-                if (Array.isArray(locationFilter)) {
-                    whereClause += ` AND Location IN (:location)`;
-                } else {
-                    whereClause += ` AND Location = :location`;
+                if (platformFilter) {
+                    if (Array.isArray(platformFilter)) {
+                        conditions.push(`Platform IN (${platformFilter.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Platform = '${escapeStr(platformFilter)}'`);
+                    }
                 }
-                replacements.location = locationFilter;
-            }
 
-            if (brandFilter) {
-                if (Array.isArray(brandFilter)) {
-                    whereClause += ` AND Brand IN (:brand)`;
-                    replacements.brand = brandFilter;
-                } else {
-                    whereClause += ` AND Brand LIKE :brand`;
-                    replacements.brand = `%${brandFilter}%`;
+                if (locationFilter) {
+                    if (Array.isArray(locationFilter)) {
+                        conditions.push(`Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Location = '${escapeStr(locationFilter)}'`);
+                    }
                 }
-            } else {
-                whereClause += ` AND Comp_flag = 0`;
-            }
+
+                if (brandFilter) {
+                    if (Array.isArray(brandFilter)) {
+                        conditions.push(`Brand IN (${brandFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
+                    }
+                } else {
+                    conditions.push(`toString(Comp_flag) = '0'`);
+                }
+
+                return conditions.join(' AND ');
+            };
 
             /* ================= 2. DEFINE METRIC & SORTING LOGIC ================= */
-
-            let metricExpr = '';
-            let havingClause = '';
-            let sortOrder = '';
-
             const direction = signalType === 'gainer' ? 'DESC' : 'ASC';
 
             let mainMetricExpr = '';
+            let metricExpr = '';
+            let havingClause = '';
+
             if (metricType === 'availability') {
-                mainMetricExpr = `(SUM(CASE WHEN DATE BETWEEN :start AND :end THEN neno_osa ELSE 0 END) / NULLIF(SUM(CASE WHEN DATE BETWEEN :start AND :end THEN deno_osa ELSE 0 END), 0)) * 100`;
-                const compMetricExpr = `(SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN neno_osa ELSE 0 END) / NULLIF(SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN deno_osa ELSE 0 END), 0)) * 100`;
-                metricExpr = `(COALESCE(${mainMetricExpr}, 0) - COALESCE(${compMetricExpr}, 0))`;
+                // OSA columns are Int64 - use toFloat64() with 0.0 as else value for type matching
+                mainMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100`;
+                const compMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100`;
+                metricExpr = `(ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExpr}, 0))`;
 
-                havingClause = `HAVING `;
-                if (signalType === 'gainer') {
-                    havingClause += ` ${metricExpr} > 0`;
-                } else {
-                    havingClause += ` ${metricExpr} < 0`;
-                }
+                havingClause = signalType === 'gainer'
+                    ? `HAVING ${metricExpr} > 0`
+                    : `HAVING ${metricExpr} < 0`;
             } else {
-                let baseField = 'Sales';
-                if (metricType === 'performance') baseField = 'Sales';
-                if (metricType === 'inventory') baseField = 'Sales';
+                const baseField = 'Sales';
+                mainMetricExpr = `sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${baseField}), 0.0))`;
+                const compMetricExprVal = `sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(${baseField}), 0.0))`;
+                metricExpr = `((ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExprVal}, 0)) / nullIf(ifNull(${compMetricExprVal}, 0), 0)) * 100`;
 
-                mainMetricExpr = `SUM(CASE WHEN DATE BETWEEN :start AND :end THEN ${baseField} ELSE 0 END)`;
-                const compMetricExpr = `SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN ${baseField} ELSE 0 END)`;
-
-                metricExpr = `((COALESCE(${mainMetricExpr}, 0) - COALESCE(${compMetricExpr}, 0)) / NULLIF(COALESCE(${compMetricExpr}, 0), 0)) * 100`;
-
-                havingClause = `HAVING `;
                 if (signalType === 'gainer') {
-                    havingClause += ` (${metricExpr} > 0 OR (${compMetricExpr} = 0 AND ${mainMetricExpr} > 0))`;
+                    havingClause = `HAVING (${metricExpr} > 0 OR (${compMetricExprVal} = 0 AND ${mainMetricExpr} > 0))`;
                 } else {
-                    havingClause += ` ${metricExpr} < 0`;
+                    havingClause = `HAVING ${metricExpr} < 0`;
                 }
             }
 
-            sortOrder = `ORDER BY sortMetric ${direction}`;
-
             /* ================= STEP 3: GET SORTED IDs (True Top N) ================= */
-
             const skuQuery = `
-          SELECT Web_Pid, ${metricExpr} as sortMetric
-          FROM ${RbPdpOlap.getTableName()}
-          WHERE (DATE BETWEEN :start AND :end OR DATE BETWEEN :compStart AND :compEnd)
-            ${platformFilter ? (Array.isArray(platformFilter) ? ' AND Platform IN (:platform)' : ' AND Platform = :platform') : ''}
-            ${locationFilter ? (Array.isArray(locationFilter) ? ' AND Location IN (:location)' : ' AND Location = :location') : ''}
-            ${brandFilter ? (Array.isArray(brandFilter) ? ' AND Brand IN (:brand)' : ' AND Brand LIKE :brand') : ' AND Comp_flag = 0'}
-          GROUP BY Web_Pid
-          ${havingClause}
-          ${sortOrder}
-          LIMIT ${limitNum} OFFSET ${offsetNum}
-        `;
+                SELECT Web_Pid, ${metricExpr} as sortMetric
+                FROM rb_pdp_olap
+                WHERE ${buildWhereClause(true)}
+                GROUP BY Web_Pid
+                ${havingClause}
+                ORDER BY sortMetric ${direction}
+                LIMIT ${limitNum} OFFSET ${offsetNum}
+            `;
 
-            const [skuRows] = await sequelize.query(skuQuery, {
-                replacements: { ...replacements, compStart, compEnd }
-            });
+            const skuRows = await queryClickHouse(skuQuery);
 
-            if (!skuRows.length) return { skus: [], totalCount: 0 };
+            if (!skuRows || !skuRows.length) return { skus: [], totalCount: 0 };
 
             // Ordered list of PIDs
             const webPids = skuRows.map(r => r.Web_Pid);
 
-            /* ================= STEP 4: GET TOTAL COUNT (Approximate) ================= */
+            /* ================= STEP 4: GET TOTAL COUNT ================= */
             const countQuery = `
-          SELECT COUNT(*) as count FROM (
-              SELECT Web_Pid
-              FROM ${RbPdpOlap.getTableName()}
-              WHERE (DATE BETWEEN :start AND :end OR DATE BETWEEN :compStart AND :compEnd)
-                ${platformFilter ? (Array.isArray(platformFilter) ? ' AND Platform IN (:platform)' : ' AND Platform = :platform') : ''}
-                ${locationFilter ? (Array.isArray(locationFilter) ? ' AND Location IN (:location)' : ' AND Location = :location') : ''}
-                ${brandFilter ? (Array.isArray(brandFilter) ? ' AND Brand IN (:brand)' : ' AND Brand LIKE :brand') : ' AND Comp_flag = 0'}
-              GROUP BY Web_Pid
-              ${havingClause}
-          ) as temp
-        `;
+                SELECT count() as count FROM (
+                    SELECT Web_Pid
+                    FROM rb_pdp_olap
+                    WHERE ${buildWhereClause(true)}
+                    GROUP BY Web_Pid
+                    ${havingClause}
+                ) as temp
+            `;
 
-            const [countResult] = await sequelize.query(countQuery, {
-                replacements: { ...replacements, compStart, compEnd }
-            });
+            const countResult = await queryClickHouse(countQuery);
             const totalCount = countResult?.[0]?.count || 0;
 
             /* ================= STEP 5: FULL AGGREGATION FOR SELECTED IDs ================= */
-            const aggQuery = `
-          SELECT
-            Web_Pid, Product, Category, Platform, Weight, Brand,
-            SUM(CASE WHEN DATE BETWEEN :start AND :end THEN neno_osa ELSE 0 END) AS totalNeno,
-            SUM(CASE WHEN DATE BETWEEN :start AND :end THEN deno_osa ELSE 0 END) AS totalDeno,
-            SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN neno_osa ELSE 0 END) AS compNeno,
-            SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN deno_osa ELSE 0 END) AS compDeno,
-            AVG(CASE WHEN DATE BETWEEN :start AND :end THEN inventory ELSE 0 END) AS avgInventory,
-            SUM(CASE WHEN DATE BETWEEN :start AND :end THEN Qty_Sold ELSE 0 END) AS totalQtySold,
-            AVG(CASE WHEN DATE BETWEEN :start AND :end THEN Selling_Price ELSE 0 END) AS avgPrice,
-            AVG(CASE WHEN DATE BETWEEN :start AND :end THEN ROAS ELSE 0 END) AS avgRoas,
-            SUM(CASE WHEN DATE BETWEEN :start AND :end THEN Ad_Clicks ELSE 0 END) AS totalClicks,
-            SUM(CASE WHEN DATE BETWEEN :start AND :end THEN Ad_Impressions ELSE 0 END) AS totalImpressions,
-            SUM(CASE WHEN DATE BETWEEN :start AND :end THEN Sales ELSE 0 END) AS currSales,
-            SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN Sales ELSE 0 END) AS prevSales
-          FROM ${RbPdpOlap.getTableName()}
-          WHERE Web_Pid IN (:webPids)
-            AND (DATE BETWEEN :start AND :end OR DATE BETWEEN :compStart AND :compEnd)
-          GROUP BY Web_Pid, Product, Category, Platform, Weight, Brand
-        `;
+            const webPidsStr = webPids.map(p => `'${escapeStr(p)}'`).join(', ');
 
-            const [rows] = await sequelize.query(aggQuery, {
-                replacements: { webPids, start, end, compStart, compEnd }
-            });
+            const aggQuery = `
+                SELECT
+                    Web_Pid, 
+                    any(Product) as Product, 
+                    any(Category) as Category, 
+                    any(Platform) as Platform, 
+                    any(Weight) as Weight, 
+                    any(Brand) as Brand,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) AS totalDeno,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) AS compNeno,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)) AS compDeno,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) AS avgInventory,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) AS totalQtySold,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(ROAS), 0.0)) AS avgRoas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS prevSales
+                FROM rb_pdp_olap
+                WHERE Web_Pid IN (${webPidsStr})
+                    AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
+                GROUP BY Web_Pid
+            `;
+
+            const rows = await queryClickHouse(aggQuery);
 
             const sortedRows = webPids.map(pid => rows.find(r => r.Web_Pid === pid)).filter(Boolean);
 
-            /* City level data */
+            /* ================= STEP 6: City level data ================= */
             const cityAggQuery = `
-              SELECT
-                Web_Pid, Location,
-                (SUM(neno_osa) / NULLIF(SUM(deno_osa), 0)) * 100 AS osa,
-                AVG(ROAS) as roas,
-                SUM(Ad_Clicks) as clicks,
-                SUM(Ad_Impressions) as impressions,
-                AVG(inventory) as inventory,
-                SUM(Qty_Sold) as qtySold
-              FROM ${RbPdpOlap.getTableName()}
-              WHERE Web_Pid IN (:webPids)
-                AND DATE BETWEEN :start AND :end
-              GROUP BY Web_Pid, Location
+                SELECT
+                    Web_Pid, Location,
+                    (sum(toFloat64(neno_osa)) / nullIf(sum(toFloat64(deno_osa)), 0)) * 100 AS osa,
+                    avg(toFloat64(ROAS)) as roas,
+                    sum(toFloat64(Ad_Clicks)) as clicks,
+                    sum(toFloat64(Ad_Impressions)) as impressions,
+                    avg(toFloat64(Inventory)) as inventory,
+                    sum(toFloat64(Qty_Sold)) as qtySold
+                FROM rb_pdp_olap
+                WHERE Web_Pid IN (${webPidsStr})
+                    AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                GROUP BY Web_Pid, Location
             `;
 
-            const [cityRows] = await sequelize.query(cityAggQuery, {
-                replacements: { webPids, start, end }
-            });
+            const cityRows = await queryClickHouse(cityAggQuery);
 
             /* ================= STEP 7: RESPONSE MAPPING ================= */
             const skus = sortedRows.map((item, i) => {
@@ -575,10 +626,12 @@ export const getSignalLabData = async (req, res) => {
 
                 const qty = Number(item.totalQtySold || 0);
                 const price = Number(item.avgPrice || 0);
-                const revenue = qty * price;
+                const currSalesVal = Number(item.currSales || 0);
+                const revenue = currSalesVal; // Use actual sales, not qty * price
                 const inventory = Number(item.avgInventory || 0);
                 const drr = qty / daysInPeriod;
                 const doi = drr > 0 ? inventory / drr : 0;
+
 
                 let kpis = {};
                 if (metricType === 'sales') {
@@ -624,7 +677,7 @@ export const getSignalLabData = async (req, res) => {
 
                 const podCities = cityRows.filter(c => c.Web_Pid === item.Web_Pid);
                 const sortedByImpact = podCities.sort((a, b) =>
-                    signalType === 'drainer' ? a.osa - b.osa : b.osa - a.osa
+                    signalType === 'drainer' ? Number(a.osa) - Number(b.osa) : Number(b.osa) - Number(a.osa)
                 );
 
                 const topCities = sortedByImpact.slice(0, 2).map((c, idx) => {
@@ -689,8 +742,9 @@ export const getSignalLabData = async (req, res) => {
     }
 };
 
+
 /**
- * Get City Details for a Specific Product in Signal Lab
+ * Get City Details for a Specific Product in Signal Lab - ClickHouse Version
  */
 export const getCityDetailsForProduct = async (req, res) => {
     try {
@@ -706,25 +760,58 @@ export const getCityDetailsForProduct = async (req, res) => {
             const compStart = compareStartDate || '2025-11-01';
             const compEnd = compareEndDate || '2025-11-30';
 
-            const { default: sequelize } = await import('../config/db.js');
+            // Helper to escape strings
+            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
+            // First get the category of this product for category share calculation
+            const categoryQuery = `
+                SELECT any(Category) as category FROM rb_pdp_olap WHERE Web_Pid = '${escapeStr(webPid)}'
+            `;
+            const catResult = await queryClickHouse(categoryQuery);
+            const productCategory = catResult[0]?.category || '';
+
+            // Main query with all metrics
             const query = `
                 SELECT
                     Location as city,
-                    (SUM(CASE WHEN DATE BETWEEN :start AND :end THEN neno_osa ELSE 0 END) / NULLIF(SUM(CASE WHEN DATE BETWEEN :start AND :end THEN deno_osa ELSE 0 END), 0)) * 100 AS osa,
-                    (SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN neno_osa ELSE 0 END) / NULLIF(SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN deno_osa ELSE 0 END), 0)) * 100 AS compOsa,
-                    SUM(CASE WHEN DATE BETWEEN :start AND :end THEN Sales ELSE 0 END) AS offtake,
-                    SUM(CASE WHEN DATE BETWEEN :compStart AND :compEnd THEN Sales ELSE 0 END) AS compOfftake
+                    -- OSA metrics
+                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
+                    (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS compOsa,
+                    -- Sales/Offtake metrics
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Sales), 0.0)) AS offtake,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64OrZero(Sales), 0.0)) AS compOfftake,
+                    -- Discount calculation: (MRP - Selling_Price) / MRP * 100
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64OrZero(MRP) > 0, 
+                        (toFloat64OrZero(MRP) - toFloat64OrZero(Selling_Price)) / toFloat64OrZero(MRP) * 100, 0.0)) AS discount,
+                    -- For category share - we need total sales for this location
+                    count() as rowCount
                 FROM rb_pdp_olap
-                WHERE Web_Pid = :webPid
-                  AND (DATE BETWEEN :start AND :end OR DATE BETWEEN :compStart AND :compEnd)
+                WHERE Web_Pid = '${escapeStr(webPid)}'
+                  AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
                 GROUP BY Location
                 ORDER BY offtake DESC
             `;
 
-            const [rows] = await sequelize.query(query, {
-                replacements: { webPid, start, end, compStart, compEnd }
-            });
+            const rows = await queryClickHouse(query);
+
+            // Get category total sales per location for category share calculation
+            let catShareData = {};
+            if (productCategory) {
+                const catShareQuery = `
+                    SELECT
+                        Location,
+                        sum(toFloat64OrZero(Sales)) AS catTotal
+                    FROM rb_pdp_olap
+                    WHERE Category = '${escapeStr(productCategory)}'
+                      AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                      AND toString(Comp_flag) = '0'
+                    GROUP BY Location
+                `;
+                const catShareRows = await queryClickHouse(catShareQuery);
+                catShareRows.forEach(r => {
+                    catShareData[r.Location] = Number(r.catTotal || 0);
+                });
+            }
 
             const cities = rows.map(row => {
                 const osa = Number(row.osa || 0);
@@ -735,17 +822,23 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const compOfftake = Number(row.compOfftake || 0);
                 const offtakeChange = compOfftake > 0 ? ((offtake - compOfftake) / compOfftake) * 100 : 0;
 
+                // Category share: product sales / category total sales * 100
+                const catTotal = catShareData[row.city] || 0;
+                const catShare = catTotal > 0 ? (offtake / catTotal) * 100 : 0;
+
+                const discount = Number(row.discount || 0);
+
                 return {
                     city: row.city,
-                    estOfftake: offtake / 100000,
+                    estOfftake: offtake / 100000, // Convert to lacs
                     estOfftakeChange: offtakeChange,
-                    estCatShare: 0,
-                    estCatShareChange: 0,
+                    estCatShare: catShare,
+                    estCatShareChange: 0, // Would need comparison period calc
                     wtOsa: osa,
                     wtOsaChange: osaChange,
-                    overallSos: 0,
-                    adSos: 0,
-                    wtDisc: 0
+                    overallSos: 0, // SOS requires rb_kw table, not in rb_pdp_olap
+                    adSos: 0, // SOS requires rb_kw table
+                    wtDisc: discount
                 };
             });
 
@@ -758,3 +851,4 @@ export const getCityDetailsForProduct = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: err.message });
     }
 };
+

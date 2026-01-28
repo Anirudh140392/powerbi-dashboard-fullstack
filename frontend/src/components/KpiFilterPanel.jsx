@@ -556,7 +556,7 @@ function KpiRuleBuilder({ fields, onRulesChange }) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex h-full flex-col p-5 gap-3">
       <header className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">KPI rule builder</h2>
