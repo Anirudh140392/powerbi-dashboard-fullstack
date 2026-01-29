@@ -892,6 +892,24 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters }) 
     const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
     const [trendData, setTrendData] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [availableCities, setAvailableCities] = useState(["All India"]);
+
+    // Fetch dynamic city options
+    useEffect(() => {
+        const fetchCities = async () => {
+            try {
+                const response = await axiosInstance.get('/availability-analysis/competition-filter-options', {
+                    params: { platform: platform || 'All' }
+                });
+                if (response.data && response.data.locations) {
+                    setAvailableCities(response.data.locations);
+                }
+            } catch (error) {
+                console.error('[AvailabilityCompetitionKpiShowcase] Error fetching cities:', error);
+            }
+        };
+        fetchCities();
+    }, [platform]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -984,7 +1002,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters }) 
                             <SelectValue placeholder="Select city" />
                         </SelectTrigger>
                         <SelectContent>
-                            {["All India"].map((c) => (
+                            {availableCities.map((c) => (
                                 <SelectItem key={c} value={c}>{c}</SelectItem>
                             ))}
                         </SelectContent>

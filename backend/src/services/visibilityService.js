@@ -749,91 +749,201 @@ class VisibilityService {
                     baseWhere += ` AND ${locCond}`;
                 }
 
-                // KPI definitions (rows)
-                const kpis = ['OVERALL WEIGHTED SOS', 'SPONSORED SOS', 'ORGANIC SOS'];
+                // Apply pincode filter if provided
+                if (filters.pincode && filters.pincode !== 'All') {
+                    const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
+                    const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
+                    if (filteredPins.length > 0) {
+                        const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
+                        baseWhere += ` AND toString(pincode) IN (${pinList})`;
+                    }
+                }
 
-                // ========== PLATFORM DATA ==========
-                const platformQuery = `
-                    SELECT 
-                        platform_name,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 1) AS sponsored_sos,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 1) AS organic_sos
-                    FROM rb_kw
-                    WHERE ${baseWhere}
-                      AND platform_name IS NOT NULL AND platform_name != ''
-                    GROUP BY platform_name
-                    ORDER BY count() DESC
-                    LIMIT 10
-                `;
+                // Handle Zone/MetroFlag filters: fetch cities first to ensure reliable filtering
+                if ((filters.zone && filters.zone !== 'All') || (filters.metroFlag && filters.metroFlag !== 'All')) {
+                    let cityQueryConditions = [];
 
-                // ========== FORMAT DATA (Category from rb_kw) - Only status=1 ==========
-                const formatQuery = `
-                    SELECT 
-                        keyword_category as format_name,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 1) AS sponsored_sos,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 1) AS organic_sos
-                    FROM rb_kw
-                    WHERE ${baseWhere}
-                      AND keyword_category IS NOT NULL AND keyword_category != ''
-                      AND toString(status) = '1'
-                    GROUP BY keyword_category
-                    ORDER BY count() DESC
-                    LIMIT 10
-                `;
+                    if (filters.zone && filters.zone !== 'All') {
+                        const zones = Array.isArray(filters.zone) ? filters.zone : [filters.zone];
+                        const filteredZones = zones.filter(z => z && z !== 'all' && z !== 'All');
+                        if (filteredZones.length > 0) {
+                            const zoneList = filteredZones.map(z => `'${escapeCH(z)}'`).join(',');
+                            cityQueryConditions.push(`region IN (${zoneList})`);
+                        }
+                    }
 
-                // ========== CITY DATA (location_name) - ALL CITIES ==========
-                const cityQuery = `
-                    SELECT 
-                        location_name as city,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 1) AS sponsored_sos,
-                        ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 1) AS organic_sos
-                    FROM rb_kw
-                    WHERE ${baseWhere}
-                      AND location_name IS NOT NULL AND location_name != ''
-                    GROUP BY location_name
-                    ORDER BY location_name
-                `;
+                    if (filters.metroFlag && filters.metroFlag !== 'All') {
+                        const flags = Array.isArray(filters.metroFlag) ? filters.metroFlag : [filters.metroFlag];
+                        const filteredFlags = flags.filter(f => f && f !== 'all' && f !== 'All');
+                        if (filteredFlags.length > 0) {
+                            const flagList = filteredFlags.map(f => `'${escapeCH(f)}'`).join(',');
+                            cityQueryConditions.push(`tier IN (${flagList})`);
+                        }
+                    }
 
-                // Execute all queries in parallel - ClickHouse
-                const [platformResults, formatResults, cityResults] = await Promise.all([
-                    queryClickHouse(platformQuery),
-                    queryClickHouse(formatQuery),
-                    queryClickHouse(cityQuery)
+                    if (cityQueryConditions.length > 0) {
+                        const cityQuery = `
+                            SELECT DISTINCT location as city 
+                            FROM rb_location_darkstore 
+                            WHERE ${cityQueryConditions.join(' AND ')}
+                              AND location IS NOT NULL AND location != ''
+                        `;
+                        const cities = await queryClickHouse(cityQuery);
+                        const cityList = cities.map(c => `'${escapeCH(c.city)}'`).join(',');
+
+                        if (cityList) {
+                            baseWhere += ` AND location_name IN (${cityList})`;
+                        } else {
+                            baseWhere += ` AND 1=0`;
+                        }
+                    }
+                }
+
+                // Brand Condition for SOS calculation
+                const brandSOSCondition = buildCHCondition(filters.brand, 'brand_name', { isBrand: true });
+
+                // Date ranges for trend calculation (Current vs Previous)
+                const start = dayjs(startDate);
+                const end = dayjs(endDate);
+                const durationDays = end.diff(start, 'day') + 1;
+                const prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
+                const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                // Base WHERE for previous period
+                let prevBaseWhere = `toDate(kw_crawl_date) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                if (filters.platform && filters.platform !== 'All') {
+                    prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
+                }
+                if (filters.location && filters.location !== 'All') {
+                    prevBaseWhere += ` AND ${buildCHCondition(filters.location, 'location_name')}`;
+                }
+                if (filters.pincode && filters.pincode !== 'All') {
+                    const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
+                    const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
+                    if (filteredPins.length > 0) {
+                        const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
+                        prevBaseWhere += ` AND toString(pincode) IN (${pinList})`;
+                    }
+                }
+                // Re-apply city list filter to previous where if needed
+                if (baseWhere.includes('location_name IN')) {
+                    const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
+                    if (cityListMatch) {
+                        prevBaseWhere += ` AND location_name IN (${cityListMatch[1]})`;
+                    }
+                }
+
+                // Query builder helper for current/prev/sparkline
+                const getMatrixQueries = (dimColumn, dimAlias) => {
+                    const current = `
+                        SELECT 
+                            ${dimColumn} as ${dimAlias},
+                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
+                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                        FROM rb_kw
+                        WHERE ${baseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        GROUP BY ${dimColumn}
+                        ORDER BY count() DESC
+                        LIMIT 15
+                    `;
+
+                    const previous = `
+                        SELECT 
+                            ${dimColumn} as ${dimAlias},
+                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
+                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                        FROM rb_kw
+                        WHERE ${prevBaseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        GROUP BY ${dimColumn}
+                    `;
+
+                    const sparkline = `
+                        SELECT 
+                            ${dimColumn} as ${dimAlias},
+                            toDate(kw_crawl_date) as date,
+                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
+                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                        FROM rb_kw
+                        WHERE ${baseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        GROUP BY ${dimColumn}, date
+                        ORDER BY date ASC
+                    `;
+
+                    return { current, previous, sparkline };
+                };
+
+                const platQueries = getMatrixQueries('platform_name', 'name');
+                const formatQueries = getMatrixQueries('keyword_category', 'name');
+                const cityQueries = getMatrixQueries('location_name', 'name');
+
+                // Execute all queries in parallel
+                const [
+                    platRes, platPrev, platSpark,
+                    formRes, formPrev, formSpark,
+                    cityRes, cityPrev, citySpark
+                ] = await Promise.all([
+                    queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
+                    queryClickHouse(formatQueries.current), queryClickHouse(formatQueries.previous), queryClickHouse(formatQueries.sparkline),
+                    queryClickHouse(cityQueries.current), queryClickHouse(cityQueries.previous), queryClickHouse(cityQueries.sparkline)
                 ]);
 
-                console.log('[VisibilityService] Matrix query results:', {
-                    platforms: platformResults.length,
-                    formats: formatResults.length,
-                    cities: cityResults.length
-                });
+                // Helper to process results into the final matrix format
+                const processResults = (current, previous, sparklines) => {
+                    const kpis = ['Overall SOS', 'Sponsored SOS', 'Organic SOS', 'Display SOS'];
+                    const columns = ['kpi', ...current.map(r => r.name)];
 
-                // Helper to build matrix data structure
-                const buildMatrixData = (results, nameKey) => {
-                    const columns = ['kpi', ...results.map(r => r[nameKey])];
+                    const prevMap = {};
+                    previous.forEach(p => { prevMap[p.name] = p; });
+
+                    const sparkMap = {};
+                    sparklines.forEach(s => {
+                        if (!sparkMap[s.name]) {
+                            sparkMap[s.name] = { overall: [], sponsored: [], organic: [], display: [] };
+                        }
+                        sparkMap[s.name].overall.push(Number(s.overall_sos) || 0);
+                        sparkMap[s.name].sponsored.push(Number(s.sponsored_sos) || 0);
+                        sparkMap[s.name].organic.push(Number(s.organic_sos) || 0);
+                        sparkMap[s.name].display.push(Number(s.display_sos) || 0);
+                    });
 
                     const rows = kpis.map(kpi => {
                         const row = { kpi };
                         const trend = {};
                         const series = {};
 
-                        results.forEach(r => {
-                            const colName = r[nameKey];
-                            let value = 0;
+                        current.forEach(curr => {
+                            const name = curr.name;
+                            let val = 0;
+                            let prevVal = 0;
+                            let sparkKey = 'overall';
 
-                            if (kpi === 'OVERALL WEIGHTED SOS') {
-                                value = Number(r.overall_sos) || 0;
-                            } else if (kpi === 'SPONSORED SOS') {
-                                value = Number(r.sponsored_sos) || 0;
-                            } else if (kpi === 'ORGANIC SOS') {
-                                value = Number(r.organic_sos) || 0;
+                            if (kpi === 'Overall SOS') {
+                                val = Number(curr.overall_sos) || 0;
+                                prevVal = Number(prevMap[name]?.overall_sos) || 0;
+                                sparkKey = 'overall';
+                            } else if (kpi === 'Sponsored SOS') {
+                                val = Number(curr.sponsored_sos) || 0;
+                                prevVal = Number(prevMap[name]?.sponsored_sos) || 0;
+                                sparkKey = 'sponsored';
+                            } else if (kpi === 'Organic SOS') {
+                                val = Number(curr.organic_sos) || 0;
+                                prevVal = Number(prevMap[name]?.organic_sos) || 0;
+                                sparkKey = 'organic';
+                            } else if (kpi === 'Display SOS') {
+                                val = Number(curr.display_sos) || 0;
+                                prevVal = Number(prevMap[name]?.display_sos) || 0;
+                                sparkKey = 'display';
                             }
 
-                            row[colName] = value;
-                            trend[colName] = Math.round((Math.random() - 0.5) * 10); // Placeholder trend
-                            series[colName] = [value * 0.95, value * 0.97, value * 0.99, value]; // Placeholder sparkline
+                            row[name] = val;
+                            trend[name] = Number((val - prevVal).toFixed(1));
+                            series[name] = sparkMap[name]?.[sparkKey] || [val];
                         });
 
                         row.trend = trend;
@@ -845,9 +955,9 @@ class VisibilityService {
                 };
 
                 return {
-                    platformData: buildMatrixData(platformResults, 'platform_name'),
-                    formatData: buildMatrixData(formatResults, 'format_name'),
-                    cityData: buildMatrixData(cityResults, 'city')
+                    platformData: processResults(platRes, platPrev, platSpark),
+                    formatData: processResults(formRes, formPrev, formSpark),
+                    cityData: processResults(cityRes, cityPrev, citySpark)
                 };
 
             } catch (error) {
@@ -1395,21 +1505,60 @@ class VisibilityService {
                     return { options };
                 }
 
-                // PINCODES: from rb_kw.pincode
+                // DATES: from rb_kw.kw_crawl_date
+                if (filterType === 'dates') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT toDate(kw_crawl_date) as date
+                    FROM rb_kw
+                    WHERE kw_crawl_date IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT 60
+                `);
+                    const options = results.map(r => r.date).filter(Boolean);
+                    return { options };
+                }
+
+                // ZONES (regions): from rb_location_darkstore.region
+                if (filterType === 'zones') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT region as zone
+                    FROM rb_location_darkstore
+                    WHERE region IS NOT NULL AND region != ''
+                    ORDER BY region
+                `);
+                    const options = results.map(r => r.zone).filter(Boolean);
+                    return { options };
+                }
+
+                // METRO FLAGS: from rb_location_darkstore.tier
+                if (filterType === 'metroFlags') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT tier as metroFlag
+                    FROM rb_location_darkstore
+                    WHERE tier IS NOT NULL AND tier != ''
+                    ORDER BY tier
+                `);
+                    const options = results.map(r => r.metroFlag).filter(Boolean);
+                    return { options };
+                }
+
+                // PINCODES: from rb_kw.pincode (handle type conversion)
                 if (filterType === 'pincodes') {
                     let pinWhere = baseWhere;
                     if (city && city !== 'All') {
                         pinWhere += ` AND ${cityCondition}`;
                     }
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT pincode
+                    SELECT DISTINCT toString(pincode) as pincode_str
                     FROM rb_kw
-                    ${pinWhere} AND pincode IS NOT NULL AND pincode != ''
-                    ORDER BY pincode
+                    ${pinWhere} AND pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
+                    ORDER BY pincode_str
+                    LIMIT 500
                 `);
-                    const options = results.map(r => r.pincode).filter(Boolean);
+                    const options = results.map(r => r.pincode_str).filter(Boolean);
                     return { options };
                 }
+
 
                 // PRODUCT NAMES: from rb_kw.keyword
                 if (filterType === 'productName') {
@@ -1526,7 +1675,20 @@ class VisibilityService {
                     startDate = dayjs(filters.startDate);
                     endDate = dayjs(filters.endDate);
                 } else {
-                    endDate = dayjs();
+                    // Fetch the latest available date from ClickHouse
+                    const maxDateRes = await queryClickHouse(`
+                        SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                        FROM rb_kw
+                        WHERE kw_crawl_date IS NOT NULL
+                    `);
+                    const maxDate = maxDateRes[0]?.maxDate;
+
+                    if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
+                        endDate = dayjs(maxDate);
+                    } else {
+                        endDate = dayjs();
+                    }
+
                     const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                     const days = periodToDays[period] || 30;
                     startDate = endDate.subtract(days, 'day');
@@ -1548,8 +1710,9 @@ class VisibilityService {
                 SELECT 
                     toDate(kw_crawl_date) as crawl_date,
                     ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 2) AS sponsored_sos,
-                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) AS organic_sos
+                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
+                    ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 2) AS display_sos
                 FROM rb_kw
                 WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -1568,7 +1731,7 @@ class VisibilityService {
                         overall_sos: Number(row.overall_sos) || 0,
                         sponsored_sos: Number(row.sponsored_sos) || 0,
                         organic_sos: Number(row.organic_sos) || 0,
-                        display_sos: 0 // Display SOS not yet implemented
+                        display_sos: Number(row.display_sos) || 0
                     };
                 });
 
@@ -1784,7 +1947,20 @@ class VisibilityService {
                     startDate = dayjs(filters.startDate);
                     endDate = dayjs(filters.endDate);
                 } else {
-                    endDate = dayjs();
+                    // Fetch the latest available date from ClickHouse
+                    const maxDateRes = await queryClickHouse(`
+                        SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                        FROM rb_kw
+                        WHERE kw_crawl_date IS NOT NULL
+                    `);
+                    const maxDate = maxDateRes[0]?.maxDate;
+
+                    if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
+                        endDate = dayjs(maxDate);
+                    } else {
+                        endDate = dayjs();
+                    }
+
                     const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                     const days = periodToDays[period] || 30;
                     startDate = endDate.subtract(days, 'day');
@@ -1826,7 +2002,8 @@ class VisibilityService {
                     toDate(kw_crawl_date) as crawl_date,
                     count() as brand_volume,
                     countIf(toString(spons_flag) = '1') as sponsored_volume,
-                    countIf(toString(spons_flag) != '1') as organic_volume
+                    countIf(toString(spons_flag) != '1') as organic_volume,
+                    countIf(toDate(created_on) < '2025-01-01' OR spons_flag = '1') as display_volume
                 FROM rb_kw
                 WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -1847,7 +2024,8 @@ class VisibilityService {
                     brandDataMap[row.brand_name][dateStr] = {
                         brand_volume: Number(row.brand_volume) || 0,
                         sponsored_volume: Number(row.sponsored_volume) || 0,
-                        organic_volume: Number(row.organic_volume) || 0
+                        organic_volume: Number(row.organic_volume) || 0,
+                        display_volume: Number(row.display_volume) || 0
                     };
                 });
 
@@ -1862,7 +2040,7 @@ class VisibilityService {
                             overall_sos: Number(((data.brand_volume / totalVol) * 100).toFixed(2)),
                             sponsored_sos: Number(((data.sponsored_volume / totalVol) * 100).toFixed(2)),
                             organic_sos: Number(((data.organic_volume / totalVol) * 100).toFixed(2)),
-                            display_sos: 0
+                            display_sos: Number(((data.display_volume / totalVol) * 100).toFixed(2))
                         };
                     });
 

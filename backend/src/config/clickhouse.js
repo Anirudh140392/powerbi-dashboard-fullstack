@@ -5,7 +5,7 @@ const clickhouse = createClient({
     url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
     username: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
-    database: process.env.CLICKHOUSE_DB || 'GCPL',
+    database: process.env.CLICKHOUSE_DB, // Remove fallback
     request_timeout: 60000,
     max_open_connections: 10,
     compression: {

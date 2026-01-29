@@ -489,7 +489,7 @@ const cards = [
   },
 ];
 // ---------------- TabbedHeatmapTable Component (Unnested) ----------------
-const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
+const TabbedHeatmapTable = React.memo(({ matrixData, loading, filters }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
   // If loading prop is true, show skeleton
@@ -536,7 +536,7 @@ const TabbedHeatmapTable = React.memo(({ matrixData, loading }) => {
           </button>
         ))}
       </div>
-      <CityKpiTrendShowcase dynamicKey="visibility" data={active} title={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} showPagination={true} />
+      <CityKpiTrendShowcase dynamicKey="visibility" data={active} title={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} showPagination={true} filters={filters} />
     </div>
   );
 });
@@ -872,7 +872,7 @@ const VisiblityAnalysisData = ({
       ) : matrixLoading ? (
         <TabbedHeatmapTableSkeleton />
       ) : (
-        <TabbedHeatmapTable matrixData={matrixData} loading={matrixLoading} />
+        <TabbedHeatmapTable matrixData={matrixData} loading={matrixLoading} filters={filters} />
       )}
 
       {/* PULSEBOARD */}

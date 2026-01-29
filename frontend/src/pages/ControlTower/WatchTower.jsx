@@ -110,7 +110,7 @@ function WatchTower() {
   const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized, refreshFilters } = React.useContext(FilterContext);
 
   const [filters, setFilters] = useState({
-    platform: platform || "Zepto",
+    platform: platform || "All",
     months: 6,
     timeStep: "Monthly",
     brand: selectedBrand,
@@ -258,15 +258,15 @@ function WatchTower() {
   const [performanceLoading, setPerformanceLoading] = useState(true);
   const [platformOverviewLoading, setPlatformOverviewLoading] = useState(true);
 
-  const [monthOverviewPlatform, setMonthOverviewPlatform] = useState(platform || "Blinkit");
+  const [monthOverviewPlatform, setMonthOverviewPlatform] = useState(platform || "All");
   const [monthOverviewData, setMonthOverviewData] = useState([]);
   const [monthOverviewLoading, setMonthOverviewLoading] = useState(false);
 
-  const [categoryOverviewPlatform, setCategoryOverviewPlatform] = useState(platform || "Zepto");
+  const [categoryOverviewPlatform, setCategoryOverviewPlatform] = useState(platform || "All");
   const [categoryOverviewData, setCategoryOverviewData] = useState([]);
   const [categoryOverviewLoading, setCategoryOverviewLoading] = useState(false);
 
-  const [brandsOverviewPlatform, setBrandsOverviewPlatform] = useState(platform || "Zepto");
+  const [brandsOverviewPlatform, setBrandsOverviewPlatform] = useState(platform || "All");
   const [brandsOverviewCategory, setBrandsOverviewCategory] = useState("All");
   const [brandsOverviewData, setBrandsOverviewData] = useState(null);
   const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
