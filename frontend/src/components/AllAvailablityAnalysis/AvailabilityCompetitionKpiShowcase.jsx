@@ -514,14 +514,17 @@ const BrandTable = ({ rows, loading }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
-                            {loading && (
-                                <tr>
-                                    <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-slate-400">
-                                        <div className="animate-pulse">Loading competition data...</div>
-                                    </td>
+                            {loading && Array.from({ length: 5 }).map((_, idx) => (
+                                <tr key={`skeleton-${idx}`} className="animate-pulse">
+                                    <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                 </tr>
-                            )}
-                            {!loading && rows.map((row, idx) => (
+                            ))}
+                            {!loading && paginatedRows.map((row, idx) => (
                                 <tr
                                     key={row.id}
                                     className={cn(
@@ -878,7 +881,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters }) => {
+export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period }) => {
     const [tab, setTab] = useState("brand");
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -891,7 +894,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters }) 
 
     const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
     const [trendData, setTrendData] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [availableCities, setAvailableCities] = useState(["All India"]);
 
     // Fetch dynamic city options
@@ -921,7 +924,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters }) 
                     category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
                     sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
-                    period: '1M',
+                    period: period || '1M',
                     startDate: globalFilters?.startDate,
                     endDate: globalFilters?.endDate
                 };
@@ -947,7 +950,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters }) 
             }
         };
         fetchData();
-    }, [city, filters, platform, viewMode, globalFilters?.startDate, globalFilters?.endDate]);
+    }, [city, filters, platform, viewMode, globalFilters?.startDate, globalFilters?.endDate, period]);
 
     const selectionCount =
         filters.categories.length + filters.brands.length + filters.skus.length;

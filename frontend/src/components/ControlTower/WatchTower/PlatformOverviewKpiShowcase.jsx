@@ -1550,7 +1550,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, tren
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows }) => {
+const BrandTable = ({ rows, loading }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1582,7 +1582,17 @@ const BrandTable = ({ rows }) => {
             </thead>
 
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedRows.map((row, idx) => (
+              {loading && Array.from({ length: pageSize }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} className="animate-pulse">
+                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                </tr>
+              ))}
+              {!loading && paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={cn(
@@ -1611,7 +1621,7 @@ const BrandTable = ({ rows }) => {
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
                     colSpan={6}
@@ -1641,7 +1651,7 @@ const BrandTable = ({ rows }) => {
 };
 
 
-const SkuTable = ({ rows }) => {
+const SkuTable = ({ rows, loading }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1674,7 +1684,18 @@ const SkuTable = ({ rows }) => {
             </thead>
 
             <tbody className="divide-y divide-slate-100 bg-white">
-              {paginatedRows.map((row, idx) => (
+              {loading && Array.from({ length: pageSize }).map((_, idx) => (
+                <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
+                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
+                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                </tr>
+              ))}
+              {!loading && paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={cn(
@@ -1706,7 +1727,7 @@ const SkuTable = ({ rows }) => {
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
@@ -1740,7 +1761,7 @@ const SkuTable = ({ rows }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlatform }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlatform, period }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1760,7 +1781,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
   });
   const [apiBrandData, setApiBrandData] = useState([]);
   const [apiSkuData, setApiSkuData] = useState([]);
-  const [apiLoading, setApiLoading] = useState(false);
+  const [apiLoading, setApiLoading] = useState(true);
 
   // State for brand trend data (used in TrendView and KpiCompareView)
   const [apiTrendData, setApiTrendData] = useState({});
@@ -1788,7 +1809,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
           brands: brandList.join(','),
           location: city !== 'All India' ? city : 'All',
           category: filters.categories.length > 0 ? filters.categories[0] : 'All',
-          period: '1M'
+          period: period || '1M'
         };
 
         console.log('[PlatformOverviewKpiShowcase] Fetching brand trends with params:', params);
@@ -1806,7 +1827,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
     };
 
     fetchBrandTrends();
-  }, [viewMode, city, filters.brands, filters.categories, apiBrandData]);
+  }, [viewMode, city, filters.brands, filters.categories, period]);
 
 
   // Fetch filter options on mount
@@ -1839,7 +1860,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
           location: city !== 'All India' ? city : 'All',
           category: selectedCategory,
           brand: selectedBrands,
-          period: '1M'
+          period: period || '1M'
         };
 
         console.log('[PlatformOverviewKpiShowcase] Fetching competition data with params:', params);
@@ -1882,17 +1903,17 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
       }
     };
     fetchCompetitionData();
-  }, [city, filters.brands, filters.categories, selectedPlatform, selectedItem]);
+  }, [city, filters.brands, filters.categories, selectedPlatform, selectedItem, period]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
   // Dynamic filtered rows for table for the active tab + city
   const brandRows = useMemo(() => {
-    // Use API data if available, otherwise fallback to mock data
+    // Use API data if available, otherwise fallback to mock data (only when not loading)
     const allRows = apiBrandData.length > 0
       ? apiBrandData
-      : (DATA_MODEL.brandSummaryByCity[city] || []);
+      : (apiLoading ? [] : (DATA_MODEL.brandSummaryByCity[city] || []));
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -1915,10 +1936,10 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
   }, [city, filters, apiBrandData]);
 
   const skuRows = useMemo(() => {
-    // Use API data if available, otherwise fallback to mock data
+    // Use API data if available, otherwise fallback to mock data (only when not loading)
     const allRows = apiSkuData.length > 0
       ? apiSkuData
-      : (DATA_MODEL.skuSummaryByCity[city] || []);
+      : (apiLoading ? [] : (DATA_MODEL.skuSummaryByCity[city] || []));
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -2023,7 +2044,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -2049,7 +2070,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
