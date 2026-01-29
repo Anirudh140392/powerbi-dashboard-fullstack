@@ -427,8 +427,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Handle brand filter with multi-value support
         if (brandArr && brandArr.length > 0) {
             offtakeWhereClause.Brand = buildBrandLikeCondition(brandArr);
-        } else {
-            offtakeWhereClause.Comp_flag = 0;  // Our brands only when "All" selected
         }
 
         // Handle location filter with multi-value support
@@ -467,8 +465,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             if (brandFilterArr && brandFilterArr.length > 0) {
                 const brandConditions = brandFilterArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                 conditions.push(`(${brandConditions})`);
-            } else {
-                conditions.push(`toString(Comp_flag) = '0'`);  // Our brands only when "All" selected
             }
 
             // Handle platform with multi-value support
@@ -503,8 +499,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             const query = `
                 SELECT 
-                    SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                    SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                 FROM rb_pdp_olap
                 WHERE ${conditions.join(' AND ')}
             `;
@@ -836,8 +832,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (brandCondArr && brandCondArr.length > 0) {
                         const brandConds = brandCondArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                         conditions.push(`(${brandConds})`);
-                    } else {
-                        conditions.push(`toString(Comp_flag) = '0'`);
                     }
 
                     if (location && location !== 'All') {
@@ -858,20 +852,20 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT 
                             Platform,
-                            SUM(ifNull(toFloat64(Sales), 0)) as sales,
-                            SUM(ifNull(toFloat64(Ad_Spend), 0)) as spend,
-                            SUM(ifNull(toFloat64(Ad_sales), 0)) as ad_sales,
-                            SUM(ifNull(toFloat64(Ad_Clicks), 0)) as clicks,
-                            SUM(ifNull(toFloat64(Ad_Impressions), 0)) as impressions,
-                            SUM(ifNull(toFloat64(neno_osa), 0)) as neno,
-                            SUM(ifNull(toFloat64(deno_osa), 0)) as deno
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
+                            SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                            SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno
                         FROM rb_pdp_olap
                         WHERE ${currConditions}
                         GROUP BY Platform
                     `),
                     // Query 2: Current period market share from rb_brand_ms
                     queryClickHouse(`
-                        SELECT AVG(toFloat64(market_share)) as ms
+                        SELECT AVG(toFloat64OrZero(toString(market_share))) as ms
                         FROM rb_brand_ms
                         WHERE created_on BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
                         ${brand && brand !== 'All' ? (Array.isArray(brand) ? `AND brand IN (${brand.map(b => `'${escapeStr(b)}'`).join(', ')})` : `AND brand = '${escapeStr(brand)}'`) : ''}
@@ -882,20 +876,20 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT 
                             Platform,
-                            SUM(ifNull(toFloat64(Sales), 0)) as sales,
-                            SUM(ifNull(toFloat64(Ad_Spend), 0)) as spend,
-                            SUM(ifNull(toFloat64(Ad_sales), 0)) as ad_sales,
-                            SUM(ifNull(toFloat64(Ad_Clicks), 0)) as clicks,
-                            SUM(ifNull(toFloat64(Ad_Impressions), 0)) as impressions,
-                            SUM(ifNull(toFloat64(neno_osa), 0)) as neno,
-                            SUM(ifNull(toFloat64(deno_osa), 0)) as deno
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
+                            SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                            SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno
                         FROM rb_pdp_olap
                         WHERE ${prevConditions}
                         GROUP BY Platform
                     `),
                     // Query 4: Previous period market share from rb_brand_ms
                     queryClickHouse(`
-                        SELECT AVG(toFloat64(market_share)) as ms
+                        SELECT AVG(toFloat64OrZero(toString(market_share))) as ms
                         FROM rb_brand_ms
                         WHERE created_on BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
                         ${brand && brand !== 'All' ? (Array.isArray(brand) ? `AND brand IN (${brand.map(b => `'${escapeStr(b)}'`).join(', ')})` : `AND brand = '${escapeStr(brand)}'`) : ''}
@@ -968,8 +962,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             if (brandArr && brandArr.length > 0) {
                 const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
                 conditions.push(`(${brandConds})`);
-            } else {
-                conditions.push(`toString(Comp_flag) = '0'`);
             }
             if (locationArr && locationArr.length > 0) {
                 if (locationArr.length === 1) {
@@ -1013,7 +1005,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const result = await queryClickHouse(`
                         SELECT 
                             toMonday(toDate(DATE)) as week_date,
-                            SUM(ifNull(toFloat64(Sales), 0)) as total_sales
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
                         GROUP BY toMonday(toDate(DATE))
@@ -1062,13 +1054,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const [numeratorData, denominatorData] = await Promise.all([
                         queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(sales)) as our_sales
+                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(toString(sales))) as our_sales
                             FROM rb_brand_ms
                             WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})
                             GROUP BY toMonday(toDate(created_on))
                         `),
                         queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(sales)) as total_sales
+                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(toString(sales))) as total_sales
                             FROM rb_brand_ms
                             WHERE ${msBaseConditions.join(' AND ')}
                             GROUP BY toMonday(toDate(created_on))
@@ -1121,8 +1113,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
 
                     const [ourSalesResult, totalSalesResult] = await Promise.all([
-                        queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as our_sales FROM rb_brand_ms WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})`),
-                        queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as total_sales FROM rb_brand_ms WHERE ${msBaseConditions.join(' AND ')}`)
+                        queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_brand_ms WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})`),
+                        queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_brand_ms WHERE ${msBaseConditions.join(' AND ')}`)
                     ]);
 
                     const ourSales = parseFloat(ourSalesResult[0]?.our_sales || 0);
@@ -1140,7 +1132,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const result = await queryClickHouse(`
                         SELECT 
                             Product as sku_name,
-                            SUM(ifNull(toFloat64(Sales), 0)) as sku_gmv
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sku_gmv
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr} AND Product IS NOT NULL AND Product != ''
                         GROUP BY Product
@@ -1171,8 +1163,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return await queryClickHouse(`
                         SELECT 
                             toMonday(toDate(DATE)) as week_date,
-                            SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                            SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                            SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                            SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
                         GROUP BY toMonday(toDate(DATE))
@@ -1253,8 +1245,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     ];
                     if (brandArr && brandArr.length > 0) {
                         prevConditions.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ')})`);
-                    } else {
-                        prevConditions.push(`toString(Comp_flag) = '0'`);
                     }
                     if (locationArr && locationArr.length > 0) {
                         prevConditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
@@ -1265,7 +1255,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (category && category !== 'All') {
                         prevConditions.push(`Category = '${escapeStrMain(category)}'`);
                     }
-                    const result = await queryClickHouse(`SELECT SUM(ifNull(toFloat64(Sales), 0)) as total FROM rb_pdp_olap WHERE ${prevConditions.join(' AND ')}`);
+                    const result = await queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total FROM rb_pdp_olap WHERE ${prevConditions.join(' AND ')}`);
                     return parseFloat(result[0]?.total || 0);
                 } catch (err) {
                     console.error('[PrevOfftake] ClickHouse error:', err.message);
@@ -1281,7 +1271,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     ];
                     if (brand && brand !== 'All') conditions.push(`brand = '${escapeStrMain(brand)}'`);
                     if (location && location !== 'All') conditions.push(`Location = '${escapeStrMain(location)}'`);
-                    const result = await queryClickHouse(`SELECT AVG(toFloat64(market_share)) as avg_ms FROM rb_brand_ms WHERE ${conditions.join(' AND ')}`);
+                    const result = await queryClickHouse(`SELECT AVG(toFloat64OrZero(toString(market_share))) as avg_ms FROM rb_brand_ms WHERE ${conditions.join(' AND ')}`);
                     return { avg_ms: parseFloat(result[0]?.avg_ms || 0) };
                 } catch (err) {
                     console.error('[PrevMarketShare] ClickHouse error:', err.message);
@@ -1560,19 +1550,17 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         if (brandArrLocal && brandArrLocal.length > 0) {
                             const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                             conditions.push(`(${brandConds})`);
-                        } else {
-                            conditions.push(`toString(Comp_flag) = '0'`);  // Our brands only when "All" selected
                         }
 
                         const results = await queryClickHouse(`
                             SELECT 
                                 formatDateTime(toDate(DATE), '%Y-%m-01') as month,
-                                SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                                SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                                SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
-                                SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                                SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                                SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend
+                                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
+                                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend
                             FROM rb_pdp_olap
                             WHERE ${conditions.join(' AND ')}
                             GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
@@ -1783,8 +1771,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (brandArrOsa && brandArrOsa.length > 0) {
                         const brandConds = brandArrOsa.map(b => `Brand LIKE '%${osaEscapeStr(b)}%'`).join(' OR ');
                         osaConds.push(`(${brandConds})`);
-                    } else {
-                        osaConds.push(`toString(Comp_flag) = '0'`);
                     }
                     if (platform && platform !== 'All') osaConds.push(`Platform = '${osaEscapeStr(platform)}'`);
                     if (location && location !== 'All') osaConds.push(`Location = '${osaEscapeStr(location)}'`);
@@ -1794,8 +1780,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const osaByMonth = await queryClickHouse(`
                         SELECT 
                             formatDateTime(toDate(DATE), '%Y-%m-01') as month,
-                            SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                            SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                            SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                            SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                         FROM rb_pdp_olap
                         WHERE ${osaConds.join(' AND ')}
                         GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
@@ -2081,13 +2067,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 },
                 {
                     title: "CPM",
-                    value: `₹${Math.round(cpm)}`,
+                    value: `₹${cpm.toFixed(2)}`,
                     change: { text: formatChange(cpmChange), positive: cpmChange >= 0 },
                     meta: { units: "impressions", change: formatChange(cpmChange) }
                 },
                 {
                     title: "CPC",
-                    value: `₹${Math.round(cpc)}`,
+                    value: `₹${cpc.toFixed(2)}`,
                     change: { text: formatChange(cpcChange), positive: cpcChange >= 0 },
                     meta: { units: "clicks", change: formatChange(cpcChange) }
                 },
@@ -2144,8 +2130,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (brandArr && brandArr.length > 0) {
                     const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                     conditions.push(`(${brandConds})`);
-                } else {
-                    conditions.push(`toString(Comp_flag) = '0'`);
                 }
                 if (location && location !== 'All') conditions.push(`Location = '${escapeStr(location)}'`);
                 if (category && category !== 'All') conditions.push(`Category = '${escapeStr(category)}'`);
@@ -2159,21 +2143,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const [allMetricsResult, prevAllMetricsResult] = await Promise.all([
                 queryClickHouse(`
                     SELECT 
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
                     FROM rb_pdp_olap
                     WHERE ${currConditions}
                 `),
                 queryClickHouse(`
                     SELECT 
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
                     FROM rb_pdp_olap
                     WHERE ${prevConditions}
                 `)
@@ -2251,13 +2235,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             const [currOurSales, currTotalSales, prevOurSales, prevTotalSales] = await Promise.all([
                 // Current period: Selected brand sales (or all our brands if brand='All')
-                queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as our_sales FROM rb_brand_ms WHERE ${currMsConds} AND brand IN (${brandInClause})`),
+                queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_brand_ms WHERE ${currMsConds} AND brand IN (${brandInClause})`),
                 // Current period: Total market sales
-                queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as total_sales FROM rb_brand_ms WHERE ${currMsConds}`),
+                queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_brand_ms WHERE ${currMsConds}`),
                 // Previous period: Selected brand sales
-                queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as our_sales FROM rb_brand_ms WHERE ${prevMsConds} AND brand IN (${brandInClause})`),
+                queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_brand_ms WHERE ${prevMsConds} AND brand IN (${brandInClause})`),
                 // Previous period: Total market sales
-                queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as total_sales FROM rb_brand_ms WHERE ${prevMsConds}`)
+                queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_brand_ms WHERE ${prevMsConds}`)
             ]);
 
             const currOur = parseFloat(currOurSales[0]?.our_sales || 0);
@@ -2520,8 +2504,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
             { title: "Promo My Brand", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
             { title: "Promo Compete", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
-            { title: "CPM", value: `₹${Math.round(cpm)}`, meta: { units: "", change: "▲0.0%" } },
-            { title: "CPC", value: `₹${Math.round(cpc)}`, meta: { units: "", change: "▲0.0%" } }
+            { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "", change: "▲0.0%" } },
+            { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "", change: "▲0.0%" } }
         ];
 
         // OPTIMIZED: Bulk month overview with GROUP BY instead of per-month queries
@@ -2549,8 +2533,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (brandArr && brandArr.length > 0) {
                     const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStrMo(b)}%'`).join(' OR ');
                     conds.push(`(${brandConds})`);
-                } else {
-                    conds.push(`toString(Comp_flag) = '0'`);
                 }
                 if (locationArr && locationArr.length > 0) {
                     if (locationArr.length === 1) {
@@ -2573,11 +2555,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT 
                             formatDateTime(toDate(DATE), '%Y-%m-01') as month,
-                            SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                            SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                            SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                            SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                            SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
                         FROM rb_pdp_olap
                         WHERE ${dateRangeCondition} AND ${pdpConds.join(' AND ')}
                         GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
@@ -2586,8 +2568,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT 
                             formatDateTime(toDate(DATE), '%Y-%m-01') as month,
-                            SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                            SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                            SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                            SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                         FROM rb_pdp_olap
                         WHERE ${dateRangeCondition} AND ${pdpConds.join(' AND ')}
                         GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
@@ -2649,7 +2631,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         if (location && location !== 'All') msConds.push(`Location = '${escapeStrMo(location)}'`);
 
                         return await queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, AVG(toFloat64(market_share)) as avg_ms
+                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, AVG(toFloat64OrZero(toString(market_share))) as avg_ms
                             FROM rb_brand_ms
                             WHERE ${msConds.join(' AND ')}
                             GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
@@ -2757,8 +2739,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Apply brand filter
                 if (brand && brand !== 'All') {
                     catWhere.Brand = { [Op.like]: `%${brand}%` };
-                } else {
-                    catWhere.Comp_flag = 0; // Our brands only when "All" selected
                 }
 
                 // Apply location filter
@@ -3618,10 +3598,10 @@ const computeTrendData = async (filters) => {
             SELECT 
                 ${groupExpression} as date_group,
                 MAX(toDate(DATE)) as ref_date,
-                SUM(ifNull(toFloat64(Sales), 0)) as offtake,
-                SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno,
-                SUM(CASE WHEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) > 0 THEN ifNull(toFloat64(Sales), 0) ELSE 0 END) as sales_with_mrp,
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as offtake,
+                SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno,
+                SUM(CASE WHEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) > 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as sales_with_mrp,
                 SUM(CASE WHEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) > 0 THEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) * toFloat64OrNull(Qty_Sold) ELSE 0 END) as mrp_sales_valid
             FROM rb_pdp_olap
             WHERE ${pdpConds}
@@ -3654,7 +3634,7 @@ const computeTrendData = async (filters) => {
 
         // Numerator: Sales of our brands (comp_flag=0) grouped by time
         const msNumerator = await queryClickHouse(`
-            SELECT ${groupExpressionMs} as date_group, SUM(toFloat64OrZero(sales)) as our_sales
+            SELECT ${groupExpressionMs} as date_group, SUM(toFloat64OrZero(toString(sales))) as our_sales
             FROM rb_brand_ms
             WHERE ${buildMsConds(true)}
             GROUP BY ${groupExpressionMs}
@@ -3662,7 +3642,7 @@ const computeTrendData = async (filters) => {
 
         // Denominator: Total platform sales grouped by time
         const msDenominator = await queryClickHouse(`
-            SELECT ${groupExpressionMs} as date_group, SUM(toFloat64OrZero(sales)) as total_sales
+            SELECT ${groupExpressionMs} as date_group, SUM(toFloat64OrZero(toString(sales))) as total_sales
             FROM rb_brand_ms
             WHERE ${buildMsConds(false)}
             GROUP BY ${groupExpressionMs}
@@ -3953,8 +3933,6 @@ const getPlatformOverview = async (filters) => {
                 const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
-                } else {
-                    conds.push(`toString(Comp_flag) = '0'`);
                 }
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -4017,15 +3995,15 @@ const getPlatformOverview = async (filters) => {
                 // Query 1: Current period offtake metrics by platform
                 queryClickHouse(`
                     SELECT Platform,
-                        SUM(ifNull(toFloat64(Sales), 0)) as sales,
-                        SUM(ifNull(toFloat64(Qty_Sold), 0)) as qty,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as impressions,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as orders,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as qty,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as orders,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno
                     FROM rb_pdp_olap
                     WHERE ${currOfftakeConds}
                     GROUP BY Platform
@@ -4033,15 +4011,15 @@ const getPlatformOverview = async (filters) => {
                 // Query 2: Previous period offtake metrics by platform
                 queryClickHouse(`
                     SELECT Platform,
-                        SUM(ifNull(toFloat64(Sales), 0)) as sales,
-                        SUM(ifNull(toFloat64(Qty_Sold), 0)) as qty,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as impressions,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as orders,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as qty,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as orders,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno
                     FROM rb_pdp_olap
                     WHERE ${prevOfftakeConds}
                     GROUP BY Platform
@@ -4076,28 +4054,28 @@ const getPlatformOverview = async (filters) => {
                 `),
                 // Query 7: Current Market Share - numerator (our brands)
                 queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(sales)) as our_sales
+                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as our_sales
                     FROM rb_brand_ms
                     WHERE ${currMsNumConds}
                     GROUP BY Platform
                 `),
                 // Query 8: Current Market Share - denominator (total)
                 queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(sales)) as total_sales
+                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as total_sales
                     FROM rb_brand_ms
                     WHERE ${currMsDenomConds}
                     GROUP BY Platform
                 `),
                 // Query 9: Previous Market Share - numerator
                 queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(sales)) as our_sales
+                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as our_sales
                     FROM rb_brand_ms
                     WHERE ${prevMsNumConds}
                     GROUP BY Platform
                 `),
                 // Query 10: Previous Market Share - denominator
                 queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(sales)) as total_sales
+                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as total_sales
                     FROM rb_brand_ms
                     WHERE ${prevMsDenomConds}
                     GROUP BY Platform
@@ -4221,8 +4199,8 @@ const getPlatformOverview = async (filters) => {
                     { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: formatChange(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: formatChange(marketShareChange, true) } },
                     { title: "Promo My Brand", value: `${promoMyBrand.toFixed(1)}%`, change: { text: formatChange(promoMyBrandChange, true), positive: promoMyBrandChange >= 0 }, meta: { units: "Depth", change: formatChange(promoMyBrandChange, true) } },
                     { title: "Promo Compete", value: `${promoCompete.toFixed(1)}%`, change: { text: formatChange(promoCompeteChange, true), positive: promoCompeteChange >= 0 }, meta: { units: "Depth", change: formatChange(promoCompeteChange, true) } },
-                    { title: "CPM", value: `₹${Math.round(cpm)}`, change: { text: formatChange(cpmChange), positive: cpmChange >= 0 }, meta: { units: "impressions", change: formatChange(cpmChange) } },
-                    { title: "CPC", value: `₹${Math.round(cpc)}`, change: { text: formatChange(cpcChange), positive: cpcChange >= 0 }, meta: { units: "clicks", change: formatChange(cpcChange) } }
+                    { title: "CPM", value: `₹${cpm.toFixed(2)}`, change: { text: formatChange(cpmChange), positive: cpmChange >= 0 }, meta: { units: "impressions", change: formatChange(cpmChange) } },
+                    { title: "CPC", value: `₹${cpc.toFixed(2)}`, change: { text: formatChange(cpcChange), positive: cpcChange >= 0 }, meta: { units: "clicks", change: formatChange(cpcChange) } }
                 ];
             };
 
@@ -4236,29 +4214,29 @@ const getPlatformOverview = async (filters) => {
             const [allMetricsResult, prevAllMetricsResult] = await Promise.all([
                 queryClickHouse(`
                     SELECT 
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Qty_Sold), 0)) as total_qty,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_inorg_qty,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_inorg_qty,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE ${allConds}
                 `),
                 queryClickHouse(`
                     SELECT 
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Qty_Sold), 0)) as total_qty,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_inorg_qty,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_inorg_qty,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE ${prevAllConds}
                 `)
@@ -4472,8 +4450,6 @@ const getMonthOverview = async (filters) => {
                 conds.push(`Platform = '${escapeStr(moPlatform)}'`);
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
-                } else {
-                    conds.push(`toString(Comp_flag) = '0'`);
                 }
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -4530,14 +4506,14 @@ const getMonthOverview = async (filters) => {
                 queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE ${moConds}
                     GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
@@ -4564,7 +4540,7 @@ const getMonthOverview = async (filters) => {
                 queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
-                        SUM(toFloat64OrZero(sales)) as our_sales
+                        SUM(toFloat64OrZero(toString(sales))) as our_sales
                     FROM rb_brand_ms
                     WHERE ${msNumMoConds}
                     GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
@@ -4573,7 +4549,7 @@ const getMonthOverview = async (filters) => {
                 queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
-                        SUM(toFloat64OrZero(sales)) as total_sales
+                        SUM(toFloat64OrZero(toString(sales))) as total_sales
                     FROM rb_brand_ms
                     WHERE ${msDenomMoConds}
                     GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
@@ -4599,8 +4575,8 @@ const getMonthOverview = async (filters) => {
                 { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "" } },
                 { title: "Promo My Brand", value: "0%", meta: { units: "" } },
                 { title: "Promo Compete", value: "0%", meta: { units: "" } },
-                { title: "CPM", value: `₹${Math.round(cpm)}`, meta: { units: "" } },
-                { title: "CPC", value: `₹${Math.round(cpc)}`, meta: { units: "" } }
+                { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "" } },
+                { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "" } }
             ];
 
             const monthOverview = monthBuckets.map(bucket => {
@@ -4705,8 +4681,6 @@ const getCategoryOverview = async (filters) => {
                 }
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
-                } else {
-                    conds.push(`toString(Comp_flag) = '0'`);
                 }
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -4758,15 +4732,15 @@ const getCategoryOverview = async (filters) => {
                 // Query 2: Category metrics
                 queryClickHouse(`
                     SELECT Category,
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Qty_Sold), 0)) as total_qty,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE ${catConds}
                     GROUP BY Category
@@ -4787,14 +4761,14 @@ const getCategoryOverview = async (filters) => {
                 `),
                 // Query 5: MS numerator (our brands)
                 queryClickHouse(`
-                    SELECT category_master, SUM(toFloat64OrZero(sales)) as our_sales
+                    SELECT category_master, SUM(toFloat64OrZero(toString(sales))) as our_sales
                     FROM rb_brand_ms
                     WHERE ${msNumCatConds}
                     GROUP BY category_master
                 `),
                 // Query 6: MS denominator (total sales)
                 queryClickHouse(`
-                    SELECT category_master, SUM(toFloat64OrZero(sales)) as total_sales
+                    SELECT category_master, SUM(toFloat64OrZero(toString(sales))) as total_sales
                     FROM rb_brand_ms
                     WHERE ${msDenomCatConds}
                     GROUP BY category_master
@@ -4855,8 +4829,8 @@ const getCategoryOverview = async (filters) => {
                         { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "Category" } },
                         { title: "Promo My Brand", value: "0%", meta: { units: "Depth" } },
                         { title: "Promo Compete", value: "0%", meta: { units: "Depth" } },
-                        { title: "CPM", value: `₹${Math.round(cpm)}`, meta: { units: "impressions" } },
-                        { title: "CPC", value: `₹${Math.round(cpc)}`, meta: { units: "clicks" } }
+                        { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "impressions" } },
+                        { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "clicks" } }
                     ]
                 };
             });
@@ -4918,7 +4892,6 @@ const getBrandsOverview = async (filters) => {
             // Build brand conditions for rb_pdp_olap
             const buildBrandConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-                conds.push(`toString(Comp_flag) = '0'`);  // Only our brands
                 if (boPlatform && boPlatform !== 'All') {
                     conds.push(`Platform = '${escapeStr(boPlatform)}'`);
                 }
@@ -4984,7 +4957,7 @@ const getBrandsOverview = async (filters) => {
                 // Query 1: Distinct brands
                 queryClickHouse(`SELECT DISTINCT brand_name FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''`),
                 // Query 2: Total platform sales
-                queryClickHouse(`SELECT SUM(toFloat64OrZero(sales)) as total_sales FROM rb_brand_ms WHERE ${msTotalConds}`),
+                queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_brand_ms WHERE ${msTotalConds}`),
                 // Query 3: SOS numerator
                 queryClickHouse(`
                     SELECT brand_name, count() as count
@@ -5002,21 +4975,21 @@ const getBrandsOverview = async (filters) => {
                 // Query 5: Brand metrics from rb_pdp_olap
                 queryClickHouse(`
                     SELECT Brand,
-                        SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_orders,
-                        SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE ${brandConds}
                     GROUP BY Brand
                 `),
                 // Query 6: Our brands sales per brand from rb_brand_ms
                 queryClickHouse(`
-                    SELECT brand, SUM(toFloat64OrZero(sales)) as brand_sales
+                    SELECT brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales
                     FROM rb_brand_ms
                     WHERE ${msBrandConds}
                     GROUP BY brand
@@ -5200,14 +5173,14 @@ const getKpiTrends = async (filters) => {
             SELECT 
                 ${groupExpression} as date_group,
                 MAX(toDate(DATE)) as ref_date,
-                SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_ad_spend,
-                SUM(ifNull(toFloat64(Ad_Quanity_sold), 0)) as total_ad_orders,
-                SUM(ifNull(toFloat64(Ad_Clicks), 0)) as total_ad_clicks,
-                SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_ad_impressions,
-                SUM(ifNull(toFloat64(neno_osa), 0)) as total_neno_osa,
-                SUM(ifNull(toFloat64(deno_osa), 0)) as total_deno_osa
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_ad_spend,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_ad_orders,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions,
+                SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno_osa,
+                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno_osa
             FROM rb_pdp_olap
             WHERE ${kpiConds}
             GROUP BY ${groupExpression}
@@ -5520,11 +5493,11 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT Brand,
                     any(Category) as brand_category,
-                    SUM(ifNull(toFloat64(Sales), 0)) as total_offtakes,
-                    SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                    SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales,
-                    SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                    AVG(ifNull(toFloat64(MRP), 0)) as avg_price,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_offtakes,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                    AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_price,
                     count() as record_count
                 FROM rb_pdp_olap
                 WHERE ${currConds}
@@ -5533,9 +5506,9 @@ const getCompetitionData = async (filters = {}) => {
             // Query 2: Previous period for MoM
             queryClickHouse(`
                 SELECT Brand,
-                    SUM(ifNull(toFloat64(Sales), 0)) as total_offtakes,
-                    SUM(ifNull(toFloat64(Ad_Spend), 0)) as total_spend,
-                    SUM(ifNull(toFloat64(Ad_sales), 0)) as total_ad_sales
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_offtakes,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales
                 FROM rb_pdp_olap
                 WHERE ${momConds}
                 GROUP BY Brand
@@ -5543,33 +5516,33 @@ const getCompetitionData = async (filters = {}) => {
             // Query 3: OSA data for current period
             queryClickHouse(`
                 SELECT Brand,
-                    SUM(ifNull(toFloat64(neno_osa), 0)) as neno_osa,
-                    SUM(ifNull(toFloat64(deno_osa), 0)) as deno_osa
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno_osa,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa
                 FROM rb_pdp_olap
                 WHERE ${currConds}
                 GROUP BY Brand
             `),
             // Query 4: Total platform sales from rb_brand_ms (Market Share denominator)
             queryClickHouse(`
-                SELECT SUM(toFloat64OrZero(sales)) as total_sales
+                SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales
                 FROM rb_brand_ms
                 WHERE ${buildMsConds(false)}
             `),
             // Query 5: Our brands sales from rb_brand_ms (Market Share numerator - comp_flag=0 brands)
             queryClickHouse(`
-                SELECT SUM(toFloat64OrZero(sales)) as our_sales
+                SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales
                 FROM rb_brand_ms
                 WHERE ${buildMsConds(true)}
             `),
             // Query 6: Total category sales from rb_brand_ms (Category Share denominator)
             queryClickHouse(`
-                SELECT SUM(toFloat64OrZero(sales)) as total_cat_sales
+                SELECT SUM(toFloat64OrZero(toString(sales))) as total_cat_sales
                 FROM rb_brand_ms
                 WHERE ${buildCategoryConds(false)}
             `),
             // Query 7: Our brands category sales from rb_brand_ms (Category Share numerator)
             queryClickHouse(`
-                SELECT SUM(toFloat64OrZero(sales)) as our_cat_sales
+                SELECT SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_brand_ms
                 WHERE ${buildCategoryConds(true)}
             `)
@@ -5596,7 +5569,7 @@ const getCompetitionData = async (filters = {}) => {
 
         // Query per-brand sales from rb_brand_ms for Market Share calculation
         const brandSalesQuery = await queryClickHouse(`
-            SELECT brand, SUM(toFloat64OrZero(sales)) as brand_sales
+            SELECT brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales
             FROM rb_brand_ms
             WHERE ${buildMsConds(false)}
             GROUP BY brand
@@ -5613,14 +5586,14 @@ const getCompetitionData = async (filters = {}) => {
         const [categorySalesQuery, categoryOurBrandsSalesQuery] = await Promise.all([
             // Total sales per category
             queryClickHouse(`
-                SELECT category_master as category, SUM(toFloat64OrZero(sales)) as total_cat_sales
+                SELECT category_master as category, SUM(toFloat64OrZero(toString(sales))) as total_cat_sales
                 FROM rb_brand_ms
                 WHERE ${baseMsConds.join(' AND ')} AND category_master IS NOT NULL AND category_master != ''
                 GROUP BY category_master
             `),
             // Our brands' (comp_flag=0) sales per category
             validBrandNames.length > 0 ? queryClickHouse(`
-                SELECT category_master as category, SUM(toFloat64OrZero(sales)) as our_cat_sales
+                SELECT category_master as category, SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_brand_ms
                 WHERE ${baseMsConds.join(' AND ')} AND category_master IS NOT NULL AND category_master != ''
                     AND brand IN (${validBrandNames.map(b => `'${escapeStr(b)}'`).join(', ')})
@@ -5704,9 +5677,9 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT Product, Brand,
                     any(Category) as sku_category,
-                    SUM(ifNull(toFloat64(Sales), 0)) as total_sales,
-                    SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions,
-                    AVG(ifNull(toFloat64(MRP), 0)) as avg_price,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                    AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_price,
                     SUM(toFloat64OrNull(toString(neno_osa))) as neno_osa,
                     SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa
                 FROM rb_pdp_olap
@@ -5910,7 +5883,6 @@ const getLatestAvailableMonth = async (filters = {}) => {
 
         if (brand && brand !== 'All') {
             conditions.push(`Brand LIKE '%${escapeStr(brand)}%'`);
-            conditions.push(`toString(Comp_flag) = '0'`);
         }
 
         if (location && location !== 'All') {
@@ -6039,7 +6011,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             queryClickHouse(`
                 SELECT 
                     toDate(DATE) as date_key,
-                    SUM(ifNull(toFloat64(Ad_Impressions), 0)) as total_impressions
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
                 FROM rb_pdp_olap
                 WHERE ${baseConds.join(' AND ')}
                 GROUP BY date_key
@@ -6049,7 +6021,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             queryClickHouse(`
                 SELECT 
                     toDate(created_on) as date_key,
-                    SUM(toFloat64OrZero(sales)) as total_sales
+                    SUM(toFloat64OrZero(toString(sales))) as total_sales
                 FROM rb_brand_ms
                 WHERE ${msBaseConds.join(' AND ')}
                 GROUP BY date_key
@@ -6059,7 +6031,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             queryClickHouse(`
                 SELECT 
                     toDate(created_on) as date_key,
-                    SUM(toFloat64OrZero(sales)) as our_sales
+                    SUM(toFloat64OrZero(toString(sales))) as our_sales
                 FROM rb_brand_ms
                 WHERE ${msBaseConds.join(' AND ')} AND ${validBrandsFilter}
                 GROUP BY date_key
@@ -6069,7 +6041,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             queryClickHouse(`
                 SELECT 
                     toDate(created_on) as date_key,
-                    SUM(toFloat64OrZero(sales)) as total_cat_sales
+                    SUM(toFloat64OrZero(toString(sales))) as total_cat_sales
                 FROM rb_brand_ms
                 WHERE ${catBaseConds.join(' AND ')}
                 GROUP BY date_key
@@ -6079,7 +6051,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             queryClickHouse(`
                 SELECT 
                     toDate(created_on) as date_key,
-                    SUM(toFloat64OrZero(sales)) as our_cat_sales
+                    SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_brand_ms
                 WHERE ${catBaseConds.join(' AND ')} AND ${validBrandsFilter}
                 GROUP BY date_key
@@ -6132,13 +6104,13 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 queryClickHouse(`
                     SELECT 
                         toDate(DATE) as date_key,
-                        SUM(ifNull(toFloat64(Sales), 0)) as Offtakes,
-                        SUM(ifNull(toFloat64(Ad_Spend), 0)) as Spend,
-                        SUM(ifNull(toFloat64(Ad_sales), 0)) as Ad_sales,
-                        SUM(ifNull(toFloat64(neno_osa), 0)) as neno_osa,
-                        SUM(ifNull(toFloat64(deno_osa), 0)) as deno_osa,
-                        SUM(ifNull(toFloat64(Ad_Impressions), 0)) as Impressions,
-                        AVG(ifNull(toFloat64(MRP), 0)) as avg_price
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as Offtakes,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as Spend,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as Ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno_osa,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as Impressions,
+                        AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_price
                     FROM rb_pdp_olap
                     WHERE ${conds.join(' AND ')}
                     GROUP BY date_key
@@ -6148,7 +6120,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 queryClickHouse(`
                     SELECT 
                         toDate(created_on) as date_key,
-                        SUM(toFloat64OrZero(sales)) as brand_sales
+                        SUM(toFloat64OrZero(toString(sales))) as brand_sales
                     FROM rb_brand_ms
                     WHERE ${brandMsConds.join(' AND ')}
                     GROUP BY date_key
@@ -6377,12 +6349,12 @@ const getTopActions = async (filters = {}) => {
 
         // OSA %
         const osaCurrentQuery = `
-            SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
+            SELECT SUM(toFloat64OrZero(toString(neno_osa))) as neno, SUM(toFloat64OrZero(toString(deno_osa))) as deno 
             FROM rb_pdp_olap 
             WHERE ${platCondOlap} AND toDate(DATE) = '${endDateStr}'
         `;
         const osaPrevQuery = `
-            SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
+            SELECT SUM(toFloat64OrZero(toString(neno_osa))) as neno, SUM(toFloat64OrZero(toString(deno_osa))) as deno 
             FROM rb_pdp_olap 
             WHERE ${platCondOlap} AND toDate(DATE) = '${dayjs(endDateStr).subtract(7, 'day').format('YYYY-MM-DD')}'
         `;
@@ -6390,14 +6362,14 @@ const getTopActions = async (filters = {}) => {
         // Sales MTD
         const mtdStart = dayjs(endDateStr).startOf('month').format('YYYY-MM-DD');
         const salesMtdQuery = `
-            SELECT SUM(toFloat64OrZero(Sales)) as sales 
+            SELECT SUM(toFloat64OrZero(toString(Sales))) as sales 
             FROM rb_pdp_olap 
             WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
         `;
         const lastMtdStart = dayjs(endDateStr).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
         const lastMtdEnd = dayjs(endDateStr).subtract(1, 'month').format('YYYY-MM-DD');
         const lastSalesMtdQuery = `
-            SELECT SUM(toFloat64OrZero(Sales)) as sales 
+            SELECT SUM(toFloat64OrZero(toString(Sales))) as sales 
             FROM rb_pdp_olap 
             WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${lastMtdStart}' AND '${lastMtdEnd}'
         `;
@@ -6425,7 +6397,7 @@ const getTopActions = async (filters = {}) => {
             if (topPids.length === 0) return [];
             const pidList = topPids.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',');
             return queryClickHouse(`
-                SELECT toDate(DATE) as day, SUM(toFloat64OrZero(neno_osa)) as n, SUM(toFloat64(deno_osa)) as d
+                SELECT toDate(DATE) as day, SUM(toFloat64OrZero(toString(neno_osa))) as n, SUM(toFloat64OrZero(toString(deno_osa))) as d
                 FROM rb_pdp_olap
                 WHERE ${platCondOlap}
                   AND toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
@@ -6542,9 +6514,9 @@ const getOsaDeepDive = async (filters = {}) => {
         const cityStatsQuery = `
             SELECT 
                 Location as city,
-                SUM(toFloat64OrZero(neno_osa)) as neno, 
-                SUM(toFloat64(deno_osa)) as deno,
-                SUM(CASE WHEN toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}' THEN toFloat64OrZero(Sales) ELSE 0 END) as sales_mtd,
+                SUM(toFloat64OrZero(toString(neno_osa))) as neno, 
+                SUM(toFloat64OrZero(toString(deno_osa))) as deno,
+                SUM(CASE WHEN toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}' THEN toFloat64OrZero(toString(Sales)) ELSE 0 END) as sales_mtd,
                 count(DISTINCT CASE WHEN toDate(DATE) = '${endDateStr}' ${heroSkuFilter} THEN Web_Pid END) as hero_skus
             FROM rb_pdp_olap
             WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'

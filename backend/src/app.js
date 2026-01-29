@@ -12,7 +12,7 @@ import cacheRoutes from "./routes/cache.js";
 import "./models/associations.js";
 
 // Set ENABLE_DEBUG_LOGS=true in .env to enable logs (default is suppressed in production)
-if (process.env.ENABLE_DEBUG_LOGS !== 'true') {
+if (process.env.ENABLE_DEBUG_LOGS == 'true') {
     // Store original console methods
     const originalLog = console.log;
     const originalWarn = console.warn;
