@@ -343,29 +343,33 @@ export default function DateRangeComparePicker({
             <Box
                 onClick={handleOpen}
                 sx={{
-                    height: { xs: "34px", sm: "38px" },
+                    height: { xs: "30px", sm: "34px" },
                     bgcolor: "white",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     border: "1px solid",
-                    borderColor: open ? "#3B82F6" : "#E2E8F0",
+                    borderColor: open ? "#6366f1" : "#e2e8f0",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    px: 1.5,
-                    gap: 1,
+                    px: { xs: 1, sm: 1.25 },
+                    gap: 0.5,
                     cursor: "pointer",
-                    transition: "all 0.2s",
-                    "&:hover": { borderColor: "#3B82F6" },
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: open ? "0 0 0 3px rgba(99, 102, 241, 0.1)" : "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+                    "&:hover": {
+                        borderColor: "#6366f1",
+                        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.08)"
+                    },
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden", gap: 0.5 }}>
                     <Box
                         sx={{
-                            bgcolor: "#f1f5f9",
-                            px: 1,
-                            py: 0.2,
+                            bgcolor: "#f8fafc",
+                            px: { xs: 0.75, sm: 1 },
+                            py: { xs: 0.125, sm: 0.2 },
                             borderRadius: "4px",
-                            border: "1px solid #e2e8f0",
+                            border: "1px solid #e5e7eb",
                             display: 'flex',
                             flexDirection: 'column',
                             justifyContent: 'center',
@@ -375,10 +379,10 @@ export default function DateRangeComparePicker({
                     >
                         <Typography
                             sx={{
-                                fontSize: '0.8rem',
+                                fontSize: { xs: '0.7rem', sm: '0.75rem' },
                                 fontWeight: 700,
-                                color: '#0f172a',
-                                lineHeight: 1.2,
+                                color: '#1e293b',
+                                lineHeight: 1.15,
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis"
@@ -389,9 +393,9 @@ export default function DateRangeComparePicker({
                         {compareOn && (
                             <Typography
                                 sx={{
-                                    fontSize: '0.65rem',
+                                    fontSize: { xs: '0.55rem', sm: '0.6rem' },
                                     color: '#64748b',
-                                    lineHeight: 1.1,
+                                    lineHeight: 1.05,
                                     fontWeight: 500,
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
@@ -403,7 +407,7 @@ export default function DateRangeComparePicker({
                         )}
                     </Box>
                 </Box>
-                {open ? <ChevronUp size={16} color="#475569" /> : <ChevronDown size={16} color="#475569" />}
+                {open ? <ChevronUp size={14} color="#6366f1" /> : <ChevronDown size={14} color="#64748b" />}
             </Box>
 
             <Popover

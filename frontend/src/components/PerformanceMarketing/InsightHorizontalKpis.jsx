@@ -126,18 +126,16 @@ export default function InsightHorizontalKpis({
         {selectedInsight}
       </Typography>
 
-      {/* Mobile: Horizontal scroll | Desktop: Grid */}
+      {/* Mobile: Stack | Tablet: 2 cols | Desktop: 5 cols */}
       <Box
         sx={{
-          // Mobile: horizontal scroll
-          display: { xs: "flex", sm: "flex", md: "grid" },
+          display: "grid",
           gap: 2,
-          overflowX: { xs: "auto", sm: "auto", md: "visible" },
-          pb: { xs: 1, sm: 1, md: 0 },
-          scrollSnapType: { xs: "x mandatory", sm: "x mandatory", md: "none" },
-          WebkitOverflowScrolling: "touch",
-          // Desktop: grid layout
-          gridTemplateColumns: { md: "repeat(5, 1fr)" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            lg: "repeat(5, 1fr)",
+          },
         }}
       >
         {loading ? (
@@ -146,13 +144,11 @@ export default function InsightHorizontalKpis({
             <Card
               key={`skeleton-${idx}`}
               sx={{
-                p: 2,
-                height: 140,
-                minWidth: { xs: 240, sm: 240, md: "auto" },
-                flexShrink: 0,
-                scrollSnapAlign: { xs: "start", sm: "start", md: "none" },
+                p: { xs: 2, sm: 2.5 },
+                minHeight: 140,
                 borderRadius: 3,
-                border: "1px solid #e2e8f0",
+                border: "1px solid #f1f5f9",
+                bgcolor: "#fcfdfe",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
@@ -185,42 +181,82 @@ export default function InsightHorizontalKpis({
                 key={item.key}
                 onClick={() => setSelectedInsight(item.label)}
                 sx={{
-                  p: 2,
-                  height: 140,
-                  minWidth: { xs: 240, sm: 240, md: "auto" },
-                  flexShrink: 0,
-                  scrollSnapAlign: { xs: "start", sm: "start", md: "none" },
+                  p: { xs: 2, sm: 2.5 },
+                  minHeight: 140,
                   borderRadius: 3,
-                  border: active ? "1px solid #6366F2" : "1px solid #e2e8f0",
+                  border: "1.5px solid",
+                  borderColor: active ? "indigo.500" : "#f1f5f9",
+                  bgcolor: active ? "indigo.50/30" : "white",
                   cursor: "pointer",
                   display: "flex",
                   flexDirection: "column",
                   justifyContent: "space-between",
-                  transform: active && "scale(1.03)",
-                  boxShadow: active && "0 10px 35px rgba(0,0,0,0.12)",
-                  transition: "0.25s",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  position: "relative",
+                  overflow: "hidden",
                   "&:hover": {
-                    transform: active ? "scale(1.03)" : "translateY(-6px)",
-                    boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
+                    transform: "translateY(-4px)",
+                    boxShadow: "0 12px 24px -8px rgba(79, 70, 229, 0.15)",
+                    borderColor: active ? "indigo.500" : "indigo.200",
                   },
+                  ...(active && {
+                    boxShadow: "0 8px 20px -6px rgba(79, 70, 229, 0.2)",
+                    "&::after": {
+                      content: '""',
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "4px",
+                      height: "100%",
+                      bgcolor: "indigo.500",
+                    }
+                  })
                 }}
               >
-                <Box display="flex" justifyContent="space-between">
-                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                  <Typography
+                    sx={{
+                      fontSize: { xs: 12, sm: 13 },
+                      fontWeight: 700,
+                      color: active ? "indigo.900" : "slate.700",
+                      lineHeight: 1.2
+                    }}
+                  >
                     {item.label}
                   </Typography>
-                  <Icon size={22} color={item.color} />
+                  <Box
+                    sx={{
+                      p: 0.75,
+                      borderRadius: 1.5,
+                      bgcolor: active ? "indigo.100/50" : "slate.50",
+                      display: "flex",
+                    }}
+                  >
+                    <Icon size={18} color={active ? "#4F46E5" : item.color} />
+                  </Box>
                 </Box>
 
                 <Typography
-                  variant="h5"
-                  fontWeight={700}
-                  sx={{ color: "#111" }}
+                  variant="h4"
+                  fontWeight={800}
+                  sx={{
+                    color: active ? "indigo.600" : "slate.900",
+                    fontSize: { xs: "1.5rem", sm: "1.75rem" },
+                    my: 1
+                  }}
                 >
                   {item.value}
                 </Typography>
 
-                <Typography sx={{ fontSize: 12, color: "#94a3b8" }}>
+                <Typography
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: active ? "indigo.500" : "slate.500",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.025em"
+                  }}
+                >
                   {item.description}
                 </Typography>
               </Card>

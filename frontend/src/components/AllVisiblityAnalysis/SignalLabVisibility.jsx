@@ -973,7 +973,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const mainValue = config.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[config.key] || sku.offtakeValue);
 
     return (
-        <div className="flex-shrink-0 flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 min-w-[280px] max-w-[280px] snap-center">
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-3 w-full transition-all duration-300 hover:translate-y-[-4px] hover:shadow-xl hover:border-indigo-100">
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -1210,9 +1210,12 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
     return (
         <>
-            <div className="flex justify-between items-center flex-wrap gap-4">
-                <h2 className="text-lg font-semibold capitalize">
-                    Signal Lab — {selectedBrand || 'All Brands'} ({metricType === "performance" ? "Performance Marketing" : metricType})
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">
+                    Signal Lab — <span className="text-indigo-600">{selectedBrand || 'All Brands'}</span>
+                    <span className="text-slate-400 font-normal ml-2 text-sm">
+                        ({metricType === "performance" ? "Performance Marketing" : metricType})
+                    </span>
                 </h2>
 
                 <div className="relative">
@@ -1267,10 +1270,10 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 </div>
             )}
 
-            {/* Data Grid (Shown if data exists, regardless of loading state) */}
+            {/* Data Grid - Responsive Grid layout for perfect alignment on PC screens */}
             {skusData.length > 0 && (
-                <div className={`mt-5 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
-                    <div className="flex overflow-x-auto no-scrollbar gap-5 pb-4 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap md:justify-start snap-x">
+                <div className={`mt-6 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {pageRows.map((s) => (
                             <SignalCard
                                 key={s.id}
@@ -1284,39 +1287,36 @@ function SignalLabBase({ metricType, usePagination = true }) {
             )}
 
             {usePagination && (
-                <div className="mt-6 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
-                    <div className="flex items-center gap-2">
+                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+                    <div className="flex items-center gap-3">
                         <button
                             disabled={safePage === 1}
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                            className="rounded-xl border border-slate-200 px-4 py-2 disabled:opacity-30 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
                         >
                             Prev
                         </button>
-
-                        <span className="text-slate-600">
+                        <span className="text-slate-500 text-xs font-medium">
                             Page <b className="text-slate-900">{safePage}</b> / {totalPages}
                         </span>
-
                         <button
                             disabled={safePage >= totalPages}
                             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                            className="rounded-xl border border-slate-200 px-4 py-2 disabled:opacity-30 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
                         >
                             Next
                         </button>
                     </div>
-
                     <div className="flex items-center gap-3">
-                        <div className="text-slate-600">
-                            Rows/page
+                        <div className="text-slate-500 text-xs font-medium flex items-center gap-2">
+                            Rows per page
                             <select
                                 value={rowsPerPage}
                                 onChange={(e) => {
                                     setPage(1);
                                     setRowsPerPage(Number(e.target.value));
                                 }}
-                                className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
+                                className="rounded-xl border border-slate-200 px-3 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all shadow-sm cursor-pointer"
                             >
                                 <option value={4}>4</option>
                                 <option value={8}>8</option>
