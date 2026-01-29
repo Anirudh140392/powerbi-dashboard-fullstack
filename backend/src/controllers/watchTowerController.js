@@ -385,6 +385,7 @@ export const getTopActions = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
             endDate: req.query.endDate
         };
 
@@ -404,6 +405,7 @@ export const getOsaDeepDive = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
             endDate: req.query.endDate
         };
 
