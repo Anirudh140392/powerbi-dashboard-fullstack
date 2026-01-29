@@ -77,12 +77,14 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
         borderColor: (theme) => "#e5e7eb",
-        px: { xs: 2, sm: 3 },
-        py: { xs: 1, sm: 2 },
+        px: { xs: 1.5, sm: 3 },
+        py: { xs: 0.75, sm: 1.5 },
         position: "sticky",
         top: 0,
         zIndex: 1200,
         transition: "all 0.3s ease",
+        // Premium subtle shadow
+        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
       }}
     >
       {/* ---------------- FIRST ROW ---------------- */}
@@ -92,7 +94,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
           flexDirection: { xs: "column", sm: "row" },
           justifyContent: "space-between",
           alignItems: { xs: "flex-start", sm: "center" },
-          gap: { xs: 0.5, sm: 1 },
+          gap: { xs: 0.25, sm: 1 },
           pb: 0,
         }}
       >
@@ -166,12 +168,13 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: { xs: 0.8, sm: 1.5 },
+                gap: { xs: 0.5, sm: 1.5 },
                 flexWrap: { xs: "wrap", sm: "nowrap" },
                 overflowX: { xs: "visible", sm: "auto" },
                 width: { xs: "100%", sm: "auto" },
                 justifyContent: { xs: "flex-start", sm: "flex-end" },
-                paddingBottom: { xs: 0.5, sm: 1 },
+                paddingBottom: { xs: 0.25, sm: 0.75 },
+                paddingTop: { xs: 0.5, sm: 0 },
                 "&::-webkit-scrollbar": { display: "none" },
                 msOverflowStyle: "none",
                 scrollbarWidth: "none",
@@ -190,7 +193,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     setPlatform(newValue);
                   }
                 }}
-                width={{ xs: "calc(50% - 4px)", sm: 150 }}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
 
               <CustomHeaderDropdown
@@ -204,7 +207,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     setSelectedBrand(newValue);
                   }
                 }}
-                width={{ xs: "calc(50% - 4px)", sm: 150 }}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
 
               <CustomHeaderDropdown
@@ -218,13 +221,13 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     setSelectedLocation(newValue);
                   }
                 }}
-                width={{ xs: "calc(50% - 4px)", sm: 150 }}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
 
 
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: { xs: "calc(50% - 4px)", sm: 220 }, flexShrink: 0 }}>
+              <Box sx={{ width: { xs: "calc(50% - 3px)", sm: 200 }, flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
