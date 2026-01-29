@@ -5979,7 +5979,15 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         }
 
         const endDate = await getCachedMaxDate();
-        const startDate = period === '1W' ? endDate.subtract(7, 'days') : endDate.subtract(30, 'days');
+        let startDate;
+        switch (period) {
+            case '1W': startDate = endDate.subtract(7, 'days'); break;
+            case '1M': startDate = endDate.subtract(1, 'month'); break;
+            case '3M': startDate = endDate.subtract(3, 'month'); break;
+            case '6M': startDate = endDate.subtract(6, 'month'); break;
+            case '1Y': startDate = endDate.subtract(1, 'year'); break;
+            default: startDate = endDate.subtract(1, 'month'); // Default 1M
+        }
 
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';

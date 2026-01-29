@@ -1974,12 +1974,22 @@ export default function TrendsCompetitionDrawer({
                 selectedItem={selectedColumn}
                 selectedLevel={selectedLevel}
                 selectedPlatform={drawerFilters.Platform}
+                period={range}
               />
             ) : (
               dynamicKey === "availability" ? (
-                <AvailabilityCompetitionKpiShowcase platform={drawerFilters.Platform} globalFilters={filters} />
+                <AvailabilityCompetitionKpiShowcase
+                  platform={drawerFilters.Platform}
+                  globalFilters={filters}
+                  period={range}
+                />
               ) : (
-                <KpiTrendShowcase dynamicKey={dynamicKey} platform={drawerFilters.Platform} globalFilters={filters} />
+                <KpiTrendShowcase
+                  dynamicKey={dynamicKey}
+                  platform={drawerFilters.Platform}
+                  globalFilters={filters}
+                  period={range}
+                />
               )
             )}
           </>
