@@ -1,5 +1,5 @@
 {
-  "platform": "Instamart",
+  "platform": "Zepto",
   "brand": "All",
   "location": "All",
   "startDate": "2026-01-01",
