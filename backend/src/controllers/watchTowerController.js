@@ -184,7 +184,7 @@ export const getPlatformOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getPlatformOverview] API call received with filters:', filters);
-        const cacheKey = generateCacheKey('platform-overview', filters);
+        const cacheKey = generateCacheKey('platform_overview_v4', filters);
         const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getPlatformOverview(filters), CACHE_TTL.METRICS);
         res.json(data);
     } catch (error) {
