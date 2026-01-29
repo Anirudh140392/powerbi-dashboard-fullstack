@@ -60,13 +60,13 @@ export function KpiFilterPanel({
   }, [sectionConfig, activeSection]);
 
   return (
-    <div className="flex h-full gap-6 text-slate-900">
+    <div className="flex h-full flex-col md:flex-row gap-4 md:gap-6 text-slate-900">
       {/* Left navigation rail */}
-      <div className="flex w-64 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <div className="flex w-full md:w-64 flex-col rounded-xl border border-slate-200 bg-white shadow-sm shrink-0">
+        <div className="hidden md:block px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-500 border-b md:border-b-0 border-slate-100">
           Filters
         </div>
-        <nav className="flex-1 space-y-1 px-2 pb-2 overflow-y-auto">
+        <nav className="flex md:flex-col overflow-x-auto md:overflow-y-auto px-2 pb-2 pt-2 md:pt-0 gap-2 md:gap-1 no-scrollbar">
           {sectionConfig.map((section) => {
             const isActive = section.id === activeSection;
             return (
@@ -75,7 +75,8 @@ export function KpiFilterPanel({
                 type="button"
                 onClick={() => setActiveSection(section.id)}
                 className={[
-                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition",
+                  "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition whitespace-nowrap shrink-0",
+                  "w-auto md:w-full",
                   isActive
                     ? "bg-sky-50 text-sky-700 border border-sky-200"
                     : "text-slate-700 hover:bg-slate-100",
@@ -83,7 +84,7 @@ export function KpiFilterPanel({
               >
                 <span>{section.label}</span>
                 {Array.isArray(sectionValues[section.id]) && sectionValues[section.id].length > 0 && (
-                  <span className="rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
+                  <span className="ml-2 rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
                     {sectionValues[section.id].length}
                   </span>
                 )}
@@ -94,7 +95,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm min-h-[400px]">
+      <div className="flex-1 overflow-y-auto md:overflow-hidden rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -342,13 +343,13 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
   const pageBadge = `${selected.size} selected`;
 
   return (
-    <div className="flex h-full flex-col p-5">
-      <header className="mb-2 flex items-center justify-between gap-3">
+    <div className="flex h-full flex-col">
+      <header className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500">{description}</p>
         </div>
-        <div className="rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-600">
+        <div className="rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-600 self-start sm:self-auto">
           {pageBadge}
         </div>
       </header>
@@ -415,7 +416,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
       )}
 
       {/* Search & Actions - Simplify for small lists */}
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-col sm:flex-row sm:items-center gap-2">
         {options.length >= 15 && (
           <input
             value={search}
@@ -424,23 +425,25 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
               setPage(1);
             }}
             placeholder="Search..."
-            className="h-8 flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="h-8 w-full sm:flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         )}
-        <button
-          type="button"
-          onClick={selectAllFiltered}
-          className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-100 ml-auto"
-        >
-          Select all
-        </button>
-        <button
-          type="button"
-          onClick={clearAll}
-          className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-50"
-        >
-          Clear
-        </button>
+        <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={selectAllFiltered}
+            className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-100 whitespace-nowrap"
+          >
+            Select all
+          </button>
+          <button
+            type="button"
+            onClick={clearAll}
+            className="h-8 rounded-lg border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-50 whitespace-nowrap"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       {options.length >= 15 && (
@@ -460,50 +463,48 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex flex-col rounded-lg border border-slate-200 bg-white overflow-hidden">
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
-          {pageItems.map((opt) => (
-            <label
-              key={opt.id}
-              className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2.5 text-sm hover:bg-sky-50/50"
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-sky-600 rounded"
-                  checked={selected.has(opt.id)}
-                  onChange={() => toggleOne(opt.id)}
-                />
-                <span className="font-medium text-slate-800">{opt.label}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {typeof opt.value === "number" && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-                    {opt.value.toLocaleString()}
-                  </span>
-                )}
-                {opt.meta ? (
-                  <span className="text-[11px] text-slate-400">{opt.meta}</span>
-                ) : null}
-              </div>
-            </label>
-          ))}
-
-          {pageItems.length === 0 && (
-            <div className="p-4 text-center text-xs text-slate-400">
-              No options match this search.
+      <div className="rounded-lg border border-slate-200 bg-white overflow-y-auto flex-1" style={{ maxHeight: '250px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
+        {pageItems.map((opt) => (
+          <label
+            key={opt.id}
+            className="flex cursor-pointer items-center justify-between border-b border-slate-100 px-3 py-2.5 text-sm hover:bg-sky-50/50"
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-sky-600 rounded"
+                checked={selected.has(opt.id)}
+                onChange={() => toggleOne(opt.id)}
+              />
+              <span className="font-medium text-slate-800">{opt.label}</span>
             </div>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              {typeof opt.value === "number" && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                  {opt.value.toLocaleString()}
+                </span>
+              )}
+              {opt.meta ? (
+                <span className="text-[11px] text-slate-400">{opt.meta}</span>
+              ) : null}
+            </div>
+          </label>
+        ))}
+
+        {pageItems.length === 0 && (
+          <div className="p-4 text-center text-xs text-slate-400">
+            No options match this search.
+          </div>
+        )}
       </div>
 
       {/* Pagination footer - always visible */}
       {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
-          <span className="text-xs text-slate-600">
+        <div className="mt-3 flex flex-col sm:flex-row items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 gap-2 sm:gap-0">
+          <span className="text-xs text-slate-600 order-2 sm:order-1">
             {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} items
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 order-1 sm:order-2 w-full sm:w-auto justify-between sm:justify-end">
             <button
               type="button"
               disabled={page <= 1}
@@ -633,16 +634,16 @@ function RuleGroupEditor({ group, fields, isRoot, onChange }) {
 
   return (
     <div className="mb-3 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {!isRoot && (
             <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">
               Group
             </span>
           )}
-          <span className="text-slate-500">Match</span>
+          <span className="text-slate-500 text-xs sm:text-sm">Match</span>
           <select
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs w-full sm:w-auto"
             value={group.logicalOp}
             onChange={(e) =>
               updateGroup({ logicalOp: e.target.value === "OR" ? "OR" : "AND" })
@@ -699,18 +700,18 @@ function RuleGroupEditor({ group, fields, isRoot, onChange }) {
         })}
       </div>
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={addCondition}
-          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none"
         >
           + Add condition
         </button>
         <button
           type="button"
           onClick={addSubgroup}
-          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+          className="rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none"
         >
           + Add subgroup
         </button>
@@ -738,11 +739,11 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
   const handleChange = (partial) => onChange({ ...condition, ...partial });
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-      <span className="text-slate-500">Where</span>
+    <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+      <span className="text-slate-500 text-xs">Where</span>
 
       <select
-        className="min-w-[140px] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+        className="w-full sm:min-w-[140px] sm:w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
         value={condition.fieldId}
         onChange={(e) => handleChange({ fieldId: e.target.value })}
       >
@@ -754,7 +755,7 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
       </select>
 
       <select
-        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+        className="w-full sm:w-auto rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
         value={condition.operator}
         onChange={(e) => handleChange({ operator: e.target.value })}
       >
@@ -769,15 +770,15 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
         <>
           <input
             type="number"
-            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="w-full sm:w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
             value={condition.value}
             onChange={(e) => handleChange({ value: e.target.value })}
             placeholder="Min"
           />
-          <span className="text-slate-500">and</span>
+          <span className="text-slate-500 text-xs">and</span>
           <input
             type="number"
-            className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+            className="w-full sm:w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
             value={condition.valueTo ?? ""}
             onChange={(e) => handleChange({ valueTo: e.target.value })}
             placeholder="Max"
@@ -786,7 +787,7 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
       ) : (
         <input
           type={field?.type === "number" && condition.operator !== "regex" ? "number" : "text"}
-          className="w-40 rounded-md border border-slate-300 px-2 py-1 text-xs"
+          className="w-full sm:w-40 rounded-md border border-slate-300 px-2 py-1 text-xs"
           value={condition.value}
           onChange={(e) => handleChange({ value: e.target.value })}
           placeholder={
@@ -802,7 +803,7 @@ function RuleConditionRow({ condition, fields, onChange, onRemove }) {
       <button
         type="button"
         onClick={onRemove}
-        className="ml-auto text-[11px] text-slate-400 hover:text-red-500"
+        className="w-full sm:w-auto sm:ml-auto text-[11px] text-slate-400 hover:text-red-500 mt-1 sm:mt-0"
       >
         Remove
       </button>

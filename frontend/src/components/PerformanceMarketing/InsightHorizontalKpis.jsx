@@ -126,38 +126,49 @@ export default function InsightHorizontalKpis({
         {selectedInsight}
       </Typography>
 
-      <Grid container spacing={2}>
+      {/* Mobile: Stack | Tablet: 2 cols | Desktop: 5 cols */}
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            lg: "repeat(5, 1fr)",
+          },
+        }}
+      >
         {loading ? (
           // Skeleton cards when loading
           Array.from({ length: 5 }).map((_, idx) => (
-            <Grid item xs={12} sm={6} md={2.4} key={`skeleton-${idx}`}>
-              <Card
-                sx={{
-                  p: 2,
-                  height: 140,
-                  borderRadius: 3,
-                  border: "1px solid #e2e8f0",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                }}
-              >
-                {/* Top row - title and icon */}
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Skeleton variant="text" width="70%" height={20} />
-                  <Skeleton variant="circular" width={22} height={22} />
-                </Box>
+            <Card
+              key={`skeleton-${idx}`}
+              sx={{
+                p: { xs: 2, sm: 2.5 },
+                minHeight: 140,
+                borderRadius: 3,
+                border: "1px solid #f1f5f9",
+                bgcolor: "#fcfdfe",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+              }}
+            >
+              {/* Top row - title and icon */}
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Skeleton variant="text" width="70%" height={20} />
+                <Skeleton variant="circular" width={22} height={22} />
+              </Box>
 
-                {/* Middle rows - lines */}
-                <Box>
-                  <Skeleton variant="text" width="50%" height={18} />
-                  <Skeleton variant="text" width="30%" height={18} />
-                </Box>
+              {/* Middle rows - lines */}
+              <Box>
+                <Skeleton variant="text" width="50%" height={18} />
+                <Skeleton variant="text" width="30%" height={18} />
+              </Box>
 
-                {/* Bottom area - large block */}
-                <Skeleton variant="rounded" width="100%" height={40} sx={{ borderRadius: 2 }} />
-              </Card>
-            </Grid>
+              {/* Bottom area - large block */}
+              <Skeleton variant="rounded" width="100%" height={40} sx={{ borderRadius: 2 }} />
+            </Card>
           ))
         ) : (
           // Actual cards when data is loaded
@@ -166,50 +177,93 @@ export default function InsightHorizontalKpis({
             const active = selectedInsight === item.label;
 
             return (
-              <Grid item xs={12} sm={6} md={2.4} key={item.key}>
-                <Card
-                  onClick={() => setSelectedInsight(item.label)}
+              <Card
+                key={item.key}
+                onClick={() => setSelectedInsight(item.label)}
+                sx={{
+                  p: { xs: 2, sm: 2.5 },
+                  minHeight: 140,
+                  borderRadius: 3,
+                  border: "1.5px solid",
+                  borderColor: active ? "indigo.500" : "#f1f5f9",
+                  bgcolor: active ? "indigo.50/30" : "white",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  position: "relative",
+                  overflow: "hidden",
+                  "&:hover": {
+                    transform: "translateY(-4px)",
+                    boxShadow: "0 12px 24px -8px rgba(79, 70, 229, 0.15)",
+                    borderColor: active ? "indigo.500" : "indigo.200",
+                  },
+                  ...(active && {
+                    boxShadow: "0 8px 20px -6px rgba(79, 70, 229, 0.2)",
+                    "&::after": {
+                      content: '""',
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "4px",
+                      height: "100%",
+                      bgcolor: "indigo.500",
+                    }
+                  })
+                }}
+              >
+                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                  <Typography
+                    sx={{
+                      fontSize: { xs: 12, sm: 13 },
+                      fontWeight: 700,
+                      color: active ? "indigo.900" : "slate.700",
+                      lineHeight: 1.2
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+                  <Box
+                    sx={{
+                      p: 0.75,
+                      borderRadius: 1.5,
+                      bgcolor: active ? "indigo.100/50" : "slate.50",
+                      display: "flex",
+                    }}
+                  >
+                    <Icon size={18} color={active ? "#4F46E5" : item.color} />
+                  </Box>
+                </Box>
+
+                <Typography
+                  variant="h4"
+                  fontWeight={800}
                   sx={{
-                    p: 2,
-                    height: 140,
-                    borderRadius: 3,
-                    border: active ? "1px solid #6366F2" : "1px solid #e2e8f0",
-                    cursor: "pointer",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    transform: active && "scale(1.03)",
-                    boxShadow: active && "0 10px 35px rgba(0,0,0,0.12)",
-                    transition: "0.25s",
-                    "&:hover": {
-                      transform: active ? "scale(1.03)" : "translateY(-6px)",
-                      boxShadow: "0 10px 35px rgba(0,0,0,0.12)",
-                    },
+                    color: active ? "indigo.600" : "slate.900",
+                    fontSize: { xs: "1.5rem", sm: "1.75rem" },
+                    my: 1
                   }}
                 >
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-                      {item.label}
-                    </Typography>
-                    <Icon size={22} color={item.color} />
-                  </Box>
+                  {item.value}
+                </Typography>
 
-                  <Typography
-                    variant="h5"
-                    fontWeight={700}
-                    sx={{ color: "#111" }}
-                  >
-                    {item.value}
-                  </Typography>
-
-                  <Typography sx={{ fontSize: 12, color: "#94a3b8" }}>
-                    {item.description}
-                  </Typography>
-                </Card>
-              </Grid>
+                <Typography
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: active ? "indigo.500" : "slate.500",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.025em"
+                  }}
+                >
+                  {item.description}
+                </Typography>
+              </Card>
             );
           })
         )}
-      </Grid>
+      </Box>
     </Card>
   );
 }

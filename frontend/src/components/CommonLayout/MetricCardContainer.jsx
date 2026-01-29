@@ -93,9 +93,12 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
           sx={{
             display: "flex",
             gap: 2,
-            overflowX: scrollNeeded ? "auto" : "visible",
+            flexWrap: { xs: "wrap", sm: "nowrap" },
+            overflowX: { xs: "visible", sm: "auto", md: scrollNeeded ? "auto" : "visible" },
             pb: 1,
-            scrollSnapType: scrollNeeded ? "x mandatory" : "none",
+            scrollSnapType: { xs: "none", sm: "x mandatory", md: scrollNeeded ? "x mandatory" : "none" },
+            // Ensure smooth scrolling on desktop/tablet
+            WebkitOverflowScrolling: "touch",
           }}
         >
           {showSkeletonCards ? (
@@ -135,4 +138,3 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
     </Box>
   );
 }
-

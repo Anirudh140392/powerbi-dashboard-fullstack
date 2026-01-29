@@ -866,20 +866,27 @@ export default function DrilldownLatestTable() {
           <div className="rounded-3xl border bg-white p-4 shadow">
 
             {/* HEADLINE */}
-            <Box mb={2} display="flex" justifyContent="space-between" alignItems="flex-start">
+            <Box
+              mb={2}
+              display="flex"
+              flexDirection={{ xs: "column", md: "row" }}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", md: "flex-start" }}
+              gap={{ xs: 1, md: 0 }}
+            >
               <Box>
-                <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+                <Typography sx={{ fontSize: { xs: 16, md: 18 }, fontWeight: 700, color: "#0f172a" }}>
                   Format Performance (Heatmap)
                 </Typography>
-                <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+                <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: "#94a3b8" }}>
                   Category → Day
                 </Typography>
               </Box>
             </Box>
 
             {/* KPI TOGGLES AND FILTERS */}
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <div className="flex flex-wrap gap-2 text-[11px]">
+            <div className="mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2 text-[11px] w-full sm:w-auto">
                 {Object.keys(KPI_LABELS).map((k) => {
                   const isActive = visibleKpis[k];
 
@@ -888,7 +895,7 @@ export default function DrilldownLatestTable() {
                       key={k}
                       onClick={() => toggleKpiVisibility(k)}
                       className={`
-                        flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-semibold transition-all cursor-pointer
+                        flex items-center gap-1.5 rounded-full border px-2.5 sm:px-3 py-1.5 font-semibold transition-all cursor-pointer text-[10px] sm:text-[11px]
                         ${isActive
                           ? "bg-slate-200 text-slate-900 border-slate-300"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -896,13 +903,13 @@ export default function DrilldownLatestTable() {
                       `}
                     >
                       {isActive ? (
-                        <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-900">
+                        <div className="flex h-3 w-3 sm:h-3.5 sm:w-3.5 items-center justify-center rounded-full bg-slate-900">
                           <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="h-2 w-2">
                             <polyline points="20 6 9 17 4 12" />
                           </svg>
                         </div>
                       ) : (
-                        <div className="h-3.5 w-3.5 rounded-full border border-slate-300"></div>
+                        <div className="h-3 w-3 sm:h-3.5 sm:w-3.5 rounded-full border border-slate-300"></div>
                       )}
                       <span>{KPI_LABELS[k]}</span>
                     </button>
@@ -913,7 +920,7 @@ export default function DrilldownLatestTable() {
               {/* FILTER BUTTON MOVED HERE */}
               <button
                 onClick={() => setFilterPanelOpen(true)}
-                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all cursor-pointer"
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-white hover:shadow transition-all cursor-pointer w-full sm:w-auto justify-center sm:justify-start"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
                 <span>Filters</span>
@@ -930,7 +937,7 @@ export default function DrilldownLatestTable() {
 
             {/* TABLE WRAPPER WITH FULL BORDER */}
             <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <table className="min-w-full text-[11px] border-separate border-spacing-0">
                   <thead className="sticky top-0 z-30">
                     {/* TOP HEADER ROW */}

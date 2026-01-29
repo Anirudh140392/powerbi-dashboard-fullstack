@@ -877,11 +877,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         }}
       >
         {/* HEADER */}
-        <Box mb={2} display="flex" justifyContent="space-between" alignItems="flex-start">
+        <Box mb={2} display="flex" flexDirection={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "flex-start" }} gap={{ xs: 2, md: 0 }}>
           <Box>
             <Box display="flex" alignItems="center" gap={2}>
               <Typography
-                sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
+                sx={{ fontSize: { xs: 16, md: 18 }, fontWeight: 700, color: "#0f172a" }}
               >
                 {collectedData?.title}
               </Typography>
@@ -889,7 +889,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               {/* QUICK CATEGORY FILTER REMOVED */}
             </Box>
 
-            <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+            <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: "#94a3b8" }}>
               Keyword Type → Keyword → Zone
             </Typography>
           </Box>
@@ -897,20 +897,21 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           <Box
             display="flex"
             flexDirection="column"
-            alignItems="flex-end"
+            alignItems={{ xs: "flex-start", md: "flex-end" }}
             gap={1}
+            width={{ xs: "100%", md: "auto" }}
           >
             {/* BUTTON ROW */}
-            <Box display="flex" gap={1} alignItems="center">
+            <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" width={{ xs: "100%", md: "auto" }}>
               {/* FILTERS BUTTON */}
               <Button
                 onClick={() => setFilterPanelOpen(true)}
                 startIcon={<SlidersHorizontal size={14} />}
                 sx={{
-                  fontSize: 12,
+                  fontSize: { xs: 11, md: 12 },
                   textTransform: "none",
                   borderRadius: 999,
-                  px: 1.6,
+                  px: { xs: 1.2, md: 1.6 },
                   backgroundColor: "#f1f5f9",
                   color: "#334155",
                   border: "1px solid #e2e8f0",
@@ -928,10 +929,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     key={q}
                     onClick={() => setSelectedQuarter(q)}
                     sx={{
-                      fontSize: 12,
+                      fontSize: { xs: 11, md: 12 },
                       textTransform: "none",
                       borderRadius: 999,
-                      px: 1.6,
+                      px: { xs: 1.2, md: 1.6 },
+                      minWidth: { xs: 36, md: 42 },
                       backgroundColor:
                         selectedQuarter === q ? "#0f172a" : "transparent",
                       color: selectedQuarter === q ? "white" : "#6b7280",
@@ -945,15 +947,16 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             </Box>
 
             {/* EXPAND / COLLAPSE ALL */}
-            <Box display="flex" gap={1}>
+            <Box display="flex" gap={1} width={{ xs: "100%", md: "auto" }}>
               <Button
                 onClick={expandAll}
                 sx={{
-                  fontSize: 11,
+                  fontSize: { xs: 10, md: 11 },
                   textTransform: "none",
                   borderRadius: 999,
-                  px: 1.8,
+                  px: { xs: 1.4, md: 1.8 },
                   py: 0.4,
+                  flex: { xs: 1, md: 0 },
                   backgroundColor: "#f1f5f9",
                   color: "#334155",
                   border: "1px solid #e2e8f0",
@@ -965,11 +968,12 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               <Button
                 onClick={collapseAll}
                 sx={{
-                  fontSize: 11,
+                  fontSize: { xs: 10, md: 11 },
                   textTransform: "none",
                   borderRadius: 999,
-                  px: 1.8,
+                  px: { xs: 1.4, md: 1.8 },
                   py: 0.4,
+                  flex: { xs: 1, md: 0 },
                   backgroundColor: "#fee2e2",
                   color: "#b91c1c",
                   border: "1px solid #fecaca",
@@ -984,10 +988,16 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
 
         {/* TABLE */}
-        < TableContainer
+        <TableContainer
           component={Paper}
-          sx={{ maxHeight: 520, borderRadius: 2, boxShadow: 'none', border: '1px solid #e2e8f0' }
-          }
+          sx={{
+            maxHeight: 520,
+            borderRadius: 2,
+            boxShadow: 'none',
+            border: '1px solid #e2e8f0',
+            overflowX: { xs: 'auto', md: 'auto' },
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
           <Table stickyHeader size="small">
             <TableHead>

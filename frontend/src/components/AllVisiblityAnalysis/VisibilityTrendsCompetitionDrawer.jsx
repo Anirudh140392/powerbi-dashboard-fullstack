@@ -481,11 +481,14 @@ const PillToggleGroup = ({ value, onChange, options }) => (
       backgroundColor: "#F3F4F6",
       borderRadius: "999px",
       p: "2px",
+      width: { xs: "100%", sm: "auto" },
+      display: "flex",
       "& .MuiToggleButton-root": {
         textTransform: "none",
         border: "none",
-        px: 2.5,
+        px: { xs: 1.5, sm: 2.5 },
         py: 0.5,
+        flex: { xs: 1, sm: "initial" },
         borderRadius: "999px",
         "&.Mui-selected": {
           backgroundColor: "#ffffff",
@@ -496,7 +499,7 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   >
     {options.map((opt) => (
       <ToggleButton key={opt} value={opt}>
-        <Typography variant="body2">{opt}</Typography>
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{opt}</Typography>
       </ToggleButton>
     ))}
   </ToggleButtonGroup>
@@ -939,19 +942,19 @@ export default function VisibilityTrendsCompetitionDrawer({
         display: "flex",
         justifyContent: "center",
         alignItems: "flex-start",
-        p: 2,
+        p: { xs: 1, md: 2 },
         zIndex: 1300,
         overflow: "auto",
       }}
     >
       <Box
         sx={{
-          mt: 4,
+          mt: { xs: 2, md: 4 },
           width: "min(1200px, 100%)",
           bgcolor: "white",
           borderRadius: 3,
           boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
-          p: 3,
+          p: { xs: 2, md: 3 },
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -971,9 +974,9 @@ export default function VisibilityTrendsCompetitionDrawer({
                 textTransform: "none",
                 border: "none",
                 borderRadius: "999px",
-                px: 2.5,
-                py: 0.75,
-                fontSize: 14,
+                px: { xs: 2, sm: 2.5 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: 13, sm: 14 },
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
                   color: "#fff",
@@ -986,8 +989,8 @@ export default function VisibilityTrendsCompetitionDrawer({
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
-          <IconButton onClick={onClose} size="small">
-            <X size={18} />
+          <IconButton onClick={onClose} size="small" sx={{ color: "#64748b" }}>
+            <X size={20} />
           </IconButton>
         </Box>
 
@@ -995,16 +998,14 @@ export default function VisibilityTrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Box display="flex" flexDirection="column" gap={1.5}>
               {/* Title */}
-              <Typography variant="h6" fontWeight={600}>
+              <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1}>
-                {/* CLICKABLE LABEL (now only toggles open/close) */}
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                 <Select
                   size="small"
                   value={allTrendMeta.context.audience}
@@ -1016,7 +1017,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                     setShowPlatformPills(true); // always show pills after changing mode
                   }}
                   sx={{
-                    width: 160,
+                    width: { xs: "100%", sm: 160 },
                     height: 38,
                     backgroundColor: "#F8FAFC",
                     borderRadius: "8px",
@@ -1045,7 +1046,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                     display="flex"
                     gap={0.5}
                     sx={{
-                      maxWidth: '500px',
+                      maxWidth: { xs: '100%', md: '500px' },
                       overflowX: 'auto',
                       overflowY: 'hidden',
                       flexWrap: 'nowrap',
@@ -1130,19 +1131,17 @@ export default function VisibilityTrendsCompetitionDrawer({
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5,
+                p: { xs: 1.5, md: 2.5 },
               }}
             >
               {/* Metric Row */}
               <Box
                 display="flex"
-                alignItems="center"
-                justifyContent="space-between"
+                flexDirection="column"
                 gap={2}
-                flexWrap="wrap"
                 mb={2}
               >
-                <Box display="flex" gap={1} flexWrap="wrap">
+                <Box display="flex" gap={1.5} flexWrap="wrap">
                   {trendMeta.metrics.map((m) => (
                     <MetricChip
                       key={m.id}
@@ -1160,18 +1159,28 @@ export default function VisibilityTrendsCompetitionDrawer({
                   ))}
                 </Box>
 
-                <Button
-                  size="small"
-                  endIcon={<ChevronDown size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB",
-                  }}
-                  variant="outlined"
-                >
-                  +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                </Button>
+                <Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    endIcon={<ChevronDown size={14} />}
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: "999px",
+                      borderColor: "#E2E8F0",
+                      color: "#3b82f6",
+                      backgroundColor: "#eff6ff",
+                      fontSize: "0.75rem",
+                      px: 2,
+                      "&:hover": {
+                        borderColor: "#3b82f6",
+                        backgroundColor: "#dbeafe",
+                      }
+                    }}
+                  >
+                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
+                  </Button>
+                </Box>
               </Box>
 
               {/* Chart */}
@@ -1210,19 +1219,26 @@ export default function VisibilityTrendsCompetitionDrawer({
               </Typography>
             </Box>
 
-            {/* Range + Timestep */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            {/* RANGE + TIMESTEP */}
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              gap={2}
+              flexWrap="wrap"
+            >
               <PillToggleGroup
                 value={range}
                 onChange={setRange}
-                options={compareMeta.rangeOptions}
+                options={trendMeta.rangeOptions}
               />
-              <Box display="flex" alignItems="center" gap={1}>
+
+              <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
-                  options={compareMeta.timeSteps}
+                  options={trendMeta.timeSteps}
                 />
               </Box>
             </Box>
