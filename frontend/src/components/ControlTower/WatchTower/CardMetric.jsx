@@ -73,19 +73,17 @@ const CardMetric = ({ data, onViewTrends }) => {
           </Box>
         </Box>
 
-        {/* Cards Row */}
+        {/* Cards Grid */}
         <Box
           sx={{
-            display: "flex",
-            gap: 2,
-            flexWrap: { xs: "wrap", sm: "nowrap" },
-            overflowX: { xs: "visible", sm: "auto" },
-            pb: 1,
-            px: 1.5,
-            scrollSnapType: { xs: "none", sm: "x mandatory" },
-            "&::-webkit-scrollbar": { display: "none" },
-            msOverflowStyle: "none",
-            scrollbarWidth: "none",
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, 1fr)",
+              lg: "repeat(4, 1fr)",
+            },
+            gap: 3,
+            width: "100%",
           }}
         >
           {isLoading
@@ -128,10 +126,9 @@ const SkeletonMetricCard = ({ width = 250 }) => {
   return (
     <Card
       sx={{
-        flexShrink: 0,
-        width: { xs: "100%", sm: 250 },
+        height: "100%",
+        width: "100%",
         borderRadius: 3,
-        scrollSnapAlign: "start",
       }}
     >
       <CardContent>
@@ -201,10 +198,9 @@ const MiniChartCard = ({
       onClick={onClick}
       sx={{
         cursor: onClick ? "pointer" : "default",
-        flexShrink: 0,
-        width: { xs: "100%", sm: 280 },
+        width: "100%",
+        height: "100%",
         borderRadius: 3,
-        scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
       }}
