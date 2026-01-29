@@ -1469,13 +1469,13 @@ class VisibilityService {
                 // it seems the intent is to replace the entire function with the ClickHouse-based logic.
                 // The new code does not have a 'dates' filter type. So, the old 'dates' filter type should be removed.
 
-                // FORMATS (Category): from rca_sku_dim.Category where status = 1
+                // FORMATS (Category): from rca_sku_dim.category where status = 1
                 if (filterType === 'formats') {
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT Category as format
+                    SELECT DISTINCT category as format
                     FROM rca_sku_dim
-                    WHERE toString(status) = '1' AND Category IS NOT NULL AND Category != ''
-                    ORDER BY Category
+                    WHERE toString(status) = '1' AND category IS NOT NULL AND category != ''
+                    ORDER BY category
                 `);
                     const options = results.map(r => r.format).filter(Boolean);
                     return { options };

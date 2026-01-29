@@ -3790,14 +3790,14 @@ const getTrendData = async (filters) => {
 const getBrandCategories = async (platform) => {
     try {
         // ClickHouse query
-        const conditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
+        const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
         if (platform && platform !== 'All') {
             conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
         }
 
-        const query = `SELECT DISTINCT Category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY Category`;
+        const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
         const results = await queryClickHouse(query);
-        return results.map(c => c.Category).filter(Boolean);
+        return results.map(c => c.category).filter(Boolean);
     } catch (error) {
         console.error("Error fetching brand categories:", error);
         throw error;
@@ -5373,8 +5373,8 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         }
 
         if (filterType === 'categories') {
-            // Fetch unique categories (category) from rca_sku_dim (comp_flag=0, status=1)
-            const conditions = [`comp_flag = 0`, `status = 1`, `category IS NOT NULL`, `category != ''`];
+            // Fetch unique categories (category) from rca_sku_dim (status=1)
+            const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
             if (platform && platform !== 'All') {
                 conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
             }

@@ -368,7 +368,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                   tickLine={false}
                   axisLine={{ stroke: theme.palette.divider }}
                   domain={['auto', 'auto']}
-                  tickFormatter={(value) => `~(${value}%)`}
+                  tickFormatter={(value) => `${value}%`}
                   dx={5}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: theme.palette.divider, strokeWidth: 1 }} />

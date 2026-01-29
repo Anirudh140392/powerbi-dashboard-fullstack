@@ -796,12 +796,12 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'categories' || filterType === 'formats') {
-                const catConditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
+                const catConditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
                 if (platform && platform !== 'All') catConditions.push(buildInClause('platform', platform)); // rca_sku_dim uses lowercase platform
                 if (city && city !== 'All') catConditions.push(buildInClause('location', city)); // rca_sku_dim uses lowercase location
 
                 const query = `
-                    SELECT DISTINCT Category as value 
+                    SELECT DISTINCT category as value 
                     FROM rca_sku_dim
                     WHERE ${catConditions.join(' AND ')}
                     ORDER BY value

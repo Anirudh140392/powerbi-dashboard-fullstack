@@ -1090,7 +1090,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} />
+                  <YAxis tickLine={false} fontSize={10} width={32} tickFormatter={(v) => `${v}%`} />
                   <Tooltip />
                   {selectedIds.map((id) => (
                     <Line
