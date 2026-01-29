@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, Container } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import { FilterContext } from "../../utils/FilterContext";
 
 export default function CommonContainer({
   title,
@@ -9,6 +10,7 @@ export default function CommonContainer({
   onFiltersChange,
   children,
 }) {
+  const { platforms } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -28,7 +30,7 @@ export default function CommonContainer({
       }}
     >
       <Sidebar
-        platforms={["Blinkit", "Instamart", "Zepto"]}
+        platforms={platforms}
         selectedPlatform={filters?.platform}
         onPlatformChange={(p) =>
           onFiltersChange?.((prev) => ({ ...prev, platform: p }))

@@ -89,6 +89,9 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
   Ad_Impressions: {
     type: DataTypes.INTEGER,
   },
+  Ad_Quanity_sold: {
+    type: DataTypes.INTEGER,
+  },
 }, {
   tableName: 'rb_pdp_olap',
   timestamps: false,

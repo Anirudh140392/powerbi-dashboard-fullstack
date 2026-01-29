@@ -1295,65 +1295,6 @@ export default function TrendsCompetitionDrawer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch competition data when viewing Competition tab
-  useEffect(() => {
-    if (view !== "Competition") return;
-
-    const fetchCompetitionData = async () => {
-      setCompetitionLoading(true);
-      try {
-        const params = {
-          platform: globalPlatform || 'All',
-          location: globalLocation || 'All',
-          category: 'All',
-          period: '1M'
-        };
-
-        console.log("Fetching competition data with params:", params);
-        const endpoint = dynamicKey === 'availability'
-          ? '/availability-analysis/competition'
-          : '/watchtower/competition';
-
-        console.log("Fetching competition data with params:", params, "from endpoint:", endpoint);
-        const response = await axiosInstance.get(endpoint, { params });
-
-        if (response.data) {
-          // Transform backend format to frontend format
-          const rawBrands = response.data.brands || [];
-          const rawSkus = response.data.skus || [];
-
-          const transformedBrands = rawBrands.map(b => ({
-            brand: b.brand || b.brand_name,
-            rank: b.rank,
-            Osa: { value: b.osa || 0, delta: b.osaDelta || 0 },
-            Doi: { value: b.doi || 0, delta: 0 },
-            Fillrate: { value: b.fillrate || 0, delta: 0 },
-            Assortment: { value: b.assortment || 0, delta: b.assortmentDelta || 0 },
-            Psl: { value: b.psl || 0, delta: 0 },
-          }));
-
-          const transformedSkus = rawSkus.map(s => ({
-            sku: s.sku_name || s.sku,
-            brand: s.brand_name || s.brand,
-            Osa: { value: s.osa || 0, delta: s.osaDelta || 0 },
-            Doi: { value: s.doi || 0, delta: 0 },
-            Fillrate: { value: s.fillrate || 0, delta: 0 },
-            Assortment: { value: s.assortment || 0, delta: s.assortmentDelta || 0 },
-            Psl: { value: s.psl || 0, delta: 0 },
-          }));
-
-          console.log("Competition data received:", transformedBrands.length, "brands,", transformedSkus.length, "skus");
-          setCompetitionData({ brands: transformedBrands, skus: transformedSkus });
-        }
-      } catch (error) {
-        console.error("Error fetching competition data:", error);
-      } finally {
-        setCompetitionLoading(false);
-      }
-    };
-
-    fetchCompetitionData();
-  }, [view, globalPlatform, globalLocation]);
 
   // Dynamic options from FilterContext or fetched API (for availability)
   const PLATFORM_OPTIONS = dynamicKey === 'availability'
