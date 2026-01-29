@@ -337,8 +337,33 @@ export default function SalesTrendsDrawer({
     if (!open) return null;
 
     return (
-        <Box sx={{ position: "fixed", inset: 0, bgcolor: "rgba(15,23,42,0.32)", display: "flex", justifyContent: "center", alignItems: "flex-start", p: 2, zIndex: 1300, overflow: "auto" }}>
-            <Box sx={{ mt: 4, width: "min(1200px, 100%)", bgcolor: "white", borderRadius: 3, boxShadow: "0 24px 60px rgba(15,23,42,0.35)", p: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box
+            sx={{
+                position: "fixed",
+                inset: 0,
+                bgcolor: "rgba(15,23,42,0.32)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "flex-start",
+                p: 2,
+                zIndex: 1300,
+                overflow: "auto",
+            }}
+        >
+            <Box
+                sx={{
+                    mt: { xs: 2, md: 4 },
+                    width: "min(1200px, 100%)",
+                    bgcolor: "white",
+                    borderRadius: 3,
+                    boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
+                    p: { xs: 2, md: 3 },
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                }}
+            >
+                {/* Header row */}
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                     <ToggleButtonGroup exclusive value={view} onChange={(_, v) => v && setView(v)} sx={{ backgroundColor: "#F3F4F6", borderRadius: "999px", p: "3px", "& .MuiToggleButton-root": { textTransform: "none", border: "none", borderRadius: "999px", px: 2.5, py: 0.75, "&.Mui-selected": { backgroundColor: "#0F172A", color: "#fff" } } }}>
                         <ToggleButton value="Trends">Trends</ToggleButton>

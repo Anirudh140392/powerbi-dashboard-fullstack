@@ -609,11 +609,12 @@ function VisibilityCard({ item, onShowDetails }) {
   return (
     <div
       className="
-      flex flex-col justify-between 
+      flex-shrink-0 flex flex-col justify-between 
       rounded-3xl border border-slate-200 
       bg-white shadow-sm 
       px-6 py-5 
-      w-full
+      min-w-[280px] w-full max-w-[320px] md:max-w-none
+      snap-center
       transition-all duration-200
     "
     >
@@ -871,7 +872,7 @@ export function VisibilityLayoutOne() {
             No {signalType}s found at {level} level
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-3 w-full items-start">
+          <div className="flex overflow-x-auto no-scrollbar pb-4 gap-3 snap-x -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-4 md:gap-3 md:items-start md:overflow-visible">
             {signals.slice(0, 4).map((item) => (
               <VisibilityCard
                 key={item.id}

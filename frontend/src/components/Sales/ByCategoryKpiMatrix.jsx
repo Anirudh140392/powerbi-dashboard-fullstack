@@ -238,7 +238,7 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
 
     return (
         <Box sx={{ width: "100%", bgcolor: "white", borderRadius: "16px", border: "1px solid #f1f5f9", overflow: "hidden", p: 3, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
-            <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
+            <Box display="flex" flexDirection={{ xs: "column", md: "row" }} alignItems={{ xs: "start", md: "center" }} justifyContent="space-between" mb={4} gap={3}>
                 <Box>
                     <Typography variant="h6" sx={{ fontWeight: 800, color: "#1e293b", fontSize: "1.2rem", letterSpacing: "-0.02em" }}>
                         By Category KPI Matrix
@@ -248,7 +248,7 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                     </Typography>
                 </Box>
 
-                <Box display="flex" gap={2} alignItems="center">
+                <Box display="flex" flexDirection={{ xs: "column-reverse", sm: "row" }} gap={2} alignItems={{ xs: "start", sm: "center" }} width={{ xs: "100%", md: "auto" }}>
                     <Box display="flex" alignItems="center" gap={1}>
                         {showSearch && (
                             <motion.input
@@ -270,16 +270,16 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                         )}
                         <button
                             onClick={() => setShowSearch(!showSearch)}
-                            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all active:scale-95"
+                            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all active:scale-95 whitespace-nowrap"
                         >
                             <SlidersHorizontal className="h-4 w-4" />
                             <span>Filters</span>
                         </button>
                     </Box>
 
-                    <Box sx={{ width: "1.5px", height: "24px", bgcolor: "#f1f5f9" }} />
+                    <Box sx={{ width: "1.5px", height: "24px", bgcolor: "#f1f5f9", display: { xs: "none", sm: "block" } }} />
 
-                    <Box display="flex" gap={2}>
+                    <Box display="flex" gap={2} flexWrap="wrap">
                         <Box display="flex" alignItems="center" gap={1} sx={{ bgcolor: "#f0fdf4", px: 2, py: 0.75, borderRadius: "20px", border: "1px solid #dcfce7" }}>
                             <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10b981" }} />
                             <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#166534" }}>Healthy</Typography>

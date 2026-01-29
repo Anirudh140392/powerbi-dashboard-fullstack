@@ -348,6 +348,34 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
 
     })
 
+    // Responsive check
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // Dynamic Frozen Widths based on mobile state
+    const currentFrozenWidths = useMemo(() => isMobile ? {
+        keywordType: 100, // Reduced from 140
+        brand: 100,       // Reduced from 120
+        keyword: 120,     // Reduced from 160
+        sku: 120,         // Reduced from 160
+        city: 100,        // Reduced from 120
+        spacer: 20,       // Reduced from 40
+    } : {
+        keywordType: 140,
+        brand: 120,
+        keyword: 160,
+        sku: 160,
+        city: 120,
+        spacer: 40,
+    }, [isMobile]);
+
+    const FROZEN_WIDTHS = currentFrozenWidths; // internal override
+
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [activeView, setActiveView] = useState('keywords')
     const [expandedRows, setExpandedRows] = useState(new Set())
@@ -641,9 +669,9 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
 
     return (
         <div className="flex w-full flex-col">
-            <div className="px-6 pt-4">
-                <div className="flex items-center gap-2 text-xs">
-                    <div className="flex rounded-full bg-[#f3f4f6] p-[3px]">
+            <div className="px-4 md:px-6 pt-4">
+                <div className="flex items-center gap-2 text-xs overflow-x-auto no-scrollbar">
+                    <div className="flex rounded-full bg-[#f3f4f6] p-[3px] min-w-max">
                         <button
                             onClick={() => setActiveView('keywords')}
                             className={`rounded-full px-4 py-1 text-sm font-medium transition-all ${activeView === 'keywords' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
@@ -671,7 +699,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
 
             <div className="flex flex-1 overflow-hidden p-6 pt-3">
                 <div className="flex flex-col h-full w-full overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-                    <div className="flex items-center justify-between px-6 pt-4 pb-2">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 pt-4 pb-2 gap-4 md:gap-0">
                         <div>
                             <h1 className="text-lg font-semibold text-slate-900">
                                 {activeView === 'keywords' ? 'Keywords at a glance' : activeView === 'skus' ? 'SKUs at a glance' : 'Platforms at a glance'}
@@ -682,7 +710,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     : 'Hierarchical drilldown with KPI heatmap visualization.'}
                             </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                             <button
                                 onClick={() => setShowFilterPanel(true)}
                                 className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
@@ -690,8 +718,8 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                 <SlidersHorizontal className="h-3.5 w-3.5" />
                                 <span>Filters</span>
                             </button>
-                            <div className="h-6 w-px bg-slate-200"></div>
-                            <div className="flex items-center gap-2">
+                            <div className="hidden md:block h-6 w-px bg-slate-200"></div>
+                            <div className="flex flex-wrap items-center gap-2">
                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50/50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                                     Healthy
@@ -721,14 +749,31 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     <tr className="bg-slate-50 text-center text-[12px] font-bold text-black-600">
                                         <th
                                             className="px-3 py-2"
-                                            style={{ position: 'sticky', left: 0, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keywordType, minWidth: FROZEN_WIDTHS.keywordType }}
+                                            style={{
+                                                position: 'sticky',
+                                                left: 0,
+                                                top: 0,
+                                                zIndex: 30,
+                                                background: '#f8fafc',
+                                                width: FROZEN_WIDTHS.keywordType,
+                                                minWidth: FROZEN_WIDTHS.keywordType,
+                                                boxShadow: '1px 0 0 #e2e8f0'
+                                            }}
                                         >
                                             {activeView === 'skus' ? 'SKU' : 'Keyword Type'}
                                         </th>
                                         {showKeywordColumn && (
                                             <th
                                                 className="px-2 py-2"
-                                                style={{ position: 'sticky', left: LEFT_KEYWORD, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.keyword, minWidth: FROZEN_WIDTHS.keyword }}
+                                                style={{
+                                                    position: isMobile ? 'static' : 'sticky',
+                                                    left: isMobile ? 'auto' : LEFT_KEYWORD,
+                                                    top: 0,
+                                                    zIndex: 5,
+                                                    background: '#f8fafc',
+                                                    width: FROZEN_WIDTHS.keyword,
+                                                    minWidth: FROZEN_WIDTHS.keyword
+                                                }}
                                             >
                                                 Keyword
                                             </th>
@@ -736,7 +781,15 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                         {showBrandColumn && (
                                             <th
                                                 className="px-2 py-2"
-                                                style={{ position: 'sticky', left: LEFT_BRAND, top: 0, zIndex: 5, background: '#f8fafc', width: FROZEN_WIDTHS.brand, minWidth: FROZEN_WIDTHS.brand }}
+                                                style={{
+                                                    position: isMobile ? 'static' : 'sticky',
+                                                    left: isMobile ? 'auto' : LEFT_BRAND,
+                                                    top: 0,
+                                                    zIndex: 5,
+                                                    background: '#f8fafc',
+                                                    width: FROZEN_WIDTHS.brand,
+                                                    minWidth: FROZEN_WIDTHS.brand
+                                                }}
                                             >
                                                 <div className="flex items-center gap-1">
                                                     <span>Brand</span>
@@ -798,7 +851,15 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                     colSpan={activeView === 'platforms' && expandedKpis.has(kpi) ? visiblePlatforms.length : 1}
                                                     className="px-4 py-3 text-center border-l border-slate-200 overflow-hidden"
                                                 >
-                                                    <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                    <div className={`flex items-center justify-center gap-2 ${isMobile ? 'whitespace-normal text-xs' : 'whitespace-nowrap'}`}>
+                                                        {activeView === 'platforms' && (
+                                                            <button
+                                                                onClick={() => toggleKpiExpand(kpi)}
+                                                                className="flex h-5 w-5 items-center justify-center rounded-lg border border-slate-300 bg-white text-[10px] hover:bg-slate-100 transition-colors shadow-sm"
+                                                            >
+                                                                {expandedKpis.has(kpi) ? '−' : '+'}
+                                                            </button>
+                                                        )}
                                                         <span className="tracking-tight">{KPI_LABELS[kpi]}</span>
                                                     </div>
                                                 </motion.th>
@@ -1168,8 +1229,8 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
 
             {
                 showFilterPanel && (
-                    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-                        <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
+                        <div className="relative w-full max-w-lg md:max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[85vh] md:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                             {/* Modal Header */}
                             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                                 <div>

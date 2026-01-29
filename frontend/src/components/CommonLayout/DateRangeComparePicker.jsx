@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Box, Typography, Button, Popover } from "@mui/material";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import dayjs from "dayjs";
 
 // Date Range + Compare Picker (single-file JSX)
@@ -339,24 +340,75 @@ export default function DateRangeComparePicker({
 
     return (
         <Box>
-            <button
-                type="button"
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-sm shadow-sm hover:border-slate-300"
-                style={{ cursor: 'pointer', textAlign: 'left', minHeight: '38px', minWidth: '190px' }}
+            <Box
                 onClick={handleOpen}
+                sx={{
+                    height: { xs: "30px", sm: "34px" },
+                    bgcolor: "white",
+                    borderRadius: "6px",
+                    border: "1px solid",
+                    borderColor: open ? "#6366f1" : "#e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    px: { xs: 1, sm: 1.25 },
+                    gap: 0.5,
+                    cursor: "pointer",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: open ? "0 0 0 3px rgba(99, 102, 241, 0.1)" : "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+                    "&:hover": {
+                        borderColor: "#6366f1",
+                        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.08)"
+                    },
+                }}
             >
-                <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
-                        {primaryLabel}
-                    </Typography>
-                    {compareOn && (
-                        <Typography sx={{ fontSize: '0.7rem', color: '#64748b', lineHeight: 1.2, fontWeight: 500 }}>
-                            vs {compareLabel}
+                <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden", gap: 0.5 }}>
+                    <Box
+                        sx={{
+                            bgcolor: "#f8fafc",
+                            px: { xs: 0.75, sm: 1 },
+                            py: { xs: 0.125, sm: 0.2 },
+                            borderRadius: "4px",
+                            border: "1px solid #e5e7eb",
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            minWidth: 0,
+                            flex: 1
+                        }}
+                    >
+                        <Typography
+                            sx={{
+                                fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                                fontWeight: 700,
+                                color: '#1e293b',
+                                lineHeight: 1.15,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis"
+                            }}
+                        >
+                            {primaryLabel}
                         </Typography>
-                    )}
+                        {compareOn && (
+                            <Typography
+                                sx={{
+                                    fontSize: { xs: '0.55rem', sm: '0.6rem' },
+                                    color: '#64748b',
+                                    lineHeight: 1.05,
+                                    fontWeight: 500,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis"
+                                }}
+                            >
+                                vs {compareLabel}
+                            </Typography>
+                        )}
+                    </Box>
                 </Box>
-                <Typography sx={{ color: '#94a3b8', fontSize: '10px' }}>▼</Typography>
-            </button>
+                {open ? <ChevronUp size={14} color="#6366f1" /> : <ChevronDown size={14} color="#64748b" />}
+            </Box>
 
             <Popover
                 open={open}
