@@ -92,9 +92,8 @@ export function generateCacheKey(section, filters) {
     if (limit) key += `:lim_${limit}`;
 
     // Date ranges
-    if (startDate && endDate) {
-        key += `:dt_${startDate}_${endDate}`;
-    }
+    if (startDate) key += `:sd_${startDate}`;
+    if (endDate) key += `:ed_${endDate}`;
     if (compareStartDate && compareEndDate) {
         key += `:comp_${compareStartDate}_${compareEndDate}`;
     }

@@ -708,6 +708,11 @@ const LayoutOne = () => {
                 params.platform = platform;
             }
 
+            // Add location filter
+            if (selectedLocation && selectedLocation !== 'All') {
+                params.location = selectedLocation;
+            }
+
             // Add end date filter (pick only the end date as per request)
             if (timeEnd) {
                 params.endDate = timeEnd.format('YYYY-MM-DD');
@@ -734,15 +739,25 @@ const LayoutOne = () => {
     // Fetch dynamic data when filters change
     useEffect(() => {
         fetchData();
-    }, [platform, timeStart, timeEnd]);
+    }, [platform, selectedLocation, timeStart, timeEnd]);
 
     // Build dynamic issues list with updated subtitle for OSA
     const dynamicIssues = issues.map(issue => {
         if (issue.id === 1) {
+            const dCount = apiData.counts.darkstoreCount;
+            const sCount = apiData.counts.skuCount;
+
+            // Format subtitle to handle "N/A"
+            const subtitle = (dCount === "N/A" || sCount === "N/A")
+                ? "Data N/A for selected date"
+                : `${dCount} stores OOS in top ${sCount} SKUs`;
+
             return {
                 ...issue,
-                subtitle: `${apiData.counts.darkstoreCount} stores OOS in top ${apiData.counts.skuCount} SKUs`,
-                leak: apiData.kpis.lostSales ? `${apiData.kpis.lostSales.value} leak` : issue.leak
+                subtitle: subtitle,
+                leak: (apiData.kpis.lostSales && apiData.kpis.lostSales.value !== "N/A")
+                    ? `${apiData.kpis.lostSales.value} leak`
+                    : "N/A"
             };
         }
         return issue;

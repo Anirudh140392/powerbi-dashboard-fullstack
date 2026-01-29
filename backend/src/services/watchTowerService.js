@@ -6310,34 +6310,23 @@ const getTopActions = async (filters = {}) => {
             ? `platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
             : '1=1';
 
-        // 1. Fetch Latest Available Dates from both tables for alignment fallback
-        const [latestOlapRes, latestInsightRes] = await Promise.all([
-            queryClickHouse(`SELECT MAX(toDate(DATE)) as max_date FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')}`),
-            queryClickHouse(`SELECT MAX(toDate(DATE)) as max_date FROM rca_watchtower_insight WHERE ${platCond}`)
+        const requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
+            ? dayjs(filters.endDate).format('YYYY-MM-DD')
+            : dayjs().format('YYYY-MM-DD');
+
+        // Check for presence of data for the EXACT requested date
+        const [olapCheckRes, insightCheckRes] = await Promise.all([
+            queryClickHouse(`SELECT count(*) as count FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')} AND toDate(DATE) = '${requestedEnd}'`),
+            queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCond} AND toDate(DATE) = '${requestedEnd}'`)
         ]);
 
-        const maxOlapDate = latestOlapRes[0]?.max_date ? dayjs(latestOlapRes[0].max_date) : dayjs();
-        const maxInsightDate = latestInsightRes[0]?.max_date ? dayjs(latestInsightRes[0].max_date) : dayjs();
+        const hasOlapData = parseInt(olapCheckRes[0]?.count || 0) > 0;
+        const hasInsightData = parseInt(insightCheckRes[0]?.count || 0) > 0;
 
-        // Use requested date or cap at available data (or fallback to latest if none provided)
-        let targetOlapDate = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
-            ? dayjs(filters.endDate)
-            : maxOlapDate;
+        const endDateStr = requestedEnd;
+        const insightDateStr = requestedEnd;
 
-        // Capping logic (ensures we don't query empty future dates if user selects one)
-        if (targetOlapDate.isAfter(maxOlapDate)) targetOlapDate = maxOlapDate;
-
-        let targetInsightDate = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
-            ? dayjs(filters.endDate)
-            : maxInsightDate;
-
-        if (targetInsightDate.isAfter(maxInsightDate)) targetInsightDate = maxInsightDate;
-
-        const dateVal = targetOlapDate; // Primary reference for trends/KPIs
-        const endDateStr = dateVal.format('YYYY-MM-DD');
-        const insightDateStr = targetInsightDate.format('YYYY-MM-DD');
-
-        console.log(`[getTopActions] Alignment - OLAP: ${endDateStr}, Insight: ${insightDateStr}`);
+        console.log(`[getTopActions] Requested: ${requestedEnd}, Has OLAP: ${hasOlapData}, Has Insight: ${hasInsightData}`);
 
         // 2. Basic Counts & KPIs (Refined based on user feedback)
         // NCR Filtering for the "OSA – Quick Commerce NCR" segment
@@ -6368,12 +6357,12 @@ const getTopActions = async (filters = {}) => {
             queryClickHouse(skuQuery)
         ]);
 
-        const darkstoreCount = parseInt(storeRes[0]?.count || 0);
-        const activeStoresVal = parseInt(storeRes[0]?.active_stores || 0);
-        const skuCount = parseInt(skuRes[0]?.count || 0);
+        const darkstoreCount = hasInsightData ? parseInt(storeRes[0]?.count || 0) : "N/A";
+        const activeStoresVal = hasInsightData ? parseInt(storeRes[0]?.active_stores || 0) : "N/A";
+        const skuCount = hasOlapData ? parseInt(skuRes[0]?.count || 0) : "N/A";
         const topPids = skuRes[0]?.pids ? skuRes[0].pids.slice(0, 4) : [];
 
-        console.log(`[getTopActions] Refined Counts - OOS Stores: ${darkstoreCount}, Active Stores KPI: ${activeStoresVal}, SKUs: ${skuCount}`);
+        console.log(`[getTopActions] Refined Counts - OOS Stores: ${darkstoreCount}, SKUs: ${skuCount}`);
 
         // 3. KPIs from rb_pdp_olap
         const platCondOlap = platCond.replace('platform', 'Platform');
@@ -6387,18 +6376,18 @@ const getTopActions = async (filters = {}) => {
         const osaPrevQuery = `
             SELECT SUM(toFloat64OrZero(neno_osa)) as neno, SUM(toFloat64(deno_osa)) as deno 
             FROM rb_pdp_olap 
-            WHERE ${platCondOlap} AND toDate(DATE) = '${dateVal.subtract(7, 'day').format('YYYY-MM-DD')}'
+            WHERE ${platCondOlap} AND toDate(DATE) = '${dayjs(endDateStr).subtract(7, 'day').format('YYYY-MM-DD')}'
         `;
 
         // Sales MTD
-        const mtdStart = dateVal.startOf('month').format('YYYY-MM-DD');
+        const mtdStart = dayjs(endDateStr).startOf('month').format('YYYY-MM-DD');
         const salesMtdQuery = `
             SELECT SUM(toFloat64OrZero(Sales)) as sales 
             FROM rb_pdp_olap 
             WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
         `;
-        const lastMtdStart = dateVal.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
-        const lastMtdEnd = dateVal.subtract(1, 'month').format('YYYY-MM-DD');
+        const lastMtdStart = dayjs(endDateStr).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+        const lastMtdEnd = dayjs(endDateStr).subtract(1, 'month').format('YYYY-MM-DD');
         const lastSalesMtdQuery = `
             SELECT SUM(toFloat64OrZero(Sales)) as sales 
             FROM rb_pdp_olap 
@@ -6437,12 +6426,16 @@ const getTopActions = async (filters = {}) => {
             `);
         };
 
-        const todayTrend = await getTrend(dateVal.subtract(6, 'day').format('YYYY-MM-DD'), endDateStr);
-        const weekTrend = await getTrend(dateVal.subtract(13, 'day').format('YYYY-MM-DD'), dateVal.subtract(7, 'day').format('YYYY-MM-DD'));
-        const monthTrend = await getTrend(dateVal.subtract(1, 'month').subtract(6, 'day').format('YYYY-MM-DD'), dateVal.subtract(1, 'month').format('YYYY-MM-DD'));
+        const todayTrend = hasOlapData ? await getTrend(dayjs(endDateStr).subtract(6, 'day').format('YYYY-MM-DD'), endDateStr) : [];
+        const weekTrend = hasOlapData ? await getTrend(dayjs(endDateStr).subtract(13, 'day').format('YYYY-MM-DD'), dayjs(endDateStr).subtract(7, 'day').format('YYYY-MM-DD')) : [];
+        const monthTrend = hasOlapData ? await getTrend(dayjs(endDateStr).subtract(1, 'month').subtract(6, 'day').format('YYYY-MM-DD'), dayjs(endDateStr).subtract(1, 'month').format('YYYY-MM-DD')) : [];
 
-        const formatGraph = (currTrend, compTrend) => {
-            const labels = ['D-6', 'D-5', 'D-4', 'D-3', 'D-2', 'D-1', 'Today'];
+        const formatGraph = (currTrend, compTrend, refDate) => {
+            const labels = [];
+            for (let i = 6; i >= 0; i--) {
+                labels.push(dayjs(refDate).subtract(i, 'day').format('DD MMM'));
+            }
+
             return labels.map((label, i) => {
                 const c = currTrend[i]?.d > 0 ? (currTrend[i].n / currTrend[i].d) * 100 : 0;
                 const p = compTrend[i]?.d > 0 ? (compTrend[i].n / compTrend[i].d) * 100 : 0;
@@ -6453,16 +6446,16 @@ const getTopActions = async (filters = {}) => {
         const result = {
             counts: { darkstoreCount, skuCount },
             kpis: {
-                osa: { value: `${currentOsa.toFixed(1)}%`, delta: `${osaDelta >= 0 ? '+' : ''}${osaDelta.toFixed(1)} pt` },
+                osa: { value: hasOlapData ? `${currentOsa.toFixed(1)}%` : "N/A", delta: hasOlapData ? `${osaDelta >= 0 ? '+' : ''}${osaDelta.toFixed(1)} pt` : "0" },
                 fillRate: { value: "Coming Soon", delta: "0" },
-                salesMtd: { value: `₹${(currentSales / 10000000).toFixed(1)} Cr`, delta: `${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}%` },
-                lostSales: { value: `₹${(lostSales / 10000000).toFixed(1)} Cr`, delta: "" },
+                salesMtd: { value: hasOlapData ? `₹${(currentSales / 10000000).toFixed(1)} Cr` : "N/A", delta: hasOlapData ? `${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}%` : "0" },
+                lostSales: { value: hasOlapData ? `₹${(lostSales / 10000000).toFixed(1)} Cr` : "N/A", delta: "" },
                 activeStores: { value: activeStoresVal.toLocaleString(), delta: "" },
                 heroSkus: { value: skuCount.toString(), delta: "0" }
             },
             graphData: {
-                week: formatGraph(todayTrend, weekTrend),
-                month: formatGraph(todayTrend, monthTrend)
+                week: formatGraph(todayTrend, weekTrend, endDateStr),
+                month: formatGraph(todayTrend, monthTrend, endDateStr)
             },
             metadata: { platform, endDate: endDateStr, topPids }
         };
@@ -6497,30 +6490,33 @@ const getOsaDeepDive = async (filters = {}) => {
             ? `Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
             : '1=1';
 
-        // 1. Fetch Latest Available Date from rb_pdp_olap
-        const latestDateRes = await queryClickHouse(`
-            SELECT MAX(toDate(DATE)) as max_date 
-            FROM rb_pdp_olap 
-            WHERE ${platCondOlap}
-        `);
-        const maxAvailableDate = latestDateRes[0]?.max_date ? dayjs(latestDateRes[0].max_date) : dayjs();
+        const requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
+            ? dayjs(filters.endDate).format('YYYY-MM-DD')
+            : dayjs().format('YYYY-MM-DD');
 
-        let targetDate = filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined'
-            ? dayjs(filters.endDate)
-            : maxAvailableDate;
+        // Check for presence of data for the EXACT requested date
+        const [olapCheckRes, insightCheckRes] = await Promise.all([
+            queryClickHouse(`SELECT count(*) as count FROM rb_pdp_olap WHERE ${platCondOlap} AND toDate(DATE) = '${requestedEnd}'`),
+            queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCondDarkstore} AND toDate(DATE) = '${requestedEnd}'`)
+        ]);
 
-        if (targetDate.isAfter(maxAvailableDate)) {
-            targetDate = maxAvailableDate;
+        const hasOlap = parseInt(olapCheckRes[0]?.count || 0) > 0;
+        const hasInsight = parseInt(insightCheckRes[0]?.count || 0) > 0;
+
+        // If either essential data source is missing for the exact date, return empty (Strict matching)
+        if (!hasOlap || !hasInsight) {
+            console.log(`[getOsaDeepDive] Strict matching failed: hasOlap=${hasOlap}, hasInsight=${hasInsight}`);
+            return [];
         }
 
-        const endDateStr = targetDate.format('YYYY-MM-DD');
-        const mtdStart = targetDate.startOf('month').format('YYYY-MM-DD');
+        const endDateStr = requestedEnd;
+        const mtdStart = dayjs(requestedEnd).startOf('month').format('YYYY-MM-DD');
 
-        // 2. Fetch Hero SKUs for filtering
+        // 2. Fetch Hero SKUs for filtering (Strict date)
         const heroSkuRes = await queryClickHouse(`
             SELECT DISTINCT lower(web_pid) as pid 
             FROM rca_watchtower_insight 
-            WHERE ${platCondDarkstore} AND date = '${endDateStr}'
+            WHERE ${platCondDarkstore} AND toDate(DATE) = '${requestedEnd}'
         `);
         const heroPids = heroSkuRes.map(r => `'${escapeStr(r.pid)}'`).join(',');
         const heroSkuFilter = heroPids ? `AND lower(Web_Pid) IN (${heroPids})` : 'AND 1=0';
