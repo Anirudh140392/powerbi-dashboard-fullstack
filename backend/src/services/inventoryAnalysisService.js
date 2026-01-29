@@ -4,7 +4,7 @@ import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheH
 
 const THRESHOLD_DOH = 8; // Default threshold for DOH
 const UNITS_PER_BOX = 24; // Units per box for replenishment calculation
-const RESTRICTED_CATEGORIES = ['Bath & Body', 'Detergent', 'Hair Care', 'Fragrance & talc'];
+// const RESTRICTED_CATEGORIES = ['Bath & Body', 'Detergent', 'Hair Care', 'Fragrance & talc']; // Removed to allow all categories
 
 const getFilterMetadata = async (whereClause, params) => {
     const query = `
@@ -79,16 +79,12 @@ const inventoryAnalysisService = {
                         where += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
                     }
 
+                    // RESTRICTED_CATEGORIES logic removed to allow all categories
                     if (filters.category && filters.category !== 'All') {
-                        const requested = filters.category.split(',').map(c => c.trim()).filter(c => RESTRICTED_CATEGORIES.includes(c));
-                        if (requested.length > 0) {
-                            where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
-                        } else {
-                            where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
-                        }
-                    } else {
-                        where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
+                        const requested = filters.category.split(',').map(c => c.trim());
+                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
+
                     return where;
                 };
 
@@ -107,7 +103,7 @@ const inventoryAnalysisService = {
                                 Product, 
                                 Location,
                                 argMax(toFloat64OrZero(Inventory), DATE) as inventory,
-                                sum(toFloat64OrZero(Qty_Sold)) / ${periodDays} as drr,
+                                sum(ifNull(Qty_Sold, 0)) / ${periodDays} as drr,
                                 if(isNaN(if(drr > 0, inventory / drr, 0)), 0, if(drr > 0, inventory / drr, 0)) as doh,
                                 if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty
                             FROM rb_pdp_olap
@@ -150,7 +146,7 @@ const inventoryAnalysisService = {
                             Product,
                             Location,
                             argMax(toFloat64OrZero(Inventory), DATE) as inventory,
-                            sum(toFloat64OrZero(Qty_Sold)) as qtySold,
+                            sum(ifNull(Qty_Sold, 0)) as qtySold,
                             if(isNaN(if(qtySold > 0, inventory / qtySold, (if(inventory > 0, 99, 0)))), 0, if(qtySold > 0, inventory / qtySold, (if(inventory > 0, 99, 0)))) as doh,
                             if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * qtySold, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * qtySold, 0)) as poQty
                         FROM rb_pdp_olap
@@ -240,7 +236,7 @@ const inventoryAnalysisService = {
         const cacheKey = 'inventory_platforms';
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')}) ORDER BY platform ASC`;
+                const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY platform ASC`;
                 const results = await queryClickHouse(query);
                 return results.map(p => p.platform);
             } catch (error) {
@@ -257,7 +253,7 @@ const inventoryAnalysisService = {
         const cacheKey = generateCacheKey('inventory_brands', { platform });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
+                let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != ''`;
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
                     query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
@@ -279,7 +275,7 @@ const inventoryAnalysisService = {
         const cacheKey = generateCacheKey('inventory_locations', { platform, brand });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                let query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
+                let query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != ''`;
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
                     query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
@@ -325,21 +321,16 @@ const inventoryAnalysisService = {
                         where += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
                     }
 
+                    // RESTRICTED_CATEGORIES removed
                     if (filters.category && filters.category !== 'All') {
-                        const requested = filters.category.split(',').map(c => c.trim()).filter(c => RESTRICTED_CATEGORIES.includes(c));
-                        if (requested.length > 0) {
-                            where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
-                        } else {
-                            where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
-                        }
-                    } else {
-                        where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
+                        const requested = filters.category.split(',').map(c => c.trim());
+                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
                     return where;
                 };
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
-                const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`);
+                const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
 
                 const matrixQuery = `
                     SELECT 
@@ -396,21 +387,16 @@ const inventoryAnalysisService = {
                         where += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
                     }
 
+                    // RESTRICTED_CATEGORIES removed
                     if (filters.category && filters.category !== 'All') {
-                        const requested = filters.category.split(',').map(c => c.trim()).filter(c => RESTRICTED_CATEGORIES.includes(c));
-                        if (requested.length > 0) {
-                            where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
-                        } else {
-                            where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
-                        }
-                    } else {
-                        where += ` AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`;
+                        const requested = filters.category.split(',').map(c => c.trim());
+                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
                     return where;
                 };
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
-                const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' AND Category IN (${RESTRICTED_CATEGORIES.map(c => `'${c}'`).join(',')})`);
+                const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
 
                 const matrixQuery = `
                     SELECT 
@@ -425,7 +411,7 @@ const inventoryAnalysisService = {
                         SELECT 
                             Product, Location, Brand, Category, Platform,
                             ifNull(argMax(toFloat64OrZero(Inventory), DATE), 0) as latestStock,
-                            if(isNaN(sum(toFloat64OrZero(Qty_Sold)) / ${periodDays}), 0, sum(toFloat64OrZero(Qty_Sold)) / ${periodDays}) as drr,
+                            if(isNaN(sum(ifNull(Qty_Sold, 0)) / ${periodDays}), 0, sum(ifNull(Qty_Sold, 0)) / ${periodDays}) as drr,
                             if(isNaN(if(drr > 0, latestStock / drr, 0)), 0, if(drr > 0, latestStock / drr, 0)) as doh,
                             if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty
                         FROM rb_pdp_olap

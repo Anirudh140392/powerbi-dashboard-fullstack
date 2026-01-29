@@ -149,9 +149,20 @@ export const FilterProvider = ({ children }) => {
         console.log('📍 Route changed to:', currentPath);
     }, [currentPath]);
 
+    // Track current date source mode to handle page-specific date logic
+    const [dateSourceMode, setDateSourceMode] = useState('default'); // 'default' | 'content_analysis'
+
     // Fetch latest month available in backend to init date range (fallback to current month on failure)
     useEffect(() => {
-        if (datesInitialized) return;
+        // Determine required mode based on current path
+        // Route is defined as /content-score in App.jsx
+        const isContentAnalysis = currentPath.includes('content-analysis') || currentPath.includes('content-score');
+        const targetMode = isContentAnalysis ? 'content_analysis' : 'default';
+
+        // Only return if initialized AND the mode hasn't changed
+        if (datesInitialized && dateSourceMode === targetMode) return;
+
+        console.log(`[FilterContext] Date mode changed to ${targetMode}. Re-initializing dates...`);
 
         let cancelled = false;
 
@@ -159,10 +170,14 @@ export const FilterProvider = ({ children }) => {
             try {
                 // If we have a selected brand, try to get its specific latest month
                 // Otherwise (or if it fails), get the global latest month
+                // Check if we are on the Content Analysis page
+                const isContentAnalysis = currentPath.includes('content-analysis') || currentPath.includes('content-score');
+
                 const response = await axiosInstance.get("/watchtower/latest-available-month", {
                     params: {
                         platform: platform !== 'All' ? platform : undefined,
-                        brand: selectedBrand !== 'All' ? selectedBrand : undefined
+                        brand: selectedBrand !== 'All' ? selectedBrand : undefined,
+                        source: isContentAnalysis ? 'content_analysis' : undefined // Trigger backend special logic
                     }
                 });
 
@@ -175,7 +190,8 @@ export const FilterProvider = ({ children }) => {
 
                     setTimeStart(s);
                     setTimeEnd(e);
-                    setMaxDate(e);
+                    // FIXED: Allow navigation up to today regardless of where data ends
+                    setMaxDate(dayjs());
 
                     // Initialize comparison dates to preceding period
                     const diffDays = e.diff(s, 'day') + 1;
@@ -185,6 +201,7 @@ export const FilterProvider = ({ children }) => {
                     setCompareEnd(cEnd);
 
                     setDatesInitialized(true);
+                    setDateSourceMode(targetMode);
                     return;
                 } else if (!cancelled && selectedBrand && selectedBrand !== 'All') {
                     // Fallback to global latest month if brand-specific failed
@@ -195,8 +212,10 @@ export const FilterProvider = ({ children }) => {
                         const gEnd = globalResponse.data.defaultEndDate;
                         setTimeStart(dayjs(gStart));
                         setTimeEnd(dayjs(gEnd));
-                        setMaxDate(dayjs(gEnd));
+                        // FIXED: Allow navigation up to today
+                        setMaxDate(dayjs());
                         setDatesInitialized(true);
+                        setDateSourceMode(targetMode);
                         return;
                     }
                 }
@@ -205,11 +224,14 @@ export const FilterProvider = ({ children }) => {
             }
 
             if (!cancelled) {
-                // Hard fallback to last known good data (since table ends at 2025-12-31)
-                const s = dayjs("2025-12-01");
-                const e = dayjs("2025-12-31");
+                // Hard fallback to last known good data (updated to 2026)
+                const s = dayjs("2026-01-01");
+                const e = dayjs(); // Allow up to today
                 setTimeStart(s);
                 setTimeEnd(e);
+
+                // Allow selection up to today
+                setMaxDate(e);
 
                 const cEnd = s.subtract(1, 'day');
                 const cStart = cEnd.subtract(e.diff(s, 'day'), 'day');
@@ -217,6 +239,7 @@ export const FilterProvider = ({ children }) => {
                 setCompareEnd(cEnd);
 
                 setDatesInitialized(true);
+                setDateSourceMode(targetMode); // Ensure we switch mode even on fallback
             }
         };
 
@@ -225,7 +248,7 @@ export const FilterProvider = ({ children }) => {
         return () => {
             cancelled = true;
         };
-    }, [datesInitialized]);
+    }, [datesInitialized, currentPath, dateSourceMode]); // Re-run when path or mode changes
 
 
     // Fetch platforms on mount (with fallback)
