@@ -295,7 +295,12 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             // For Format viewMode, only show categories with status=1 in rca_sku_dim
             let additionalCategoryFilter = '';
             if (viewMode === 'Format') {
-                additionalCategoryFilter = ` AND ${groupColumn} IN (SELECT DISTINCT Category FROM rca_sku_dim WHERE status = 1)`;
+                // Pre-fetch valid categories to avoid correlated subquery (not supported in ClickHouse)
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE status = 1 AND category IS NOT NULL AND category != ''`);
+                const validCategories = validCatResult.map(r => r.category).filter(Boolean);
+                if (validCategories.length > 0) {
+                    additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
+                }
             }
 
             const distinctQuery = `
@@ -307,6 +312,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 ORDER BY value
                 LIMIT 10
             `;
+
 
             const columnValues = (await queryClickHouse(distinctQuery))
                 .map(r => r.value)
@@ -936,6 +942,7 @@ const getOsaDetailByCategory = async (filters) => {
             const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
 
             // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
+            // Note: rca_sku_dim uses lowercase column names (platform, location, brand_name, category)
             const query = `
                 SELECT 
                     t1.Product as name,
@@ -944,15 +951,16 @@ const getOsaDetailByCategory = async (filters) => {
                     SUM(toFloat64(t1.neno_osa)) as sum_neno,
                     SUM(toFloat64(t1.deno_osa)) as sum_deno
                 FROM rb_pdp_olap t1
-                JOIN rca_sku_dim t2 ON t1.Platform = t2.platform 
-                    AND t1.Location = t2.location 
-                    AND t1.Brand = t2.brand_name 
-                    AND t1.Category = t2.Category
+                JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
+                    AND lower(t1.Location) = lower(t2.location) 
+                    AND lower(t1.Brand) = lower(t2.brand_name) 
+                    AND lower(t1.Category) = lower(t2.category)
                 WHERE ${whereClause}
                   AND t2.status = 1
                 GROUP BY t1.Product, t1.Web_Pid, t1.DATE
                 ORDER BY t1.Product, t1.Web_Pid, t1.DATE
             `;
+
 
             const results = await queryClickHouse(query);
 
@@ -1071,15 +1079,23 @@ const getAvailabilityKpiTrends = async (filters) => {
             }
 
             // Build filter conditions using the enhanced where clause
-            const whereClause = buildAvailabilityWhereClause(filters);
+            // CRITICAL: We MUST pass the calculated startDate and endDate to buildAvailabilityWhereClause
+            // so that the SQL query is restricted to the selected period.
+            const whereClause = buildAvailabilityWhereClause({
+                ...filters,
+                startDate: currentStartDate,
+                endDate: currentEndDate
+            });
+
+            console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')}`);
 
             const query = `
                 SELECT 
                     DATE as ref_date,
-                    SUM(toFloat64(neno_osa)) as total_neno,
-                    SUM(toFloat64(deno_osa)) as total_deno,
-                    SUM(toFloat64(Inventory)) as total_inventory,
-                    SUM(toFloat64(Qty_Sold)) as total_qty_sold,
+                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
+                    SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
                     COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
@@ -1090,10 +1106,11 @@ const getAvailabilityKpiTrends = async (filters) => {
             const results = await queryClickHouse(query);
 
             // Get total active assortment from rb_sku_platform for Listing % calculation
+            // Note: rb_sku_platform only has brand_name, brand_category, web_pid, status (no platform column)
             const masterAssortmentConds = [`status = 1`];
-            if (platform && platform !== 'All') masterAssortmentConds.push(`platform_name = '${escapeStr(platform)}'`);
-            if (category && category !== 'All') masterAssortmentConds.push(`brand_category = '${escapeStr(category)}'`);
-            if (brand && brand !== 'All') masterAssortmentConds.push(`brand_name = '${escapeStr(brand)}'`);
+            // Platform filter is omitted as rb_sku_platform doesn't have a platform column
+            if (category && category !== 'All') masterAssortmentConds.push(`lower(brand_category) = '${escapeStr(category.toLowerCase())}'`);
+            if (brand && brand !== 'All') masterAssortmentConds.push(`lower(brand_name) = '${escapeStr(brand.toLowerCase())}'`);
 
             const masterQuery = `
                 SELECT count(DISTINCT web_pid) as total_master
@@ -1102,6 +1119,8 @@ const getAvailabilityKpiTrends = async (filters) => {
             `;
             const masterResult = await queryClickHouse(masterQuery);
             const masterCount = parseInt(masterResult[0]?.total_master, 10) || 0;
+
+
 
             const timeSeries = results.map(row => {
                 const neno = parseFloat(row.total_neno) || 0;
@@ -1165,40 +1184,40 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     SELECT 
                         Brand,
                         Web_Pid,
-                        argMax(toFloat64OrZero(Inventory), DATE) as sku_latest_inventory
+                        argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_inv
                     FROM rb_pdp_olap
                     WHERE ${whereClause}
-                      AND Brand IS NOT NULL AND Brand != ''
-                      AND Comp_flag = 1
                     GROUP BY Brand, Web_Pid
                 )
                 SELECT 
-                    Brand,
-                    SUM(toFloat64(neno_osa)) as total_neno,
-                    SUM(toFloat64(deno_osa)) as total_deno,
-                    SUM(toFloat64OrZero(Qty_Sold)) as total_qty_sold,
-                    COUNT(DISTINCT Web_Pid) as assortment_count,
-                    (SELECT SUM(sku_latest_inventory) FROM latest_skus WHERE latest_skus.Brand = rb_pdp_olap.Brand) as total_brand_inventory
+                    Brand as brand_name,
+                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
+                    SUM(latest_inv) as total_inventory,
+                    COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
+                LEFT JOIN latest_skus ON rb_pdp_olap.Web_Pid = latest_skus.Web_Pid AND rb_pdp_olap.Brand = latest_skus.Brand
                 WHERE ${whereClause}
                   AND Brand IS NOT NULL AND Brand != ''
                   AND Comp_flag = 1
                 GROUP BY Brand
                 ORDER BY total_deno DESC
-                LIMIT 8
+                LIMIT 10
             `;
+
 
             const results = await queryClickHouse(query);
 
             // Get master counts from rb_sku_platform for all brands in the results to calculate Listing %
-            const foundBrands = results.map(r => r.Brand).filter(Boolean);
+            const foundBrands = results.map(r => r.brand_name).filter(Boolean);
             let brandMasterCounts = {};
 
             if (foundBrands.length > 0) {
                 const brandListStr = foundBrands.map(b => `'${escapeStr(b)}'`).join(', ');
                 const masterConds = [`status = 1`, `brand_name IN (${brandListStr})`];
-                if (platform && platform !== 'All') masterConds.push(`platform_name = '${escapeStr(platform)}'`);
-                if (category && category !== 'All') masterConds.push(`brand_category = '${escapeStr(category)}'`);
+                // Platform filter is omitted as rb_sku_platform doesn't have a platform column
+                if (category && category !== 'All') masterConds.push(`lower(brand_category) = '${escapeStr(category.toLowerCase())}'`);
 
                 const masterQuery = `
                     SELECT brand_name, count(DISTINCT web_pid) as total_master
@@ -1212,15 +1231,17 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 });
             }
 
+
+
             const brands = results.map((row, idx) => {
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
-                const brandName = row.Brand;
+                const brandName = row.brand_name;
                 const masterCount = brandMasterCounts[brandName] || 0;
 
                 const totalQtySold = parseFloat(row.total_qty_sold) || 0;
-                const totalBrandInv = parseFloat(row.total_brand_inventory) || 0;
+                const totalBrandInv = parseFloat(row.total_inventory) || 0;
 
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
                 const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
@@ -1248,10 +1269,10 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 SELECT 
                     Product as sku_name,
                     Brand as brand_name,
-                    SUM(toFloat64(neno_osa)) as total_neno,
-                    SUM(toFloat64(deno_osa)) as total_deno,
-                    SUM(toFloat64OrZero(Qty_Sold)) as total_qty_sold,
-                    argMax(toFloat64OrZero(Inventory), DATE) as latest_sku_inventory
+                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
+                    argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_sku_inventory
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product IS NOT NULL AND Product != ''
@@ -1260,6 +1281,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 ORDER BY total_deno DESC
                 LIMIT 8
             `;
+
 
             const skuResults = await queryClickHouse(skuQuery);
             const skus = skuResults.map(s => {
@@ -1352,7 +1374,14 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             let { brands = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
             if (location === 'All India') location = 'All';
 
-            const brandList = brands && brands !== 'All' ? brands.split(',').map(b => b.trim()) : [];
+            let brandList = [];
+            if (brands && brands !== 'All') {
+                if (Array.isArray(brands)) {
+                    brandList = brands;
+                } else {
+                    brandList = brands.split(',').map(b => b.trim());
+                }
+            }
             if (brandList.length === 0) {
                 return { metrics: [], timeSeries: {}, brands: [] };
             }
@@ -1374,10 +1403,10 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 SELECT 
                     Brand,
                     DATE as ref_date,
-                    SUM(toFloat64(neno_osa)) as total_neno,
-                    SUM(toFloat64(deno_osa)) as total_deno,
-                    SUM(toFloat64(Inventory)) as total_inventory,
-                    SUM(toFloat64(Qty_Sold)) as total_qty_sold,
+                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
+                    SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
                     COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
                 WHERE ${whereClause}

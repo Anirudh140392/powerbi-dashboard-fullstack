@@ -524,7 +524,7 @@ const BrandTable = ({ rows, loading }) => {
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                 </tr>
                             ))}
-                            {!loading && paginatedRows.map((row, idx) => (
+                            {!loading && rows.map((row, idx) => (
                                 <tr
                                     key={row.id}
                                     className={cn(

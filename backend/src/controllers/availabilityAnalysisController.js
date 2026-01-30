@@ -291,10 +291,10 @@ export const getOsaDetailByCategory = async (req, res) => {
 export const getAvailabilityKpiTrends = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
-            category: req.query.category || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
+            category: parseFilter(req.query.category),
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
@@ -322,10 +322,10 @@ export const getAvailabilityKpiTrends = async (req, res) => {
 export const getAvailabilityCompetition = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            location: req.query.location || 'All',
-            category: req.query.category || 'All',
-            brand: req.query.brand || 'All',
+            platform: parseFilter(req.query.platform),
+            location: parseFilter(req.query.location),
+            category: parseFilter(req.query.category),
+            brand: parseFilter(req.query.brand),
             period: req.query.period || '1M',
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -356,10 +356,10 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
         console.log('[REQUEST] platform:', platform, 'location:', location, 'category:', category, 'brand:', brand);
 
         const data = await availabilityService.getAvailabilityCompetitionFilterOptions({
-            platform: platform || 'All',
-            location: location || 'All',
-            category: category || 'All',
-            brand: brand || 'All'
+            platform: parseFilter(platform),
+            location: parseFilter(location),
+            category: parseFilter(category),
+            brand: parseFilter(brand)
         });
 
         console.log('[RESPONSE]:', data.locations?.length, 'locations,', data.categories?.length, 'categories,', data.brands?.length, 'brands');
@@ -383,9 +383,9 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
         console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
 
         const data = await availabilityService.getAvailabilityCompetitionBrandTrends({
-            brands: brands || 'All',
-            location: location || 'All',
-            category: category || 'All',
+            brands: parseFilter(brands || 'All'),
+            location: parseFilter(location || 'All'),
+            category: parseFilter(category || 'All'),
             period: period || '1M',
             startDate,
             endDate
