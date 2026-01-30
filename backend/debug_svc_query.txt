@@ -17,4 +17,4 @@
                 product_platform_total as overallScore
             FROM tb_content_score_data
             WHERE 1=1
-         AND toDate(extraction_timestamp) BETWEEN '2026-01-01' AND '2026-01-29' AND (url LIKE '%zepto%') LIMIT 5000
+         AND toDate(extraction_timestamp) BETWEEN '2026-01-01' AND '2026-01-27' AND (url LIKE '%zepto%') LIMIT 5000
