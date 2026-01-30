@@ -13,6 +13,8 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { motion, useSpring, useMotionValue } from "framer-motion";
 import { Plus, Minus, Activity, Zap } from "lucide-react";
+import axiosInstance from "../../../api/axiosInstance";
+import RCACardMetric from "./RCACardMetric";
 import {
   Box,
   Typography,
@@ -700,7 +702,10 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
 };
 
 // --- Internal RCATree Component ---
-const RcaTreeInner = () => {
+const RcaTreeInner = ({ context }) => {
+  const [treeData, setTreeData] = useState(null);
+  const [cardData, setCardData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -708,11 +713,29 @@ const RcaTreeInner = () => {
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const reactFlowInstance = useReactFlow();
 
-  const index = useMemo(() => buildIndex(INITIAL_TREE), []);
+  useEffect(() => {
+    const fetchRcaData = async () => {
+      try {
+        setLoading(true);
+        const response = await axiosInstance.get('/category-rca', { params: context });
+        if (response.data) {
+          setTreeData(response.data.tree);
+          setCardData(response.data.cards);
+        }
+      } catch (error) {
+        console.error('Error fetching RCA data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRcaData();
+  }, [context]);
+
+  const index = useMemo(() => treeData ? buildIndex(treeData) : { parent: new Map(), children: new Map() }, [treeData]);
   const focusId = selectedNodeId || hoveredNodeId;
 
   const focusSet = useMemo(() => {
-    if (!focusId) return null;
+    if (!focusId || !index) return null;
     const a = collectAncestors(focusId, index.parent);
     const d = collectDescendants(focusId, index.children);
     return new Set([focusId, ...a, ...d]);
@@ -743,9 +766,10 @@ const RcaTreeInner = () => {
   const onHover = useCallback((id) => setHoveredNodeId(id), []);
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
+    if (!treeData) return { nodes: [], edges: [] };
     const results = { nodes: [], edges: [] };
-    const rootWidth = computeSubtreeWidth(INITIAL_TREE, collapsedNodes);
-    layoutTreeNodes(INITIAL_TREE, -rootWidth / 2, 0, collapsedNodes, results);
+    const rootWidth = computeSubtreeWidth(treeData, collapsedNodes);
+    layoutTreeNodes(treeData, -rootWidth / 2, 0, collapsedNodes, results);
 
     const nodes = results.nodes.map((n) => {
       const isFocused = focusSet ? focusSet.has(n.id) : true;
@@ -786,7 +810,7 @@ const RcaTreeInner = () => {
     });
 
     return { nodes, edges };
-  }, [collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
+  }, [treeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -810,39 +834,50 @@ const RcaTreeInner = () => {
       <CoolGreyBackground />
       <MagicCursor />
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        fitView
-        minZoom={0.2}
-        maxZoom={2}
-        defaultEdgeOptions={{ animated: false, type: "step" }}
-      >
-        <Controls
-          showInteractive={false}
-          style={{
-            borderRadius: "20px",
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.8)",
-            background: "rgba(255,255,255,0.7)",
-            backdropFilter: "blur(12px)",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
-          }}
-        />
-      </ReactFlow>
+      {/* Dynamic Header Metrics */}
+      <Box sx={{ position: "absolute", top: 20, left: 40, right: 40, zIndex: 100 }}>
+        {cardData.length > 0 && <RCACardMetric cards={cardData} />}
+      </Box>
+
+      {loading ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          <Typography variant="h4" fontWeight={900} color="primary.main">Analyzing Market Vectors...</Typography>
+        </Box>
+      ) : (
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.2}
+          maxZoom={2}
+          defaultEdgeOptions={{ animated: false, type: "step" }}
+        >
+          <Controls
+            showInteractive={false}
+            style={{
+              borderRadius: "20px",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.8)",
+              background: "rgba(255,255,255,0.7)",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+            }}
+          />
+        </ReactFlow>
+      )}
 
       <NodeDetailPopup open={detailOpen} onClose={() => setDetailOpen(false)} nodeData={selectedNode} />
     </div>
   );
 };
 
-export default function RCATree() {
+export default function RCATree({ context }) {
   return (
     <ReactFlowProvider>
-      <RcaTreeInner />
+      <RcaTreeInner context={context} />
     </ReactFlowProvider>
   );
 }
