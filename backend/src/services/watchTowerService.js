@@ -3662,31 +3662,32 @@ const computeTrendData = async (filters) => {
         });
 
         // 5. Query Share of Search (SOV) using ClickHouse
-        const buildSosConds = (includeBrand = false) => {
+        // Platform Overview formula: No spons_flag filter, uses keyword_is_rb_product=1 for our brands
+        const buildSosConds = () => {
             const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-            conds.push(`toString(spons_flag) != '1'`);
             if (category && category !== 'All') conds.push(`keyword_category = '${escapeStr(category)}'`);
             if (location && location !== 'All') conds.push(`location_name = '${escapeStr(location)}'`);
             if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
-            if (includeBrand && brand && brand !== 'All') conds.push(`brand_name = '${escapeStr(brand)}'`);
             return conds.join(' AND ');
         };
 
-        // Numerator: Brand matches + Not Sponsored
+        // Numerator: Our brands using keyword_is_rb_product=1 (matching Platform Overview)
+        const sosNumConds = buildSosConds();
         const sosNumerator = await queryClickHouse(`
             SELECT ${groupExpressionKw} as date_group, count() as count
             FROM rb_kw
-            WHERE ${buildSosConds(true)}
+            WHERE ${sosNumConds} AND toString(keyword_is_rb_product) = '1'
             GROUP BY ${groupExpressionKw}
         `);
 
-        // Denominator: All Brands (No Brand Filter) + Not Sponsored
+        // Denominator: All products (no brand filter)
         const sosDenominator = await queryClickHouse(`
             SELECT ${groupExpressionKw} as date_group, count() as count
             FROM rb_kw
-            WHERE ${buildSosConds(false)}
+            WHERE ${sosNumConds}
             GROUP BY ${groupExpressionKw}
         `);
+
 
 
         // 6. Merge and Format Data
@@ -4594,7 +4595,7 @@ const getMonthOverview = async (filters) => {
 
                 const availability = deno > 0 ? (neno / deno) * 100 : 0;
                 const roas = spend > 0 ? adSales / spend : 0;
-                const conversion = clicks > 0 ? orders / clicks : 0;  // Conversion = Orders / Clicks (matching Platform Overview)
+                const conversion = clicks > 0 ? (orders / clicks) * 100 : 0;  // Conversion = (Orders / Clicks) * 100 (matching Platform Overview)
                 const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
                 const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -5188,29 +5189,20 @@ const getKpiTrends = async (filters) => {
         `);
 
         // 5. Query for Share of Search using ClickHouse
-        // Formula when Brand = "All": SOS = (Count of rows where keyword_is_rb_product=1) / (Count of ALL rows) × 100
-        // Uses keyword_is_rb_product column in rb_kw table (1 = our RB product)
+        // Platform Overview formula: No spons_flag filter, uses keyword_is_rb_product=1 for our brands
 
-        // Build SOS base conditions
-        const buildSosConds = (isBrandSpecific = false) => {
+        // Build SOS base conditions (matching Platform Overview - no spons_flag filter)
+        const buildSosConds = () => {
             const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-            conds.push(`toString(spons_flag) != '1'`);
             if (category && category !== 'All') conds.push(`keyword_category = '${escapeStr(category)}'`);
             if (location && location !== 'All') conds.push(`location_name = '${escapeStr(location)}'`);
             if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
             return conds;
         };
 
-        // Numerator conditions
+        // Numerator conditions - always use keyword_is_rb_product=1 (matching Platform Overview)
         const sosNumConds = buildSosConds();
-        if (brand && brand !== 'All') {
-            // Specific brand selected - filter by brand name
-            sosNumConds.push(`brand_name = '${escapeStr(brand)}'`);
-        } else {
-            // "All" brands selected - use keyword_is_rb_product=1 (our RB products)
-            sosNumConds.push(`toString(keyword_is_rb_product) = '1'`);
-            console.log(`[KPI Trends SOS] "All" brands selected - using keyword_is_rb_product=1`);
-        }
+        sosNumConds.push(`toString(keyword_is_rb_product) = '1'`);
 
         const sosNumerator = await queryClickHouse(`
             SELECT ${groupExpressionKw} as date_group, count() as count
@@ -5219,7 +5211,7 @@ const getKpiTrends = async (filters) => {
             GROUP BY ${groupExpressionKw}
         `);
 
-        // Denominator: All Brands (No Brand Filter) + Not Sponsored
+        // Denominator: All products (no brand filter, matching Platform Overview)
         const sosDenomConds = buildSosConds();
 
         const sosDenominator = await queryClickHouse(`
@@ -5228,6 +5220,7 @@ const getKpiTrends = async (filters) => {
             WHERE ${sosDenomConds.join(' AND ')}
             GROUP BY ${groupExpressionKw}
         `);
+
 
         // 6. Generate time buckets and format data
         const buckets = generateTimeBuckets(startDate, endDate, timeStep);
