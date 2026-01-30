@@ -51,365 +51,7 @@ const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
 /* -------------------------------------------------------------------------- */
 
 /* Card */
-const DASHBOARD_DATA = {
-  /* =====================================================================
-     TRENDS (MAIN LINE CHART)
-  ===================================================================== */
-  trends: {
-    context: {
-      level: "MRP",
-      audience: "Platform",
-    },
-
-    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
-    defaultRange: "1M",
-
-    timeSteps: ["Daily", "Weekly", "Monthly"],
-    defaultTimeStep: "Daily",
-
-    metrics: [
-      {
-        id: "Offtakes",
-        label: "Offtakes",
-        color: "#2563EB",
-        axis: "left",
-        default: true,
-      },
-      {
-        id: "Spend",
-        label: "Spend",
-        color: "#DC2626",
-        axis: "left",
-        default: true,
-      },
-      {
-        id: "ROAS",
-        label: "ROAS",
-        color: "#16A34A",
-        axis: "right",
-        default: true,
-      },
-      {
-        id: "InorgSales",
-        label: "Inorg Sales",
-        color: "#7C3AED",
-        axis: "right",
-      },
-      {
-        id: "DspSales",
-        label: "DSP Sales",
-        color: "#0EA5E9",
-        axis: "right",
-      },
-      {
-        id: "Conversion",
-        label: "Conversion",
-        color: "#F97316",
-        axis: "left",
-      },
-      {
-        id: "Availability",
-        label: "Availability",
-        color: "#22C55E",
-        axis: "left",
-      },
-      { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
-      {
-        id: "MarketShare",
-        label: "Market Share",
-        color: "#9333EA",
-        axis: "right",
-      },
-      {
-        id: "PromoMyBrand",
-        label: "Promo – My Brand",
-        color: "#F59E0B",
-        axis: "left",
-      },
-      {
-        id: "PromoCompete",
-        label: "Promo – Compete",
-        color: "#FB7185",
-        axis: "left",
-      },
-      { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
-      { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
-    ],
-
-    points: [
-      {
-        date: "06 Sep'25",
-        Offtakes: 57,
-        Spend: 18.4,
-        ROAS: 7.1,
-        InorgSales: 21,
-        DspSales: 14,
-        Conversion: 3.4,
-        Availability: 84,
-        SOS: 42,
-        MarketShare: 18.1,
-        PromoMyBrand: 12.4,
-        PromoCompete: 9.8,
-        CPM: 146,
-        CPC: 9.6,
-      },
-      {
-        date: "08 Sep'25",
-        Offtakes: 49,
-        Spend: 20.1,
-        ROAS: 6.2,
-        InorgSales: 17,
-        DspSales: 11,
-        Conversion: 2.9,
-        Availability: 79,
-        SOS: 38,
-        MarketShare: 16.9,
-        PromoMyBrand: 14.8,
-        PromoCompete: 11.2,
-        CPM: 162,
-        CPC: 10.8,
-      },
-      {
-        date: "10 Sep'25",
-        Offtakes: 52,
-        Spend: 17.8,
-        ROAS: 6.9,
-        InorgSales: 19,
-        DspSales: 13,
-        Conversion: 3.2,
-        Availability: 78,
-        SOS: 40,
-        MarketShare: 17.2,
-        PromoMyBrand: 11.9,
-        PromoCompete: 9.3,
-        CPM: 142,
-        CPC: 9.2,
-      },
-      {
-        date: "13 Sep'25",
-        Offtakes: 44,
-        Spend: 21.4,
-        ROAS: 5.8,
-        InorgSales: 15,
-        DspSales: 10,
-        Conversion: 2.6,
-        Availability: 72,
-        SOS: 35,
-        MarketShare: 16.1,
-        PromoMyBrand: 15.6,
-        PromoCompete: 12.9,
-        CPM: 171,
-        CPC: 11.6,
-      },
-      {
-        date: "16 Sep'25",
-        Offtakes: 51,
-        Spend: 16.9,
-        ROAS: 7.3,
-        InorgSales: 22,
-        DspSales: 15,
-        Conversion: 3.5,
-        Availability: 82,
-        SOS: 43,
-        MarketShare: 18.0,
-        PromoMyBrand: 10.8,
-        PromoCompete: 8.6,
-        CPM: 138,
-        CPC: 8.9,
-      },
-      {
-        date: "18 Sep'25",
-        Offtakes: 47,
-        Spend: 19.7,
-        ROAS: 6.4,
-        InorgSales: 18,
-        DspSales: 12,
-        Conversion: 3.0,
-        Availability: 76,
-        SOS: 39,
-        MarketShare: 16.8,
-        PromoMyBrand: 13.9,
-        PromoCompete: 10.7,
-        CPM: 155,
-        CPC: 10.3,
-      },
-      {
-        date: "20 Sep'25",
-        Offtakes: 56,
-        Spend: 19.6,
-        ROAS: 7.4,
-        InorgSales: 24,
-        DspSales: 16,
-        Conversion: 3.6,
-        Availability: 85,
-        SOS: 45,
-        MarketShare: 18.9,
-        PromoMyBrand: 14.6,
-        PromoCompete: 10.5,
-        CPM: 151,
-        CPC: 10.1,
-      },
-      {
-        date: "23 Sep'25",
-        Offtakes: 42,
-        Spend: 22.8,
-        ROAS: 5.5,
-        InorgSales: 14,
-        DspSales: 9,
-        Conversion: 2.4,
-        Availability: 70,
-        SOS: 33,
-        MarketShare: 15.6,
-        PromoMyBrand: 16.8,
-        PromoCompete: 13.5,
-        CPM: 178,
-        CPC: 12.2,
-      },
-      {
-        date: "26 Sep'25",
-        Offtakes: 50,
-        Spend: 17.2,
-        ROAS: 7.0,
-        InorgSales: 20,
-        DspSales: 14,
-        Conversion: 3.3,
-        Availability: 81,
-        SOS: 41,
-        MarketShare: 17.7,
-        PromoMyBrand: 11.6,
-        PromoCompete: 9.1,
-        CPM: 144,
-        CPC: 9.4,
-      },
-      {
-        date: "30 Sep'25",
-        Offtakes: 58,
-        Spend: 18.9,
-        ROAS: 7.8,
-        InorgSales: 26,
-        DspSales: 18,
-        Conversion: 3.9,
-        Availability: 87,
-        SOS: 47,
-        MarketShare: 19.4,
-        PromoMyBrand: 13.2,
-        PromoCompete: 9.7,
-        CPM: 148,
-        CPC: 9.0,
-      },
-    ],
-  },
-
-  /* =====================================================================
-     COMPARE SKUs
-  ===================================================================== */
-  compareSkus: {
-    context: { level: "MRP" },
-
-    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
-    defaultRange: "1M",
-
-    timeSteps: ["Daily", "Weekly", "Monthly"],
-    defaultTimeStep: "Weekly",
-
-    metrics: [
-      {
-        id: "Offtakes",
-        label: "Offtakes",
-        color: "#2563EB",
-        default: true,
-      },
-      { id: "Spend", label: "Spend", color: "#DC2626", default: true },
-      { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
-      { id: "MarketShare", label: "Market Share", color: "#9333EA" },
-      { id: "Conversion", label: "Conversion", color: "#F97316" },
-    ],
-
-    x: ["W1", "W2", "W3", "W4"],
-
-    trendsBySku: {
-      1: [
-        {
-          x: "W1",
-          Offtakes: 54,
-          Spend: 4.2,
-          ROAS: 6.8,
-          MarketShare: 17.6,
-          Conversion: 3.2,
-        },
-        {
-          x: "W2",
-          Offtakes: 55,
-          Spend: 4.5,
-          ROAS: 7.0,
-          MarketShare: 17.9,
-          Conversion: 3.3,
-        },
-        {
-          x: "W3",
-          Offtakes: 56,
-          Spend: 4.8,
-          ROAS: 7.2,
-          MarketShare: 18.1,
-          Conversion: 3.4,
-        },
-        {
-          x: "W4",
-          Offtakes: 57,
-          Spend: 5.0,
-          ROAS: 7.4,
-          MarketShare: 18.4,
-          Conversion: 3.5,
-        },
-      ],
-    },
-  },
-
-  /* =====================================================================
-     COMPETITION TABLE
-  ===================================================================== */
-  competition: {
-    context: {
-      level: "MRP",
-      region: "All × Chennai",
-    },
-
-    tabs: ["Brands", "SKUs"],
-
-    periodToggle: {
-      primary: "MTD",
-      compare: "Previous Month",
-    },
-
-    columns: [
-      { id: "brand", label: "Brand / SKU", type: "text" },
-      { id: "Offtakes", label: "Offtakes", type: "metric" },
-      { id: "Spend", label: "Spend", type: "metric" },
-      { id: "ROAS", label: "ROAS", type: "metric" },
-      { id: "SOS", label: "SOS", type: "metric" },
-      { id: "MarketShare", label: "Market Share", type: "metric" },
-    ],
-
-    brands: [
-      {
-        brand: "Colgate",
-        Offtakes: { value: 32.9, delta: -4.5 },
-        Spend: { value: 6.8, delta: 0.4 },
-        ROAS: { value: 7.3, delta: 0.2 },
-        SOS: { value: 44, delta: 1.2 },
-        MarketShare: { value: 18.8, delta: 0.4 },
-      },
-      {
-        brand: "Sensodyne",
-        Offtakes: { value: 19.6, delta: 2.2 },
-        Spend: { value: 5.1, delta: -0.3 },
-        ROAS: { value: 6.9, delta: -0.1 },
-        SOS: { value: 39, delta: -0.8 },
-        MarketShare: { value: 18.5, delta: -0.3 },
-      },
-    ],
-  },
-};
+const DASHBOARD_DATA = { trends: { metrics: [] }, compareSkus: { metrics: [] }, competition: { brands: [] } };
 
 const Card = ({ className, children }) => (
   <div
@@ -690,212 +332,27 @@ const SelectItem = ({ value, children }) => {
 /* -------------------------------------------------------------------------- */
 
 /** Base days for trend charts */
-const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
+const DAYS = [];
 
-/** Raw config – you can change this and UI will adapt */
-const RAW_DATA = {
-  cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
-  categories: ["Body Lotion", "Face Cream", "Soap"],
-  brands: [
-    { id: "my-brand", name: "My Brand", category: "Body Lotion" },
-    { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
-    { id: "nivea", name: "Nivea", category: "Body Lotion" },
-    {
-      id: "parachute-adv",
-      name: "Parachute Advanced",
-      category: "Body Lotion",
-    },
-    { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
-    { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
-    { id: "joy", name: "Joy", category: "Body Lotion" },
-    { id: "biotique", name: "Biotique", category: "Face Cream" },
-  ],
-  skus: [
-    {
-      id: "vas-100",
-      name: "Vaseline 100ml",
-      brandId: "vaseline",
-      category: "Body Lotion",
-    },
-    {
-      id: "vas-200",
-      name: "Vaseline 200ml",
-      brandId: "vaseline",
-      category: "Body Lotion",
-    },
-    {
-      id: "niv-soft-100",
-      name: "Nivea Soft 100ml",
-      brandId: "nivea",
-      category: "Body Lotion",
-    },
-    {
-      id: "para-dry-150",
-      name: "Parachute Dry Skin 150ml",
-      brandId: "parachute-adv",
-      category: "Body Lotion",
-    },
-    {
-      id: "boro-aloe-100",
-      name: "Boroplus Aloe 100ml",
-      brandId: "boroplus",
-      category: "Body Lotion",
-    },
-  ],
-};
-
-/** Derived option lists for filters */
-const CITIES = RAW_DATA.cities;
-const CATEGORY_OPTIONS = RAW_DATA.categories;
-const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
-const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
-
-/** ID <-> Name maps */
+/** Raw config - simplified and empty to force API usage */
+const RAW_DATA = { cities: [], categories: [], brands: [], skus: [] };
+const CITIES = [];
+const CATEGORY_OPTIONS = [];
+const BRAND_OPTIONS = [];
+const SKU_OPTIONS = [];
 const BRAND_ID_TO_NAME = {};
 const BRAND_NAME_TO_ID = {};
-RAW_DATA.brands.forEach((b) => {
-  BRAND_ID_TO_NAME[b.id] = b.name;
-  BRAND_NAME_TO_ID[b.name] = b.id;
-});
-
 const SKU_ID_TO_NAME = {};
 const SKU_NAME_TO_ID = {};
-RAW_DATA.skus.forEach((s) => {
-  SKU_ID_TO_NAME[s.id] = s.name;
-  SKU_NAME_TO_ID[s.name] = s.id;
-});
-
-/** SKU group by brand */
 const SKUS_BY_BRAND_ID = {};
-RAW_DATA.skus.forEach((s) => {
-  if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
-  SKUS_BY_BRAND_ID[s.brandId].push(s);
-});
 
-/** Build mock metrics and trends – all UI reads from this single data model */
 const buildDataModel = () => {
-  const days = DAYS;
-
-  const brandSummaryByCity = {};
-  const skuSummaryByCity = {};
-  const brandTrendsByCity = {};
-  const skuTrendsByCity = {};
-
-  // helper → generate KPI object
-  const buildKpis = (base, idxFactor = 1, cityIdx = 0) => ({
-    offtakes: base * 10 + idxFactor * 2 + cityIdx * 15,
-    spend: base * 1.8 + idxFactor * 0.4 + cityIdx * 2.5,
-    roas: 4 + (idxFactor % 3) * 0.3 + cityIdx * 0.2,
-    inorgSales: base * 0.9 + idxFactor * 0.2 + cityIdx * 1.2,
-    dspSales: base * 0.7 + idxFactor * 0.15 + cityIdx * 0.8,
-    conversion: 1.8 + (idxFactor % 4) * 0.2 + cityIdx * 0.1,
-    availability: 75 + idxFactor * 0.8 + cityIdx * 1.5,
-    osa: 75 + idxFactor * 0.8 + cityIdx * 1.5,
-    sos: 22 + idxFactor * 0.6 + cityIdx * 2,
-    price: 250 + idxFactor * 20 + cityIdx * 45,
-    categoryShare: 15 + idxFactor * 0.5 + cityIdx * 1.2,
-    marketShare: 10 + idxFactor * 0.7 + cityIdx * 0.9,
-    promoMyBrand: 6 + idxFactor * 0.3 + cityIdx * 0.4,
-    promoCompete: 5 + idxFactor * 0.25 + cityIdx * 0.3,
-    cpm: 140 + idxFactor * 4 + cityIdx * 8,
-    cpc: 9 + idxFactor * 0.4 + cityIdx * 0.5,
-  });
-
-  RAW_DATA.cities.forEach((city, cityIdx) => {
-    /* ------------------------------------------------------------------ */
-    /* BRAND SUMMARY                                                       */
-    /* ------------------------------------------------------------------ */
-    brandSummaryByCity[city] = RAW_DATA.brands.map((brand, brandIdx) => {
-      const base = 10 + cityIdx + brandIdx;
-
-      return {
-        id: brand.id,
-        name: brand.name,
-        category: brand.category,
-        ...buildKpis(base, brandIdx, cityIdx),
-      };
-    });
-
-    /* ------------------------------------------------------------------ */
-    /* SKU SUMMARY                                                         */
-    /* ------------------------------------------------------------------ */
-    skuSummaryByCity[city] = RAW_DATA.skus.map((sku, skuIdx) => {
-      const brandIdx = RAW_DATA.brands.findIndex((b) => b.id === sku.brandId);
-      const base = 8 + cityIdx + skuIdx + brandIdx * 0.5;
-
-      return {
-        id: sku.id,
-        name: sku.name,
-        brandId: sku.brandId,
-        brandName: BRAND_ID_TO_NAME[sku.brandId],
-        category: sku.category,
-        ...buildKpis(base, skuIdx, cityIdx),
-      };
-    });
-
-    /* ------------------------------------------------------------------ */
-    /* BRAND TRENDS                                                        */
-    /* ------------------------------------------------------------------ */
-    brandTrendsByCity[city] = {};
-    RAW_DATA.brands.forEach((brand, brandIdx) => {
-      const base = 10 + brandIdx + cityIdx;
-
-      brandTrendsByCity[city][brand.id] = days.map((date, idx) => ({
-        date,
-        offtakes: base * 10 + Math.sin(idx / 3) * 5,
-        spend: base * 1.7 + Math.cos(idx / 4) * 0.6,
-        roas: 4 + Math.sin(idx / 5) * 0.4,
-        inorgSales: base * 0.9 + Math.cos(idx / 6) * 0.3,
-        dspSales: base * 0.7 + Math.sin(idx / 7) * 0.2,
-        conversion: 1.9 + Math.cos(idx / 6) * 0.15,
-        availability: 78 + Math.sin(idx / 5) * 2,
-        osa: 78 + Math.sin(idx / 5) * 2,
-        sos: 23 + Math.cos(idx / 4) * 1.5,
-        price: 320 + Math.sin(idx / 3) * 30,
-        categoryShare: 18 + Math.cos(idx / 6) * 2.5,
-        marketShare: 11 + Math.sin(idx / 6) * 1.2,
-        promoMyBrand: 6 + Math.sin(idx / 5) * 0.8,
-        promoCompete: 5 + Math.cos(idx / 6) * 0.7,
-        cpm: 145 + Math.sin(idx / 4) * 6,
-        cpc: 9.2 + Math.cos(idx / 5) * 0.5,
-      }));
-    });
-
-    /* ------------------------------------------------------------------ */
-    /* SKU TRENDS                                                          */
-    /* ------------------------------------------------------------------ */
-    skuTrendsByCity[city] = {};
-    RAW_DATA.skus.forEach((sku, skuIdx) => {
-      const base = 8 + skuIdx + cityIdx;
-
-      skuTrendsByCity[city][sku.id] = days.map((date, idx) => ({
-        date,
-        offtakes: base * 9 + Math.sin(idx / 3) * 4,
-        spend: base * 1.6 + Math.cos(idx / 4) * 0.5,
-        roas: 3.8 + Math.sin(idx / 5) * 0.3,
-        inorgSales: base * 0.8 + Math.cos(idx / 6) * 0.25,
-        dspSales: base * 0.65 + Math.sin(idx / 7) * 0.2,
-        conversion: 1.7 + Math.cos(idx / 6) * 0.12,
-        availability: 76 + Math.sin(idx / 5) * 2,
-        osa: 76 + Math.sin(idx / 5) * 2,
-        sos: 21 + Math.cos(idx / 4) * 1.3,
-        price: 280 + Math.sin(idx / 3) * 25,
-        categoryShare: 16 + Math.cos(idx / 6) * 1.5,
-        marketShare: 9.5 + Math.sin(idx / 6) * 1,
-        promoMyBrand: 5.5 + Math.sin(idx / 5) * 0.6,
-        promoCompete: 4.8 + Math.cos(idx / 6) * 0.6,
-        cpm: 142 + Math.sin(idx / 4) * 5,
-        cpc: 8.8 + Math.cos(idx / 5) * 0.45,
-      }));
-    });
-  });
-
   return {
-    days,
-    brandSummaryByCity,
-    skuSummaryByCity,
-    brandTrendsByCity,
-    skuTrendsByCity,
+    days: [],
+    brandSummaryByCity: {},
+    skuSummaryByCity: {},
+    brandTrendsByCity: {},
+    skuTrendsByCity: {},
   };
 };
 
@@ -1247,22 +704,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
       });
     }
 
-    // Fallback to mock data
-    const days = DATA_MODEL.days;
-    const selectedIds = isBrandMode
-      ? (DATA_MODEL.brandSummaryByCity[city] || []).slice(0, 4).map(r => r.id)
-      : (DATA_MODEL.skuSummaryByCity[city] || []).slice(0, 5).map(r => r.id);
-
-    return days.map((date, idx) => {
-      const row = { date };
-      selectedIds.forEach((id) => {
-        const series = isBrandMode
-          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
-          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-        if (series) row[id] = series[idx]?.[activeMetric] ?? null;
-      });
-      return row;
-    });
+    return [];
   }, [apiTrendData, selectedBrands, city, isBrandMode, activeMetric]);
 
   const formatValue = (v) => {
@@ -1453,22 +895,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, tren
       });
     }
 
-    // Fallback to mock data
-    const days = DATA_MODEL.days;
-    const selectedIds = isBrandMode
-      ? (DATA_MODEL.brandSummaryByCity[city] || []).slice(0, 4).map(r => r.id)
-      : (DATA_MODEL.skuSummaryByCity[city] || []).slice(0, 5).map(r => r.id);
-
-    return days.map((date, idx) => {
-      const row = { date };
-      selectedIds.forEach((id) => {
-        const series = isBrandMode
-          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
-          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-        if (series) row[id] = series[idx]?.[metricKey];
-      });
-      return row;
-    });
+    return [];
   };
 
   return (
@@ -1911,9 +1338,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
   // Dynamic filtered rows for table for the active tab + city
   const brandRows = useMemo(() => {
     // Use API data if available, otherwise fallback to mock data (only when not loading)
-    const allRows = apiBrandData.length > 0
-      ? apiBrandData
-      : (apiLoading ? [] : (DATA_MODEL.brandSummaryByCity[city] || []));
+    const allRows = apiBrandData;
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -1922,24 +1347,13 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
     if (filters.brands.length) {
       rows = rows.filter((r) => filters.brands.includes(r.name));
     }
-    // if SKUs selected, show only brands that have any selected SKU
-    if (filters.skus.length) {
-      const brandIdsWithSelectedSkus = new Set(
-        RAW_DATA.skus
-          .filter((s) => filters.skus.includes(s.name))
-          .map((s) => s.brandId)
-      );
-      rows = rows.filter((r) => brandIdsWithSelectedSkus.has(r.id));
-    }
 
     return rows;
   }, [city, filters, apiBrandData]);
 
   const skuRows = useMemo(() => {
     // Use API data if available, otherwise fallback to mock data (only when not loading)
-    const allRows = apiSkuData.length > 0
-      ? apiSkuData
-      : (apiLoading ? [] : (DATA_MODEL.skuSummaryByCity[city] || []));
+    const allRows = apiSkuData;
     let rows = allRows;
 
     if (filters.categories.length) {

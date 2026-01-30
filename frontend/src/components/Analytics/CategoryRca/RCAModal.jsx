@@ -67,18 +67,18 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%' }) => 
 export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [showFilters, setShowFilters] = useState(false);
 
-    // Dynamic platforms from API
+    // Dynamic filters from API
     const [platforms, setPlatforms] = useState([]);
-    const categories = ['Chocolate', 'Energy Drinks', 'Snacking', 'Soft Drinks'];
-    const brands = ['All Brands', "Hershey's", 'Ferrero', 'Mondelez'];
-    const skus = ['All SKUs', 'SKU-772: Milk Chocolate 40g', 'SKU-819: Dark Almond 80g', 'SKU-902: Hazelnut Crunch 50g'];
-    const months = ['Dec 2024', 'Nov 2024', 'Oct 2024', 'Sep 2024'];
+    const [categories, setCategories] = useState([]);
+    const [brands, setBrands] = useState([]);
+    const [skus, setSkus] = useState([]);
+    const months = ['Jan 2026', 'Dec 2025', 'Nov 2025', 'Oct 2025']; // Keep as static for now or fetch list
 
     const [platform, setPlatform] = useState(initialData.platform || '');
-    const [category, setCategory] = useState(initialData.category || categories[0]);
-    const [brand, setBrand] = useState(initialData.brand || brands[0]);
-    const [sku, setSku] = useState(skus[0]);
-    const [month, setMonth] = useState(months[0]);
+    const [category, setCategory] = useState(initialData.category || '');
+    const [brand, setBrand] = useState(initialData.brand || '');
+    const [sku, setSku] = useState('All');
+    const [month, setMonth] = useState('2026-01-01');
 
     // Fetch platforms from API on mount
     useEffect(() => {
@@ -88,23 +88,71 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 const fetchedPlatforms = response.data;
                 if (fetchedPlatforms && fetchedPlatforms.length > 0) {
                     setPlatforms(fetchedPlatforms);
-                    // Set initial platform if not already set
-                    if (!platform) {
-                        setPlatform(initialData.platform || fetchedPlatforms[0]);
-                    }
+                    setPlatform(initialData.platform || fetchedPlatforms[0] || '');
                 }
             } catch (error) {
                 console.error('Error fetching platforms:', error);
-                // Fallback to hardcoded values
                 const fallback = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket'];
                 setPlatforms(fallback);
-                if (!platform) {
-                    setPlatform(initialData.platform || fallback[0]);
-                }
+                setPlatform(initialData.platform || fallback[0] || '');
             }
         };
         fetchPlatforms();
     }, []);
+
+    // Fetch Categories
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const response = await axiosInstance.get('/watchtower/trends-filter-options', {
+                    params: { filterType: 'categories', platform }
+                });
+                if (response.data.options) {
+                    setCategories(['All', ...response.data.options]);
+                    if (!category || category === 'Chocolate') setCategory('All');
+                }
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+            }
+        };
+        if (platform) fetchCategories();
+    }, [platform]);
+
+    // Fetch Brands
+    useEffect(() => {
+        const fetchBrands = async () => {
+            try {
+                const response = await axiosInstance.get('/watchtower/trends-filter-options', {
+                    params: { filterType: 'brands', platform, category }
+                });
+                if (response.data.options) {
+                    setBrands(['All', ...response.data.options]);
+                    if (!brand || brand === 'All Brands') setBrand('All');
+                }
+            } catch (error) {
+                console.error('Error fetching brands:', error);
+            }
+        };
+        if (platform) fetchBrands();
+    }, [platform, category]);
+
+    // Fetch SKUs
+    useEffect(() => {
+        const fetchSkus = async () => {
+            try {
+                const response = await axiosInstance.get('/watchtower/trends-filter-options', {
+                    params: { filterType: 'skus', platform, category, brand }
+                });
+                if (response.data.options) {
+                    setSkus(['All', ...response.data.options]);
+                    if (!sku || sku === 'All SKUs') setSku('All');
+                }
+            } catch (error) {
+                console.error('Error fetching skus:', error);
+            }
+        };
+        if (platform) fetchSkus();
+    }, [platform, category, brand]);
 
     const context = { platform, category, brand, sku, month };
 

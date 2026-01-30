@@ -1,18 +1,16 @@
+import watchTowerService from '../services/watchTowerService.js';
+
 export const Categories = async (req, res) => {
     try {
         const filters = req.query;
         console.log("Categories api request received", filters);
 
-        const response = {
-            message: "Category RCA API called successfully",
-            filters: filters
-        };
-        console.log("Sending response:", response);
+        const data = await watchTowerService.getRcaData(filters);
 
-        // Mock response for now
-        res.json(response);
+        console.log("Sending RCA data response");
+        res.json(data);
     } catch (error) {
         console.error('Error in Category RCA:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };

@@ -1,8 +1,8 @@
 import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
-const RCACardMetric = () => {
-  const cards = [
+const RCACardMetric = ({ cards: propCards }) => {
+  const defaultCards = [
     {
       title: "Estimated Offtake",
       value: "₹2.3 Cr",
@@ -34,9 +34,11 @@ const RCACardMetric = () => {
       prevText: "vs Previous Month",
     }
   ];
+
+  const cards = propCards || defaultCards;
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
-  // Generate smooth data
+  // Generate smooth data (keeping for visual trend)
   const generateValues = () => {
     return months.map(() => Math.floor(Math.random() * 60) + 20);
   };
