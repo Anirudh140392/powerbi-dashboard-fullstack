@@ -284,6 +284,7 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
     const [drilldownData, setDrilldownData] = useState([]);
     const [topLosers, setTopLosers] = useState([]);
     const [modalLoading, setModalLoading] = useState(false);
+    const [modalView, setModalView] = useState('all'); // 'all' or 'losers'
 
     useEffect(() => {
         if (!selectedKeyword) return;
@@ -323,6 +324,7 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
 
     const handleBrandClick = (keyword) => {
         setSelectedKeyword(keyword);
+        setModalView('losers');
     };
 
     const closeDrilldown = () => {
@@ -468,6 +470,20 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                     <p className="text-xs text-slate-500 mt-0.5">Keyword: <span className="text-blue-600 font-semibold">"{selectedKeyword}"</span></p>
                                 </div>
                                 <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                                    <div className="flex bg-slate-100 p-0.5 rounded-lg mr-2">
+                                        <button
+                                            onClick={() => setModalView('all')}
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${modalView === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            All Brands
+                                        </button>
+                                        <button
+                                            onClick={() => setModalView('losers')}
+                                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${modalView === 'losers' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            Top Losers
+                                        </button>
+                                    </div>
                                     <FilterDropdown
                                         options={availableBrands}
                                         selected={selectedBrands}
@@ -502,7 +518,7 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                                             <span className="text-[11px] font-bold text-slate-700 truncate">{loser.brand}</span>
                                                             <div className="flex items-center gap-1.5">
                                                                 <span className="text-[12px] font-black text-rose-600">
-                                                                    {loser.delta >= 0 ? '+' : ''}{loser.delta}%
+                                                                    {loser.overallSos.delta >= 0 ? '+' : ''}{loser.overallSos.delta}%
                                                                 </span>
                                                                 <span className="text-[9px] text-slate-400 font-medium">vs prev</span>
                                                             </div>
@@ -523,10 +539,11 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50">
-                                                {displayedDrilldownData.map((d, i) => {
-                                                    const isLoser = d.delta < 0;
+                                                {(modalView === 'all' ? displayedDrilldownData : topLosers).map((d, i) => {
+                                                    const delta = d.overallSos?.delta || 0;
+                                                    const isLoser = delta < 0;
                                                     return (
-                                                        <tr key={i} className={`hover:bg-slate-50 transition-colors ${isLoser ? 'bg-rose-50/20' : ''}`}>
+                                                        <tr key={i} className={`hover:bg-slate-50 transition-colors ${isLoser && modalView === 'all' ? 'bg-rose-50/10' : ''}`}>
                                                             <td className="py-3 text-xs font-bold text-slate-700">
                                                                 <div className="flex items-center gap-2">
                                                                     {isLoser && <TrendingDown size={12} className="text-rose-500" />}
@@ -535,21 +552,21 @@ export default function TopSearchTerms({ filter = "All", data = null, loading = 
                                                             </td>
                                                             <td className="py-3 text-center">
                                                                 <span className="text-xs font-bold text-slate-900 bg-white px-2 py-1 rounded-md border border-slate-100 shadow-sm">
-                                                                    {d.overall}%
+                                                                    {d.overallSos?.value || 0}%
                                                                 </span>
                                                             </td>
                                                             <td className="py-3 text-center">
-                                                                <DeltaIndicator value={d.delta} />
+                                                                <DeltaIndicator value={delta} />
                                                             </td>
-                                                            <td className="py-3 text-center text-xs text-slate-600 font-medium">{d.organic}%</td>
-                                                            <td className="py-3 text-center text-xs text-slate-600 font-medium">{d.paid}%</td>
+                                                            <td className="py-3 text-center text-xs text-slate-600 font-medium">{d.organicSos?.value || 0}%</td>
+                                                            <td className="py-3 text-center text-xs text-slate-600 font-medium">{d.paidSos?.value || 0}%</td>
                                                         </tr>
                                                     );
                                                 })}
-                                                {displayedDrilldownData.length === 0 && (
+                                                {(modalView === 'all' ? displayedDrilldownData : topLosers).length === 0 && (
                                                     <tr>
                                                         <td colSpan={5} className="py-12 text-center text-sm text-slate-400 italic">
-                                                            No brands selected for comparison
+                                                            {modalView === 'all' ? 'No brands selected for comparison' : 'No loser brands identified for this keyword'}
                                                         </td>
                                                     </tr>
                                                 )}

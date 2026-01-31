@@ -852,14 +852,6 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                                     className="px-4 py-3 text-center border-l border-slate-200 overflow-hidden"
                                                 >
                                                     <div className={`flex items-center justify-center gap-2 ${isMobile ? 'whitespace-normal text-xs' : 'whitespace-nowrap'}`}>
-                                                        {activeView === 'platforms' && (
-                                                            <button
-                                                                onClick={() => toggleKpiExpand(kpi)}
-                                                                className="flex h-5 w-5 items-center justify-center rounded-lg border border-slate-300 bg-white text-[10px] hover:bg-slate-100 transition-colors shadow-sm"
-                                                            >
-                                                                {expandedKpis.has(kpi) ? '−' : '+'}
-                                                            </button>
-                                                        )}
                                                         <span className="tracking-tight">{KPI_LABELS[kpi]}</span>
                                                     </div>
                                                 </motion.th>

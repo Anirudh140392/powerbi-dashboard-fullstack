@@ -26,7 +26,7 @@ export default function VisibilityAnalysis() {
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     months: 6,
-    timeStep: "Monthly",
+    timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
     endDate: null     // Will be set after fetching latest available dates
   });
@@ -117,7 +117,7 @@ export default function VisibilityAnalysis() {
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
-    timeStep: "Monthly",
+    timeStep: "Weekly",
     platform: platform || "Blinkit",
   });
 
