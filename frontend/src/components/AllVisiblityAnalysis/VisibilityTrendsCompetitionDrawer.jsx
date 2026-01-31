@@ -29,11 +29,11 @@ import {
   MenuItem,
   Skeleton,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
-import VisibilityKpiTrendShowcase from "./VisibilityKpiTrendShowcase";
+import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 
 /**
@@ -550,6 +550,30 @@ const MetricChip = ({ label, color, active, onClick }) => {
   );
 };
 
+const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => (
+  <Box
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 1,
+      px: 1.5,
+      py: 0.5,
+      borderRadius: "999px",
+      border: "1px solid #E2E8F0",
+      backgroundColor: "#F8FAFC",
+      fontSize: "12px",
+      fontWeight: 500,
+    }}
+  >
+    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600 }}>
+      {label}:
+    </Typography>
+    <Typography variant="caption" sx={{ color: color, fontWeight: 700 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 /**
  * ---------------------------------------------------------------------------
  * MAIN COMPONENT
@@ -561,6 +585,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   open = true,
   onClose = () => { },
   selectedColumn,
+  initialAudience,
 }) {
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -569,12 +594,15 @@ export default function VisibilityTrendsCompetitionDrawer({
     },
   });
   useLayoutEffect(() => {
-    allSetTrendMeta((prev) => ({
-      ...prev,
-      context: { ...prev.context, audience: "Platform" },
-    }));
-    setShowPlatformPills(true);
-  }, []);
+    if (open) {
+      const audienceToSet = initialAudience || "Platform";
+      allSetTrendMeta((prev) => ({
+        ...prev,
+        context: { ...prev.context, audience: audienceToSet },
+      }));
+      setShowPlatformPills(true);
+    }
+  }, [open, initialAudience]);
   const [range, setRange] = useState(DASHBOARD_DATA.trends.defaultRange);
   const [timeStep, setTimeStep] = useState(
     DASHBOARD_DATA.trends.defaultTimeStep
@@ -586,10 +614,24 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
 
-  // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(false);
+
+  // Drawer-specific filters for the Effective Filters bar
+  const [drawerFilters, setDrawerFilters] = useState({
+    Platform: "All",
+    Format: "All",
+    Brand: "All",
+    City: "All"
+  });
+
+  // Sync selectedPlatform with selectedColumn when drawer opens or selectedColumn changes
+  useEffect(() => {
+    if (selectedColumn && open) {
+      setSelectedPlatform(selectedColumn);
+    }
+  }, [selectedColumn, open]);
 
   const platformRef = useRef(null);
 
@@ -696,8 +738,16 @@ export default function VisibilityTrendsCompetitionDrawer({
       try {
         const params = {
           period: range,
-          platform: selectedPlatform || 'All',
+          timeStep: timeStep,
         };
+
+        // Determine which pivot filter to apply based on the selected audience
+        const audience = allTrendMeta.context.audience;
+        if (audience === "Platform") params.platform = selectedPlatform || 'All';
+        else if (audience === "Format") params.format = selectedPlatform || 'All';
+        else if (audience === "City") params.location = selectedPlatform || 'All';
+        else if (audience === "Brand") params.brand = selectedPlatform || 'All';
+        else params.platform = selectedPlatform || 'All';
 
         console.log("[VisibilityTrendsDrawer] Fetching trend data:", params);
         const response = await axiosInstance.get('/visibility-analysis/kpi-trends', { params });
@@ -727,7 +777,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, open]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -994,6 +1044,71 @@ export default function VisibilityTrendsCompetitionDrawer({
           </IconButton>
         </Box>
 
+        {/* EFFECTIVE FILTERS SUMMARY BAR */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+            py: 1.2,
+            px: 2,
+            borderRadius: "12px",
+            backgroundColor: "#F8FAFC",
+            border: "1px solid #E2E8F0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1}>
+            <Filter size={14} color="#64748B" />
+            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Effective Filters:
+            </Typography>
+          </Box>
+
+          <SelectedFilterChip
+            label="Platform"
+            value={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || "All")}
+            color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Brand"
+            value={drawerFilters.Brand}
+            color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Format"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Date"
+            value={range}
+          />
+
+          {/* Clear All Drawer Filters */}
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+            <Button
+              size="small"
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              sx={{
+                ml: 'auto',
+                fontSize: '11px',
+                textTransform: 'none',
+                color: '#ef4444',
+                '&:hover': { backgroundColor: '#fef2f2' }
+              }}
+            >
+              Clear Drawer Filters
+            </Button>
+          )}
+        </Box>
+
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
@@ -1010,11 +1125,24 @@ export default function VisibilityTrendsCompetitionDrawer({
                   size="small"
                   value={allTrendMeta.context.audience}
                   onChange={(e) => {
+                    const newAudience = e.target.value;
                     allSetTrendMeta((prev) => ({
                       ...prev,
-                      context: { ...prev.context, audience: e.target.value },
+                      context: { ...prev.context, audience: newAudience },
                     }));
-                    setShowPlatformPills(true); // always show pills after changing mode
+
+                    // Reset selected value when audience switches to ensure valid selection
+                    let options = [];
+                    if (newAudience === "Platform") options = filterOptions.platforms;
+                    else if (newAudience === "Format") options = filterOptions.formats;
+                    else if (newAudience === "City") options = filterOptions.cities;
+                    else if (newAudience === "Brand") options = filterOptions.brands;
+
+                    if (options.length > 0) {
+                      setSelectedPlatform(options[0]);
+                    }
+
+                    setShowPlatformPills(true);
                   }}
                   sx={{
                     width: { xs: "100%", sm: 160 },
@@ -1208,7 +1336,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <VisibilityKpiTrendShowcase competitionData={competitionData} loading={competitionLoading} />}
+        {view === "Competition" && <VisibilityPlatformOverviewKpiShowcase selectedPlatform={selectedColumn || selectedPlatform || 'All'} period={range === "Custom" ? "1M" : range} timeStep={timeStep} />}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (

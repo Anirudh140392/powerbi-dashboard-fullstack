@@ -53,13 +53,19 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
  * @param {string|null} platform - Platform filter
  * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null) {
     try {
-        const today = dayjs();
-        const startDate = today.subtract(days - 1, 'day');
+        let startDate, endDate;
+        if (customStartDate && customEndDate) {
+            startDate = dayjs(customStartDate);
+            endDate = dayjs(customEndDate);
+        } else {
+            endDate = dayjs();
+            startDate = endDate.subtract(days - 1, 'day');
+        }
 
         const dateFrom = startDate.format('YYYY-MM-DD');
-        const dateTo = today.format('YYYY-MM-DD');
+        const dateTo = endDate.format('YYYY-MM-DD');
 
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
@@ -168,9 +174,9 @@ async function getVisibilityOverviewData(filters = {}) {
         const platform = filters.platform || null;
 
         // Use dayjs like Watch Tower for consistent date handling
-        // Default to last 30 days (like Watch Tower), NOT MTD which has no data on month start
+        // Default to last 7 days for a "Weekly" comparison
         let endDate = dayjs();
-        let startDate = endDate.subtract(1, 'month');
+        let startDate = endDate.subtract(6, 'day'); // 7 days inclusive
 
         // Override with filter dates if provided
         if (filters.startDate && filters.endDate) {
@@ -178,9 +184,10 @@ async function getVisibilityOverviewData(filters = {}) {
             endDate = dayjs(filters.endDate);
         }
 
-        // Previous period = same range shifted back by 1 month (same as Watch Tower)
-        const prevStart = startDate.subtract(1, 'month');
-        const prevEnd = endDate.subtract(1, 'month');
+        // Previous period = same range shifted back by 7 days (Weekly comparison)
+        const durationDays = endDate.diff(startDate, 'day') + 1;
+        const prevStart = startDate.subtract(durationDays, 'day');
+        const prevEnd = startDate.subtract(1, 'day');
 
         const dateRanges = {
             current: {
@@ -200,11 +207,37 @@ async function getVisibilityOverviewData(filters = {}) {
         // 1. Current period SOS (all 3 types in 1 query)
         // 2. Previous period SOS (all 3 types in 1 query)
         // 3. Sparkline trends (all 3 types in 1 query)
+        // OPTIMIZED: Only 3 database queries instead of 9
+        // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
             calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location),
             calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location),
-            getAllSOSTrends(7, platform, filters.brand, filters.location)
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end)
         ]);
+
+        // Aggregate daily points into weekly points for "Weekly" aggregation
+        const aggregateToWeekly = (dailyTrend) => {
+            const weekly = { dates: [], values: [] };
+            if (!dailyTrend || !dailyTrend.values || dailyTrend.values.length === 0) return weekly;
+
+            // Group into weeks (7 days each)
+            for (let i = 0; i < dailyTrend.values.length; i += 7) {
+                const slice = dailyTrend.values.slice(i, i + 7);
+                const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+
+                // Labels W1, W2, etc. based on the chunks in the selected range
+                const weekLabel = `W${Math.floor(i / 7) + 1}`;
+                weekly.dates.push(weekLabel);
+                weekly.values.push(Number(avg.toFixed(1)));
+            }
+            return weekly;
+        };
+
+        const weeklyTrends = {
+            overall: aggregateToWeekly(trends.overall),
+            sponsored: aggregateToWeekly(trends.sponsored),
+            organic: aggregateToWeekly(trends.organic)
+        };
 
         console.log('[VisibilityService] Optimized query results:', { currentSOS, prevSOS, trendsReceived: !!trends });
 
@@ -224,8 +257,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "green",
-                    months: trends.overall.dates,
-                    sparklineData: trends.overall.values
+                    months: weeklyTrends.overall.dates,
+                    sparklineData: weeklyTrends.overall.values
                 },
                 {
                     title: "Sponsored SOS",
@@ -237,8 +270,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "red",
-                    months: trends.sponsored.dates,
-                    sparklineData: trends.sponsored.values
+                    months: weeklyTrends.sponsored.dates,
+                    sparklineData: weeklyTrends.sponsored.values
                 },
                 {
                     title: "Organic SOS",
@@ -250,8 +283,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "green",
-                    months: trends.organic.dates,
-                    sparklineData: trends.organic.values
+                    months: weeklyTrends.organic.dates,
+                    sparklineData: weeklyTrends.organic.values
                 },
                 {
                     title: "Display SOS",
@@ -1420,9 +1453,9 @@ class VisibilityService {
      * @param {Object} params - { filterType, platform, format, city }
      * @returns {Object} { options: [...] }
      */
-    async getVisibilityFilterOptions({ filterType, platform, format, city }) {
+    async getVisibilityFilterOptions({ filterType, platform, format, city, brand }) {
         console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
-        const cacheKey = generateCacheKey('visibility_filters', { filterType, platform, format, city });
+        const cacheKey = generateCacheKey('visibility_filters', { filterType, platform, format, city, brand });
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -1436,6 +1469,7 @@ class VisibilityService {
                 const platformCondition = buildCHCondition(platformFilter, 'platform_name');
                 const formatCondition = buildCHCondition(formatFilter, 'keyword_search_product');
                 const cityCondition = buildCHCondition(cityFilter, 'location_name');
+                const brandCondition = buildCHCondition(brand || null, 'brand_crawl');
 
                 // PLATFORMS: from rb_kw.platform_name
                 if (filterType === 'platforms') {
@@ -1573,6 +1607,26 @@ class VisibilityService {
                     return { options };
                 }
 
+                // SKUs: from rb_kw.keyword_search_product
+                if (filterType === 'skus') {
+                    let skuWhere = baseWhere;
+                    if (format && format !== 'All') {
+                        skuWhere += ` AND ${formatCondition}`;
+                    }
+                    if (brand && brand !== 'All') {
+                        skuWhere += ` AND ${brandCondition}`;
+                    }
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT keyword_search_product as sku
+                    FROM rb_kw
+                    ${skuWhere} AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                    ORDER BY keyword_search_product
+                    LIMIT 200
+                `);
+                    const options = results.map(r => r.sku).filter(Boolean);
+                    return { options };
+                }
+
                 // BRANDS: from rb_kw.brand_crawl (competitor brands where is_competitor_product=1)
                 if (filterType === 'brands') {
                     const results = await queryClickHouse(`
@@ -1705,10 +1759,27 @@ class VisibilityService {
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
 
-                // Aggregate by day - ClickHouse
+                // Determine aggregation based on timeStep
+                let dateAggregation;
+                let dateFormat;
+                const timeStep = filters.timeStep || 'Daily';
+
+                if (timeStep === 'Weekly') {
+                    dateAggregation = 'toStartOfWeek(toDate(kw_crawl_date), 1)'; // 1 for Monday
+                    dateFormat = "DD MMM'YY";
+                } else if (timeStep === 'Monthly') {
+                    dateAggregation = 'toStartOfMonth(toDate(kw_crawl_date))';
+                    dateFormat = "MMM 'YY";
+                } else {
+                    // Default to Daily
+                    dateAggregation = 'toDate(kw_crawl_date)';
+                    dateFormat = "DD MMM'YY";
+                }
+
+                // Aggregate by selected time step - ClickHouse
                 const query = `
                 SELECT 
-                    toDate(kw_crawl_date) as crawl_date,
+                    ${dateAggregation} as crawl_date,
                     ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
                     ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
                     ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
@@ -1723,11 +1794,11 @@ class VisibilityService {
 
                 const results = await queryClickHouse(query);
 
-                // Format dates like "06 Sep'25"
+                // Format dates based on time step
                 const timeSeries = results.map(row => {
                     const date = dayjs(row.crawl_date);
                     return {
-                        date: date.format("DD MMM'YY"),
+                        date: date.format(dateFormat),
                         overall_sos: Number(row.overall_sos) || 0,
                         sponsored_sos: Number(row.sponsored_sos) || 0,
                         organic_sos: Number(row.organic_sos) || 0,
@@ -1887,8 +1958,8 @@ class VisibilityService {
                 const skuResults = await queryClickHouse(skuQuery);
 
                 const skus = skuResults.map(s => ({
-                    brand: s.sku_name,
-                    brandName: s.brand_name,
+                    sku: s.sku_name,
+                    brand: s.brand_name,
                     overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
                     sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
                     organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
@@ -1969,6 +2040,23 @@ class VisibilityService {
                 const dateFrom = startDate.format('YYYY-MM-DD');
                 const dateTo = endDate.format('YYYY-MM-DD');
 
+                // Determine aggregation based on timeStep
+                let dateAggregation;
+                let dateFormat;
+                const timeStep = filters.timeStep || 'Daily';
+
+                if (timeStep === 'Weekly') {
+                    dateAggregation = 'toStartOfWeek(toDate(kw_crawl_date), 1)'; // 1 for Monday
+                    dateFormat = "DD MMM'YY";
+                } else if (timeStep === 'Monthly') {
+                    dateAggregation = 'toStartOfMonth(toDate(kw_crawl_date))';
+                    dateFormat = "MMM 'YY";
+                } else {
+                    // Default to Daily
+                    dateAggregation = 'toDate(kw_crawl_date)';
+                    dateFormat = "DD MMM'YY";
+                }
+
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const brandsCondition = buildCHCondition(selectedBrands, 'brand_crawl');
@@ -1976,7 +2064,7 @@ class VisibilityService {
                 // 1. Get total volume by date for denominator
                 const volumeQuery = `
                 SELECT 
-                    toDate(kw_crawl_date) as crawl_date,
+                    ${dateAggregation} as crawl_date,
                     count() as total_volume
                 FROM rb_kw
                 WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
@@ -1990,7 +2078,8 @@ class VisibilityService {
                 const volumeByDate = {};
                 const allDays = [];
                 volumeResults.forEach(row => {
-                    const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
+                    const date = dayjs(row.crawl_date);
+                    const dateStr = date.format(dateFormat);
                     volumeByDate[dateStr] = Number(row.total_volume) || 1;
                     allDays.push(dateStr);
                 });
@@ -1999,7 +2088,7 @@ class VisibilityService {
                 const brandDataQuery = `
                 SELECT 
                     brand_crawl as brand_name,
-                    toDate(kw_crawl_date) as crawl_date,
+                    ${dateAggregation} as crawl_date,
                     count() as brand_volume,
                     countIf(toString(spons_flag) = '1') as sponsored_volume,
                     countIf(toString(spons_flag) != '1') as organic_volume,
@@ -2020,7 +2109,8 @@ class VisibilityService {
                 const brandDataMap = {};
                 brandResults.forEach(row => {
                     if (!brandDataMap[row.brand_name]) brandDataMap[row.brand_name] = {};
-                    const dateStr = dayjs(row.crawl_date).format("DD MMM'YY");
+                    const date = dayjs(row.crawl_date);
+                    const dateStr = date.format(dateFormat);
                     brandDataMap[row.brand_name][dateStr] = {
                         brand_volume: Number(row.brand_volume) || 0,
                         sponsored_volume: Number(row.sponsored_volume) || 0,

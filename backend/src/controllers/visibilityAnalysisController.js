@@ -191,7 +191,8 @@ export const getVisibilityFilterOptions = async (req, res) => {
             platform: req.query.platform || 'All',
             format: req.query.format || 'All',
             city: req.query.city || 'All',
-            metroFlag: req.query.metroFlag || 'All'
+            metroFlag: req.query.metroFlag || 'All',
+            brand: req.query.brand || 'All'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
