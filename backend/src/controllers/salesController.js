@@ -352,7 +352,15 @@ export const getCategorySalesMatrix = async (req, res) => {
             }
 
             // Filter by active categories from rca_sku_dim
-            conditions.push(`Category IN (SELECT DISTINCT Category FROM rca_sku_dim WHERE toString(status) = '1')`);
+            const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
+            const activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+
+            if (activeCategories.length > 0) {
+                conditions.push(`Category IN (${activeCategories.map(c => `'${escapeCH(c)}'`).join(',')})`);
+            } else {
+                // If no active categories found, fallback to all but prevent error
+                conditions.push('1=1');
+            }
 
             const whereClause = conditions.join(' AND ');
 
