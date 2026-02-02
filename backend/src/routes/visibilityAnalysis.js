@@ -11,7 +11,7 @@ import {
     getVisibilityCompetition,
     getBrandComparisonTrends
 } from '../controllers/visibilityAnalysisController.js';
-import { getSalesVisibilitySignalCityDetails } from '../controllers/salesSignalLabController.js';
+import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
 
 export default (app) => {
@@ -308,7 +308,8 @@ export default (app) => {
      */
     app.get('/api/visibility-analysis/brand-comparison-trends', getBrandComparisonTrends);
 
-    // Alias route for frontend compatibility
+    // Alias routes for frontend compatibility
+    app.get('/api/visibility-analysis/visibility-signals', getSalesVisibilitySignals);
     app.get('/api/visibility-analysis/visibility-signals/city-details', getSalesVisibilitySignalCityDetails);
 };
 
