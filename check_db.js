@@ -1,6 +1,5 @@
 import RbPdpOlap from './backend/src/models/RbPdpOlap.js';
 import { Sequelize } from 'sequelize';
-
 async function checkData() {
     try {
         const stats = await RbPdpOlap.findAll({

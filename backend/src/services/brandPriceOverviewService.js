@@ -7,6 +7,34 @@
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+/**
+ * Helper to parse multiselect filter values
+ */
+const parseMultiSelectFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string' && value.includes(',')) {
+        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
+/**
+ * Helper to build SQL IN clause for multiselect
+ */
+const buildInClause = (column, values) => {
+    if (!values || values.length === 0) return null;
+    const escaped = values.map(v => `'${escapeStr(v)}'`).join(',');
+    return `${column} IN (${escaped})`;
+};
+
 /**
  * Get Brand Price Overview data (OPTIMIZED for speed)
  * @param {Object} filters - { startDate, endDate, platform }
@@ -21,10 +49,11 @@ async function getBrandPriceOverview(filters = {}) {
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
         const platform = filters.platform || null;
 
-        // Build platform filter clause
+        // Build platform filter clause (supports multiselect)
         let platformFilter = '';
-        if (platform && platform !== 'All') {
-            platformFilter = `AND p.Platform = '${platform}'`;
+        const platforms = parseMultiSelectFilter(platform);
+        if (platforms) {
+            platformFilter = `AND ${buildInClause('p.Platform', platforms)}`;
         }
 
         // OPTIMIZED SQL query - removed trend calculation for speed

@@ -7,6 +7,34 @@
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+/**
+ * Helper to parse multiselect filter values
+ */
+const parseMultiSelectFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string' && value.includes(',')) {
+        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
+/**
+ * Helper to build SQL IN clause for multiselect
+ */
+const buildInClause = (column, values) => {
+    if (!values || values.length === 0) return null;
+    const escaped = values.map(v => `'${escapeStr(v)}'`).join(',');
+    return `${column} IN (${escaped})`;
+};
+
 /**
  * Get average ECP by Brand split by Weekday vs Weekend
  * ClickHouse toDayOfWeek: 1=Monday, ..., 7=Sunday
@@ -28,19 +56,22 @@ async function getEcpWeekdayWeekend(filters = {}) {
 
         const conditions = [`DATE BETWEEN '${startDate}' AND '${endDate}'`];
 
-        // Apply platform filter
-        if (platform && platform !== 'All') {
-            conditions.push(`Platform = '${platform}'`);
+        // Apply platform filter (supports multiselect)
+        const platforms = parseMultiSelectFilter(platform);
+        if (platforms) {
+            conditions.push(buildInClause('Platform', platforms));
         }
 
-        // Apply location filter
-        if (location && location !== 'All') {
-            conditions.push(`Location = '${location}'`);
+        // Apply location filter (supports multiselect)
+        const locations = parseMultiSelectFilter(location);
+        if (locations) {
+            conditions.push(buildInClause('Location', locations));
         }
 
-        // Apply brand filter (optional - when clicking on a specific brand)
-        if (brand && brand !== 'All' && brand !== 'All Brands') {
-            conditions.push(`Brand = '${brand}'`);
+        // Apply brand filter (optional - when clicking on a specific brand, supports multiselect)
+        const brands = parseMultiSelectFilter(brand);
+        if (brands && !brands.includes('All Brands')) {
+            conditions.push(buildInClause('Brand', brands));
         }
 
         const whereClause = conditions.join(' AND ');
