@@ -573,7 +573,7 @@ export const getSignalLabData = async (req, res) => {
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) AS avgInventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(ROAS), 0.0)) AS avgRoas,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0), 0.0)) AS avgRoas,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
@@ -593,7 +593,7 @@ export const getSignalLabData = async (req, res) => {
                 SELECT
                     Web_Pid, Location,
                     (sum(toFloat64(neno_osa)) / nullIf(sum(toFloat64(deno_osa)), 0)) * 100 AS osa,
-                    avg(toFloat64(ROAS)) as roas,
+                    avg(toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0)) as roas,
                     sum(toFloat64(Ad_Clicks)) as clicks,
                     sum(toFloat64(Ad_Impressions)) as impressions,
                     avg(toFloat64(Inventory)) as inventory,
