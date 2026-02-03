@@ -9,12 +9,19 @@ import {
   ONE_VIEW_DRILL_DATA,
   PRODUCT_MATRIX,
 } from "./availablityDataCenter";
-import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import OsaHeatmapTable from "./OsaDetailView";
 import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import {
+  Layers,
+  Package,
+  Zap,
+  MapPin,
+  LayoutGrid
+} from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1089,6 +1096,34 @@ const cards = {
   weighted: cardsWeighted
 };
 
+const getAvailabilityKpis = (type) => {
+  const source = cards[type];
+  const icons = [Layers, Package, Zap, MapPin];
+  const gradients = [
+    ['#6366f1', '#8b5cf6'],
+    ['#14b8a6', '#06b6d4'],
+    ['#f43f5e', '#ec4899'],
+    ['#8b5cf6', '#a855f7']
+  ];
+
+  return source.map((card, idx) => {
+    // Extract numeric delta from string like "▲3.1 pts"
+    const deltaMatch = card.change.match(/[▲▼]([\d.]+)/);
+    const delta = deltaMatch ? parseFloat(deltaMatch[1]) * (card.change.includes('▼') ? -1 : 1) : 0;
+
+    return {
+      id: `avail-${type}-${idx}`,
+      title: card.title,
+      value: card.value,
+      subtitle: card.sub,
+      delta: delta,
+      deltaLabel: card.change,
+      icon: icons[idx] || Layers,
+      gradient: gradients[idx % gradients.length],
+      trend: card.sparklineData || [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75]
+    };
+  });
+};
 
 // ---------------------------------------------------------------------------
 // Root dashboard
@@ -1096,6 +1131,8 @@ const cards = {
 export const AvailablityAnalysisData = () => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
+
+  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability), [availability]);
 
   return (
 
@@ -1136,10 +1173,19 @@ export const AvailablityAnalysisData = () => {
           </div>
         </div>
 
+        {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
-
-
-        <MetricCardContainer title="Availability Overview" cards={cards[availability]} />
+        <SnapshotOverview
+          title="Availability Overview"
+          icon={LayoutGrid}
+          chip={availability === "absolute" ? "Absolute Basis" : "Weighted Basis"}
+          headerRight={
+            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+              vs Previous Period
+            </span>
+          }
+          kpis={availabilityKpis}
+        />
         {/* <SignalLabVisibility type="availability" /> */}
         <TabbedHeatmapTable olaMode={availability} />
         <OsaHeatmapTable olaMode={availability} />

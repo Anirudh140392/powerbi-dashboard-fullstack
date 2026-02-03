@@ -303,21 +303,21 @@ export default function DateRangeComparePicker({
         <Box>
             <button
                 type="button"
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-[#F8FAFC] px-3 py-1.5 text-sm shadow-sm hover:border-slate-300"
-                style={{ cursor: 'pointer', textAlign: 'left', minHeight: '38px', minWidth: '190px' }}
+                className="flex w-full items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-sm shadow-sm hover:border-blue-500 transition-all"
+                style={{ cursor: 'pointer', textAlign: 'left', height: '34px', minWidth: '190px' }}
                 onClick={handleOpen}
             >
-                <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', justifyContent: 'center' }}>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', lineHeight: 1.1, fontFamily: 'Roboto, sans-serif' }}>
                         {primaryLabel}
                     </Typography>
                     {compareOn && (
-                        <Typography sx={{ fontSize: '0.7rem', color: '#64748b', lineHeight: 1.2, fontWeight: 500 }}>
+                        <Typography sx={{ fontSize: '0.62rem', color: '#64748b', lineHeight: 1.1, fontWeight: 500, fontFamily: 'Roboto, sans-serif' }}>
                             vs {compareLabel}
                         </Typography>
                     )}
                 </Box>
-                <Typography sx={{ color: '#94a3b8', fontSize: '10px' }}>▼</Typography>
+                <Typography sx={{ color: '#94a3b8', fontSize: '9px' }}>▼</Typography>
             </button>
 
             <Popover

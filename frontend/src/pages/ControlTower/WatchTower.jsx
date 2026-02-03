@@ -54,6 +54,20 @@ import { useMemo } from "react";
 import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
+import SnapshotOverview from "../../components/CommonLayout/SnapshotOverview";
+import {
+  LayoutGrid,
+  ShoppingCart,
+  Layers,
+  Percent,
+  PieChart,
+  Eye,
+  TrendingUp,
+  Target,
+  DollarSign
+} from "lucide-react";
+import PerformanceMatrixNew from "@/components/ControlTower/WatchTower/PerformanceMatrixNew";
+import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOverviewNew";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -203,6 +217,17 @@ export default function WatchTower() {
     fetchData();
   }, [filters]); // Refetch when filters change
 
+  const COMPARISON_KPIS = [
+    { id: 'offtake', title: 'Offtake', value: '₹14.8Cr', delta: 15.9, deltaLabel: '+₹89.3L', icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'], trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75] },
+    { id: 'availability', title: 'Availability', value: '96.8%', delta: 1.8, deltaLabel: '+1.7 pts', icon: Layers, gradient: ['#14b8a6', '#06b6d4'], trend: [85, 87, 86, 88, 90, 89, 92, 94, 93, 95, 96, 97] },
+    { id: 'promo', title: 'Promo Spends', value: '5.21%', delta: -0.7, deltaLabel: '-0.04 pts', icon: Percent, gradient: ['#f43f5e', '#ec4899'], trend: [6.2, 6.0, 5.8, 5.5, 5.3, 5.4, 5.2, 5.1, 5.3, 5.2, 5.2, 5.2] },
+    { id: 'market', title: 'Market Share', value: '24.3%', delta: 3.9, deltaLabel: '+0.92 pts', icon: PieChart, gradient: ['#8b5cf6', '#a855f7'], trend: [20, 21, 21.5, 22, 22.5, 23, 23.2, 23.5, 23.8, 24, 24.2, 24.3] },
+    { id: 'sos', title: 'Share of Search', value: '25%', delta: -1.3, deltaLabel: '-0.4 pts', icon: Eye, gradient: ['#f97316', '#fb923c'], trend: [28, 27, 26.5, 26, 25.5, 25.8, 25.3, 25.1, 25.4, 25.2, 25.1, 25] },
+    { id: 'inorg', title: 'Inorganic Sales', value: '11%', delta: 5.4, deltaLabel: '+1.2%', icon: TrendingUp, gradient: ['#22c55e', '#4ade80'], trend: [8, 8.5, 9, 9.2, 9.5, 10, 10.2, 10.5, 10.8, 11, 10.8, 11] },
+    { id: 'conversion', title: 'Conversion', value: '1%', delta: 28, deltaLabel: '+0.2%', icon: Target, gradient: ['#06b6d4', '#22d3ee'], trend: [0.7, 0.72, 0.75, 0.78, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95, 0.98, 1.0] },
+    { id: 'roas', title: 'ROAS', value: '2x', delta: 16.5, deltaLabel: '+0.3x', icon: DollarSign, gradient: ['#eab308', '#facc15'], trend: [1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.92, 1.95, 2.0] },
+  ]
+
   return (
     <>
       <CommonContainer
@@ -211,17 +236,33 @@ export default function WatchTower() {
         onFiltersChange={setFilters}
       >
         {/* Top Cards */}
-        {loading ? (
+        {/* {loading ? (
           <Loader message="Fetching Watch Tower Insights..." />
         ) : (
           <CardMetric
             data={dashboardData.topMetrics}
             onViewTrends={handleViewTrends}
           />
+        )} */}
+
+        {loading ? (
+          <Loader message="Fetching Watch Tower Insights..." />
+        ) : (
+          <SnapshotOverview
+            title="Watchtower Overview"
+            icon={LayoutGrid}
+            chip="All Platforms"
+            headerRight={
+              <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+                vs Previous Month
+              </span>
+            }
+            kpis={COMPARISON_KPIS}
+          />
         )}
 
         {/* Top Cards */}
-        <Box
+        {/* <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 6,
@@ -230,11 +271,45 @@ export default function WatchTower() {
           }}
         >
           <PerformanceMatric cardWidth={285} cardHeight={140} />
+        </Box> */}
+
+        {/* Top Cards */}
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 6,
+            boxShadow: 1,
+            mb: 4,
+            p: 4,
+          }}
+        >
+          <PerformanceMatrixNew />
+
         </Box>
+        {/* Top Cards */}
+        <Box
+          sx={{
+            bgcolor: (theme) => theme.palette.background.paper,
+            borderRadius: 6,
+            boxShadow: 1,
+            mb: 4,
+            p: 4,
+          }}
+        >
+          <PlatformOverviewNew
+            onViewTrends={handleViewTrends}
+            onViewRca={(label) => {
+              setRcaModalTitle(`${label} x ${filters.platform}`);
+              setRcaModalOpen(true);
+            }}
+          />
+
+        </Box>
+
 
         {/* Platform Overview */}
         {/* Tabs */}
-        <Box
+        {/* <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 2,
@@ -297,10 +372,8 @@ export default function WatchTower() {
               currentPage={currentPage}
               setCurrentPage={setCurrentPage}
             />
-            {/* defaultMonths
-defaultCategory */}
           </Box>
-        </Box>
+        </Box> */}
         <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
