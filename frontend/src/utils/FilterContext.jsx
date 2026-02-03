@@ -6,6 +6,7 @@ export const FilterContext = createContext();
 
 // Static platform-brand-location mapping
 const platformData = {
+    // --- ECOM CHANNELS ---
     "Blinkit": {
         brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
         locations: {
@@ -55,13 +56,45 @@ const platformData = {
             "Feast": ["Delhi", "Mumbai"],
             "Twister": ["Delhi", "Chennai", "Bangalore"]
         }
+    },
+    // --- MODERN TRADE CHANNELS ---
+    "Reliance Fresh": {
+        brands: ["Kwality Walls", "Cornetto"],
+        locations: {
+            "Kwality Walls": ["Mumbai", "Pune"],
+            "Cornetto": ["Mumbai", "Ahmedabad"]
+        }
+    },
+    "Big Bazaar": {
+        brands: ["Kwality Walls", "Magnum"],
+        locations: {
+            "Kwality Walls": ["Delhi", "Kolkata"],
+            "Magnum": ["Bangalore", "Chennai"]
+        }
+    },
+    "DMart": {
+        brands: ["Kwality Walls", "Cornetto", "Magnum"],
+        locations: {
+            "Kwality Walls": ["Mumbai", "Thane"],
+            "Cornetto": ["Mumbai", "Surat"],
+            "Magnum": ["Mumbai", "Bangalore"]
+        }
     }
+};
+
+const channelPlatformMap = {
+    "Ecom": ["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"],
+    "ModernTrade": ["Reliance Fresh", "Big Bazaar", "DMart"]
 };
 
 
 export const FilterProvider = ({ children }) => {
+    // Channel state
+    const [channels] = useState(["All", "Ecom", "ModernTrade"]);
+    const [selectedChannel, setSelectedChannel] = useState("Ecom");
+
     // Platform state
-    const [platforms] = useState(["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"]);
+    const [platforms, setPlatforms] = useState(channelPlatformMap["Ecom"]);
     const [platform, setPlatform] = useState("Blinkit");
 
     // Brand state
@@ -82,6 +115,23 @@ export const FilterProvider = ({ children }) => {
     const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
+
+    // Update platforms when channel changes
+    useEffect(() => {
+        let availablePlatforms = [];
+        if (selectedChannel === "All") {
+            availablePlatforms = [...channelPlatformMap["Ecom"], ...channelPlatformMap["ModernTrade"]];
+        } else {
+            availablePlatforms = channelPlatformMap[selectedChannel] || [];
+        }
+
+        setPlatforms(availablePlatforms);
+
+        // Only reset platform if the current one is not in the new list
+        if (availablePlatforms.length > 0 && !availablePlatforms.includes(platform)) {
+            setPlatform(availablePlatforms[0]);
+        }
+    }, [selectedChannel]);
 
     // Update brands when platform changes
     useEffect(() => {
@@ -116,6 +166,9 @@ export const FilterProvider = ({ children }) => {
 
     return (
         <FilterContext.Provider value={{
+            channels,
+            selectedChannel,
+            setSelectedChannel,
             brands,
             selectedBrand,
             setSelectedBrand,

@@ -31,6 +31,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
 
   const {
+    channels,
+    selectedChannel,
+    setSelectedChannel,
     brands,
     selectedBrand,
     setSelectedBrand,
@@ -186,11 +189,20 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 1,
+                gap: 0.5,
                 flexWrap: "nowrap",
                 overflow: "visible",
               }}
             >
+
+              {/* CHANNEL SELECTION */}
+              <CustomHeaderDropdown
+                label="CHANNEL"
+                options={channels}
+                value={selectedChannel}
+                onChange={(newValue) => setSelectedChannel(newValue)}
+                width={130}
+              />
 
               {/* PLATFORM SELECTION */}
               <CustomHeaderDropdown
@@ -198,7 +210,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={platforms}
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
-                width={150}
+                width={130}
               />
 
               <CustomHeaderDropdown
@@ -206,7 +218,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={brands}
                 value={selectedBrand}
                 onChange={(newValue) => setSelectedBrand(newValue)}
-                width={150}
+                width={130}
               />
 
               <CustomHeaderDropdown
@@ -214,7 +226,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={locations}
                 value={selectedLocation}
                 onChange={(newValue) => setSelectedLocation(newValue)}
-                width={150}
+                width={130}
               />
 
               {location.pathname === "/visibility-anlysis" && (
@@ -223,7 +235,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   options={keywords}
                   value={selectedKeyword}
                   onChange={(newValue) => setSelectedKeyword(newValue)}
-                  width={150}
+                  width={130}
                 />
               )}
 
@@ -231,10 +243,14 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <Box sx={{ width: 220, flexShrink: 0 }}>
                 <Typography
                   sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                    mb: 0.4,
+                    opacity: 0.8,
+                    textTransform: "uppercase",
+                    letterSpacing: '0.05em',
+                    fontFamily: 'Roboto, sans-serif',
+                    color: '#64748b'
                   }}
                 >
                   TIME PERIOD

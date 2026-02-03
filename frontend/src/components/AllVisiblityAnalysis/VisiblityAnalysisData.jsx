@@ -26,13 +26,20 @@ import {
 } from "../AllAvailablityAnalysis/availablityDataCenter";
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
-import MetricCardContainer from '../CommonLayout/MetricCardContainer'
-
 import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
+import SnapshotOverview from '../CommonLayout/SnapshotOverview'
+import {
+  LayoutGrid,
+  PieChart,
+  Target,
+  TrendingUp,
+  Monitor
+} from "lucide-react";
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
 import TopSearchTerms from './TopSearchTerms';
 import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
+import MetricCardContainer from '../CommonLayout/MetricCardContainer';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -579,6 +586,36 @@ const VisiblityAnalysisData = () => {
       extraChangeColor: "green",
     },
   ];
+  const getVisibilityKpis = () => {
+    const icons = [PieChart, Target, TrendingUp, Monitor];
+    const gradients = [
+      ['#6366f1', '#8b5cf6'],
+      ['#14b8a6', '#06b6d4'],
+      ['#f43f5e', '#ec4899'],
+      ['#8b5cf6', '#a855f7']
+    ];
+
+    return cards.map((card, idx) => {
+      // Extract numeric delta from string like "▲4.3 pts"
+      const deltaMatch = card.change.match(/[▲▼]([\d.]+)/);
+      const delta = deltaMatch ? parseFloat(deltaMatch[1]) * (card.change.includes('▼') ? -1 : 1) : 0;
+
+      return {
+        id: `vis-${idx}`,
+        title: card.title,
+        value: card.value,
+        subtitle: card.sub,
+        delta: delta,
+        deltaLabel: card.change,
+        icon: icons[idx] || PieChart,
+        gradient: gradients[idx % gradients.length],
+        trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75] // placeholder trend
+      };
+    });
+  };
+
+  const visibilityKpis = useMemo(() => getVisibilityKpis(), []);
+
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
     if (value >= 85) return "bg-emerald-50 text-emerald-800";
@@ -816,8 +853,19 @@ const VisiblityAnalysisData = () => {
           </div> */}
       </div>
 
-      {/* MODAL SECTION */}
       <MetricCardContainer title="Visibility Overview" cards={cards} />
+      {/* MODAL SECTION */}
+      {/* <SnapshotOverview
+        title="Visibility Overview"
+        icon={LayoutGrid}
+        chip="All Platforms"
+        headerRight={
+          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+            vs Previous Period
+          </span>
+        }
+        kpis={visibilityKpis}
+      /> */}
       <TabbedHeatmapTable />
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
