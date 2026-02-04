@@ -479,6 +479,7 @@ export const getSalesTrends = async (req, res) => {
 
             conditions.push(`toDate(DATE) BETWEEN '${startStr}' AND '${endStr}'`);
             const whereClause = conditions.join(' AND ');
+            console.log('[getSalesTrends] Where Clause:', whereClause);
 
             const query = `
                 SELECT 
@@ -491,6 +492,7 @@ export const getSalesTrends = async (req, res) => {
             `;
 
             const dailyData = await queryClickHouse(query);
+            console.log(`[getSalesTrends] Found ${dailyData?.length || 0} rows`);
 
             let cumulative = 0;
             const daysInMonth = end.daysInMonth();
@@ -501,12 +503,14 @@ export const getSalesTrends = async (req, res) => {
                 cumulative += sales;
                 const dayOfMonth = dateObj.date();
 
+                // Remove the division by 10^7 (1 Crore) to show raw data
+                // The frontend or chart can handle scaling if needed
                 return {
                     date: dateObj.format('DD MMM\'YY'),
-                    overall_sales: parseFloat((sales / 10000000).toFixed(2)),
-                    mtd_sales: parseFloat((cumulative / 10000000).toFixed(2)),
-                    current_drr: parseFloat(((cumulative / dayOfMonth) / 10000000).toFixed(2)),
-                    projected_sales: parseFloat((((cumulative / dayOfMonth) * daysInMonth) / 10000000).toFixed(2)),
+                    overall_sales: sales,
+                    mtd_sales: cumulative,
+                    current_drr: cumulative / dayOfMonth,
+                    projected_sales: (cumulative / dayOfMonth) * daysInMonth,
                 };
             });
         }, CACHE_TTL.METRICS);

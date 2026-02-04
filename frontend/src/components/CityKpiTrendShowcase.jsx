@@ -714,8 +714,9 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   // Create a stable key for global data to detect actual content changes
   const globalDataKey = React.useMemo(() => {
     if (!data) return '';
-    return `${data.columns?.length || 0}_${data.rows?.length || 0}_${data.rows?.[0]?.kpi || ''}`;
-  }, [data]);
+    const filterKey = `${filters?.platform || ''}_${filters?.brand || ''}_${filters?.location || ''}_${filters?.startDate || ''}_${filters?.endDate || ''}`;
+    return `${data.columns?.length || 0}_${data.rows?.length || 0}_${data.rows?.[0]?.kpi || ''}_${filterKey}`;
+  }, [data, filters]);
 
   // Reset local state when switching tabs (title changes) or global filters change (verified by globalDataKey)
   React.useEffect(() => {
@@ -751,15 +752,20 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       let startDate = filters?.startDate;
       let endDate = filters?.endDate;
 
-      if (targetFilters.date?.[0] && targetFilters.date[0] !== 'all' && targetFilters.date[0] !== 'All') {
-        startDate = targetFilters.date[0];
-        endDate = targetFilters.date[0];
-      } else if (targetFilters.month?.[0] && targetFilters.month[0] !== 'all' && targetFilters.month[0] !== 'All') {
-        const [year, month] = targetFilters.month[0].split('-');
-        const start = dayjs(`${year}-${month}-01`);
-        const end = start.endOf('month');
-        startDate = start.format('YYYY-MM-DD');
-        endDate = end.format('YYYY-MM-DD');
+      if (targetFilters.date?.length > 0 && !targetFilters.date.includes('all') && !targetFilters.date.includes('All')) {
+        const sortedDates = [...targetFilters.date].sort();
+        startDate = sortedDates[0];
+        endDate = sortedDates[sortedDates.length - 1];
+      } else if (targetFilters.month?.length > 0 && !targetFilters.month.includes('all') && !targetFilters.month.includes('All')) {
+        const sortedMonths = [...targetFilters.month].sort();
+        const startMonth = sortedMonths[0];
+        const endMonth = sortedMonths[sortedMonths.length - 1];
+
+        const [sYear, sMonth] = startMonth.split('-');
+        const [eYear, eMonth] = endMonth.split('-');
+
+        startDate = dayjs(`${sYear}-${sMonth}-01`).format('YYYY-MM-DD');
+        endDate = dayjs(`${eYear}-${eMonth}-01`).endOf('month').format('YYYY-MM-DD');
       }
 
       if (startDate) params.append('startDate', startDate);
@@ -769,18 +775,26 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       const filterMapping = {
         platform: 'platform',
         city: 'location',
+        location: 'location',
         format: 'format',
-        zone: 'zone',
-        metroFlag: 'metroFlag',
-        pincode: 'pincode'
+        formats: 'format',
+        category: 'category',
+        categories: 'category',
+        zone: 'zones',
+        metroFlag: 'metroFlags',
+        pincode: 'pincodes',
+        brand: 'brand'
       };
 
       Object.entries(targetFilters).forEach(([key, values]) => {
         const queryKey = filterMapping[key];
-        if (queryKey && Array.isArray(values)) {
-          values.forEach(v => {
-            if (v !== 'all' && v !== 'All') params.append(queryKey, v);
-          });
+        if (queryKey && Array.isArray(values) && values.length > 0) {
+          const hasAll = values.includes('all') || values.includes('All');
+          if (!hasAll) {
+            values.forEach(v => {
+              if (v !== undefined && v !== null && v !== '') params.append(queryKey, v);
+            });
+          }
         }
       });
 
@@ -800,10 +814,11 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
       Object.entries(filters || {}).forEach(([key, value]) => {
         const queryKey = globalFilterMapping[key] || key;
+        // Only add global filter if it's NOT already in params (meaning local overrode it)
         if (!params.has(queryKey) && value !== undefined && value !== null && value !== 'All' && value !== '') {
           if (Array.isArray(value)) {
             value.forEach(v => {
-              if (v !== 'all') params.append(queryKey, v);
+              if (v !== 'all' && v !== 'All') params.append(queryKey, v);
             });
           } else {
             params.append(queryKey, value);
@@ -815,12 +830,6 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       if (!params.has('platform')) params.append('platform', 'All');
       if (!params.has('brand')) params.append('brand', 'All');
       if (!params.has('location')) params.append('location', 'All');
-
-      // Ensure platform is 'All' if not specifically selected in the LOCAL filter modal
-      // This prevents inheriting a global 'Amazon' filter and showing only 1 column
-      if (!targetFilters.platform?.length || targetFilters.platform.includes('all')) {
-        params.set('platform', 'All');
-      }
 
       const queryParams = params.toString();
 

@@ -867,7 +867,46 @@ class VisibilityService {
                 }
 
                 // Query builder helper for current/prev/sparkline
-                const getMatrixQueries = (dimColumn, dimAlias) => {
+                const getMatrixQueries = (dimColumn, dimAlias, filtersToExclude = []) => {
+                    // Build filtered where clauses for this specific matrix
+                    let currentWhere = `toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'`;
+                    let prevWhere = `toDate(kw_crawl_date) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+
+                    // Helper to add condition if not excluded
+                    const addCond = (val, col, exclusionKeys) => {
+                        if (val && val !== 'All' && !exclusionKeys.includes(col)) {
+                            const cond = buildCHCondition(val, col);
+                            currentWhere += ` AND ${cond}`;
+                            prevWhere += ` AND ${cond}`;
+                        }
+                    };
+
+                    addCond(filters.platform, 'platform_name', filtersToExclude);
+                    addCond(filters.location, 'location_name', filtersToExclude);
+                    // Add format/category if present in global filters (Visibility global filter often has categories/formats)
+                    addCond(filters.format || filters.category, 'keyword_category', filtersToExclude);
+
+                    // Pincode (use toString to match ClickHouse type if necessary)
+                    if (filters.pincode && filters.pincode !== 'All') {
+                        const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
+                        const filteredPins = pins.filter(p => p && p !== 'all' && p !== 'All');
+                        if (filteredPins.length > 0) {
+                            const pinList = filteredPins.map(p => `'${escapeCH(p)}'`).join(',');
+                            const pinCond = `toString(pincode) IN (${pinList})`;
+                            currentWhere += ` AND ${pinCond}`;
+                            prevWhere += ` AND ${pinCond}`;
+                        }
+                    }
+
+                    // Re-apply city list filter if zones/metroFlags were used
+                    if (baseWhere.includes('location_name IN (')) {
+                        const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
+                        if (cityListMatch && !filtersToExclude.includes('location_name')) {
+                            currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
+                            prevWhere += ` AND location_name IN (${cityListMatch[1]})`;
+                        }
+                    }
+
                     const current = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
@@ -876,7 +915,7 @@ class VisibilityService {
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
                             ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
                         FROM rb_kw
-                        WHERE ${baseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
                         ORDER BY count() DESC
                         LIMIT 15
@@ -890,7 +929,7 @@ class VisibilityService {
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
                             ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
                         FROM rb_kw
-                        WHERE ${prevBaseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        WHERE ${prevWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
                     `;
 
@@ -903,7 +942,7 @@ class VisibilityService {
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
                             ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
                         FROM rb_kw
-                        WHERE ${baseWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                        WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}, date
                         ORDER BY date ASC
                     `;
@@ -911,9 +950,9 @@ class VisibilityService {
                     return { current, previous, sparkline };
                 };
 
-                const platQueries = getMatrixQueries('platform_name', 'name');
-                const formatQueries = getMatrixQueries('keyword_category', 'name');
-                const cityQueries = getMatrixQueries('location_name', 'name');
+                const platQueries = getMatrixQueries('platform_name', 'name', ['platform_name']);
+                const formatQueries = getMatrixQueries('keyword_category', 'name', ['keyword_category']);
+                const cityQueries = getMatrixQueries('location_name', 'name', ['location_name']);
 
                 // Execute all queries in parallel
                 const [

@@ -18,7 +18,8 @@ import {
     SlidersHorizontal,
     LineChart as LineChartIcon,
     ArrowUpRight,
-    ArrowDownRight
+    ArrowDownRight,
+    X
 } from "lucide-react";
 import PaginationFooter from '../CommonLayout/PaginationFooter';
 import { fetchCategorySalesMatrix } from "../../api/salesService";
@@ -33,6 +34,7 @@ import {
 
 import { FilterContext } from "../../utils/FilterContext";
 import { RefreshCw, AlertCircle } from "lucide-react";
+import { KpiFilterPanel } from '../KpiFilterPanel';
 
 const fmt = (val) => {
     if (val === undefined || val === null || isNaN(val)) return "0";
@@ -197,6 +199,9 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
     const [rowsPerPage, setRowsPerPage] = useState(3);
     const [search, setSearch] = useState("");
     const [showSearch, setShowSearch] = useState(false);
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+    const [filters, setFilters] = useState({ date: [], month: [], platform: [], kpi: [], format: [], zone: [], city: [], categories: [], kpis: [] });
+    const [popupFilters, setPopupFilters] = useState({ date: [], month: [], platform: [], kpi: [], format: [], zone: [], city: [], categories: [], kpis: [] });
 
     const loadData = async () => {
         setLoading(true);
@@ -225,9 +230,20 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
     }, [startDate, endDate, compareStartDate, compareEndDate, platform, brand, location]);
 
     const filteredData = useMemo(() => {
-        if (!search) return data;
-        return data.filter(item => item.category.toLowerCase().includes(search.toLowerCase()));
-    }, [data, search]);
+        let result = data;
+
+        // Apply search filter
+        if (search) {
+            result = result.filter(item => item.category.toLowerCase().includes(search.toLowerCase()));
+        }
+
+        // Apply category filter
+        if (filters.categories && filters.categories.length > 0) {
+            result = result.filter(item => filters.categories.includes(item.category));
+        }
+
+        return result;
+    }, [data, search, filters.categories]);
 
     const paginatedData = useMemo(() => {
         const start = (page - 1) * rowsPerPage;
@@ -235,6 +251,60 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
     }, [filteredData, page, rowsPerPage]);
 
     const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+
+    // KPI mapping for filtering
+    const kpiMapping = {
+        'MTD Sales': { header: 'MTD SALES', dataKey: 'mtd', label: 'MTD SALES' },
+        'Prev Month MTD': { header: 'PREV MONTH MTD', dataKey: 'prevMtd', label: 'PREV MONTH MTD' },
+        'Current DRR': { header: 'CURRENT DRR', dataKey: 'drr', label: 'CURRENT DRR' },
+        'YTD Sales': { header: 'YTD SALES', dataKey: 'ytd', label: 'YTD SALES' },
+        'Last Year Sales': { header: 'LAST YEAR SALES', dataKey: 'lastYear', label: 'LAST YEAR SALES' },
+        'Projected Sales': { header: 'PROJECTED SALES', dataKey: 'projected', label: 'PROJECTED SALES' }
+    };
+
+    // Determine which KPIs to display
+    const activeKpis = useMemo(() => {
+        if (!filters.kpis || filters.kpis.length === 0) {
+            // Show all KPIs by default
+            return Object.keys(kpiMapping);
+        }
+        return filters.kpis;
+    }, [filters.kpis]);
+
+    // Calculate active filter count
+    const activeFilterCount = useMemo(() => {
+        let count = 0;
+        if (filters.categories && filters.categories.length > 0) count += filters.categories.length;
+        if (filters.kpis && filters.kpis.length > 0) count += filters.kpis.length;
+        return count;
+    }, [filters.categories, filters.kpis]);
+
+    // Filter options for the Advanced Filters panel
+    const filterOptionsData = useMemo(() => {
+        const categories = [];
+        const kpis = [];
+
+        // Extract unique categories from data (no "All" prefix)
+        const uniqueCategories = new Set();
+        data.forEach(item => {
+            if (item.category) {
+                uniqueCategories.add(item.category);
+            }
+        });
+        uniqueCategories.forEach(cat => categories.push({ id: cat, label: cat }));
+
+        // Add KPI options (no "All" prefix)
+        ['MTD Sales', 'Prev Month MTD', 'Current DRR', 'YTD Sales', 'Last Year Sales', 'Projected Sales'].forEach(k =>
+            kpis.push({ id: k, label: k })
+        );
+
+        return { kpis, categories };
+    }, [data]);
+
+    const sectionConfig = useMemo(() => [
+        { id: "kpis", label: "KPI", options: filterOptionsData.kpis },
+        { id: "categories", label: "Category", options: filterOptionsData.categories },
+    ], [filterOptionsData]);
 
     return (
         <Box sx={{ width: "100%", bgcolor: "white", borderRadius: "16px", border: "1px solid #f1f5f9", overflow: "hidden", p: 3, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
@@ -269,11 +339,33 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                             />
                         )}
                         <button
-                            onClick={() => setShowSearch(!showSearch)}
-                            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all active:scale-95 whitespace-nowrap"
+                            onClick={() => setShowFilterPanel(true)}
+                            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-all active:scale-95 whitespace-nowrap relative"
                         >
                             <SlidersHorizontal className="h-4 w-4" />
                             <span>Filters</span>
+                            {activeFilterCount > 0 && (
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        top: -6,
+                                        right: -6,
+                                        bgcolor: '#10b981',
+                                        color: 'white',
+                                        fontSize: 10,
+                                        fontWeight: 800,
+                                        borderRadius: '50%',
+                                        width: 18,
+                                        height: 18,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                    }}
+                                >
+                                    {activeFilterCount}
+                                </Box>
+                            )}
                         </button>
                     </Box>
 
@@ -305,29 +397,32 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                             <TableHead>
                                 <TableRow sx={{ bgcolor: "#f8fafc" }}>
                                     <TableCell sx={{ py: 3, fontWeight: 800, color: "#475569", fontSize: 12 }}>CATEGORY</TableCell>
-                                    {["MTD SALES", "PREV MONTH MTD", "CURRENT DRR", "YTD SALES", "LAST YEAR SALES", "PROJECTED SALES"].map((label) => (
-                                        <TableCell key={label} align="right" sx={{ py: 2, fontWeight: 800, color: "#475569", fontSize: 12 }}>
-                                            <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.75}>
-                                                {label}
-                                                <Box
-                                                    className="trend-icon"
-                                                    onClick={() => onTrendClick && onTrendClick(label)}
-                                                    sx={{
-                                                        p: 0.5,
-                                                        borderRadius: "6px",
-                                                        bgcolor: "#eef2ff",
-                                                        color: "#6366f1",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        cursor: "pointer",
-                                                        transition: "all 0.2s ease"
-                                                    }}
-                                                >
-                                                    <LineChartIcon size={12} />
+                                    {activeKpis.map((kpiName) => {
+                                        const kpi = kpiMapping[kpiName];
+                                        return (
+                                            <TableCell key={kpi.header} align="right" sx={{ py: 2, fontWeight: 800, color: "#475569", fontSize: 12 }}>
+                                                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.75}>
+                                                    {kpi.header}
+                                                    <Box
+                                                        className="trend-icon"
+                                                        onClick={() => onTrendClick && onTrendClick(kpi.header)}
+                                                        sx={{
+                                                            p: 0.5,
+                                                            borderRadius: "6px",
+                                                            bgcolor: "#eef2ff",
+                                                            color: "#6366f1",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            cursor: "pointer",
+                                                            transition: "all 0.2s ease"
+                                                        }}
+                                                    >
+                                                        <LineChartIcon size={12} />
+                                                    </Box>
                                                 </Box>
-                                            </Box>
-                                        </TableCell>
-                                    ))}
+                                            </TableCell>
+                                        );
+                                    })}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -361,12 +456,17 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                                                     {row.category.toUpperCase()}
                                                 </Typography>
                                             </TableCell>
-                                            <MetricCell data={row.metrics.mtd} label="MTD SALES" categoryName={row.category} />
-                                            <MetricCell data={row.metrics.prevMtd} label="PREV MONTH MTD" categoryName={row.category} />
-                                            <MetricCell data={row.metrics.drr} label="CURRENT DRR" categoryName={row.category} />
-                                            <MetricCell data={row.metrics.ytd} label="YTD SALES" categoryName={row.category} />
-                                            <MetricCell data={row.metrics.lastYear} label="LAST YEAR SALES" categoryName={row.category} />
-                                            <MetricCell data={row.metrics.projected} label="PROJECTED SALES" categoryName={row.category} />
+                                            {activeKpis.map((kpiName) => {
+                                                const kpi = kpiMapping[kpiName];
+                                                return (
+                                                    <MetricCell
+                                                        key={kpi.dataKey}
+                                                        data={row.metrics[kpi.dataKey]}
+                                                        label={kpi.label}
+                                                        categoryName={row.category}
+                                                    />
+                                                );
+                                            })}
                                         </TableRow>
                                     ))
                                 )}
@@ -386,6 +486,74 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                         />
                     </Box>
                 </>
+            )}
+
+            {/* Advanced Filters Modal */}
+            {showFilterPanel && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 transition-all backdrop-blur-sm">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                            </div>
+                            <button
+                                onClick={() => setShowFilterPanel(false)}
+                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Panel Content */}
+                        <div className="flex-1 overflow-y-auto bg-slate-50/30 px-6 pt-6 pb-6">
+                            <KpiFilterPanel
+                                sectionConfig={sectionConfig}
+                                sectionValues={popupFilters}
+                                onSectionChange={(sectionId, values) => {
+                                    console.log("Filter changed:", sectionId, values);
+                                    setPopupFilters(prev => ({
+                                        ...prev,
+                                        [sectionId]: values || []
+                                    }));
+                                }}
+                            />
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                            <button
+                                onClick={() => {
+                                    setPopupFilters({ date: [], month: [], platform: [], kpi: [], format: [], zone: [], city: [], categories: [], kpis: [] });
+                                    setFilters({ date: [], month: [], platform: [], kpi: [], format: [], zone: [], city: [], categories: [], kpis: [] });
+                                    setPage(1);
+                                }}
+                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                                Clear All
+                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowFilterPanel(false)}
+                                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setFilters(popupFilters);
+                                        setPage(1);
+                                        setShowFilterPanel(false);
+                                    }}
+                                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                >
+                                    Apply Filters
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </Box>
     );

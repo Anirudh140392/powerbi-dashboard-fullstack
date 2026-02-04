@@ -59,7 +59,8 @@ export const ScheduledReport = ({
   setShowSuccess,
   platformOptions,
   getBrandOptions,
-  getLocationOptions,
+  getCityOptions,
+  getFormatOptions,
   timePeriodOptions,
   reportTypeOptions,
   customDateRange,
@@ -269,7 +270,7 @@ export const ScheduledReport = ({
             </Typography>
           </Box>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={4} lg={2}>
               <FilterCard
                 title="Platform"
                 icon={CategoryIcon}
@@ -357,17 +358,17 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={4} lg={2}>
               <FilterCard
-                title="Location"
+                title="City"
                 icon={PlaceIcon}
                 color="#10B981" // Emerald
               >
                 <FormControl fullWidth size="small">
                   <Select
-                    value={selectedFilters.location}
+                    value={selectedFilters.city}
                     onChange={(e) =>
-                      handleFilterChange("location", e.target.value)
+                      handleFilterChange("city", e.target.value)
                     }
                     displayEmpty
                     MenuProps={{
@@ -391,7 +392,7 @@ export const ScheduledReport = ({
                       },
                     }}
                   >
-                    {getLocationOptions().map((option) => (
+                    {getCityOptions().map((option) => (
                       <MenuItem key={option} value={option}>
                         {option}
                       </MenuItem>
@@ -401,7 +402,51 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={4} lg={2}>
+              <FilterCard
+                title="Format"
+                icon={CategoryIcon}
+                color="#6366F1" // Indigo-500
+              >
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedFilters.format}
+                    onChange={(e) =>
+                      handleFilterChange("format", e.target.value)
+                    }
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 200,
+                          borderRadius: "12px",
+                        },
+                      },
+                    }}
+                    sx={{
+                      borderRadius: "8px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#E2E8F0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#6366F1",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#6366F1",
+                      },
+                    }}
+                  >
+                    {getFormatOptions().map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </FilterCard>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={4} lg={2}>
               <FilterCard
                 title="Time Period"
                 icon={CalendarIcon}
@@ -496,7 +541,7 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={4} lg={2}>
               <FilterCard
                 title="Report Type"
                 icon={AssessmentIcon}
