@@ -834,10 +834,7 @@ const RcaTreeInner = ({ context }) => {
       <CoolGreyBackground />
       <MagicCursor />
 
-      {/* Dynamic Header Metrics */}
-      <Box sx={{ position: "absolute", top: 20, left: 40, right: 40, zIndex: 100 }}>
-        {cardData.length > 0 && <RCACardMetric cards={cardData} />}
-      </Box>
+      {/* Dynamic Header Metrics - Removed per user request */}
 
       {loading ? (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
