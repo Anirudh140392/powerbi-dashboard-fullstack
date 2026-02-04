@@ -177,7 +177,7 @@ const PerformanceMatrixNew = () => {
 
 
             {/* Bottom Row: Split Compare Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {COMPARISON_KPIS.slice(4, 8).map((kpi, idx) => (
                     <motion.div
                         key={kpi.id}
