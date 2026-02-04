@@ -68,20 +68,18 @@ const ComparisonCard = ({ kpi, variant = 'original' }) => {
                 </div> */}
             </div>
 
-            <div className="flex items-baseline gap-1 mb-1.5">
-                <span className="text-xl font-bold text-slate-900 tracking-tight">{kpi.value}</span>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{kpi.subtitle || 'MTD'}</span>
-                <div className="flex items-baseline gap-19 mb-1.5">
-                    <div className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-0.5 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {isPositive ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
-                        {Math.abs(kpi.delta)}%
-                    </div>
-                    {/* <span className="text-[9px] font-medium text-slate-400">{kpi.deltaLabel}</span> */}
-
+            <div className="flex items-baseline justify-between gap-1 mb-1.5">
+                <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold text-slate-900 tracking-tight">{kpi.value}</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{kpi.subtitle || 'MTD'}</span>
+                </div>
+                <div className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-0.5 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {isPositive ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
+                    {Math.abs(kpi.delta)}%
                 </div>
             </div>
 
-            <div className="flex items-center gap-1.5 mb-4">
+            <div className="flex items-center gap-5 mb-8">
                 {/* <div className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-0.5 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                     {isPositive ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
                     {Math.abs(kpi.delta)}%
