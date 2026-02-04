@@ -55,22 +55,22 @@ async function getDiscountByCategory(filters = {}) {
             // Only include categories that have status = 1 in rca_sku_dim
             const query = `
             SELECT
-                Category,
-                Platform,
-                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND toFloat64(Discount) >= 0 THEN toFloat64(Discount) ELSE NULL END), 1) AS avgDiscount
-            FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
-              AND Category IS NOT NULL
-              AND Category != ''
-              AND Platform IS NOT NULL
-              AND Category IN (
-                  SELECT DISTINCT Category 
-                  FROM rca_sku_dim 
-                  WHERE status = 1 AND Category IS NOT NULL AND Category != ''
-              )
-            GROUP BY Category, Platform
-            ORDER BY Category, Platform
-        `;
+                p.Category,
+                p.Platform,
+                ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND toFloat64(p.Discount) >= 0 THEN toFloat64(p.Discount) ELSE NULL END), 1) AS avgDiscount
+            FROM rb_pdp_olap p
+            INNER JOIN (
+                SELECT DISTINCT category
+                FROM rca_sku_dim
+                WHERE status = 1 AND category IS NOT NULL AND category != ''
+            ) d ON p.Category = d.category
+            WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND p.Category IS NOT NULL
+              AND p.Category != ''
+              AND p.Platform IS NOT NULL
+            GROUP BY p.Category, p.Platform
+            ORDER BY p.Category, p.Platform
+            `;
 
             console.log('[DiscountTrendService] Executing discount by category query...');
             const queryStart = Date.now();

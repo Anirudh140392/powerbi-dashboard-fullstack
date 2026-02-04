@@ -54,7 +54,7 @@ async function getOneViewPriceGrid(filters = {}) {
 
         // ML filter
         if (filters.ml) {
-            filterClauses.push(`s.quantity = '${filters.ml}'`);
+            filterClauses.push(`s.gram = '${filters.ml}'`);
         }
 
         // Combine all filter clauses
@@ -72,7 +72,7 @@ async function getOneViewPriceGrid(filters = {}) {
                 p.Product as product,
                 CASE WHEN p.Comp_flag = 0 THEN 'Own' ELSE 'Competition' END as skuType,
                 p.Category as format,
-                s.quantity as ml,
+                s.gram as ml,
                 ROUND(AVG(toFloat64(p.MRP)), 1) as mrp,
                 0 as basePrice,
                 ROUND(AVG(toFloat64(p.Discount)), 1) as discount,
@@ -84,12 +84,12 @@ async function getOneViewPriceGrid(filters = {}) {
               AND p.Product != ''
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
-              AND s.quantity IS NOT NULL
-              AND s.quantity != ''
-              AND s.quantity != '0'
-              AND toFloat64(s.quantity) > 0
+              AND s.gram IS NOT NULL
+              AND s.gram != ''
+              AND s.gram != '0'
+              AND toFloat64(s.gram) > 0
               ${additionalFilters}
-            GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, s.quantity
+            GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, s.gram
             ORDER BY p.DATE DESC, p.Platform, p.Brand
             LIMIT 1000
         `;

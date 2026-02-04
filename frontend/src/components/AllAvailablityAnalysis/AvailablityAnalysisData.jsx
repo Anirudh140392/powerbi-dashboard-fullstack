@@ -1381,7 +1381,7 @@ export const AvailablityAnalysisData = ({
           <TabbedHeatmapTable
             olaMode={availability}
             apiData={apiData}
-            filters={matrixUnfilteredFilters}
+            filters={filters}
             onFiltersChange={onFiltersChange}
             loading={loading}
           />

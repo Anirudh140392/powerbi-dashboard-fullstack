@@ -626,12 +626,20 @@ export default function VisibilityTrendsCompetitionDrawer({
     City: "All"
   });
 
-  // Sync selectedPlatform with selectedColumn when drawer opens or selectedColumn changes
+  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
   useEffect(() => {
     if (selectedColumn && open) {
       setSelectedPlatform(selectedColumn);
+
+      // Initialize ONLY the current audience type filter
+      const currentAudience = allTrendMeta.context.audience;
+      setDrawerFilters(prev => ({
+        ...prev,
+        [currentAudience]: selectedColumn
+      }));
     }
-  }, [selectedColumn, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColumn, open]); // Removed allTrendMeta.context.audience
 
   const platformRef = useRef(null);
 
@@ -1068,7 +1076,7 @@ export default function VisibilityTrendsCompetitionDrawer({
 
           <SelectedFilterChip
             label="Platform"
-            value={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || "All")}
+            value={drawerFilters.Platform}
             color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
@@ -1139,7 +1147,14 @@ export default function VisibilityTrendsCompetitionDrawer({
                     else if (newAudience === "Brand") options = filterOptions.brands;
 
                     if (options.length > 0) {
-                      setSelectedPlatform(options[0]);
+                      const firstOption = options[0];
+                      setSelectedPlatform(firstOption);
+
+                      // Sync with drawerFilters
+                      setDrawerFilters(prev => ({
+                        ...prev,
+                        [newAudience]: firstOption
+                      }));
                     }
 
                     setShowPlatformPills(true);
@@ -1202,6 +1217,12 @@ export default function VisibilityTrendsCompetitionDrawer({
                         key={p}
                         onClick={() => {
                           setSelectedPlatform(p);
+                          // Sync with drawerFilters
+                          const audience = allTrendMeta.context.audience;
+                          setDrawerFilters(prev => ({
+                            ...prev,
+                            [audience]: p
+                          }));
                         }}
                         sx={{
                           px: 1.5,

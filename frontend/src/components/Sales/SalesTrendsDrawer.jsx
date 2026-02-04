@@ -186,6 +186,7 @@ export default function SalesTrendsDrawer({
     platform,
     brand,
     location,
+    category,
 }) {
     // 1. All Hooks at the top
     const [trendData, setTrendData] = useState([]);
@@ -193,7 +194,7 @@ export default function SalesTrendsDrawer({
     const [options, setOptions] = useState({ platforms: [], brands: [], categories: [], locations: [] });
 
     const [selectedPlatform, setSelectedPlatformState] = useState(platform || "All");
-    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [selectedCategory, setSelectedCategory] = useState(category || "All");
     const [selectedBrandState, setSelectedBrandState] = useState(brand || "All");
     const [selectedLocationState, setSelectedLocationState] = useState(location || "All");
     const [filterType, setFilterType] = useState("Platform");
@@ -217,6 +218,7 @@ export default function SalesTrendsDrawer({
     useEffect(() => { if (platform) setSelectedPlatformState(platform); }, [platform]);
     useEffect(() => { if (brand) setSelectedBrandState(brand); }, [brand]);
     useEffect(() => { if (location) setSelectedLocationState(location); }, [location]);
+    useEffect(() => { if (category) setSelectedCategory(category); }, [category]);
 
     useEffect(() => {
         const loadOptions = async () => {
@@ -318,8 +320,32 @@ export default function SalesTrendsDrawer({
             tooltip: { trigger: "axis" },
             xAxis: { type: "category", data: trendPoints.map(p => p.date), boundaryGap: false },
             yAxis: [
-                { type: "value", position: "left", splitLine: { lineStyle: { color: "#F3F4F6" } } },
-                { type: "value", position: "right", splitLine: { show: false } },
+                {
+                    type: "value",
+                    position: "left",
+                    splitLine: { lineStyle: { color: "#F3F4F6" } },
+                    axisLabel: {
+                        formatter: (val) => {
+                            if (val >= 10000000) return (val / 10000000).toFixed(1) + "Cr";
+                            if (val >= 100000) return (val / 100000).toFixed(1) + "L";
+                            if (val >= 1000) return (val / 1000).toFixed(1) + "K";
+                            return val;
+                        }
+                    }
+                },
+                {
+                    type: "value",
+                    position: "right",
+                    splitLine: { show: false },
+                    axisLabel: {
+                        formatter: (val) => {
+                            if (val >= 10000000) return (val / 10000000).toFixed(1) + "Cr";
+                            if (val >= 100000) return (val / 100000).toFixed(1) + "L";
+                            if (val >= 1000) return (val / 1000).toFixed(1) + "K";
+                            return val;
+                        }
+                    }
+                },
             ],
             series: trendMeta.metrics.filter(m => activeMetrics.includes(m.id)).map(m => ({
                 name: m.label, type: "line", smooth: true, symbol: "circle", symbolSize: 6,
