@@ -418,3 +418,37 @@ export const getOsaDeepDive = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+/**
+ * Get SKU Overview for Performance Matrix
+ * GET /api/watchtower/sku-overview
+ */
+export const getSkuOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getSkuOverview] API call received with filters:', filters);
+        const cacheKey = generateCacheKey('sku-overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getSkuOverview(filters), CACHE_TTL.METRICS);
+        res.json(data);
+    } catch (error) {
+        console.error('[getSkuOverview] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get City Overview for Performance Matrix
+ * GET /api/watchtower/city-overview
+ */
+export const getCityOverview = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getCityOverview] API call received with filters:', filters);
+        const cacheKey = generateCacheKey('city-overview', filters);
+        const data = await getCachedOrCompute(cacheKey, () => watchTowerService.getCityOverview(filters), CACHE_TTL.METRICS);
+        res.json(data);
+    } catch (error) {
+        console.error('[getCityOverview] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};

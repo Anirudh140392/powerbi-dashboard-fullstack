@@ -66,7 +66,10 @@ export function generateCacheKey(section, filters) {
         // New filters for Visibility Analysis
         zone = '',
         metroFlag = '',
-        pincode = ''
+        pincode = '',
+        // Advanced SKU Search Filters
+        skuName = '',
+        skuCode = ''
     } = filters;
 
     // 4. Append secondary filters
@@ -101,6 +104,10 @@ export function generateCacheKey(section, filters) {
     // Trends specific
     if (period) key += `:pd_${normalize(period)}`;
     if (timeStep) key += `:ts_${normalize(timeStep)}`;
+
+    // Advanced SKU Search Filters
+    if (skuName) key += `:sn_${normalize(skuName)}`;
+    if (skuCode) key += `:sc_${normalize(skuCode)}`;
 
     // Section-specific platform/category overrides (for By Month, By Category, By Brands tabs)
     if (monthOverviewPlatform) key += `:mop_${normalize(monthOverviewPlatform)}`;

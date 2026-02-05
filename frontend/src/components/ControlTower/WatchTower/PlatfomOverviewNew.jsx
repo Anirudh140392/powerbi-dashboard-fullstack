@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
     TrendingUp,
@@ -40,6 +40,11 @@ const kpiLabels = {
 const PlatformOverviewNew = ({
     onViewTrends = () => { },
     onViewRca = () => { },
+    data = [],
+    loading = false,
+    onDimensionChange = () => { },
+    onFiltersChange = () => { },
+    currentDimension: propDimension = 'platform',
 }) => {
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
@@ -57,9 +62,11 @@ const PlatformOverviewNew = ({
         { key: 'cpc', label: 'CPC' },
     ]
 
-    const [dimension, setDimension] = useState('platform')
+    // Use dimension from prop directly - fully controlled component
+    const dimension = propDimension;
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'roas', 'conversion', 'availability', 'marketShare'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -223,18 +230,74 @@ const PlatformOverviewNew = ({
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
         setGlanceKpis(filters.kpis)
+        // Notify parent to refetch data with new filters
+        onFiltersChange(filters)
     }
 
     const currentDimension = dimensionData[dimension]
     const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
+    // Handle dimension change - notify parent to fetch new data
+    const handleDimensionChange = (newDimension) => {
+        onDimensionChange(newDimension);
+    };
+
+    // Transform passed data to entity format, or use fallback dummy data
     const entities = useMemo(() => {
+        // When loading, return empty array to show skeleton
+        if (loading) {
+            return [];
+        }
+        if (data && data.length > 0) {
+            // Transform backend data to the expected entity format
+            return data.map((item, idx) => {
+                // Extract KPI data from columns array
+                const columnsData = {};
+                if (item.columns) {
+                    item.columns.forEach(col => {
+                        const key = col.title.toLowerCase().replace(/\s+/g, '').replace('(', '').replace(')', '');
+                        // Map column titles to KPI keys
+                        const keyMap = {
+                            'offtakes': 'offtakes',
+                            'spend': 'spend',
+                            'roas': 'roas',
+                            'inorgsales': 'inorgSales',
+                            'dspsales': 'dspSales',
+                            'conversion': 'conversion',
+                            'availability': 'availability',
+                            'sos': 'shareOfSearch',
+                            'marketshare': 'marketShare',
+                            'promomybrand': 'promoMy',
+                            'promocompete': 'promoComp',
+                            'cpm': 'cpm',
+                            'cpc': 'cpc'
+                        };
+                        const mappedKey = keyMap[key] || key;
+                        columnsData[mappedKey] = {
+                            value: col.value,
+                            delta: col.change ? {
+                                value: col.change.text,
+                                dir: col.change.positive ? 'up' : 'down'
+                            } : { value: '', dir: 'up' }
+                        };
+                    });
+                }
+                return {
+                    key: item.key || `entity-${idx}`,
+                    name: item.label || item.name || 'Unknown',
+                    logoSrc: item.logo || item.logoSrc,
+                    color: item.color || '#6366f1',
+                    data: columnsData
+                };
+            });
+        }
+        // Fallback to dummy data from dimensionData only if not loading
         return currentDimension.entities.map((e, idx) => ({
             ...e,
             data: generateEntityData(e.key, idx)
-        }))
-    }, [currentDimension])
+        }));
+    }, [data, currentDimension, loading])
 
     return (
         <div style={{ fontFamily: 'Roboto, sans-serif' }} className="bg-white rounded-2xl border border-slate-200/80 shadow-sm">
@@ -251,7 +314,7 @@ const PlatformOverviewNew = ({
                                 return (
                                     <button
                                         key={key}
-                                        onClick={() => setDimension(key)}
+                                        onClick={() => handleDimensionChange(key)}
                                         className={cn(
                                             'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all',
                                             isSelected
@@ -320,7 +383,31 @@ const PlatformOverviewNew = ({
 
                     {/* Table Body */}
                     <tbody>
-                        {entities.map((e, entityIdx) => (
+                        {/* Skeleton Loaders when loading */}
+                        {loading && (
+                            <>
+                                {[1, 2, 3, 4, 5].map((rowIdx) => (
+                                    <tr key={`skeleton-${rowIdx}`} className="border-b border-slate-50">
+                                        <td className="py-4 px-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
+                                                <div className="h-4 w-24 rounded bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
+                                            </div>
+                                        </td>
+                                        {selectedKpis.map((kpi, kpiIdx) => (
+                                            <td key={`skeleton-${rowIdx}-${kpi.key}`} className="py-4 px-3">
+                                                <div className="flex flex-col items-center gap-1.5">
+                                                    <div className="h-5 w-20 rounded bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
+                                                    <div className="h-3 w-10 rounded bg-gradient-to-r from-slate-100 to-slate-50 animate-pulse" />
+                                                </div>
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </>
+                        )}
+                        {/* Actual data rows */}
+                        {!loading && entities.map((e, entityIdx) => (
                             <motion.tr
                                 key={e.key}
                                 className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"

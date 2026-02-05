@@ -804,7 +804,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             try {
                 const timerLabel = `[Bulk Platform] Total ${Date.now()}`;
                 console.time(timerLabel);
-                const { brand, location, category } = filters;
+                const { brand, location, category, skuName, skuCode } = filters;
 
                 // Helper to escape strings for ClickHouse
                 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -815,7 +815,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     currEnd.format('YYYY-MM-DD'),
                     prevStart.format('YYYY-MM-DD'),
                     prevEnd.format('YYYY-MM-DD'),
-                    brand, location, category
+                    brand, location, category, skuName, skuCode
                 );
                 if (cachedData) {
                     console.log(`📊 [Platform Metrics Cache Hit] Returning cached data`);
@@ -826,7 +826,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Build WHERE conditions for ClickHouse
                 const buildConditions = (dateStart, dateEnd) => {
-                    const conditions = [`DATE BETWEEN '${dateStart}' AND '${dateEnd}'`];
+                    const conditions = [`DATE BETWEEN '${dateStart}' AND '${dateEnd}'`, "Comp_flag = 0"];
 
                     const brandCondArr = normalizeFilterArray(brand);
                     if (brandCondArr && brandCondArr.length > 0) {
@@ -839,6 +839,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
                     if (category && category !== 'All') {
                         conditions.push(`Category = '${escapeStr(category)}'`);
+                    }
+                    if (skuName) {
+                        conditions.push(`Product LIKE '%${escapeStr(skuName)}%'`);
+                    }
+                    if (skuCode) {
+                        conditions.push(`Product_Code LIKE '%${escapeStr(skuCode)}%'`);
                     }
                     return conditions.join(' AND ');
                 };
@@ -1931,19 +1937,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     trendData: roasTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
                 });
 
-                // 5. BMI/Sales Ratio
-                performanceMetricsKpis.push({
-                    id: "bmi",
-                    label: "BMI / SALES RATIO",
-                    value: `${currentBmi.toFixed(1)}%`,
-                    unit: "",
-                    tag: `${bmiChange >= 0 ? '+' : ''}${bmiChange.toFixed(1)}%`,
-                    tagTone: bmiChange < 0 ? "positive" : "warning", // Lower is better for BMI
-                    footer: "Efficiency index",
-                    trendTitle: "BMI / Sales Ratio Trend",
-                    trendSubtitle: "Last 7 periods",
-                    trendData: bmiTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
-                });
 
             } catch (err) {
                 console.error("Error calculating Performance Metrics KPIs:", err);
@@ -2611,6 +2604,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
                 }
                 if (category && category !== 'All') conds.push(`Category = '${escapeStrMo(category)}'`);
+
+                // Advanced SKU Search Filters
+                if (filters.skuName) {
+                    conds.push(`Product LIKE '%${escapeStrMo(filters.skuName)}%'`);
+                }
+                if (filters.skuCode) {
+                    conds.push(`Product_Code LIKE '%${escapeStrMo(filters.skuCode)}%'`);
+                }
+
                 return conds;
             };
 
@@ -4039,7 +4041,7 @@ const getPlatformOverview = async (filters) => {
 
             // Build base conditions for rb_pdp_olap
             const buildOfftakeConds = (start, end) => {
-                const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
+                const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
                 }
@@ -4555,7 +4557,7 @@ const getMonthOverview = async (filters) => {
 
             // Build offtake conditions
             const buildMoConds = () => {
-                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
                 conds.push(`Platform = '${escapeStr(moPlatform)}'`);
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
@@ -4784,7 +4786,7 @@ const getCategoryOverview = async (filters) => {
 
             // Build category conditions for rb_pdp_olap
             const buildCatConds = () => {
-                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
                 if (catPlatform && catPlatform !== 'All') {
                     conds.push(`Platform = '${escapeStr(catPlatform)}'`);
                 }
@@ -4794,6 +4796,15 @@ const getCategoryOverview = async (filters) => {
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
+
+                // Advanced SKU Search Filters
+                if (filters.skuName) {
+                    conds.push(`Product LIKE '%${escapeStr(filters.skuName)}%'`);
+                }
+                if (filters.skuCode) {
+                    conds.push(`Product_Code LIKE '%${escapeStr(filters.skuCode)}%'`);
+                }
+
                 return conds.join(' AND ');
             };
 
@@ -5000,7 +5011,7 @@ const getBrandsOverview = async (filters) => {
 
             // Build brand conditions for rb_pdp_olap
             const buildBrandConds = () => {
-                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
                 if (boPlatform && boPlatform !== 'All') {
                     conds.push(`Platform = '${escapeStr(boPlatform)}'`);
                 }
@@ -5010,6 +5021,15 @@ const getBrandsOverview = async (filters) => {
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
+
+                // Advanced SKU Search Filters
+                if (filters.skuName) {
+                    conds.push(`Product LIKE '%${escapeStr(filters.skuName)}%'`);
+                }
+                if (filters.skuCode) {
+                    conds.push(`Product_Code LIKE '%${escapeStr(filters.skuCode)}%'`);
+                }
+
                 return conds.join(' AND ');
             };
 
@@ -7004,6 +7024,283 @@ const getRcaData = async (filters = {}) => {
     }
 };
 
+/**
+ * Get SKU Overview Data - OPTIMIZED
+ * Groups data by SKU for the Performance Matrix
+ */
+const getSkuOverview = async (filters) => {
+    const cacheKey = generateCacheKey('sku_overview', filters);
+    return await getCachedOrCompute(cacheKey, async () => {
+        return await coalesceRequest(`compute:${cacheKey}`, async () => {
+            console.log('[getSkuOverview] Computing SKU overview data...');
+
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+
+            // Extract filter values
+            const rawBrand = filters['brand[]'] || filters.brand;
+            const rawLocation = filters['location[]'] || filters.location;
+            const rawCategory = filters['category[]'] || filters.category;
+
+            // Normalize multi-value filters
+            const brandArr = normalizeFilterArray(rawBrand);
+            const locationArr = normalizeFilterArray(rawLocation);
+            const categoryArr = normalizeFilterArray(rawCategory);
+            const skuPlatform = skuOverviewPlatform || filters.platform || 'All';
+
+            const monthsBack = parseInt(months, 10) || 1;
+
+            // Calculate date range
+            let endDate = dayjs().endOf('day');
+            let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
+            if (qStartDate && qEndDate) {
+                startDate = dayjs(qStartDate).startOf('day');
+                endDate = dayjs(qEndDate).endOf('day');
+            }
+
+            // Helper for currency formatting
+            const formatCurrency = (value) => {
+                const val = parseFloat(value);
+                if (isNaN(val)) return "0";
+                if (val < 0.01 && val > -0.01) return "0";
+                if (val >= 1000000000) return `₹${(val / 1000000000).toFixed(2)} B`;
+                if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                if (val >= 1000000) return `₹${(val / 1000000).toFixed(2)} M`;
+                if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
+                if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                return `₹${val.toFixed(2)}`;
+            };
+
+            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+            // Build SKU conditions for rb_pdp_olap
+            const buildSkuConds = () => {
+                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
+                if (skuPlatform && skuPlatform !== 'All') {
+                    conds.push(`Platform = '${escapeStr(skuPlatform)}'`);
+                }
+                if (brandArr && brandArr.length > 0) {
+                    conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+                }
+                if (locationArr && locationArr.length > 0) {
+                    conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                }
+                if (categoryArr && categoryArr.length > 0) {
+                    conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
+
+                // Advanced SKU Search Filters
+                if (filters.skuName) {
+                    conds.push(`Product LIKE '%${escapeStr(filters.skuName)}%'`);
+                }
+                if (filters.skuCode) {
+                    conds.push(`Product_Code LIKE '%${escapeStr(filters.skuCode)}%'`);
+                }
+
+                return conds.join(' AND ');
+            };
+
+            const skuConds = buildSkuConds();
+
+            // Query SKU metrics grouped by Product
+            const skuMetrics = await queryClickHouse(`
+                SELECT Product,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
+                FROM rb_pdp_olap
+                WHERE ${skuConds} AND Product IS NOT NULL AND Product != ''
+                GROUP BY Product
+                ORDER BY total_sales DESC
+                LIMIT 50
+            `);
+
+            const skuOverview = skuMetrics.map((data, idx) => {
+                const skuName = data.Product || 'Unknown';
+                const sales = parseFloat(data.total_sales || 0);
+                const qty = parseFloat(data.total_qty || 0);
+                const spend = parseFloat(data.total_spend || 0);
+                const adSales = parseFloat(data.total_ad_sales || 0);
+                const clicks = parseFloat(data.total_clicks || 0);
+                const impressions = parseFloat(data.total_impressions || 0);
+                const orders = parseFloat(data.total_orders || 0);
+                const neno = parseFloat(data.total_neno || 0);
+                const deno = parseFloat(data.total_deno || 0);
+
+                const availability = deno > 0 ? (neno / deno) * 100 : 0;
+                const roas = spend > 0 ? adSales / spend : 0;
+                const conversion = impressions > 0 ? (clicks / impressions) * 100 : 0;
+                const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
+                const cpc = clicks > 0 ? spend / clicks : 0;
+
+                return {
+                    key: `sku_${idx}_${skuName.toLowerCase().replace(/\\s+/g, '_').substring(0, 30)}`,
+                    label: skuName.length > 30 ? skuName.substring(0, 30) + '...' : skuName,
+                    type: "SKU",
+                    columns: [
+                        { title: "Offtakes", value: formatCurrency(sales), meta: { units: `${qty.toFixed(0)} units` } },
+                        { title: "Spend", value: formatCurrency(spend), meta: { units: "" } },
+                        { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "" } },
+                        { title: "Inorg Sales", value: formatCurrency(adSales), meta: { units: "" } },
+                        { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "" } },
+                        { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "" } },
+                        { title: "SOS", value: "0%", meta: { units: "" } },
+                        { title: "Market Share", value: "0%", meta: { units: "" } },
+                        { title: "Promo My Brand", value: "0%", meta: { units: "" } },
+                        { title: "Promo Compete", value: "0%", meta: { units: "" } },
+                        { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "" } },
+                        { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "" } }
+                    ]
+                };
+            });
+
+            console.log(`[getSkuOverview] Returning ${skuOverview.length} SKUs`);
+            return skuOverview;
+        });
+    }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+};
+
+/**
+ * Get City Overview Data - OPTIMIZED
+ * Groups data by Location (City) for the Performance Matrix
+ */
+const getCityOverview = async (filters) => {
+    const cacheKey = generateCacheKey('city_overview', filters);
+    return await getCachedOrCompute(cacheKey, async () => {
+        return await coalesceRequest(`compute:${cacheKey}`, async () => {
+            console.log('[getCityOverview] Computing City overview data...');
+
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, cityOverviewPlatform } = filters;
+
+            // Extract filter values
+            const rawBrand = filters['brand[]'] || filters.brand;
+            const rawCategory = filters['category[]'] || filters.category;
+
+            // Normalize multi-value filters
+            const brandArr = normalizeFilterArray(rawBrand);
+            const categoryArr = normalizeFilterArray(rawCategory);
+            const cityPlatform = cityOverviewPlatform || filters.platform || 'All';
+
+            const monthsBack = parseInt(months, 10) || 1;
+
+            // Calculate date range
+            let endDate = dayjs().endOf('day');
+            let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
+            if (qStartDate && qEndDate) {
+                startDate = dayjs(qStartDate).startOf('day');
+                endDate = dayjs(qEndDate).endOf('day');
+            }
+
+            // Helper for currency formatting
+            const formatCurrency = (value) => {
+                const val = parseFloat(value);
+                if (isNaN(val)) return "0";
+                if (val < 0.01 && val > -0.01) return "0";
+                if (val >= 1000000000) return `₹${(val / 1000000000).toFixed(2)} B`;
+                if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+                if (val >= 1000000) return `₹${(val / 1000000).toFixed(2)} M`;
+                if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
+                if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+                return `₹${val.toFixed(2)}`;
+            };
+
+            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+            // Build City conditions for rb_pdp_olap
+            const buildCityConds = () => {
+                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
+                if (cityPlatform && cityPlatform !== 'All') {
+                    conds.push(`Platform = '${escapeStr(cityPlatform)}'`);
+                }
+                if (brandArr && brandArr.length > 0) {
+                    conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+                }
+                if (categoryArr && categoryArr.length > 0) {
+                    conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
+
+                // Advanced SKU Search Filters
+                if (filters.skuName) {
+                    conds.push(`Product LIKE '%${escapeStr(filters.skuName)}%'`);
+                }
+                if (filters.skuCode) {
+                    conds.push(`Product_Code LIKE '%${escapeStr(filters.skuCode)}%'`);
+                }
+
+                return conds.join(' AND ');
+            };
+
+            const cityConds = buildCityConds();
+
+            // Query City metrics grouped by Location
+            const cityMetrics = await queryClickHouse(`
+                SELECT Location,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
+                FROM rb_pdp_olap
+                WHERE ${cityConds} AND Location IS NOT NULL AND Location != ''
+                GROUP BY Location
+                ORDER BY total_sales DESC
+                LIMIT 50
+            `);
+
+            const cityOverview = cityMetrics.map(data => {
+                const cityName = data.Location || 'Unknown';
+                const sales = parseFloat(data.total_sales || 0);
+                const qty = parseFloat(data.total_qty || 0);
+                const spend = parseFloat(data.total_spend || 0);
+                const adSales = parseFloat(data.total_ad_sales || 0);
+                const clicks = parseFloat(data.total_clicks || 0);
+                const impressions = parseFloat(data.total_impressions || 0);
+                const orders = parseFloat(data.total_orders || 0);
+                const neno = parseFloat(data.total_neno || 0);
+                const deno = parseFloat(data.total_deno || 0);
+
+                const availability = deno > 0 ? (neno / deno) * 100 : 0;
+                const roas = spend > 0 ? adSales / spend : 0;
+                const conversion = impressions > 0 ? (clicks / impressions) * 100 : 0;
+                const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
+                const cpc = clicks > 0 ? spend / clicks : 0;
+
+                return {
+                    key: cityName.toLowerCase().replace(/\\s+/g, '_'),
+                    label: cityName,
+                    type: "City",
+                    columns: [
+                        { title: "Offtakes", value: formatCurrency(sales), meta: { units: `${qty.toFixed(0)} units` } },
+                        { title: "Spend", value: formatCurrency(spend), meta: { units: "" } },
+                        { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "" } },
+                        { title: "Inorg Sales", value: formatCurrency(adSales), meta: { units: "" } },
+                        { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "" } },
+                        { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "" } },
+                        { title: "SOS", value: "0%", meta: { units: "" } },
+                        { title: "Market Share", value: "0%", meta: { units: "" } },
+                        { title: "Promo My Brand", value: "0%", meta: { units: "" } },
+                        { title: "Promo Compete", value: "0%", meta: { units: "" } },
+                        { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "" } },
+                        { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "" } }
+                    ]
+                };
+            });
+
+            console.log(`[getCityOverview] Returning ${cityOverview.length} cities`);
+            return cityOverview;
+        });
+    }, parseInt(process.env.REDIS_DEFAULT_TTL || '1800'));
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -7027,5 +7324,7 @@ export default {
     getDarkStoreCount,
     getTopActions,
     getOsaDeepDive,
-    getRcaData
+    getRcaData,
+    getSkuOverview,
+    getCityOverview
 };
