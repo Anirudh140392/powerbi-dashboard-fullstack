@@ -842,7 +842,7 @@ const PLATFORM_METRICS_TTL = 3600; // 1 hour
 /**
  * Generate cache key for platform metrics
  */
-const getPlatformMetricsCacheKey = (currStart, currEnd, prevStart, prevEnd, brand, location, category) => {
+const getPlatformMetricsCacheKey = (currStart, currEnd, prevStart, prevEnd, brand, location, category, skuName, skuCode) => {
     const parts = [
         PLATFORM_METRICS_PREFIX,
         currStart,
@@ -851,7 +851,9 @@ const getPlatformMetricsCacheKey = (currStart, currEnd, prevStart, prevEnd, bran
         prevEnd,
         brand?.toLowerCase() || 'all',
         location?.toLowerCase() || 'all',
-        category?.toLowerCase() || 'all'
+        category?.toLowerCase() || 'all',
+        skuName?.toLowerCase() || 'all',
+        skuCode?.toLowerCase() || 'all'
     ];
     return parts.join(':');
 };
@@ -860,11 +862,11 @@ const getPlatformMetricsCacheKey = (currStart, currEnd, prevStart, prevEnd, bran
  * Get cached platform metrics
  * Returns: Map-like object {platform: {curr: {...}, prev: {...}}} or null
  */
-export async function getCachedPlatformMetrics(currStart, currEnd, prevStart, prevEnd, brand, location, category) {
+export async function getCachedPlatformMetrics(currStart, currEnd, prevStart, prevEnd, brand, location, category, skuName, skuCode) {
     if (!redisClient.isReady()) return null;
 
     try {
-        const cacheKey = getPlatformMetricsCacheKey(currStart, currEnd, prevStart, prevEnd, brand, location, category);
+        const cacheKey = getPlatformMetricsCacheKey(currStart, currEnd, prevStart, prevEnd, brand, location, category, skuName, skuCode);
         const cached = await redisClient.getClient().get(cacheKey);
 
         if (cached) {
@@ -887,11 +889,11 @@ export async function getCachedPlatformMetrics(currStart, currEnd, prevStart, pr
 /**
  * Cache platform metrics
  */
-export async function cachePlatformMetrics(currStart, currEnd, prevStart, prevEnd, brand, location, category, dataMap) {
+export async function cachePlatformMetrics(currStart, currEnd, prevStart, prevEnd, brand, location, category, skuName, skuCode, dataMap) {
     if (!redisClient.isReady()) return false;
 
     try {
-        const cacheKey = getPlatformMetricsCacheKey(currStart, currEnd, prevStart, prevEnd, brand, location, category);
+        const cacheKey = getPlatformMetricsCacheKey(currStart, currEnd, prevStart, prevEnd, brand, location, category, skuName, skuCode);
         // Convert Map to plain object for JSON serialization
         const plainObject = {};
         for (const [key, value] of dataMap) {

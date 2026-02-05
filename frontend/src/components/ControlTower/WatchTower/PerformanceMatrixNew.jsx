@@ -15,11 +15,32 @@ import {
     ArrowDownRight
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
+import { Skeleton, Box } from '@mui/material'
 
-const ComparisonCard = ({ kpi, variant = 'original' }) => {
+const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
+    if (loading) {
+        return (
+            <div className="p-3 rounded-lg bg-white border border-slate-100 shadow-sm flex flex-col h-full bg-slate-50/20">
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="text-center">
+                        <Skeleton variant="text" width="60%" sx={{ mx: 'auto' }} />
+                        <Skeleton variant="text" width="40%" height={30} sx={{ mx: 'auto' }} />
+                    </div>
+                    <div className="text-center">
+                        <Skeleton variant="text" width="60%" sx={{ mx: 'auto' }} />
+                        <Skeleton variant="text" width="40%" height={30} sx={{ mx: 'auto' }} />
+                    </div>
+                </div>
+                <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <Skeleton variant="circular" width={20} height={20} />
+                    <Skeleton variant="text" width="40%" />
+                </div>
+            </div>
+        );
+    }
     const isPositive = kpi.delta > 0;
-    const Icon = kpi.icon;
-    const trendData = kpi.trend.map((val, i) => ({ value: val }));
+    const Icon = kpi.icon || Zap;
+    const trendData = kpi.trend ? kpi.trend.map((val, i) => ({ value: val })) : [];
 
     if (variant === 'split') {
         return (
@@ -31,7 +52,7 @@ const ComparisonCard = ({ kpi, variant = 'original' }) => {
                     <div className="text-center">
                         <div className="text-[0.55rem] uppercase tracking-[0.04em] font-bold text-slate-400 mb-0.5">Previous</div>
                         <div className="text-base font-bold text-slate-500">
-                            {kpi.id === 'sos' ? '25.3%' : kpi.id === 'inorg' ? '10.4%' : kpi.id === 'conversion' ? '0.8%' : '1.7x'}
+                            {kpi.prevValue || '-'}
                         </div>
                     </div>
                     <div className="text-center">
@@ -44,7 +65,7 @@ const ComparisonCard = ({ kpi, variant = 'original' }) => {
                     <div className="flex items-center gap-1">
                         <div
                             className="w-5 h-5 rounded flex items-center justify-center text-white shadow-sm"
-                            style={{ backgroundColor: kpi.gradient[0] }}
+                            style={{ backgroundColor: kpi.gradient?.[0] || '#6366f1' }}
                         >
                             <Icon size={10} />
                         </div>
@@ -68,7 +89,7 @@ const ComparisonCard = ({ kpi, variant = 'original' }) => {
                 <span className="text-[0.65rem] font-bold text-slate-400 uppercase tracking-[0.04em]">{kpi.title}</span>
                 <div
                     className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200/50"
-                    style={{ background: `linear-gradient(135deg, ${kpi.gradient[0]}, ${kpi.gradient[1]})` }}
+                    style={{ background: `linear-gradient(135deg, ${kpi.gradient?.[0] || '#6366f1'}, ${kpi.gradient?.[1] || '#8b5cf6'})` }}
                 >
                     <Icon size={20} />
                 </div>
@@ -112,82 +133,56 @@ const ComparisonCard = ({ kpi, variant = 'original' }) => {
     );
 };
 
-const PerformanceMatrixNew = () => {
-    const SectionWrapper = ({
-        title,
-        icon: Icon,
-        children,
-        className = '',
-        chip,
-        headerRight
-    }) => {
-        return (
-            <motion.div
-                className={`bg-white rounded-[1.5rem] shadow-sm border border-slate-100/60 ${className}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-            >
-                {/* Header */}
-                <div className="px-8 py-6">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
-                        {/* Left: Icon + Title + Chip */}
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                <Icon size={20} className="text-blue-500" />
-                            </div>
-                            <h2 className="text-[1.25rem] font-bold text-slate-800 tracking-tight">{title}</h2>
-                            {chip && (
-                                <span className="px-4 py-1.2 hex-border text-[0.65rem] font-bold text-slate-500 bg-white rounded-full border border-slate-200 uppercase tracking-[0.04em]">
-                                    {chip}
-                                </span>
-                            )}
-                        </div>
+const PerformanceMatrixNew = ({ data = [], loading = false }) => {
+    const kpiIconMap = {
+        'sos_new': Eye,
+        'inorganic': TrendingUp,
+        'conversion': Target,
+        'roas_new': DollarSign
+    };
 
-                        {/* Right: Custom Actions */}
-                        {headerRight && (
-                            <div className="flex items-center gap-3">
-                                {headerRight}
-                            </div>
-                        )}
-                    </div>
-                </div>
+    const kpiGradientMap = {
+        'sos_new': ['#f97316', '#fb923c'],
+        'inorganic': ['#22c55e', '#4ade80'],
+        'conversion': ['#06b6d4', '#22d3ee'],
+        'roas_new': ['#eab308', '#facc15']
+    };
 
-                {/* Content */}
-                <div className="px-8 pb-8">
-                    {children}
-                </div>
-            </motion.div>
-        )
-    }
+    const mappedKpis = useMemo(() => {
+        if (!data || data.length === 0) return [];
+        return data.map(kpi => ({
+            id: kpi.id,
+            title: kpi.label,
+            value: kpi.value,
+            prevValue: kpi.tag && kpi.tag.startsWith('+') ? 'Lower' : 'Higher', // Dummy logic for prev value if not provided
+            delta: parseFloat(kpi.tag) || 0,
+            deltaLabel: kpi.tag,
+            icon: kpiIconMap[kpi.id] || Zap,
+            gradient: kpiGradientMap[kpi.id] || ['#6366f1', '#8b5cf6'],
+            trend: kpi.trendData ? kpi.trendData.map(d => d.value) : []
+        }));
+    }, [data]);
 
-    const COMPARISON_KPIS = [
-        { id: 'offtake', title: 'Offtake', value: '₹14.8Cr', delta: 15.9, deltaLabel: '+₹89.3L', icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'], trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75] },
-        { id: 'availability', title: 'Availability', value: '96.8%', delta: 1.8, deltaLabel: '+1.7 pts', icon: Layers, gradient: ['#14b8a6', '#06b6d4'], trend: [85, 87, 86, 88, 90, 89, 92, 94, 93, 95, 96, 97] },
-        { id: 'promo', title: 'Promo Spends', value: '5.21%', delta: -0.7, deltaLabel: '-0.04 pts', icon: Percent, gradient: ['#f43f5e', '#ec4899'], trend: [6.2, 6.0, 5.8, 5.5, 5.3, 5.4, 5.2, 5.1, 5.3, 5.2, 5.2, 5.2] },
-        { id: 'market', title: 'Market Share', value: '24.3%', delta: 3.9, deltaLabel: '+0.92 pts', icon: PieChart, gradient: ['#8b5cf6', '#a855f7'], trend: [20, 21, 21.5, 22, 22.5, 23, 23.2, 23.5, 23.8, 24, 24.2, 24.3] },
-        { id: 'sos', title: 'Share of Search', value: '25%', delta: -1.3, deltaLabel: '-0.4 pts', icon: Eye, gradient: ['#f97316', '#fb923c'], trend: [28, 27, 26.5, 26, 25.5, 25.8, 25.3, 25.1, 25.4, 25.2, 25.1, 25] },
-        { id: 'inorg', title: 'Inorganic Sales', value: '11%', delta: 5.4, deltaLabel: '+1.2%', icon: TrendingUp, gradient: ['#22c55e', '#4ade80'], trend: [8, 8.5, 9, 9.2, 9.5, 10, 10.2, 10.5, 10.8, 11, 10.8, 11] },
-        { id: 'conversion', title: 'Conversion', value: '1%', delta: 28, deltaLabel: '+0.2%', icon: Target, gradient: ['#06b6d4', '#22d3ee'], trend: [0.7, 0.72, 0.75, 0.78, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95, 0.98, 1.0] },
-        { id: 'roas', title: 'ROAS', value: '2x', delta: 16.5, deltaLabel: '+0.3x', icon: DollarSign, gradient: ['#eab308', '#facc15'], trend: [1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.92, 1.95, 2.0] },
-    ]
     return (
         <div style={{ fontFamily: 'Roboto, sans-serif' }}>
-            {/* SECTION 1: Comparison Cards (Top) - Wrapped in PowerBI Container */}
-
-
             {/* Bottom Row: Split Compare Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {COMPARISON_KPIS.slice(4, 8).map((kpi, idx) => (
-                    <motion.div
-                        key={kpi.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: (idx + 4) * 0.05 }}
-                    >
-                        <ComparisonCard kpi={kpi} variant="split" />
-                    </motion.div>
-                ))}
+                {loading ? (
+                    [1, 2, 3, 4].map((i) => (
+                        <ComparisonCard key={i} loading={true} variant="split" />
+                    ))
+                ) : (
+                    mappedKpis.map((kpi, idx) => (
+                        <motion.div
+                            key={kpi.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                        >
+                            <ComparisonCard kpi={kpi} variant="split" />
+                        </motion.div>
+                    ))
+                )}
             </div>
         </div>
     )

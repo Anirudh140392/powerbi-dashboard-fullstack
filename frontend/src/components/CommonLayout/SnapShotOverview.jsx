@@ -5,14 +5,34 @@ import {
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
+import { Skeleton, Box } from '@mui/material'
 import PerformanceMatrixNew from '../ControlTower/WatchTower/PerformanceMatrixNew';
 
 /**
  * ComparisonCard: Internal component for SnapshotOverview to render individual KPI cards.
  */
-const ComparisonCard = ({ kpi, variant = 'original' }) => {
+const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
+    if (loading) {
+        return (
+            <div className="p-4 rounded-xl bg-white border border-slate-50 shadow-sm h-full flex flex-col relative overflow-hidden group">
+                <div className="flex justify-between items-start mb-3">
+                    <Skeleton variant="text" width="40%" height={15} />
+                </div>
+                <div className="flex items-baseline justify-between gap-1 mb-1.5">
+                    <div className="flex items-baseline gap-1">
+                        <Skeleton variant="text" width={60} height={30} />
+                        <Skeleton variant="text" width={20} height={12} />
+                    </div>
+                    <Skeleton variant="rectangular" width={40} height={18} sx={{ borderRadius: '6px' }} />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 h-12 w-full -mb-1">
+                    <Skeleton variant="rectangular" width="100%" height="100%" />
+                </div>
+            </div>
+        );
+    }
     const isPositive = kpi.delta > 0;
-    const Icon = kpi.icon;
+    const Icon = kpi.icon || Zap;
     const trendData = kpi.trend ? kpi.trend.map((val) => ({ value: val })) : [];
 
     if (variant === 'split') {
@@ -120,7 +140,10 @@ const SnapshotOverview = ({
     chip,
     headerRight,
     kpis = [],
-    className = ''
+    className = '',
+    performanceData = [],
+    performanceLoading = false,
+    loading = false
 }) => {
     return (
         <div style={{ marginBottom: '1rem', fontFamily: 'Roboto, sans-serif' }}>
@@ -162,21 +185,27 @@ const SnapshotOverview = ({
                         "grid gap-2 mb-2",
                         kpis.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 md:grid-cols-4"
                     )}>
-                        {kpis.slice(0, 4).map((kpi, idx) => (
-                            <motion.div
-                                key={kpi.id}
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                            >
-                                <ComparisonCard kpi={kpi} variant="original" />
-                            </motion.div>
-                        ))}
+                        {loading ? (
+                            [1, 2, 3, 4].map((i) => (
+                                <ComparisonCard key={i} loading={true} />
+                            ))
+                        ) : (
+                            kpis.slice(0, 4).map((kpi, idx) => (
+                                <motion.div
+                                    key={kpi.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                >
+                                    <ComparisonCard kpi={kpi} variant="original" />
+                                </motion.div>
+                            ))
+                        )}
                     </div>
                 </div>
                 {title === 'Watchtower Overview' && (
                     <div className="px-4 pb-4">
-                        <PerformanceMatrixNew />
+                        <PerformanceMatrixNew data={performanceData} loading={performanceLoading} />
                     </div>
                 )}
             </motion.div>
