@@ -7,6 +7,7 @@ import {
   Button,
   Autocomplete,
   TextField,
+  Switch,
 } from "@mui/material";
 
 import {
@@ -62,7 +63,12 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     pmBrands,
     pmSelectedBrand,
     setPmSelectedBrand,
-    darkStoreData
+    darkStoreData,
+    channels,
+    selectedChannel,
+    setSelectedChannel,
+    mslEnabled,
+    setMslEnabled
   } = React.useContext(FilterContext);
 
 
@@ -181,6 +187,15 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               }}
             >
 
+              {/* CHANNEL SELECTION */}
+              <CustomHeaderDropdown
+                label="CHANNEL"
+                options={channels}
+                value={selectedChannel}
+                onChange={(newValue) => setSelectedChannel(newValue)}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+              />
+
               {/* PLATFORM SELECTION */}
               <CustomHeaderDropdown
                 label="PLATFORM"
@@ -223,8 +238,6 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 }}
                 width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
-
-
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
               <Box sx={{ width: { xs: "calc(50% - 3px)", sm: 200 }, flexShrink: 0 }}>
@@ -271,6 +284,56 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   }}
                 />
 
+              </Box>
+              {/* MSL TOGGLE */}
+              <Box sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                minWidth: { xs: "calc(50% - 3px)", sm: 100 },
+                flexShrink: 0
+              }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.1,
+                    opacity: 0.7,
+                  }}
+                >
+                  MSL
+                </Typography>
+                <Box sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  height: 32,
+                  bgcolor: "#f1f5f9",
+                  borderRadius: "8px",
+                  px: 1,
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <Switch
+                    checked={mslEnabled}
+                    onChange={(e) => setMslEnabled(e.target.checked)}
+                    size="small"
+                    sx={{
+                      "& .MuiSwitch-switchBase.Mui-checked": {
+                        color: "#7c3aed",
+                      },
+                      "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                        backgroundColor: "#7c3aed",
+                      },
+                    }}
+                  />
+                  <Typography sx={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: mslEnabled ? "#1e293b" : "#64748b",
+                    ml: 0.5
+                  }}>
+                    {mslEnabled ? "ON" : "OFF"}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
           )}

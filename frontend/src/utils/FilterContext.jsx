@@ -80,6 +80,13 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState(savedFilters.selectedKeyword || null);
 
+    // Channel state (Ecommerce / Modern Trades)
+    const [channels] = useState(["Ecommerce", "Modern Trades"]);
+    const [selectedChannel, setSelectedChannel] = useState(savedFilters.selectedChannel || "Ecommerce");
+
+    // MSL Toggle state
+    const [mslEnabled, setMslEnabled] = useState(savedFilters.mslEnabled ?? false);
+
     // Zone state (for Performance Marketing page only)
     const [zones, setZones] = useState([]);
     const [selectedZone, setSelectedZone] = useState("All");
@@ -496,7 +503,12 @@ export const FilterProvider = ({ children }) => {
             setPmSelectedBrand,
             refreshFilters,
             filterRefreshCounter,
-            darkStoreData
+            darkStoreData,
+            channels,
+            selectedChannel,
+            setSelectedChannel,
+            mslEnabled,
+            setMslEnabled
         }}>
 
             {children}
