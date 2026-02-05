@@ -217,14 +217,15 @@ export default function KPIMatrixTable({ data }) {
                                     <div className="flex items-center justify-center gap-2">
                                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{e}</span>
                                         <span
-                                            className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors trend-icon"
+                                            // className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors trend-icon"
+                                            className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors"
                                             onClick={() => {
                                                 setSelectedColumn(e);
                                                 setCompMetaForDrawer(buildCompMeta(e));
                                                 setOpenTrend(true);
                                             }}
                                         >
-                                            <LineChartIcon size={14} strokeWidth={2.5} />
+                                            {/* <LineChartIcon size={14} strokeWidth={2.5} /> */}
                                         </span>
                                     </div>
                                 </th>
