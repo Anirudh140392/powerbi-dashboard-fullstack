@@ -131,46 +131,46 @@ const Sidebar = ({
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {!isCollapsed ? (
-          <Box
-            component="img"
-            src="/sidebar_logo.png"
-            alt="Logo"
-            sx={{
-              height: 24, // Optimized height
-              maxWidth: '80%',
-              objectFit: 'contain',
-            }}
-          />
-        ) : (
-          <Box
-            sx={{
-              height: 18, // Reduced height for actual size feel
-              display: 'flex',
-              alignItems: 'flex-end',
-              gap: '1.5px', // Tighter gap
-              mr: 1.5,
-              mb: 0.5
-            }}
-          >
-            <Box sx={{ width: 3, height: '40%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
-            <Box sx={{ width: 3, height: '70%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
-            <Box sx={{ width: 3, height: '100%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
-          </Box>
-        )}
+        <Box
+          component="img"
+          src="/EY-Logo-Transparent.png"
+          alt="Logo"
+          sx={{
+            height: isCollapsed ? 20 : 24, // Smaller in collapsed mode
+            maxWidth: isCollapsed ? '40px' : '80%',
+            objectFit: 'contain',
+            transition: 'all 0.3s ease',
+          }}
+        />
         {!isMobile && (
           <IconButton
             onClick={toggleSidebar}
             sx={{
               color: 'rgba(255,255,255,0.4)',
               p: 0.5,
+              display: isCollapsed ? 'none' : 'flex', // Hide button when collapsed to focus on logo
               '&:hover': { color: '#fff' },
-              ...(isCollapsed && {
-                bgcolor: 'rgba(255,255,255,0.05)'
-              })
             }}
           >
-            {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+            <ChevronLeftIcon fontSize="small" />
+          </IconButton>
+        )}
+        {isCollapsed && !isMobile && (
+          <IconButton
+            onClick={toggleSidebar}
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '100%',
+              height: '100%',
+              opacity: 0,
+              zIndex: 1,
+              '&:hover': { opacity: 0 }, // Invisible but clickable area
+            }}
+          >
+            <ChevronRightIcon />
           </IconButton>
         )}
       </Box>
@@ -203,8 +203,11 @@ const Sidebar = ({
       {/* Menu scroll area - Set to overflow hidden to remove scrollbar */}
       <Box sx={{
         flex: 1,
-        overflowY: "hidden",
+        overflowY: "auto", // Changed to auto to allow scrolling if menu is long
         px: isCollapsed ? 1 : 1.5,
+        '&::-webkit-scrollbar': { display: 'none' }, // Hide scrollbar
+        msOverflowStyle: 'none',
+        scrollbarWidth: 'none',
       }}>
         {Object.entries(filteredSections).map(([sectionName, items]) => (
           <Box key={sectionName}>
@@ -280,8 +283,41 @@ const Sidebar = ({
         ))}
       </Box>
 
-      {/* Footer Branding Removed */}
-    </Box >
+      {/* Footer Branding */}
+      <Box sx={{
+        px: 2,
+        py: 1.5,
+        mt: 'auto',
+        borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <Typography
+          variant="caption"
+          sx={{
+            color: 'rgba(255, 255, 255, 0.4)',
+            fontSize: isCollapsed ? '0.6rem' : '0.75rem',
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5
+          }}
+        >
+          {!isCollapsed && (
+            <span style={{ opacity: 0.7, textTransform: 'lowercase' }}>powered by</span>
+          )}
+          <span style={{
+            color: 'rgba(255, 255, 255, 0.8)',
+            fontWeight: 700,
+            letterSpacing: '0.02em'
+          }}>
+            {isCollapsed ? 'T' : 'trailytics'}
+          </span>
+        </Typography>
+      </Box>
+    </Box>
   );
 
   if (isMobile) {
