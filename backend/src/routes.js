@@ -9,6 +9,7 @@ import contentAnalysis from './routes/contentAnalysis.js';
 import categoryRca from './routes/categoryRca.js';
 import sales from './routes/sales.js';
 import inventoryAnalysis from './routes/inventoryAnalysis.js';
+import reports from './routes/reports.js';
 
 export default (app) => {
     // Control Tower routes
@@ -44,4 +45,7 @@ export default (app) => {
 
     // Inventory Analysis routes
     inventoryAnalysis(app);
+
+    // Reports routes
+    reports(app);
 };

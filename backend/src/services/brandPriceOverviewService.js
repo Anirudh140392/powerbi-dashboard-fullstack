@@ -62,8 +62,7 @@ async function getBrandPriceOverview(filters = {}) {
             SELECT
                 p.Brand,
                 p.Platform,
-                s.quantity AS gram_size,
-                s.Unit AS unit,
+                s.gram AS gram_size,
                 ROUND(AVG(toFloat64(p.Selling_Price)), 1) AS ecp,
                 ROUND(AVG(toFloat64(p.MRP)), 1) AS mrp,
                 ROUND(AVG(toFloat64(p.Discount)), 1) AS discount,
@@ -76,11 +75,11 @@ async function getBrandPriceOverview(filters = {}) {
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
               AND toFloat64(p.Selling_Price) > 0
-              AND s.quantity IS NOT NULL 
-              AND s.quantity != '' 
-              AND s.quantity != '0'
+              AND s.gram IS NOT NULL 
+              AND s.gram != '' 
+              AND s.gram != '0'
               ${platformFilter}
-            GROUP BY p.Brand, p.Platform, s.quantity, s.Unit
+            GROUP BY p.Brand, p.Platform, s.gram
             ORDER BY p.Brand, p.Platform
             LIMIT 500
         `;
@@ -100,11 +99,11 @@ async function getBrandPriceOverview(filters = {}) {
             const discount = parseFloat(row.discount) || 0;
 
             // Normalize gram size display
-            const gramSize = row.gram_size && row.unit
-                ? `${row.gram_size}${row.unit.toLowerCase()}`
-                : row.gram_size
-                    ? `${row.gram_size}g`
-                    : 'Unknown';
+            const gramSize = row.gram_size
+                ? (row.gram_size.toLowerCase().includes('g') || row.gram_size.toLowerCase().includes('ml')
+                    ? row.gram_size
+                    : `${row.gram_size}g`)
+                : 'Unknown';
 
             return {
                 id: index + 1,

@@ -1090,7 +1090,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} />
+                  <YAxis tickLine={false} fontSize={10} width={32} tickFormatter={(v) => `${v}%`} />
                   <Tooltip />
                   {selectedIds.map((id) => (
                     <Line
@@ -1158,13 +1158,16 @@ const BrandTable = ({ rows, loading }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {loading && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-slate-400">
-                    <div className="animate-pulse">Loading competition data...</div>
-                  </td>
+              {loading && Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={`skeleton-${idx}`} className="animate-pulse">
+                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
-              )}
+              ))}
               {!loading && paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
@@ -1260,13 +1263,17 @@ const SkuTable = ({ rows, loading }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
-              {loading && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-[12px] text-slate-400">
-                    <div className="animate-pulse">Loading competition data...</div>
-                  </td>
+              {loading && Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
+                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
+                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
-              )}
+              ))}
               {!loading && paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
@@ -1341,7 +1348,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = ({ platform, globalFilters }) => {
+export const KpiTrendShowcase = ({ platform, globalFilters, period }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1354,7 +1361,7 @@ export const KpiTrendShowcase = ({ platform, globalFilters }) => {
 
   // State for API competition data
   const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Fetch competition data from API
   useEffect(() => {
@@ -1367,7 +1374,7 @@ export const KpiTrendShowcase = ({ platform, globalFilters }) => {
           category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
           brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
           sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
-          period: '1M',
+          period: period || '1M',
           startDate: globalFilters?.startDate,
           endDate: globalFilters?.endDate
         };
@@ -1384,7 +1391,7 @@ export const KpiTrendShowcase = ({ platform, globalFilters }) => {
       }
     };
     fetchCompetitionData();
-  }, [city, filters, platform, globalFilters]);
+  }, [city, filters, platform, globalFilters, period]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;

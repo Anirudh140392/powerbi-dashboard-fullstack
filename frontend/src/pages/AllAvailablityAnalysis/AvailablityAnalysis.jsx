@@ -12,6 +12,9 @@ export default function AvailablityAnalysis() {
     selectedLocation,
     timeStart,
     timeEnd,
+    selectedZone,
+    pmSelectedPlatform,
+    pmSelectedBrand,
     setPlatform,
     setSelectedLocation,
     setTimeStart,
@@ -26,6 +29,7 @@ export default function AvailablityAnalysis() {
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
+    zones: selectedZone || "All",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
@@ -67,10 +71,11 @@ export default function AvailablityAnalysis() {
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
       location: selectedLocation || prev.location,
+      zones: selectedZone || prev.zones,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
       endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate
     }));
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, selectedZone]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -136,13 +141,29 @@ export default function AvailablityAnalysis() {
   const [apiErrors, setApiErrors] = useState({});
 
   // Build query params helper
-  const buildQueryParams = () => new URLSearchParams({
-    platform: filters.platform || 'All',
-    brand: filters.brand || 'All',
-    location: filters.location || 'All',
-    startDate: filters.startDate,
-    endDate: filters.endDate
-  }).toString();
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
+
+    // Iterate over all active filters and add to params
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== 'All' && value !== '') {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            value.forEach(v => params.append(key, v));
+          }
+        } else {
+          params.append(key, value);
+        }
+      }
+    });
+
+    // Ensure defaults for required fields if not present
+    if (!params.has('platform')) params.append('platform', 'All');
+    if (!params.has('brand')) params.append('brand', 'All');
+    if (!params.has('location')) params.append('location', 'All');
+
+    return params.toString();
+  };
 
   // Individual segment fetch functions for retry capability
   const fetchOverview = async (queryParams) => {

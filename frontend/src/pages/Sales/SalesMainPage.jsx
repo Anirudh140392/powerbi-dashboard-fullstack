@@ -67,6 +67,7 @@ export default function SalesMainPage() {
   const [loading, setLoading] = useState(true);
   const [trendsOpen, setTrendsOpen] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Per-segment error tracking
   const [apiErrors, setApiErrors] = useState({});
@@ -192,8 +193,9 @@ export default function SalesMainPage() {
             platform={platform}
             brand={selectedBrand}
             location={selectedLocation}
-            onTrendClick={(metric) => {
-              setSelectedMetric(metric);
+            onTrendClick={(metricInfo) => {
+              setSelectedMetric(metricInfo.metric);
+              setSelectedCategory(metricInfo.category);
               setTrendsOpen(true);
             }}
           />
@@ -216,6 +218,7 @@ export default function SalesMainPage() {
         platform={platform}
         brand={selectedBrand}
         location={selectedLocation}
+        category={selectedCategory}
       />
     </CommonContainer>
   );

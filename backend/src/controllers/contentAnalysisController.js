@@ -1,16 +1,14 @@
+import { getContentAnalysisStats } from '../services/contentAnalysisService.js';
+
 export const ContentAnalysis = async (req, res) => {
     try {
         const filters = req.query;
         console.log("Content Analysis api request received", filters);
 
-        const response = {
-            message: "Content Analysis API called successfully",
-            filters: filters
-        };
-        console.log("Sending response:", response);
+        const data = await getContentAnalysisStats(filters);
 
-        // Mock response for now
-        res.json(response);
+        console.log(`Sending response with ${data.length} records`);
+        res.json(data);
     } catch (error) {
         console.error('Error in Content Analysis:', error);
         res.status(500).json({ error: 'Internal Server Error' });

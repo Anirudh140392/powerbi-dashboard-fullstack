@@ -3,6 +3,19 @@ import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheH
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+/**
+ * Robust filter parsing to handle strings, arrays, and comma-separated values.
+ * Prevents crashes when multiple values are passed from the frontend.
+ */
+const parseFilter = (val) => {
+    if (!val || val === 'All' || val === 'all' || val === 'undefined') return 'All';
+    if (Array.isArray(val)) return val.length > 0 ? val : 'All';
+    if (typeof val === 'string' && val.includes(',')) {
+        return val.split(',').map(v => v.trim()).filter(v => v !== '');
+    }
+    return val;
+};
+
 export const AvailabilityControlTower = async (req, res) => {
     try {
         const filters = req.query;
@@ -31,11 +44,19 @@ export const AvailabilityControlTower = async (req, res) => {
 export const getAvailabilityOverview = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -59,18 +80,28 @@ export const getPlatformKpiMatrix = async (req, res) => {
     try {
         const filters = {
             viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
+        console.log('[DEBUG] viewMode from query:', req.query.viewMode);
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getAbsoluteOsaPlatformKpiMatrix(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[RESPONSE] viewMode:', data.viewMode);
+        console.log('[RESPONSE] Columns:', JSON.stringify(data.columns));
         console.log('==============================================\n');
 
         res.json(data);
@@ -86,11 +117,19 @@ export const getPlatformKpiMatrix = async (req, res) => {
 export const getOsaPercentageDetail = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -113,11 +152,19 @@ export const getOsaPercentageDetail = async (req, res) => {
 export const getDOI = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -140,11 +187,19 @@ export const getDOI = async (req, res) => {
 export const getMetroCityStockAvailability = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes)
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -168,17 +223,18 @@ export const getMetroCityStockAvailability = async (req, res) => {
  */
 export const getAvailabilityFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category, city, months } = req.query;
+        const { filterType, platform, brand, category, format, city, months, metroFlag } = req.query;
         console.log('\n========== AVAILABILITY FILTER OPTIONS API ==========');
-        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'city:', city, 'months:', months);
+        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'format:', format, 'city:', city, 'months:', months, 'metroFlag:', metroFlag);
 
         const data = await availabilityService.getAvailabilityFilterOptions({
             filterType: filterType || 'platforms',
-            platform: platform && platform !== 'undefined' ? platform.split(',') : 'All',
-            brand: brand && brand !== 'undefined' ? brand.split(',') : 'All',
-            category: category && category !== 'undefined' ? category.split(',') : 'All',
-            city: city && city !== 'undefined' ? city.split(',') : 'All',
-            months: months && months !== 'undefined' ? months.split(',') : 'All'
+            platform: parseFilter(platform),
+            brand: parseFilter(brand),
+            category: parseFilter(category || format),
+            city: parseFilter(city),
+            months: parseFilter(months),
+            metroFlag: parseFilter(metroFlag)
         });
 
         console.log('[RESPONSE]:', data.options?.length, 'options returned');
@@ -198,17 +254,20 @@ export const getAvailabilityFilterOptions = async (req, res) => {
 export const getOsaDetailByCategory = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform && req.query.platform !== 'All' ? req.query.platform.split(',') : 'All',
-            brand: req.query.brand && req.query.brand !== 'All' ? req.query.brand.split(',') : 'All',
-            location: req.query.location && req.query.location !== 'All' ? req.query.location.split(',') : 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            // New filter params from OSA Detail View filter panel
-            dates: req.query.dates ? req.query.dates.split(',') : null,
-            months: req.query.months ? req.query.months.split(',') : null,
-            cities: req.query.cities ? req.query.cities.split(',') : null,
-            categories: req.query.categories ? req.query.categories.split(',') : null,
-            kpis: req.query.kpis ? req.query.kpis.split(',') : null
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes),
+            kpis: parseFilter(req.query.kpis)
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -232,10 +291,10 @@ export const getOsaDetailByCategory = async (req, res) => {
 export const getAvailabilityKpiTrends = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
-            category: req.query.category || 'All',
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
+            category: parseFilter(req.query.category),
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
@@ -263,10 +322,10 @@ export const getAvailabilityKpiTrends = async (req, res) => {
 export const getAvailabilityCompetition = async (req, res) => {
     try {
         const filters = {
-            platform: req.query.platform || 'All',
-            location: req.query.location || 'All',
-            category: req.query.category || 'All',
-            brand: req.query.brand || 'All',
+            platform: parseFilter(req.query.platform),
+            location: parseFilter(req.query.location),
+            category: parseFilter(req.query.category),
+            brand: parseFilter(req.query.brand),
             period: req.query.period || '1M',
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -297,10 +356,10 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
         console.log('[REQUEST] platform:', platform, 'location:', location, 'category:', category, 'brand:', brand);
 
         const data = await availabilityService.getAvailabilityCompetitionFilterOptions({
-            platform: platform || 'All',
-            location: location || 'All',
-            category: category || 'All',
-            brand: brand || 'All'
+            platform: parseFilter(platform),
+            location: parseFilter(location),
+            category: parseFilter(category),
+            brand: parseFilter(brand)
         });
 
         console.log('[RESPONSE]:', data.locations?.length, 'locations,', data.categories?.length, 'categories,', data.brands?.length, 'brands');
@@ -324,9 +383,9 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
         console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
 
         const data = await availabilityService.getAvailabilityCompetitionBrandTrends({
-            brands: brands || 'All',
-            location: location || 'All',
-            category: category || 'All',
+            brands: parseFilter(brands || 'All'),
+            location: parseFilter(location || 'All'),
+            category: parseFilter(category || 'All'),
             period: period || '1M',
             startDate,
             endDate
@@ -514,7 +573,7 @@ export const getSignalLabData = async (req, res) => {
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) AS avgInventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(ROAS), 0.0)) AS avgRoas,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0), 0.0)) AS avgRoas,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
@@ -534,7 +593,7 @@ export const getSignalLabData = async (req, res) => {
                 SELECT
                     Web_Pid, Location,
                     (sum(toFloat64(neno_osa)) / nullIf(sum(toFloat64(deno_osa)), 0)) * 100 AS osa,
-                    avg(toFloat64(ROAS)) as roas,
+                    avg(toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0)) as roas,
                     sum(toFloat64(Ad_Clicks)) as clicks,
                     sum(toFloat64(Ad_Impressions)) as impressions,
                     avg(toFloat64(Inventory)) as inventory,

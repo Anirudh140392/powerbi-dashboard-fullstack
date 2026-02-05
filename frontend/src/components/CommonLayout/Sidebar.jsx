@@ -38,7 +38,7 @@ import {
 } from "@mui/icons-material";
 
 const Sidebar = ({
-  platforms = ["Blinkit", "Instamart", "Zepto"],
+  platforms = [],
   selectedPlatform,
   onPlatformChange,
   open = false,

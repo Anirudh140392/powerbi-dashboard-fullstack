@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import dayjs from "dayjs";
 import {
   Box,
   Typography,
@@ -32,7 +33,7 @@ import {
   MenuItem,
   Skeleton,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
@@ -321,11 +322,14 @@ const PillToggleGroup = ({ value, onChange, options }) => (
       backgroundColor: "#F3F4F6",
       borderRadius: "999px",
       p: "2px",
+      width: { xs: "100%", sm: "auto" },
+      display: "flex",
       "& .MuiToggleButton-root": {
         textTransform: "none",
         border: "none",
-        px: 2.5,
+        px: { xs: 1.5, sm: 2.5 },
         py: 0.5,
+        flex: { xs: 1, sm: "initial" },
         borderRadius: "999px",
         "&.Mui-selected": {
           backgroundColor: "#ffffff",
@@ -336,7 +340,7 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   >
     {options.map((opt) => (
       <ToggleButton key={opt} value={opt}>
-        <Typography variant="body2">{opt}</Typography>
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{opt}</Typography>
       </ToggleButton>
     ))}
   </ToggleButtonGroup>
@@ -387,6 +391,30 @@ const MetricChip = ({ label, color, active, onClick }) => {
   );
 };
 
+const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => (
+  <Box
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 1,
+      px: 1.5,
+      py: 0.5,
+      borderRadius: "999px",
+      border: "1px solid #E2E8F0",
+      backgroundColor: "#F8FAFC",
+      fontSize: "12px",
+      fontWeight: 500,
+    }}
+  >
+    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600 }}>
+      {label}:
+    </Typography>
+    <Typography variant="caption" sx={{ color: color, fontWeight: 700 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 
 /**
  * ---------------------------------------------------------------------------
@@ -429,6 +457,14 @@ export default function TrendsCompetitionDrawer({
   });
   const [filtersLoading, setFiltersLoading] = useState(false);
 
+  // New persistent drawer-level filters
+  const [drawerFilters, setDrawerFilters] = useState({
+    Platform: "All",
+    Format: "All",
+    Brand: "All",
+    City: "All"
+  });
+
   // Fetch formats from API on mount
   useEffect(() => {
     const fetchFormats = async () => {
@@ -470,7 +506,7 @@ export default function TrendsCompetitionDrawer({
         if (platformsRes.data?.options?.length > 0) {
           const firstPlatform = platformsRes.data.options.find(p => p !== 'All') || platformsRes.data.options[0];
           if (firstPlatform) {
-            setSelectedPlatform(firstPlatform);
+            setDrawerFilters(prev => ({ ...prev, Platform: firstPlatform }));
           }
         }
       } catch (error) {
@@ -503,21 +539,21 @@ export default function TrendsCompetitionDrawer({
             id: "ShareOfSearch",
             label: "Share of Search",
             color: "#2563EB",
-            axis: "left",
+            axis: "right",
             default: true,
           },
           {
             id: "InorganicSales",
             label: "Inorganic Sales",
             color: "#16A34A",
-            axis: "right",
+            axis: "left",
             default: true,
           },
           {
             id: "Conversion",
             label: "Conversion",
             color: "#F97316",
-            axis: "left",
+            axis: "right",
             default: false,
           },
           {
@@ -736,7 +772,7 @@ export default function TrendsCompetitionDrawer({
             id: "Osa",
             label: "Osa",
             color: "#F97316",
-            axis: "left",
+            axis: "right",
             default: true,
           },
           {
@@ -750,7 +786,7 @@ export default function TrendsCompetitionDrawer({
             id: "Assortment",
             label: "Assortment",
             color: "#22C55E",
-            axis: "left",
+            axis: "right",
             default: false,
           },
         ],
@@ -909,27 +945,27 @@ export default function TrendsCompetitionDrawer({
             id: "InorgSales",
             label: "Inorg Sales",
             color: "#7C3AED",
-            axis: "right",
+            axis: "left",
           },
           {
             id: "DspSales",
             label: "DSP Sales",
             color: "#0EA5E9",
-            axis: "right",
+            axis: "left",
           },
           {
             id: "Conversion",
             label: "Conversion",
             color: "#F97316",
-            axis: "left",
+            axis: "right",
           },
           {
             id: "Availability",
             label: "Availability",
             color: "#22C55E",
-            axis: "left",
+            axis: "right",
           },
-          { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
+          { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
           {
             id: "CategoryShare",
             label: "Category Share",
@@ -954,8 +990,8 @@ export default function TrendsCompetitionDrawer({
             color: "#FB7185",
             axis: "left",
           },
-          { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
-          { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
+          { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
+          { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
         ],
 
         points: [
@@ -1282,7 +1318,6 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(false);
 
   const platformRef = useRef(null);
@@ -1295,65 +1330,6 @@ export default function TrendsCompetitionDrawer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch competition data when viewing Competition tab
-  useEffect(() => {
-    if (view !== "Competition") return;
-
-    const fetchCompetitionData = async () => {
-      setCompetitionLoading(true);
-      try {
-        const params = {
-          platform: globalPlatform || 'All',
-          location: globalLocation || 'All',
-          category: 'All',
-          period: '1M'
-        };
-
-        console.log("Fetching competition data with params:", params);
-        const endpoint = dynamicKey === 'availability'
-          ? '/availability-analysis/competition'
-          : '/watchtower/competition';
-
-        console.log("Fetching competition data with params:", params, "from endpoint:", endpoint);
-        const response = await axiosInstance.get(endpoint, { params });
-
-        if (response.data) {
-          // Transform backend format to frontend format
-          const rawBrands = response.data.brands || [];
-          const rawSkus = response.data.skus || [];
-
-          const transformedBrands = rawBrands.map(b => ({
-            brand: b.brand || b.brand_name,
-            rank: b.rank,
-            Osa: { value: b.osa || 0, delta: b.osaDelta || 0 },
-            Doi: { value: b.doi || 0, delta: 0 },
-            Fillrate: { value: b.fillrate || 0, delta: 0 },
-            Assortment: { value: b.assortment || 0, delta: b.assortmentDelta || 0 },
-            Psl: { value: b.psl || 0, delta: 0 },
-          }));
-
-          const transformedSkus = rawSkus.map(s => ({
-            sku: s.sku_name || s.sku,
-            brand: s.brand_name || s.brand,
-            Osa: { value: s.osa || 0, delta: s.osaDelta || 0 },
-            Doi: { value: s.doi || 0, delta: 0 },
-            Fillrate: { value: s.fillrate || 0, delta: 0 },
-            Assortment: { value: s.assortment || 0, delta: s.assortmentDelta || 0 },
-            Psl: { value: s.psl || 0, delta: 0 },
-          }));
-
-          console.log("Competition data received:", transformedBrands.length, "brands,", transformedSkus.length, "skus");
-          setCompetitionData({ brands: transformedBrands, skus: transformedSkus });
-        }
-      } catch (error) {
-        console.error("Error fetching competition data:", error);
-      } finally {
-        setCompetitionLoading(false);
-      }
-    };
-
-    fetchCompetitionData();
-  }, [view, globalPlatform, globalLocation]);
 
   // Dynamic options from FilterContext or fetched API (for availability)
   const PLATFORM_OPTIONS = dynamicKey === 'availability'
@@ -1382,26 +1358,20 @@ export default function TrendsCompetitionDrawer({
         // Determine filters based on drawer selection overrides
         const audienceType = allTrendMeta.context.audience;
 
-        // Base filters from global context
+        // Set parameters for the request - combine drawer items with global filters
         const params = {
           period: range,
           timeStep: timeStep,
-          platform: globalPlatform || 'All',
-          brand: globalBrand || 'All',
-          location: globalLocation || 'All',
-          category: 'All'
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (globalPlatform || 'All'),
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : (globalBrand || 'All'),
+          location: drawerFilters.City !== 'All' ? drawerFilters.City : (globalLocation || 'All'),
+          category: drawerFilters.Format !== 'All' ? drawerFilters.Format : 'All'
         };
 
         if (range === 'Custom' && timeStart && timeEnd) {
           params.startDate = timeStart.toISOString();
           params.endDate = timeEnd.toISOString();
         }
-
-        // Override based on specific drawer filter
-        if (audienceType === 'Platform') params.platform = selectedPlatform;
-        if (audienceType === 'Brand') params.brand = selectedPlatform;
-        if (audienceType === 'City') params.location = selectedPlatform;
-        if (audienceType === 'Format') params.category = selectedPlatform;
 
         console.log("Fetching trend data with params:", params);
         // Use availability-specific endpoint for availability dynamicKey
@@ -1440,7 +1410,7 @@ export default function TrendsCompetitionDrawer({
         clearTimeout(timeoutId);
       }
     };
-  }, [selectedPlatform, range, timeStep, allTrendMeta.context.audience, view, globalPlatform, globalBrand, globalLocation, timeStart, timeEnd]);
+  }, [drawerFilters, range, timeStep, allTrendMeta.context.audience, view, globalPlatform, globalBrand, globalLocation, timeStart, timeEnd]);
 
 
 
@@ -1545,6 +1515,8 @@ export default function TrendsCompetitionDrawer({
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
+          min: 0,
+          axisLabel: { formatter: "₹{value}" },
         },
         {
           type: "value",
@@ -1552,8 +1524,7 @@ export default function TrendsCompetitionDrawer({
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
-          min: 0,
-          max: 100,
+          axisLabel: { formatter: "{value}%" },
         },
       ],
       legend: { show: false },
@@ -1619,7 +1590,6 @@ export default function TrendsCompetitionDrawer({
       yAxis: {
         type: "value",
         min: 0,
-        max: 120,
         axisLabel: { formatter: "{value}%" },
       },
       series,
@@ -1652,19 +1622,24 @@ export default function TrendsCompetitionDrawer({
     >
       <Box
         sx={{
-          mt: 4,
-          width: "min(1200px, 100%)",
+          mt: { xs: 0, md: 4 },
+          width: { xs: "100%", md: "min(1200px, 100%)" },
           bgcolor: "white",
-          borderRadius: 3,
+          borderRadius: { xs: 0, md: 3 },
           boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
-          p: 3,
+          p: { xs: 2, sm: 3 },
           display: "flex",
           flexDirection: "column",
           gap: 2,
+          minHeight: { xs: "100vh", md: "unset" },
         }}
       >
         {/* Header row */}
-        <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+        >
           <ToggleButtonGroup
             exclusive
             value={view}
@@ -1677,9 +1652,9 @@ export default function TrendsCompetitionDrawer({
                 textTransform: "none",
                 border: "none",
                 borderRadius: "999px",
-                px: 2.5,
-                py: 0.75,
-                fontSize: 14,
+                px: { xs: 2, sm: 2.5 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: 13, sm: 14 },
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
                   color: "#fff",
@@ -1695,23 +1670,97 @@ export default function TrendsCompetitionDrawer({
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
-          <IconButton onClick={onClose} size="small">
-            <X size={18} />
+          <IconButton
+            onClick={onClose}
+            size="small"
+            sx={{ color: "#64748b" }}
+          >
+            <X size={20} />
           </IconButton>
+        </Box>
+
+        {/* SELECTED FILTERS SUMMARY - Shared for both Trends & Competition */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+            py: 1.2,
+            px: 2,
+            borderRadius: "12px",
+            backgroundColor: "#F8FAFC", // Sleeker light background
+            border: "1px solid #E2E8F0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1}>
+            <Filter size={14} color="#64748B" />
+            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Effective Filters:
+            </Typography>
+          </Box>
+
+          <SelectedFilterChip
+            label="Platform"
+            value={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (globalPlatform || "All")}
+            color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="City"
+            value={drawerFilters.City !== 'All' ? drawerFilters.City : (globalLocation || "All")}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Brand"
+            value={drawerFilters.Brand !== 'All' ? drawerFilters.Brand : (globalBrand || "All")}
+            color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Format"
+            value={drawerFilters.Format !== 'All' ? drawerFilters.Format : "All"}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+
+          {/* Date Range - formatted nicely */}
+          <SelectedFilterChip
+            label="Date"
+            value={range === 'Custom' && timeStart && timeEnd
+              ? `${dayjs(timeStart).format('DD MMM')} - ${dayjs(timeEnd).format('DD MMM')}`
+              : range
+            }
+          />
+
+          {/* Clear All Drawer Filters */}
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+            <Button
+              size="small"
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              sx={{
+                ml: 'auto',
+                fontSize: '11px',
+                textTransform: 'none',
+                color: '#ef4444',
+                '&:hover': { backgroundColor: '#fef2f2' }
+              }}
+            >
+              Clear Drawer Filters
+            </Button>
+          )}
         </Box>
 
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Box display="flex" flexDirection="column" gap={1.5}>
               {/* Title */}
-              <Typography variant="h6" fontWeight={600}>
+              <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1}>
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                 <Select
                   size="small"
                   value={allTrendMeta.context.audience}
@@ -1723,7 +1772,7 @@ export default function TrendsCompetitionDrawer({
                     setShowPlatformPills(true); // always show pills after changing mode
                   }}
                   sx={{
-                    width: 160,
+                    width: { xs: "100%", sm: 160 },
                     height: 38,
                     backgroundColor: "#F8FAFC",
                     borderRadius: "8px",
@@ -1746,33 +1795,23 @@ export default function TrendsCompetitionDrawer({
                   <MenuItem value="City">City</MenuItem>
                 </Select>
 
-
-                {/* DYNAMIC PILLS */}
-                {/* DYNAMIC PILLS */}
+                {/* DYNAMIC PILLS - with scroll for many options */}
                 {showPlatformPills && (
                   <Box
+                    display="flex"
+                    gap={0.5}
                     sx={{
-                      display: "flex",
-                      gap: 0.5,
-                      overflowX: "auto",
-                      flex: 1, // Take remaining space in parent flex container
-                      maxWidth: "600px", // Fixed max width that fits within typical drawer
-                      minWidth: 0, // Allow shrinking below content size
-                      pb: 0.5, // Space for custom scrollbar
-                      whiteSpace: "nowrap",
-                      px: 0.5,
-                      "&::-webkit-scrollbar": {
-                        height: "4px",
+                      maxWidth: { xs: '100%', md: '500px' },
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      flexWrap: 'nowrap',
+                      pb: 0.5,
+                      '&::-webkit-scrollbar': {
+                        height: '4px',
                       },
-                      "&::-webkit-scrollbar-track": {
-                        background: "transparent",
-                      },
-                      "&::-webkit-scrollbar-thumb": {
-                        background: "#E2E8F0",
-                        borderRadius: "10px",
-                      },
-                      "&::-webkit-scrollbar-thumb:hover": {
-                        background: "#CBD5E1",
+                      '&::-webkit-scrollbar-thumb': {
+                        backgroundColor: '#cbd5e1',
+                        borderRadius: '4px',
                       },
                     }}
                   >
@@ -1801,7 +1840,11 @@ export default function TrendsCompetitionDrawer({
                         <Box
                           key={p}
                           onClick={() => {
-                            setSelectedPlatform(p); // only select the pill
+                            const audience = allTrendMeta.context.audience;
+                            setDrawerFilters(prev => ({
+                              ...prev,
+                              [audience]: prev[audience] === p ? "All" : p // Toggle selection
+                            }));
                           }}
                           sx={{
                             px: 1.5,
@@ -1813,12 +1856,12 @@ export default function TrendsCompetitionDrawer({
                             border: "1px solid #E5E7EB",
                             flexShrink: 0, // Prevent pills from shrinking
                             backgroundColor:
-                              selectedPlatform === p ? "#0ea5e9" : "white",
-                            color: selectedPlatform === p ? "white" : "#0f172a",
+                              drawerFilters[allTrendMeta.context.audience] === p ? "#0ea5e9" : "white",
+                            color: drawerFilters[allTrendMeta.context.audience] === p ? "white" : "#0f172a",
                             transition: "all 0.2s ease",
                             "&:hover": {
-                              borderColor: selectedPlatform === p ? "#0ea5e9" : "#CBD5E1",
-                              backgroundColor: selectedPlatform === p ? "#0389c4" : "#F8FAFC",
+                              borderColor: drawerFilters[allTrendMeta.context.audience] === p ? "#0ea5e9" : "#CBD5E1",
+                              backgroundColor: drawerFilters[allTrendMeta.context.audience] === p ? "#0389c4" : "#F8FAFC",
                             },
                           }}
                         >
@@ -1864,19 +1907,17 @@ export default function TrendsCompetitionDrawer({
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5,
+                p: { xs: 1.5, md: 2.5 },
               }}
             >
               {/* Metric Row */}
               <Box
                 display="flex"
-                alignItems="center"
-                justifyContent="space-between"
+                flexDirection="column"
                 gap={2}
-                flexWrap="wrap"
                 mb={2}
               >
-                <Box display="flex" gap={1} flexWrap="wrap">
+                <Box display="flex" gap={1.5} flexWrap="wrap">
                   {trendMeta.metrics.map((m) => (
                     <MetricChip
                       key={m.id}
@@ -1894,24 +1935,42 @@ export default function TrendsCompetitionDrawer({
                   ))}
                 </Box>
 
-                <Button
-                  size="small"
-                  endIcon={<ChevronDown size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB",
-                  }}
-                  variant="outlined"
-                >
-                  +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                </Button>
+                <Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    endIcon={<ChevronDown size={14} />}
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: "999px",
+                      borderColor: "#E2E8F0",
+                      color: "#3b82f6",
+                      backgroundColor: "#eff6ff",
+                      fontSize: "0.75rem",
+                      px: 2,
+                      "&:hover": {
+                        borderColor: "#3b82f6",
+                        backgroundColor: "#dbeafe",
+                      }
+                    }}
+                  >
+                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
+                  </Button>
+                </Box>
               </Box>
 
-              {/* Chart with Skeleton Loader */}
+              {/* Chart */}
               <Box sx={{ height: 340 }}>
                 {loading ? (
-                  <Skeleton variant="rounded" width="100%" height={340} sx={{ borderRadius: 2 }} />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%', justifyContent: 'center' }}>
+                    <Skeleton variant="rectangular" width="100%" height={280} animation="wave" sx={{ borderRadius: 2 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                    </Box>
+                  </Box>
                 ) : (
                   <ReactECharts
                     style={{ height: "100%", width: "100%" }}
@@ -1932,13 +1991,23 @@ export default function TrendsCompetitionDrawer({
                 dynamicKey={dynamicKey}
                 selectedItem={selectedColumn}
                 selectedLevel={selectedLevel}
-                selectedPlatform={selectedPlatform}
+                selectedPlatform={drawerFilters.Platform}
+                period={range}
               />
             ) : (
               dynamicKey === "availability" ? (
-                <AvailabilityCompetitionKpiShowcase platform={selectedPlatform} globalFilters={filters} />
+                <AvailabilityCompetitionKpiShowcase
+                  platform={drawerFilters.Platform}
+                  globalFilters={filters}
+                  period={range}
+                />
               ) : (
-                <KpiTrendShowcase dynamicKey={dynamicKey} platform={selectedPlatform} globalFilters={filters} />
+                <KpiTrendShowcase
+                  dynamicKey={dynamicKey}
+                  platform={drawerFilters.Platform}
+                  globalFilters={filters}
+                  period={range}
+                />
               )
             )}
           </>
@@ -1964,7 +2033,12 @@ export default function TrendsCompetitionDrawer({
             </Box>
 
             {/* Range + Timestep */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Box
+              display="flex"
+              flexDirection={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              gap={2}
+            >
               <PillToggleGroup
                 value={range}
                 onChange={setRange}
@@ -1983,12 +2057,12 @@ export default function TrendsCompetitionDrawer({
             {/* SKU pills + Add SKUs button row */}
             <Box
               display="flex"
-              alignItems="center"
+              flexDirection={{ xs: "column", md: "row" }}
+              alignItems={{ xs: "flex-start", md: "center" }}
               justifyContent="space-between"
               gap={2}
-              flexWrap="wrap"
             >
-              <Box display="flex" gap={1} flexWrap="wrap" flex={1}>
+              <Box display="flex" gap={1} flexWrap="wrap">
                 {selectedCompareSkus.map((sku) => {
                   const color =
                     BRAND_COLORS[sku.brand] || "rgba(37,99,235,0.3)";
@@ -2019,7 +2093,7 @@ export default function TrendsCompetitionDrawer({
                         borderRadius: "999px",
                         backgroundColor: "#F9FAFB",
                         borderColor: "transparent",
-                        maxWidth: 260,
+                        maxWidth: { xs: "100%", sm: 260 },
                       }}
                     />
                   );
@@ -2033,6 +2107,7 @@ export default function TrendsCompetitionDrawer({
                   backgroundColor: "#2563EB",
                   textTransform: "none",
                   borderRadius: "999px",
+                  width: { xs: "100%", md: "auto" },
                   minWidth: 140,
                 }}
                 onClick={() => setAddSkuOpen(true)}

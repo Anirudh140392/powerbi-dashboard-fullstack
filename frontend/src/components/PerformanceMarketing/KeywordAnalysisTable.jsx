@@ -564,10 +564,17 @@ export default function KeywordAnalysisTable() {
       )}
 
       {/* HEADER & CONTROLS */}
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-        <Box>
-          <Box display="flex" alignItems="center" gap={2}>
-            <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+      <Box
+        display="flex"
+        flexDirection={{ xs: "column", md: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", md: "flex-start" }}
+        mb={2}
+        gap={{ xs: 2, md: 0 }}
+      >
+        <Box width={{ xs: "100%", md: "auto" }}>
+          <Box display="flex" flexDirection={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }} gap={2}>
+            <Typography sx={{ fontSize: { xs: 16, md: 18 }, fontWeight: 700, color: "#0f172a" }}>
               Keyword Analysis
             </Typography>
             <Select
@@ -577,10 +584,11 @@ export default function KeywordAnalysisTable() {
               variant="standard"
               disableUnderline
               sx={{
-                fontSize: 12,
+                fontSize: { xs: 11, md: 12 },
                 borderRadius: 999,
-                px: 1.5,
-                height: 32, // Smaller height
+                px: { xs: 1.2, md: 1.5 },
+                height: { xs: 30, md: 32 },
+                width: { xs: "100%", sm: "auto" },
                 backgroundColor: "#f1f5f9",
                 color: "#334155",
                 border: "1px solid #e2e8f0",
@@ -588,11 +596,11 @@ export default function KeywordAnalysisTable() {
                 "&:hover": { backgroundColor: "#e2e8f0" },
                 "& .MuiSelect-select": {
                   paddingRight: "24px !important",
-                  py: 0.5, // Tighter vertical padding
+                  py: 0.5,
                   display: "flex",
                   alignItems: "center",
                 },
-                minWidth: 120, // Smaller width
+                minWidth: { xs: "100%", sm: 120 },
               }}
               MenuProps={{
                 PaperProps: {
@@ -610,21 +618,27 @@ export default function KeywordAnalysisTable() {
               ))}
             </Select>
           </Box>
-          <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+          <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: "#94a3b8", mt: { xs: 0.5, md: 0 } }}>
             Keyword → Category → Month
           </Typography>
         </Box>
 
-        <Box display="flex" gap={2} alignItems="center">
+        <Box
+          display="flex"
+          flexDirection={{ xs: "column", sm: "row" }}
+          gap={{ xs: 1.5, md: 2 }}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          width={{ xs: "100%", md: "auto" }}
+        >
           <Button
             onClick={() => setFilterPanelOpen(true)}
             startIcon={<SlidersHorizontal size={14} />}
             sx={{
-              height: 40,
-              fontSize: 12,
+              height: { xs: 36, md: 40 },
+              fontSize: { xs: 11, md: 12 },
               textTransform: "none",
               borderRadius: 999,
-              px: 2,
+              px: { xs: 1.5, md: 2 },
               backgroundColor: "#f1f5f9",
               color: "#334155",
               border: "1px solid #e2e8f0",
@@ -648,7 +662,7 @@ export default function KeywordAnalysisTable() {
               ),
             }}
             sx={{
-              minWidth: 240,
+              minWidth: { xs: "100%", md: 240 },
               "& .MuiOutlinedInput-root": {
                 borderRadius: 999,
                 backgroundColor: "#f1f5f9",
@@ -658,20 +672,28 @@ export default function KeywordAnalysisTable() {
                 "&.Mui-focused fieldset": { borderColor: "#94a3b8" },
               },
               "& .MuiOutlinedInput-input": {
-                fontSize: 14,
+                fontSize: { xs: 13, md: 14 },
                 color: "#334155",
-                py: 1,
+                py: { xs: 0.75, md: 1 },
               },
             }}
           />
         </Box>
-      </Box >
+      </Box>
 
       {/* TABLE */}
-      < TableContainer
+      <TableContainer
         component={Paper}
-        sx={{ mt: 2, maxHeight: 520, overflow: "auto", border: "1px solid #e2e8f0", borderRadius: 2, boxShadow: 'none' }
-        }
+        sx={{
+          mt: 2,
+          maxHeight: 520,
+          overflow: "auto",
+          border: "1px solid #e2e8f0",
+          borderRadius: 2,
+          boxShadow: 'none',
+          overflowX: { xs: 'auto', md: 'auto' },
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
         <Table size="small" stickyHeader>
           <TableHead>

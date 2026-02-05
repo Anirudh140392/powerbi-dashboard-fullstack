@@ -1,0 +1,187 @@
+import { motion } from 'framer-motion'
+import {
+    ArrowUpRight,
+    ArrowDownRight
+} from 'lucide-react'
+import { AreaChart, Area, ResponsiveContainer } from 'recharts'
+import { cn } from '../../lib/utils'
+import PerformanceMatrixNew from '../ControlTower/WatchTower/PerformanceMatrixNew';
+
+/**
+ * ComparisonCard: Internal component for SnapshotOverview to render individual KPI cards.
+ */
+const ComparisonCard = ({ kpi, variant = 'original' }) => {
+    const isPositive = kpi.delta > 0;
+    const Icon = kpi.icon;
+    const trendData = kpi.trend ? kpi.trend.map((val) => ({ value: val })) : [];
+
+    if (variant === 'split') {
+        return (
+            <div
+                className="p-4 rounded-xl bg-white border border-slate-100 shadow-sm flex flex-col h-full bg-slate-50/20"
+                style={{ fontFamily: 'Roboto, sans-serif' }}
+            >
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="text-center">
+                        <div className="text-[0.6rem] uppercase tracking-[0.04em] font-bold text-slate-400 mb-1">Previous</div>
+                        <div className="text-lg font-bold text-slate-500">
+                            {kpi.prevValue || '-'}
+                        </div>
+                    </div>
+                    <div className="text-center">
+                        <div className="text-[0.6rem] uppercase tracking-[0.04em] font-bold text-slate-400 mb-1">Current</div>
+                        <div className="text-lg font-bold text-slate-900">{kpi.value}</div>
+                    </div>
+                </div>
+
+                <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                        <div
+                            className="w-5 h-5 rounded-md flex items-center justify-center text-white shadow-sm"
+                            style={{ backgroundColor: kpi.gradient?.[0] || '#6366f1' }}
+                        >
+                            <Icon size={10} />
+                        </div>
+                        <span className="text-[0.6rem] font-bold text-slate-500 uppercase tracking-[0.04em]">{kpi.title}</span>
+                    </div>
+                    <div className={`flex items-center gap-0.5 text-[10px] font-bold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                        {Math.abs(kpi.delta)}%
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="p-4 rounded-xl bg-white border border-slate-50 shadow-sm hover:shadow-md transition-all duration-300 h-full flex flex-col relative overflow-hidden group"
+            style={{ fontFamily: 'Roboto, sans-serif' }}
+        >
+            <div className="flex justify-between items-start mb-3">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.04em]">{kpi.title}</span>
+                {/* <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-md"
+                    style={{ background: `linear-gradient(135deg, ${kpi.gradient?.[0] || '#6366f1'}, ${kpi.gradient?.[1] || '#8b5cf6'})` }}
+                >
+                    <Icon size={12} />
+                </div> */}
+            </div>
+
+            <div className="flex items-baseline justify-between gap-1 mb-1.5">
+                <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold text-slate-900 tracking-tight">{kpi.value}</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{kpi.subtitle || 'MTD'}</span>
+                </div>
+                <div className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-0.5 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {isPositive ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
+                    {Math.abs(kpi.delta)}%
+                </div>
+            </div>
+
+            <div className="flex items-center gap-5 mb-8">
+                {/* <div className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-0.5 ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {isPositive ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
+                    {Math.abs(kpi.delta)}%
+                </div>
+                <span className="text-[9px] font-medium text-slate-400">{kpi.deltaLabel}</span> */}
+            </div>
+
+            {trendData.length > 0 && (
+                <div className="absolute bottom-0 left-0 right-0 h-12 w-full -mb-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trendData}>
+                            <defs>
+                                <linearGradient id={`gradient-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={isPositive ? '#10b981' : '#f43f5e'} stopOpacity={0.15} />
+                                    <stop offset="100%" stopColor={isPositive ? '#10b981' : '#f43f5e'} stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <Area
+                                type="monotone"
+                                dataKey="value"
+                                stroke={isPositive ? '#10b981' : '#f43f5e'}
+                                strokeWidth={2}
+                                fillOpacity={1}
+                                fill={`url(#gradient-${kpi.id})`}
+                                baseLine={0}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const SnapshotOverview = ({
+    title,
+    icon: Icon,
+    chip,
+    headerRight,
+    kpis = [],
+    className = ''
+}) => {
+    return (
+        <div style={{ marginBottom: '1rem', fontFamily: 'Roboto, sans-serif' }}>
+            <motion.div
+                className={`bg-white rounded-[1rem] shadow-sm border border-slate-100/60 ${className}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+            >
+                {/* Header */}
+                <div className="px-5 py-1">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-4">
+                            {Icon && (
+                                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50 shadow-sm shrink-0">
+                                    <Icon size={20} className="text-blue-600" />
+                                </div>
+                            )}
+                            <h2 className="text-[1.25rem] font-bold text-black tracking-tight">{title}</h2>
+                            {chip && (
+                                <span className="px-4 py-1.2 hex-border text-[0.65rem] font-bold text-slate-500 bg-white rounded-full border border-slate-200 uppercase tracking-[0.04em]" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                    {chip}
+                                </span>
+                            )}
+                        </div>
+
+                        {headerRight && (
+                            <div className="flex items-center gap-3">
+                                {headerRight}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="px-4 pb-0">
+                    {/* Top Row: Original Style */}
+                    <div className={cn(
+                        "grid gap-2 mb-2",
+                        kpis.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 md:grid-cols-4"
+                    )}>
+                        {kpis.slice(0, 4).map((kpi, idx) => (
+                            <motion.div
+                                key={kpi.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                            >
+                                <ComparisonCard kpi={kpi} variant="original" />
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+                {title === 'Watchtower Overview' && (
+                    <div className="px-4 pb-4">
+                        <PerformanceMatrixNew />
+                    </div>
+                )}
+            </motion.div>
+        </div>
+    )
+}
+
+export default SnapshotOverview

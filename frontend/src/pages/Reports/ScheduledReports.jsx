@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import dayjs from "dayjs";
 import { ScheduledReport } from "@/components/Reports/ScheduledReport";
+import { fetchReportFilterOptions, downloadReport } from "../../api/reportsService";
 
 export default function ScheduledReports() {
     const [filters, setFilters] = useState({
@@ -11,7 +12,8 @@ export default function ScheduledReports() {
     const [selectedFilters, setSelectedFilters] = useState({
         platform: "Blinkit",
         brand: "All Brands",
-        location: "All Locations",
+        city: "All Cities",
+        format: "All Formats",
         timePeriod: "Last 30 Days",
         reportType: "Watch Tower",
     });
@@ -71,47 +73,79 @@ export default function ScheduledReports() {
         });
     };
 
-    // Data mapping for dependent dropdowns
-    const dataMapping = {
-        "Blinkit": {
-            brands: ["All Brands", "Brand A", "Brand B", "Premium Line"],
-            locations: ["All Locations", "North Region", "Metro Cities", "Tier 2 Cities"]
-        },
-        "Zepto": {
-            brands: ["All Brands", "Brand A", "Brand D", "Premium Line"],
-            locations: ["All Locations", "West Region", "Metro Cities", "Tier 2 Cities"]
-        },
-        "Instamart": {
-            brands: ["All Brands", "Brand B", "Brand C", "Economy Line"],
-            locations: ["All Locations", "South Region", "East Region", "Metro Cities"]
-        },
-        "Amazon": {
-            brands: ["All Brands", "Brand A", "Brand C", "Brand D", "Premium Line"],
-            locations: ["All Locations", "North Region", "South Region", "East Region", "West Region", "Metro Cities"]
-        },
-        "Flipkart": {
-            brands: ["All Brands", "Brand B", "Brand C", "Brand D", "Economy Line"],
-            locations: ["All Locations", "North Region", "South Region", "East Region", "West Region", "Tier 2 Cities"]
-        }
-    };
+    const [options, setOptions] = useState({
+        platforms: [],
+        brands: [],
+        cities: [],
+        formats: [],
+        months: []
+    });
+    const [loadingOptions, setLoadingOptions] = useState(false);
 
-    // Dropdown options - Platform is independent
-    const platformOptions = [
-        "Blinkit",
-        "Zepto",
-        "Instamart",
-        "Amazon",
-        "Flipkart",
-    ];
+    // Fetch initial filter options (platforms)
+    React.useEffect(() => {
+        const loadInitialOptions = async () => {
+            setLoadingOptions(true);
+            try {
+                const data = await fetchReportFilterOptions();
+                if (data && data.platforms) {
+                    setOptions(prev => ({
+                        ...prev,
+                        ...data,
+                        months: data.months || prev.months || [],
+                        formats: data.formats || prev.formats || [],
+                        cities: data.cities || prev.cities || [],
+                        brands: data.brands || prev.brands || []
+                    }));
 
-    // Get filtered brand options based on selected platform
+                    // Set default platform if available
+                    if (data.platforms.length > 0 && !data.platforms.includes(selectedFilters.platform)) {
+                        setSelectedFilters(prev => ({ ...prev, platform: data.platforms[0] }));
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading report filter options:", error);
+            } finally {
+                setLoadingOptions(false);
+            }
+        };
+        loadInitialOptions();
+    }, []);
+
+    // Fetch brands and locations when platform changes
+    React.useEffect(() => {
+        if (!selectedFilters.platform || selectedFilters.platform === 'All') return;
+
+        const loadDependentOptions = async () => {
+            try {
+                const data = await fetchReportFilterOptions({ platform: selectedFilters.platform });
+                if (data) {
+                    setOptions(prev => ({
+                        ...prev,
+                        brands: data.brands || [],
+                        cities: data.cities || [],
+                        formats: data.formats || []
+                    }));
+                }
+            } catch (error) {
+                console.error("Error loading dependent options:", error);
+            }
+        };
+        loadDependentOptions();
+    }, [selectedFilters.platform]);
+
+    const platformOptions = options.platforms.length > 0 ? options.platforms : ["Blinkit", "Zepto", "Instamart"];
+
     const getBrandOptions = () => {
-        return dataMapping[selectedFilters.platform]?.brands || ["All Brands"];
+        return ["All Brands", ...options.brands];
     };
 
-    // Get filtered location options based on selected platform
-    const getLocationOptions = () => {
-        return dataMapping[selectedFilters.platform]?.locations || ["All Locations"];
+    const getCityOptions = () => {
+        return ["All Cities", ...options.cities];
+    };
+
+    const getFormatOptions = () => {
+        return ["All Formats", ...options.formats];
     };
 
     const timePeriodOptions = [
@@ -121,6 +155,7 @@ export default function ScheduledReports() {
         "Last 6 Months",
         "Last Year",
         "Custom Range",
+        ...(options.months || [])
     ];
 
     const reportTypeOptions = [
@@ -138,40 +173,40 @@ export default function ScheduledReports() {
         "Category RCA",
     ];
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         setIsDownloading(true);
+        try {
+            const blob = await downloadReport(selectedFilters);
 
-        // Simulate download
-        setTimeout(() => {
-            setIsDownloading(false);
+            // Create a link element to trigger the download
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+
+            const fileName = `${selectedFilters.reportType.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            link.setAttribute('download', fileName);
+
+            document.body.appendChild(link);
+            link.click();
+
+            // Clean up
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
             setShowSuccess(true);
-
             setTimeout(() => {
                 setShowSuccess(false);
             }, 3000);
-        }, 2000);
+        } catch (error) {
+            console.error("Error downloading report:", error);
+            // Optionally show error notification
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     const handleFilterChange = (key, value) => {
-        setSelectedFilters((prev) => {
-            const newFilters = { ...prev, [key]: value };
-
-            // Reset dependent dropdowns when platform changes
-            if (key === "platform") {
-                const newBrands = dataMapping[value]?.brands || ["All Brands"];
-                const newLocations = dataMapping[value]?.locations || ["All Locations"];
-
-                // Reset to "All" if current selection is not available in new platform
-                if (!newBrands.includes(prev.brand)) {
-                    newFilters.brand = "All Brands";
-                }
-                if (!newLocations.includes(prev.location)) {
-                    newFilters.location = "All Locations";
-                }
-            }
-
-            return newFilters;
-        });
+        setSelectedFilters((prev) => ({ ...prev, [key]: value }));
     };
 
     return (
@@ -188,7 +223,8 @@ export default function ScheduledReports() {
                 showSuccess={showSuccess}
                 platformOptions={platformOptions}
                 getBrandOptions={getBrandOptions}
-                getLocationOptions={getLocationOptions}
+                getCityOptions={getCityOptions}
+                getFormatOptions={getFormatOptions}
                 timePeriodOptions={timePeriodOptions}
                 reportTypeOptions={reportTypeOptions}
                 customDateRange={customDateRange}

@@ -683,14 +683,6 @@ export default function Visibility4() {
                                     {allKpis.map((kpi) => (
                                         <th key={kpi} colSpan={activeView === 'platforms' && expandedKpis.has(kpi) ? visiblePlatforms.length : 1} className="px-2 py-2 text-center border-l border-slate-200">
                                             <div className="flex items-center justify-center gap-1">
-                                                {activeView === 'platforms' && (
-                                                    <button
-                                                        onClick={() => toggleKpiExpand(kpi)}
-                                                        className="flex h-5 w-5 items-center justify-center rounded border border-slate-300 bg-white text-[10px] hover:bg-slate-100"
-                                                    >
-                                                        {expandedKpis.has(kpi) ? '−' : '+'}
-                                                    </button>
-                                                )}
                                                 <span>{KPI_LABELS[kpi]}</span>
                                             </div>
                                         </th>

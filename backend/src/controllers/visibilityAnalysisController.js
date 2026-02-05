@@ -73,6 +73,9 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            pincode: req.query.pincode || 'All',
+            zone: req.query.zone || 'All',
+            metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -80,7 +83,7 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_matrix', filters);
+        const cacheKey = generateCacheKey('visibility_matrix_v3', filters);
         const data = await getCachedOrCompute(cacheKey, async () => {
             return await visibilityService.getPlatformKpiMatrix(filters);
         }, CACHE_TTL.METRICS);
@@ -188,12 +191,13 @@ export const getVisibilityFilterOptions = async (req, res) => {
             platform: req.query.platform || 'All',
             format: req.query.format || 'All',
             city: req.query.city || 'All',
-            metroFlag: req.query.metroFlag || 'All'
+            metroFlag: req.query.metroFlag || 'All',
+            brand: req.query.brand || 'All'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
-        const cacheKey = generateCacheKey('visibility_filters', params);
+        const cacheKey = generateCacheKey('visibility_filters_v2', params);
         const data = await getCachedOrCompute(cacheKey, async () => {
             return await visibilityService.getVisibilityFilterOptions(params);
         }, CACHE_TTL.STATIC);

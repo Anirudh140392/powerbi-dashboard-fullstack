@@ -40,12 +40,17 @@ jobs:
           DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_NAME=${{ secrets.DB_NAME }}
-          REDIS_HOST=redis
+          REDIS_HOST=host.docker.internal
           REDIS_PORT=6379
           REDIS_PASSWORD=
           REDIS_DB=${{ secrets.REDIS_DB }}
           REDIS_ENABLED=${{ secrets.REDIS_ENABLED }}
           REDIS_DEFAULT_TTL=${{ secrets.REDIS_DEFAULT_TTL }}
+          CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
+          ENABLE_DEBUG_LOGS=true
           EOF
             echo "✅ .env file created"
           ENDSSH

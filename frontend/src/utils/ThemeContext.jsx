@@ -4,24 +4,24 @@ import CssBaseline from "@mui/material/CssBaseline";
 
 export const AppThemeContext = createContext();
 
-export default function AppThemeProvider({ children }) {
-  // Enforce static light mode
-  const mode = "light";
+// Enforce static light mode
+const mode = "light";
 
-  const muiTheme = useMemo(() => createTheme({
-    palette: {
-      mode: "light",
-      background: {
-        default: "#f5f5f5",
-        paper: "#ffffff",
-      },
-      text: {
-        primary: "#111827",
-        secondary: "#374151",
-      },
+const muiTheme = createTheme({
+  palette: {
+    mode: "light",
+    background: {
+      default: "#f5f5f5",
+      paper: "#ffffff",
     },
-  }), []);
+    text: {
+      primary: "#111827",
+      secondary: "#374151",
+    },
+  },
+});
 
+export default function AppThemeProvider({ children }) {
   // Ensure DOM is synced with light mode immediately
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "light");

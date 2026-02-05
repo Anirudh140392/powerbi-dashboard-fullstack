@@ -7,6 +7,7 @@ import {
   Button,
   Autocomplete,
   TextField,
+  Switch,
 } from "@mui/material";
 
 import {
@@ -62,7 +63,12 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     pmBrands,
     pmSelectedBrand,
     setPmSelectedBrand,
-    darkStoreData
+    darkStoreData,
+    channels,
+    selectedChannel,
+    setSelectedChannel,
+    mslEnabled,
+    setMslEnabled
   } = React.useContext(FilterContext);
 
 
@@ -77,24 +83,25 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
         borderColor: (theme) => "#e5e7eb",
-        px: { xs: 2, sm: 3 },
-        py: 2,
+        px: { xs: 1.5, sm: 3 },
+        py: { xs: 0.75, sm: 1.5 },
         position: "sticky",
         top: 0,
         zIndex: 1200,
         transition: "all 0.3s ease",
+        // Premium subtle shadow
+        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
       }}
     >
       {/* ---------------- FIRST ROW ---------------- */}
       <Box
         sx={{
           display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
           justifyContent: "space-between",
-          flexWrap: "nowrap",
-          gap: 1,
-          alignItems: "center",
-          overflowX: "auto",
-          pb: 0.5, // slightly partial scrolling buffer
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: { xs: 0.25, sm: 1 },
+          pb: 0,
         }}
       >
         {/* LEFT SIDE */}
@@ -124,7 +131,11 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               <Typography
                 variant="h6"
                 fontWeight="700"
-                sx={{ whiteSpace: "nowrap", lineHeight: 1.2 }}
+                sx={{
+                  whiteSpace: "nowrap",
+                  lineHeight: 1.2,
+                  fontSize: { xs: "1.1rem", sm: "1.25rem" }
+                }}
               >
                 {title}
               </Typography>
@@ -163,11 +174,27 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 1,
-                flexWrap: "nowrap",
-                overflow: "visible",
+                gap: { xs: 0.5, sm: 1.5 },
+                flexWrap: { xs: "wrap", sm: "nowrap" },
+                overflowX: { xs: "visible", sm: "auto" },
+                width: { xs: "100%", sm: "auto" },
+                justifyContent: { xs: "flex-start", sm: "flex-end" },
+                paddingBottom: { xs: 0.25, sm: 0.75 },
+                paddingTop: { xs: 0.5, sm: 0 },
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
               }}
             >
+
+              {/* CHANNEL SELECTION */}
+              <CustomHeaderDropdown
+                label="CHANNEL"
+                options={channels}
+                value={selectedChannel}
+                onChange={(newValue) => setSelectedChannel(newValue)}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+              />
 
               {/* PLATFORM SELECTION */}
               <CustomHeaderDropdown
@@ -181,7 +208,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     setPlatform(newValue);
                   }
                 }}
-                width={150}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
 
               <CustomHeaderDropdown
@@ -195,7 +222,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     setSelectedBrand(newValue);
                   }
                 }}
-                width={150}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
 
               <CustomHeaderDropdown
@@ -209,19 +236,16 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     setSelectedLocation(newValue);
                   }
                 }}
-                width={150}
-                multi={title === "Inventory Analysis"}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
 
-
-
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: 220, flexShrink: 0 }}>
+              <Box sx={{ width: { xs: "calc(50% - 3px)", sm: 200 }, flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.7rem",
                     fontWeight: 600,
-                    mb: 0.5,
+                    mb: 0.1,
                     opacity: 0.7,
                   }}
                 >
@@ -261,6 +285,56 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 />
 
               </Box>
+              {/* MSL TOGGLE */}
+              <Box sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                minWidth: { xs: "calc(50% - 3px)", sm: 100 },
+                flexShrink: 0
+              }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.1,
+                    opacity: 0.7,
+                  }}
+                >
+                  MSL
+                </Typography>
+                <Box sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  height: 32,
+                  bgcolor: "#f1f5f9",
+                  borderRadius: "8px",
+                  px: 1,
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <Switch
+                    checked={mslEnabled}
+                    onChange={(e) => setMslEnabled(e.target.checked)}
+                    size="small"
+                    sx={{
+                      "& .MuiSwitch-switchBase.Mui-checked": {
+                        color: "#7c3aed",
+                      },
+                      "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                        backgroundColor: "#7c3aed",
+                      },
+                    }}
+                  />
+                  <Typography sx={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: mslEnabled ? "#1e293b" : "#64748b",
+                    ml: 0.5
+                  }}>
+                    {mslEnabled ? "ON" : "OFF"}
+                  </Typography>
+                </Box>
+              </Box>
             </Box>
           )}
         </AnimatePresence>
@@ -279,7 +353,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               gap: 2,
               justifyContent: "flex-end",
               flexWrap: "wrap",
-              mt: 2,
+              mt: { xs: 0.5, sm: 2 },
               alignItems: "center",
               overflow: "visible",
             }}

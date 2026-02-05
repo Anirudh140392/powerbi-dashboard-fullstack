@@ -29,11 +29,11 @@ import {
   MenuItem,
   Skeleton,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
-import VisibilityKpiTrendShowcase from "./VisibilityKpiTrendShowcase";
+import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 
 /**
@@ -481,11 +481,14 @@ const PillToggleGroup = ({ value, onChange, options }) => (
       backgroundColor: "#F3F4F6",
       borderRadius: "999px",
       p: "2px",
+      width: { xs: "100%", sm: "auto" },
+      display: "flex",
       "& .MuiToggleButton-root": {
         textTransform: "none",
         border: "none",
-        px: 2.5,
+        px: { xs: 1.5, sm: 2.5 },
         py: 0.5,
+        flex: { xs: 1, sm: "initial" },
         borderRadius: "999px",
         "&.Mui-selected": {
           backgroundColor: "#ffffff",
@@ -496,7 +499,7 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   >
     {options.map((opt) => (
       <ToggleButton key={opt} value={opt}>
-        <Typography variant="body2">{opt}</Typography>
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{opt}</Typography>
       </ToggleButton>
     ))}
   </ToggleButtonGroup>
@@ -547,6 +550,30 @@ const MetricChip = ({ label, color, active, onClick }) => {
   );
 };
 
+const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => (
+  <Box
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 1,
+      px: 1.5,
+      py: 0.5,
+      borderRadius: "999px",
+      border: "1px solid #E2E8F0",
+      backgroundColor: "#F8FAFC",
+      fontSize: "12px",
+      fontWeight: 500,
+    }}
+  >
+    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600 }}>
+      {label}:
+    </Typography>
+    <Typography variant="caption" sx={{ color: color, fontWeight: 700 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 /**
  * ---------------------------------------------------------------------------
  * MAIN COMPONENT
@@ -558,6 +585,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   open = true,
   onClose = () => { },
   selectedColumn,
+  initialAudience,
 }) {
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -566,12 +594,15 @@ export default function VisibilityTrendsCompetitionDrawer({
     },
   });
   useLayoutEffect(() => {
-    allSetTrendMeta((prev) => ({
-      ...prev,
-      context: { ...prev.context, audience: "Platform" },
-    }));
-    setShowPlatformPills(true);
-  }, []);
+    if (open) {
+      const audienceToSet = initialAudience || "Platform";
+      allSetTrendMeta((prev) => ({
+        ...prev,
+        context: { ...prev.context, audience: audienceToSet },
+      }));
+      setShowPlatformPills(true);
+    }
+  }, [open, initialAudience]);
   const [range, setRange] = useState(DASHBOARD_DATA.trends.defaultRange);
   const [timeStep, setTimeStep] = useState(
     DASHBOARD_DATA.trends.defaultTimeStep
@@ -583,10 +614,32 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
 
-  // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(false);
+
+  // Drawer-specific filters for the Effective Filters bar
+  const [drawerFilters, setDrawerFilters] = useState({
+    Platform: "All",
+    Format: "All",
+    Brand: "All",
+    City: "All"
+  });
+
+  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
+  useEffect(() => {
+    if (selectedColumn && open) {
+      setSelectedPlatform(selectedColumn);
+
+      // Initialize ONLY the current audience type filter
+      const currentAudience = allTrendMeta.context.audience;
+      setDrawerFilters(prev => ({
+        ...prev,
+        [currentAudience]: selectedColumn
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColumn, open]); // Removed allTrendMeta.context.audience
 
   const platformRef = useRef(null);
 
@@ -693,8 +746,16 @@ export default function VisibilityTrendsCompetitionDrawer({
       try {
         const params = {
           period: range,
-          platform: selectedPlatform || 'All',
+          timeStep: timeStep,
         };
+
+        // Determine which pivot filter to apply based on the selected audience
+        const audience = allTrendMeta.context.audience;
+        if (audience === "Platform") params.platform = selectedPlatform || 'All';
+        else if (audience === "Format") params.format = selectedPlatform || 'All';
+        else if (audience === "City") params.location = selectedPlatform || 'All';
+        else if (audience === "Brand") params.brand = selectedPlatform || 'All';
+        else params.platform = selectedPlatform || 'All';
 
         console.log("[VisibilityTrendsDrawer] Fetching trend data:", params);
         const response = await axiosInstance.get('/visibility-analysis/kpi-trends', { params });
@@ -724,7 +785,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, open]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -939,19 +1000,19 @@ export default function VisibilityTrendsCompetitionDrawer({
         display: "flex",
         justifyContent: "center",
         alignItems: "flex-start",
-        p: 2,
+        p: { xs: 1, md: 2 },
         zIndex: 1300,
         overflow: "auto",
       }}
     >
       <Box
         sx={{
-          mt: 4,
+          mt: { xs: 2, md: 4 },
           width: "min(1200px, 100%)",
           bgcolor: "white",
           borderRadius: 3,
           boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
-          p: 3,
+          p: { xs: 2, md: 3 },
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -971,9 +1032,9 @@ export default function VisibilityTrendsCompetitionDrawer({
                 textTransform: "none",
                 border: "none",
                 borderRadius: "999px",
-                px: 2.5,
-                py: 0.75,
-                fontSize: 14,
+                px: { xs: 2, sm: 2.5 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: 13, sm: 14 },
                 "&.Mui-selected": {
                   backgroundColor: "#0F172A",
                   color: "#fff",
@@ -986,37 +1047,120 @@ export default function VisibilityTrendsCompetitionDrawer({
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
-          <IconButton onClick={onClose} size="small">
-            <X size={18} />
+          <IconButton onClick={onClose} size="small" sx={{ color: "#64748b" }}>
+            <X size={20} />
           </IconButton>
+        </Box>
+
+        {/* EFFECTIVE FILTERS SUMMARY BAR */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+            py: 1.2,
+            px: 2,
+            borderRadius: "12px",
+            backgroundColor: "#F8FAFC",
+            border: "1px solid #E2E8F0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1}>
+            <Filter size={14} color="#64748B" />
+            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Effective Filters:
+            </Typography>
+          </Box>
+
+          <SelectedFilterChip
+            label="Platform"
+            value={drawerFilters.Platform}
+            color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Brand"
+            value={drawerFilters.Brand}
+            color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Format"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Date"
+            value={range}
+          />
+
+          {/* Clear All Drawer Filters */}
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+            <Button
+              size="small"
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              sx={{
+                ml: 'auto',
+                fontSize: '11px',
+                textTransform: 'none',
+                color: '#ef4444',
+                '&:hover': { backgroundColor: '#fef2f2' }
+              }}
+            >
+              Clear Drawer Filters
+            </Button>
+          )}
         </Box>
 
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <Box display="flex" flexDirection="column" gap={1.5}>
               {/* Title */}
-              <Typography variant="h6" fontWeight={600}>
+              <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
                 {selectedColumn || "KPI Trends"}
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1}>
-                {/* CLICKABLE LABEL (now only toggles open/close) */}
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                 <Select
                   size="small"
                   value={allTrendMeta.context.audience}
                   onChange={(e) => {
+                    const newAudience = e.target.value;
                     allSetTrendMeta((prev) => ({
                       ...prev,
-                      context: { ...prev.context, audience: e.target.value },
+                      context: { ...prev.context, audience: newAudience },
                     }));
-                    setShowPlatformPills(true); // always show pills after changing mode
+
+                    // Reset selected value when audience switches to ensure valid selection
+                    let options = [];
+                    if (newAudience === "Platform") options = filterOptions.platforms;
+                    else if (newAudience === "Format") options = filterOptions.formats;
+                    else if (newAudience === "City") options = filterOptions.cities;
+                    else if (newAudience === "Brand") options = filterOptions.brands;
+
+                    if (options.length > 0) {
+                      const firstOption = options[0];
+                      setSelectedPlatform(firstOption);
+
+                      // Sync with drawerFilters
+                      setDrawerFilters(prev => ({
+                        ...prev,
+                        [newAudience]: firstOption
+                      }));
+                    }
+
+                    setShowPlatformPills(true);
                   }}
                   sx={{
-                    width: 160,
+                    width: { xs: "100%", sm: 160 },
                     height: 38,
                     backgroundColor: "#F8FAFC",
                     borderRadius: "8px",
@@ -1045,7 +1189,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                     display="flex"
                     gap={0.5}
                     sx={{
-                      maxWidth: '500px',
+                      maxWidth: { xs: '100%', md: '500px' },
                       overflowX: 'auto',
                       overflowY: 'hidden',
                       flexWrap: 'nowrap',
@@ -1073,6 +1217,12 @@ export default function VisibilityTrendsCompetitionDrawer({
                         key={p}
                         onClick={() => {
                           setSelectedPlatform(p);
+                          // Sync with drawerFilters
+                          const audience = allTrendMeta.context.audience;
+                          setDrawerFilters(prev => ({
+                            ...prev,
+                            [audience]: p
+                          }));
                         }}
                         sx={{
                           px: 1.5,
@@ -1130,19 +1280,17 @@ export default function VisibilityTrendsCompetitionDrawer({
                 borderRadius: 3,
                 border: "1px solid #E5E7EB",
                 mt: 1,
-                p: 2.5,
+                p: { xs: 1.5, md: 2.5 },
               }}
             >
               {/* Metric Row */}
               <Box
                 display="flex"
-                alignItems="center"
-                justifyContent="space-between"
+                flexDirection="column"
                 gap={2}
-                flexWrap="wrap"
                 mb={2}
               >
-                <Box display="flex" gap={1} flexWrap="wrap">
+                <Box display="flex" gap={1.5} flexWrap="wrap">
                   {trendMeta.metrics.map((m) => (
                     <MetricChip
                       key={m.id}
@@ -1160,18 +1308,28 @@ export default function VisibilityTrendsCompetitionDrawer({
                   ))}
                 </Box>
 
-                <Button
-                  size="small"
-                  endIcon={<ChevronDown size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB",
-                  }}
-                  variant="outlined"
-                >
-                  +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                </Button>
+                <Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    endIcon={<ChevronDown size={14} />}
+                    sx={{
+                      textTransform: "none",
+                      borderRadius: "999px",
+                      borderColor: "#E2E8F0",
+                      color: "#3b82f6",
+                      backgroundColor: "#eff6ff",
+                      fontSize: "0.75rem",
+                      px: 2,
+                      "&:hover": {
+                        borderColor: "#3b82f6",
+                        backgroundColor: "#dbeafe",
+                      }
+                    }}
+                  >
+                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
+                  </Button>
+                </Box>
               </Box>
 
               {/* Chart */}
@@ -1199,7 +1357,7 @@ export default function VisibilityTrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <VisibilityKpiTrendShowcase competitionData={competitionData} loading={competitionLoading} />}
+        {view === "Competition" && <VisibilityPlatformOverviewKpiShowcase selectedPlatform={selectedColumn || selectedPlatform || 'All'} period={range === "Custom" ? "1M" : range} timeStep={timeStep} />}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
@@ -1210,19 +1368,26 @@ export default function VisibilityTrendsCompetitionDrawer({
               </Typography>
             </Box>
 
-            {/* Range + Timestep */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            {/* RANGE + TIMESTEP */}
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              gap={2}
+              flexWrap="wrap"
+            >
               <PillToggleGroup
                 value={range}
                 onChange={setRange}
-                options={compareMeta.rangeOptions}
+                options={trendMeta.rangeOptions}
               />
-              <Box display="flex" alignItems="center" gap={1}>
+
+              <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
                 <PillToggleGroup
                   value={timeStep}
                   onChange={setTimeStep}
-                  options={compareMeta.timeSteps}
+                  options={trendMeta.timeSteps}
                 />
               </Box>
             </Box>
