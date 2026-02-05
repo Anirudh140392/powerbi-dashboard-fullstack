@@ -711,61 +711,211 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [localMatrixData, setLocalMatrixData] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
 
+  // Create a stable key for global data to detect actual content changes
+  const globalDataKey = React.useMemo(() => {
+    if (!data) return '';
+    const filterKey = `${filters?.platform || ''}_${filters?.brand || ''}_${filters?.location || ''}_${filters?.startDate || ''}_${filters?.endDate || ''}`;
+    return `${data.columns?.length || 0}_${data.rows?.length || 0}_${data.rows?.[0]?.kpi || ''}_${filterKey}`;
+  }, [data, filters]);
+
+  // Reset local state when switching tabs (title changes) or global filters change (verified by globalDataKey)
+  React.useEffect(() => {
+    console.log('[CityKpiTrendShowcase] Resetting local matrix state due to title or global data change');
+    setLocalMatrixData(null);
+    setAppliedFilters({
+      platform: [],
+      format: [],
+      city: [],
+      kpi: [],
+      date: [],
+      month: [],
+      zone: [],
+      pincode: [],
+      metroFlag: []
+    });
+  }, [title, globalDataKey]);
+
   // Use local data when available (after internal filter applied), otherwise use prop data
   const activeData = localMatrixData || data;
   const { columns, rows } = activeData;
 
-  // Refetch matrix data locally when internal filters are applied (Date/Month only)
-  const refetchLocalMatrixData = async (appliedFilters, viewMode = 'Platform') => {
+
+  // Refetch matrix data locally when internal filters are applied
+  const refetchLocalMatrixData = async (targetFilters, viewMode = 'Platform') => {
     try {
       setLocalLoading(true);
 
-      // Build query params from applied filters
-      let startDate, endDate;
+      const params = new URLSearchParams();
+      params.append('viewMode', viewMode);
 
-      // Priority 1: Specific Date selection
-      if (appliedFilters.date?.[0] && appliedFilters.date[0] !== 'all') {
-        startDate = appliedFilters.date[0];
-        endDate = appliedFilters.date[0];
+      // 1. Handle dates from appliedFilters (priority) or global filters
+      let startDate = filters?.startDate;
+      let endDate = filters?.endDate;
+
+      if (targetFilters.date?.length > 0 && !targetFilters.date.includes('all') && !targetFilters.date.includes('All')) {
+        const sortedDates = [...targetFilters.date].sort();
+        startDate = sortedDates[0];
+        endDate = sortedDates[sortedDates.length - 1];
+      } else if (targetFilters.month?.length > 0 && !targetFilters.month.includes('all') && !targetFilters.month.includes('All')) {
+        const sortedMonths = [...targetFilters.month].sort();
+        const startMonth = sortedMonths[0];
+        const endMonth = sortedMonths[sortedMonths.length - 1];
+
+        const [sYear, sMonth] = startMonth.split('-');
+        const [eYear, eMonth] = endMonth.split('-');
+
+        startDate = dayjs(`${sYear}-${sMonth}-01`).format('YYYY-MM-DD');
+        endDate = dayjs(`${eYear}-${eMonth}-01`).endOf('month').format('YYYY-MM-DD');
       }
-      // Priority 2: Month selection
-      else if (appliedFilters.month?.[0] && appliedFilters.month[0] !== 'all') {
-        const [year, month] = appliedFilters.month[0].split('-');
-        const start = dayjs(`${year}-${month}-01`);
-        const end = start.endOf('month');
-        startDate = start.format('YYYY-MM-DD');
-        endDate = end.format('YYYY-MM-DD');
+
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+
+      // 2. Map applied filters to query params
+      const filterMapping = {
+        platform: 'platform',
+        city: 'location',
+        location: 'location',
+        format: 'format',
+        formats: 'format',
+        category: 'category',
+        categories: 'category',
+        zone: 'zones',
+        metroFlag: 'metroFlags',
+        pincode: 'pincodes',
+        brand: 'brand'
+      };
+
+      Object.entries(targetFilters).forEach(([key, values]) => {
+        const queryKey = filterMapping[key];
+        if (queryKey && Array.isArray(values) && values.length > 0) {
+          const hasAll = values.includes('all') || values.includes('All');
+          if (!hasAll) {
+            values.forEach(v => {
+              if (v !== undefined && v !== null && v !== '') params.append(queryKey, v);
+            });
+          }
+        }
+      });
+
+      // 3. Add base global filters if not overridden by applied filters
+      const globalFilterMapping = {
+        platform: 'platform',
+        brand: 'brand',
+        location: 'location',
+        zones: 'zones',
+        metroFlags: 'metroFlags',
+        pincodes: 'pincodes',
+        formats: 'formats',
+        categories: 'categories',
+        dates: 'dates',
+        months: 'months'
+      };
+
+      Object.entries(filters || {}).forEach(([key, value]) => {
+        const queryKey = globalFilterMapping[key] || key;
+        // Only add global filter if it's NOT already in params (meaning local overrode it)
+        if (!params.has(queryKey) && value !== undefined && value !== null && value !== 'All' && value !== '') {
+          if (Array.isArray(value)) {
+            value.forEach(v => {
+              if (v !== 'all' && v !== 'All') params.append(queryKey, v);
+            });
+          } else {
+            params.append(queryKey, value);
+          }
+        }
+      });
+
+      // Fallback defaults
+      if (!params.has('platform')) params.append('platform', 'All');
+      if (!params.has('brand')) params.append('brand', 'All');
+      if (!params.has('location')) params.append('location', 'All');
+
+      const queryParams = params.toString();
+
+      console.log('[LocalMatrixRefetch] Fetching with params:', queryParams, 'dynamicKey:', dynamicKey);
+
+      // Use correct API endpoint based on dynamicKey (availability vs visibility)
+      // Path should be relative to axiosInstance baseURL ('/api')
+      const apiEndpoint = dynamicKey === 'visibility'
+        ? `/visibility-analysis/platform-kpi-matrix`
+        : `/availability-analysis/absolute-osa/platform-kpi-matrix`;
+
+      const response = await axiosInstance.get(`${apiEndpoint}?${queryParams}`);
+      const rawData = response.data;
+
+      console.log('[LocalMatrixRefetch] Raw Response:', rawData);
+
+      // Determine the actual data to use based on API response structure
+      // Availability API returns flat: { columns, rows }
+      // Visibility API returns nested: { platformData, formatData, cityData }
+      let dataToTransform = rawData;
+
+      if (dynamicKey === 'visibility') {
+        // For visibility, extract the correct nested data based on viewMode/title
+        const viewModeKey = viewMode.toLowerCase();  // 'platform', 'format', or 'city'
+        if (viewModeKey === 'platform' && rawData.platformData) {
+          dataToTransform = rawData.platformData;
+        } else if (viewModeKey === 'format' && rawData.formatData) {
+          dataToTransform = rawData.formatData;
+        } else if (viewModeKey === 'city' && rawData.cityData) {
+          dataToTransform = rawData.cityData;
+        }
+        console.log('[LocalMatrixRefetch] Visibility - extracted', viewModeKey, 'data');
       }
-      // Fallback to global filters
-      else if (filters) {
-        startDate = filters.startDate;
-        endDate = filters.endDate;
+
+      // Transform API response to match expected component format
+      // (Same transformation as transformApiData in TabbedHeatmapTable)
+      if (dataToTransform && dataToTransform.columns && dataToTransform.rows) {
+        const cols = dataToTransform.columns.filter(c => c !== 'KPI' && c !== 'kpi');
+
+        // Helper: generate sparkline series from current value and trend
+        const generateSeries = (value, trend, pointCount = 4) => {
+          if (value === undefined || value === null || value === 'Coming Soon') {
+            return [];
+          }
+          const numValue = typeof value === 'number' ? value : parseFloat(value);
+          const numTrend = typeof trend === 'number' ? trend : 0;
+
+          if (isNaN(numValue)) return [];
+
+          const points = [];
+          const prevValue = numValue - numTrend;
+          for (let i = 0; i < pointCount; i++) {
+            const progress = i / (pointCount - 1);
+            points.push(Math.round(prevValue + (numValue - prevValue) * progress));
+          }
+          return points;
+        };
+
+        const transformedRows = dataToTransform.rows.map(row => {
+          const series = {};
+          cols.forEach(col => {
+            series[col] = generateSeries(row[col], row.trend?.[col]);
+          });
+
+          return {
+            kpi: row.kpi,
+            ...Object.fromEntries(cols.map(col => [col, row[col]])),
+            trend: row.trend || {},
+            series: row.series || series,
+          };
+        });
+
+        const transformedData = {
+          columns: ['kpi', ...cols],
+          rows: transformedRows,
+          viewMode: dataToTransform.viewMode || viewMode
+        };
+
+        console.log('[LocalMatrixRefetch] Transformed columns:', transformedData.columns);
+        console.log('[LocalMatrixRefetch] Transformed rows:', transformedData.rows.map(r => r.kpi));
+        setLocalMatrixData(transformedData);
+      } else {
+        console.error('[LocalMatrixRefetch] Invalid response structure:', dataToTransform);
+        setLocalMatrixData(null);
       }
 
-      const platform = appliedFilters.platform?.[0] && appliedFilters.platform[0] !== 'all'
-        ? appliedFilters.platform[0]
-        : (filters?.platform || 'All');
-
-      const location = appliedFilters.city?.[0] && appliedFilters.city[0] !== 'all'
-        ? appliedFilters.city[0]
-        : (filters?.location || 'All');
-
-      const queryParams = new URLSearchParams({
-        viewMode,
-        platform,
-        brand: filters?.brand || 'All',
-        location,
-        startDate: startDate || dayjs().startOf('month').format('YYYY-MM-DD'),
-        endDate: endDate || dayjs().format('YYYY-MM-DD')
-      }).toString();
-
-      console.log('[LocalMatrixRefetch] Fetching with params:', queryParams);
-
-      const response = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${queryParams}`);
-      const newData = await response.json();
-
-      console.log('[LocalMatrixRefetch] Response:', newData);
-      setLocalMatrixData(newData);
     } catch (error) {
       console.error('[LocalMatrixRefetch] Error:', error);
     } finally {
@@ -1116,8 +1266,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     <Card className={`border-slate-200 bg-white shadow-sm ${showPagination ? 'pb-0' : ''}`}>
 
       {/* ------------------ HEADER (City Style) ------------------ */}
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+      <CardHeader className="p-4 pb-2 md:p-6 md:pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
           <div>
             <CardTitle className="text-base text-slate-900">
               {title} KPI Matrix
@@ -1129,7 +1279,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           </div>
 
           {/* City-style Heatmap Legend */}
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
             {/* KpiFilterPanel Integration */}
             <button
               onClick={() => {
@@ -1141,7 +1291,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Filters</span>
             </button>
-            <div className="h-4 w-px bg-slate-200 mx-1"></div>
+            <div className="hidden sm:block h-4 w-px bg-slate-200 mx-1"></div>
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               <span className="ml-2 text-slate-700">Healthy</span>
@@ -1160,8 +1310,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {showFilterPanel && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -1207,9 +1357,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                   setAppliedFilters(tentativeFilters);
                   setShowFilterPanel(false);
 
-                  // Refetch matrix data locally (do NOT update global state)
-                  // This ensures only the Platform KPI Matrix segment updates
-                  refetchLocalMatrixData(tentativeFilters, data?.viewMode || 'Platform');
+                  // Use title prop as viewMode since it correctly reflects the current tab (Platform, Format, or City)
+                  refetchLocalMatrixData(tentativeFilters, title);
                 }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >
@@ -1221,7 +1370,16 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       )}
 
       {/* ------------------ BODY ------------------ */}
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 relative">
+        {/* Local Loading Overlay */}
+        {localLoading && (
+          <div className="absolute inset-x-6 inset-y-0 z-30 flex items-center justify-center bg-white/60 backdrop-blur-[1px] rounded-xl">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
+              <span className="text-xs font-medium text-slate-600">Updating matrix...</span>
+            </div>
+          </div>
+        )}
         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60 transition-all hover:bg-slate-50/80">
           <div className="w-max min-w-full">
 
@@ -1274,7 +1432,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                       <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
                                        text-xs font-bold text-slate-900 border-b border-slate-100 
                                        shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                        {row.kpi.toUpperCase()}
+                        {row.kpi}
                       </td>
 
                       {isComingSoon ? (
@@ -1403,6 +1561,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
+          initialAudience={title}
         />
       )
       }

@@ -11,9 +11,7 @@ import redisClient from "./config/redis.js";
 import cacheRoutes from "./routes/cache.js";
 import "./models/associations.js";
 
-// ===== PERFORMANCE OPTIMIZATION: Suppress console.log in production =====
-// This dramatically improves performance by eliminating I/O overhead from debug logs
-// Set ENABLE_DEBUG_LOGS=true in .env to re-enable logs if needed
+// Set ENABLE_DEBUG_LOGS=true in .env to enable logs (default is suppressed in production)
 if (process.env.ENABLE_DEBUG_LOGS == 'true') {
     // Store original console methods
     const originalLog = console.log;
@@ -35,7 +33,7 @@ if (process.env.ENABLE_DEBUG_LOGS == 'true') {
     // console.error remains unchanged
 
     // Optional: Log once that debug mode is disabled
-    console.error('[Performance Mode] Debug logging disabled. Set ENABLE_DEBUG_LOGS=true to enable.');
+    console.error('[Performance Mode] Debug logging suppressed. Set ENABLE_DEBUG_LOGS=true to enable.');
 }
 // =========================================================================
 

@@ -484,92 +484,47 @@ function PremiumCard({
 // ---------------------------
 function Lane({ title, subtitle, hint, children, laneRef }) {
   return (
-    <div
-      style={{
-        padding: "18px 18px 8px 18px", // Reduced bottom padding since scrollbar will take space
-        borderRadius: 26,
-        border: "1px solid rgba(15,23,42,0.10)",
-        background: "rgba(255,255,255,0.82)",
-        boxShadow: "0 30px 70px -55px rgba(15,23,42,0.40)",
-        backdropFilter: "blur(10px)",
-      }}
-    >
+    <div className="relative p-4 sm:p-6 rounded-[2.5rem] border border-slate-200/60 bg-white/80 shadow-[0_30px_70px_-55px_rgba(15,23,42,0.3)] backdrop-blur-xl overflow-hidden">
       <style>{`
         .lane-scroll {
           scrollbar-width: thin;
-          scrollbar-color: rgba(79, 70, 229, 0.4) rgba(15, 23, 42, 0.03);
+          scrollbar-color: rgba(79, 70, 229, 0.3) rgba(15, 23, 42, 0.02);
         }
         .lane-scroll::-webkit-scrollbar {
-          height: 8px; /* Slightly thicker */
+          height: 6px;
         }
         .lane-scroll::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.03);
+          background: rgba(15, 23, 42, 0.02);
           border-radius: 10px;
         }
         .lane-scroll::-webkit-scrollbar-thumb {
-          background: rgba(79, 70, 229, 0.4);
+          background: rgba(79, 70, 229, 0.3);
           border-radius: 10px;
-          border: 2px solid transparent;
+          border: 1px solid transparent;
           background-clip: content-box;
         }
         .lane-scroll::-webkit-scrollbar-thumb:hover {
-          background: rgba(79, 70, 229, 0.7);
-          background-clip: content-box;
+          background: rgba(79, 70, 229, 0.6);
         }
       `}</style>
+
       <LaneHeader
         title={title}
         subtitle={subtitle}
-        right={<div style={{ fontSize: 12.5, fontWeight: 850, color: "#64748b" }}>{hint}</div>}
+        right={<div className="text-[11px] sm:text-[12px] font-black text-slate-400 tracking-wider hidden sm:block">{hint}</div>}
       />
 
       <div
         ref={laneRef}
-        className="lane-scroll"
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: 14,
-          overflowX: "scroll",
-          paddingBottom: 18, // Space for scrollbar
-          paddingTop: 12,
-          paddingLeft: 4,
-          paddingRight: 4,
-        }}
+        className="lane-scroll flex items-start gap-4 sm:gap-6 overflow-x-auto pb-5 pt-3 sm:px-2 scroll-smooth no-scrollbar sm:custom-scrollbar"
       >
         {children}
       </div>
 
-      {/* Edge fade */}
-      <div
-        style={{
-          position: "relative",
-          marginTop: -10,
-          height: 0,
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            top: -120, // Moved up to avoid scrollbar
-            width: 46,
-            height: 100,
-            background: "linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0))",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: -120, // Moved up to avoid scrollbar
-            width: 46,
-            height: 100,
-            background: "linear-gradient(270deg, rgba(255,255,255,1), rgba(255,255,255,0))",
-            pointerEvents: "none",
-          }}
-        />
+      {/* Edge fades for desktop */}
+      <div className="hidden sm:block pointer-events-none">
+        <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-white/60 to-transparent z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white/60 to-transparent z-10" />
       </div>
     </div>
   );
@@ -581,7 +536,6 @@ function Lane({ title, subtitle, hint, children, laneRef }) {
 export default function RcaCardTable() {
   const [selectedCatId, setSelectedCatId] = useState(DATA[0].id);
   const [selectedCityId, setSelectedCityId] = useState(null);
-
   const [expanded, setExpanded] = useState({});
 
   const cat = useMemo(() => DATA.find((x) => x.id === selectedCatId) || DATA[0], [selectedCatId]);
@@ -593,10 +547,6 @@ export default function RcaCardTable() {
   const cityLaneRef = useRef(null);
   const skuLaneRef = useRef(null);
 
-  useSlowHScroll(catLaneRef);
-  useSlowHScroll(cityLaneRef);
-  useSlowHScroll(skuLaneRef);
-
   const toggleExpand = (key) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
   const reset = () => {
@@ -605,81 +555,74 @@ export default function RcaCardTable() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100%",
-        background: "#f8fafc",
-        padding: "28px 0", // Vertical padding only, horizontal handled by containers
-        fontFamily: "Inter, ui-sans-serif, system-ui",
-        overflowX: "hidden",
-        overflowY: "auto",
-      }}
-    >
-      {/* Top header */}
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 1480,
-          margin: "0 auto",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 16,
-          padding: "0 18px",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: "0.18em", textTransform: "uppercase", color: "#64748b" }}>
-            RCA Drill | Horizontal lanes
+    <div className="min-h-screen w-full bg-[#fcfdfe] py-6 sm:py-10 font-sans overflow-x-hidden overflow-y-auto">
+      {/* Top Header Section */}
+      <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-8 sm:mb-12">
+        <div className="animate-in fade-in slide-in-from-left-4 duration-500">
+          <div className="text-[10px] sm:text-[11px] font-black tracking-[0.2em] uppercase text-indigo-400 mb-1.5">
+            RCA Drill | Horizontal Analysis
           </div>
-          <div style={{ marginTop: 6, fontSize: 26, fontWeight: 1050, color: "#0f172a", letterSpacing: "-0.03em" }}>
-            Category → City → SKU
-          </div>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none">
+            Category <span className="text-indigo-600">→</span> City <span className="text-indigo-600">→</span> SKU
+          </h1>
         </div>
 
-        <Breadcrumb category={cat} city={city} onReset={reset} />
+        <div className="animate-in fade-in slide-in-from-right-4 duration-500 delay-150">
+          <Breadcrumb category={cat} city={city} onReset={reset} />
+        </div>
       </div>
 
-      <div style={{ width: "100%", maxWidth: 1480, margin: "0 auto", display: "grid", gap: 14, padding: "0 18px" }}>
+      {/* Main Content Areas - Lanes */}
+      <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-8 grid grid-cols-1 gap-10 sm:gap-14">
         {/* CATEGORY LANE */}
-        <Lane
-          title="Categories"
-          subtitle="Lane 1"
-          hint="Scroll slowly (wheel) →"
-          laneRef={catLaneRef}
-        >
-          {DATA.map((c) => {
-            const key = `cat:${c.id}`;
-            const selected = selectedCatId === c.id;
-            return (
-              <PremiumCard
-                key={c.id}
-                kind="category"
-                title={c.name}
-                sub="Category"
-                accent="indigo"
-                selected={selected}
-                disabled={false}
-                kpis={c.kpis}
-                expanded={!!expanded[key]}
-                onToggleExpand={() => toggleExpand(key)}
-                onClick={() => {
-                  setSelectedCatId(c.id);
-                  setSelectedCityId(null);
-                }}
-                footerLeft={`${fmtNum(c.cities.length)} cities`}
-                footerRight="Double-click card for trends (demo)"
-              />
-            );
-          })}
-        </Lane>
+        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-300">
+          <Lane
+            title="Categories"
+            subtitle="Step 1"
+            hint="Select a category to drill down"
+            laneRef={catLaneRef}
+          >
+            {DATA.map((c) => {
+              const key = `cat:${c.id}`;
+              const selected = selectedCatId === c.id;
+              return (
+                <PremiumCard
+                  key={c.id}
+                  kind="category"
+                  title={c.name}
+                  sub="Category"
+                  accent="indigo"
+                  selected={selected}
+                  disabled={false}
+                  kpis={c.kpis}
+                  expanded={!!expanded[key]}
+                  onToggleExpand={() => toggleExpand(key)}
+                  onClick={() => {
+                    setSelectedCatId(c.id);
+                    setSelectedCityId(null);
+                  }}
+                  footerLeft={`${fmtNum(c.cities.length)} cities available`}
+                  footerRight="Expansion shows localized performance"
+                />
+              );
+            })}
+          </Lane>
+        </div>
 
         {/* CITY LANE */}
         <AnimatePresence mode="popLayout">
-          <motion.div key={selectedCatId} {...fadeUp} transition={spring}>
-            <Lane title="Cities" subtitle="Lane 2" hint={cat ? `Filtered by: ${cat.name}` : "Select a category"} laneRef={cityLaneRef}>
+          <motion.div
+            key={selectedCatId}
+            {...fadeUp}
+            transition={spring}
+            className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-400"
+          >
+            <Lane
+              title="Cities"
+              subtitle="Step 2"
+              hint={cat ? `Performance for ${cat.name}` : "Please select a category first"}
+              laneRef={cityLaneRef}
+            >
               {cities.map((c) => {
                 const key = `city:${selectedCatId}:${c.id}`;
                 const selected = selectedCityId === c.id;
@@ -696,75 +639,70 @@ export default function RcaCardTable() {
                     expanded={!!expanded[key]}
                     onToggleExpand={() => toggleExpand(key)}
                     onClick={() => setSelectedCityId(c.id)}
-                    footerLeft={`${fmtNum(c.skus.length)} skus`}
-                    footerRight="Top SKUs are below"
+                    footerLeft={`${fmtNum(c.skus.length)} skus detected`}
+                    footerRight="Reviewing city-level distribution"
                   />
                 );
               })}
 
-              {/* If no city selected show a helper card */}
-              {!cities.length ? (
-                <div style={{ padding: 18, fontSize: 14, fontWeight: 900, color: "#64748b" }}>No cities</div>
-              ) : null}
+              {!cities.length && (
+                <div className="flex items-center justify-center min-w-[300px] h-[200px] text-slate-400 font-bold italic">
+                  No cities found for this category.
+                </div>
+              )}
             </Lane>
           </motion.div>
         </AnimatePresence>
 
         {/* SKU LANE */}
         <AnimatePresence mode="popLayout">
-          <motion.div key={selectedCityId || "none"} {...fadeUp} transition={spring}>
+          <motion.div
+            key={selectedCityId || "none"}
+            {...fadeUp}
+            transition={spring}
+            className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-500"
+          >
             <Lane
               title="SKUs"
-              subtitle="Lane 3"
-              hint={city ? `Filtered by: ${cat?.name} • ${city?.name}` : "Select a city"}
+              subtitle="Step 3"
+              hint={city ? `SKUs in ${city?.name}` : "Select a city to view top SKUs"}
               laneRef={skuLaneRef}
             >
-              {skus.map((s) => {
-                const key = `sku:${selectedCatId}:${selectedCityId}:${s.id}`;
-                return (
-                  <PremiumCard
-                    key={s.id}
-                    kind="sku"
-                    title={s.name}
-                    sub={`SKU • ${city?.name || ""}`}
-                    accent="cyan"
-                    selected={false}
-                    disabled={!city}
-                    kpis={s.kpis}
-                    expanded={!!expanded[key]}
-                    onToggleExpand={() => toggleExpand(key)}
-                    onClick={() => { }}
-                    footerLeft={`⭐ ${s.meta.rating} • ${s.meta.reviews} reviews`}
-                    footerRight="Tap for SKU details"
-                  />
-                );
-              })}
-
-              {!city ? (
-                <div
-                  style={{
-                    minWidth: 360,
-                    borderRadius: 26,
-                    border: "1px dashed rgba(15,23,42,0.18)",
-                    background: "rgba(255,255,255,0.7)",
-                    padding: 18,
-                    color: "#64748b",
-                    fontWeight: 950,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  Select a city to load SKUs
+              {city ? (
+                skus.map((s) => {
+                  const key = `sku:${selectedCatId}:${selectedCityId}:${s.id}`;
+                  return (
+                    <PremiumCard
+                      key={s.id}
+                      kind="sku"
+                      title={s.name}
+                      sub={`SKU Detail`}
+                      accent="cyan"
+                      selected={false}
+                      disabled={false}
+                      kpis={s.kpis}
+                      expanded={!!expanded[key]}
+                      onToggleExpand={() => toggleExpand(key)}
+                      onClick={() => { }}
+                      footerLeft={`⭐ ${s.meta.rating} • ${s.meta.reviews} reviews`}
+                      footerRight="SKU-specific RCA insights"
+                    />
+                  );
+                })
+              ) : (
+                <div className="flex-1 min-h-[160px] min-w-full flex items-center justify-center border-2 border-dashed border-slate-100 rounded-[2.5rem] bg-slate-50/30 text-slate-300 font-black uppercase tracking-widest text-sm">
+                  Select a city above to load deep-dive data
                 </div>
-              ) : null}
+              )}
             </Lane>
           </motion.div>
         </AnimatePresence>
 
-        {/* Footer hint */}
-        <div style={{ marginTop: 4, fontSize: 12.5, fontWeight: 850, color: "#64748b" }}>
-          UX detail: wheel scrolling inside each lane moves horizontally and is slowed down. Cards keep names large and readable.
+        {/* Page Footer Info */}
+        <div className="text-center pb-10">
+          <p className="text-[11px] font-black text-slate-300 uppercase tracking-[0.2em]">
+            Analysis complete • Data refreshed 2 mins ago
+          </p>
         </div>
       </div>
     </div>

@@ -7,7 +7,7 @@ dayjs.extend(weekOfYear);
 
 /**
  * Performance Marketing Service
- * specialized for fetching Performance Overview metrics from tb_zepto_pm_keyword_rca
+ * specialized for fetching Performance Overview metrics from tb_pm_keyword_rca
  */
 const performanceMarketingService = {
 
@@ -18,7 +18,7 @@ const performanceMarketingService = {
                 const targetCategories = ['bath & body', 'detergent', 'fragrance & talc', 'hair care'];
                 const query = `
                     SELECT DISTINCT keyword_category as category 
-                    FROM tb_zepto_pm_keyword_rca 
+                    FROM tb_pm_keyword_rca 
                     WHERE lower(keyword_category) IN (${targetCategories.map(c => `'${c}'`).join(',')})
                     ORDER BY category
                 `;
@@ -34,7 +34,7 @@ const performanceMarketingService = {
     /**
      * Get Keyword Analysis Data
      * Hierarchy: Keyword -> Category
-     * Data source: tb_zepto_pm_keyword_rca
+     * Data source: tb_pm_keyword_rca
      */
     async getKeywordAnalysis(filters) {
         console.log("🔍 [Service] getKeywordAnalysis filters:", filters);
@@ -91,7 +91,7 @@ const performanceMarketingService = {
                         SUM(revenue) as revenue, 
                         SUM(clicks) as clicks, 
                         SUM(orders) as orders 
-                    FROM tb_zepto_pm_keyword_rca 
+                    FROM tb_pm_keyword_rca 
                     WHERE ${whereSql}
                     GROUP BY keyword_name, keyword_category, month
                 `;
@@ -173,7 +173,7 @@ const performanceMarketingService = {
 
     /**
      * Get KPIs Overview (Impressions, Spend, ROAS, Conversion)
-     * Data source: tb_zepto_pm_keyword_rca
+     * Data source: tb_pm_keyword_rca
      * @param {Object} filters 
      */
     async getKpisOverview(filters) {
@@ -242,7 +242,7 @@ const performanceMarketingService = {
                             SUM(revenue) as ad_sales,
                             SUM(clicks) as clicks,
                             SUM(orders) as orders
-                        FROM tb_zepto_pm_keyword_rca
+                        FROM tb_pm_keyword_rca
                         WHERE ${whereSql}
                     `;
 
@@ -273,7 +273,7 @@ const performanceMarketingService = {
                             SUM(revenue) as ad_sales,
                             SUM(clicks) as clicks,
                             SUM(orders) as orders
-                        FROM tb_zepto_pm_keyword_rca
+                        FROM tb_pm_keyword_rca
                         WHERE ${whereSql}
                         GROUP BY date
                         ORDER BY date ASC
@@ -400,7 +400,7 @@ const performanceMarketingService = {
 
     /**
      * Get Daily Format Performance (keyword_category > Date)
-     * For HeatmapDrillTable - uses tb_zepto_pm_keyword_rca
+     * For HeatmapDrillTable - uses tb_pm_keyword_rca
      */
     async getFormatPerformance(filters) {
         console.log("🔍 [Service] getFormatPerformance filters:", filters);
@@ -478,7 +478,7 @@ const performanceMarketingService = {
                         SUM(orders) as orders,
                         SUM(revenue) as sales,
                         SUM(revenue) as total_sales
-                    FROM tb_zepto_pm_keyword_rca
+                    FROM tb_pm_keyword_rca
                     WHERE ${whereSql}
                     GROUP BY keyword_category, date
                     ORDER BY keyword_category ASC, date ASC
@@ -535,7 +535,7 @@ const performanceMarketingService = {
     ,
 
     /**
-     * Get distinct keywords from tb_zepto_pm_keyword_rca, optionally filtered by category
+     * Get distinct keywords from tb_pm_keyword_rca, optionally filtered by category
      * @param {string} category - Category name to filter keywords (optional)
      */
     getKeywords: async (category) => {
@@ -552,7 +552,7 @@ const performanceMarketingService = {
 
                 const query = `
                     SELECT DISTINCT keyword_name 
-                    FROM tb_zepto_pm_keyword_rca 
+                    FROM tb_pm_keyword_rca 
                     WHERE ${whereConditions.join(' AND ')}
                     ORDER BY keyword_name ASC
                 `;
@@ -566,7 +566,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct zones from tb_zepto_pm_keyword_rca, optionally filtered by brand
+     * Get distinct zones from tb_pm_keyword_rca, optionally filtered by brand
      * @param {string} brand - Brand name to filter zones (optional)
      */
     getZones: async (brand) => {
@@ -583,7 +583,7 @@ const performanceMarketingService = {
 
                 const query = `
                     SELECT DISTINCT zone 
-                    FROM tb_zepto_pm_keyword_rca 
+                    FROM tb_pm_keyword_rca 
                     WHERE ${whereConditions.join(' AND ')}
                     ORDER BY zone ASC
                 `;
@@ -599,7 +599,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct platforms from tb_zepto_pm_keyword_rca for PM page
+     * Get distinct platforms from tb_pm_keyword_rca for PM page
      */
     getPlatforms: async () => {
         const cacheKey = 'pm_platforms';
@@ -608,7 +608,7 @@ const performanceMarketingService = {
                 console.error("🔍 [Service] Fetching PM platforms...");
                 const query = `
                     SELECT DISTINCT Platform 
-                    FROM tb_zepto_pm_keyword_rca 
+                    FROM tb_pm_keyword_rca 
                     WHERE Platform IS NOT NULL
                     ORDER BY Platform ASC
                 `;
@@ -624,7 +624,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct brands from tb_zepto_pm_keyword_rca, optionally filtered by platform
+     * Get distinct brands from tb_pm_keyword_rca, optionally filtered by platform
      * @param {string} platform - Platform to filter by (optional)
      */
     getBrands: async (platform) => {
@@ -641,7 +641,7 @@ const performanceMarketingService = {
 
                 const query = `
                     SELECT DISTINCT brand_name 
-                    FROM tb_zepto_pm_keyword_rca 
+                    FROM tb_pm_keyword_rca 
                     WHERE ${whereConditions.join(' AND ')}
                     ORDER BY brand_name ASC
                 `;
@@ -699,7 +699,7 @@ const performanceMarketingService = {
                 SELECT 
                     acos_spend_class,
                     count(DISTINCT campaign_id) as count
-                FROM tb_zepto_pm_keyword_rca
+                FROM tb_pm_keyword_rca
                 WHERE ${whereConditions.join(' AND ')}
                 GROUP BY acos_spend_class
             `;
@@ -831,7 +831,7 @@ const performanceMarketingService = {
                         SUM(clicks) as clicks,
                         SUM(orders) as orders,
                         SUM(revenue) as revenue
-                    FROM tb_zepto_pm_keyword_rca
+                    FROM tb_pm_keyword_rca
                     WHERE ${whereSql}
                     GROUP BY keyword_type
                     ORDER BY keyword_type ASC
@@ -874,7 +874,7 @@ const performanceMarketingService = {
                     SUM(clicks) as clicks,
                     SUM(orders) as orders,
                     SUM(revenue) as revenue
-                FROM tb_zepto_pm_keyword_rca
+                FROM tb_pm_keyword_rca
                 WHERE ${keywordWhereSql}
                 GROUP BY keyword_type, keyword_name
                 ORDER BY keyword_type ASC, spend DESC
@@ -898,7 +898,7 @@ const performanceMarketingService = {
                     SUM(clicks) as clicks,
                     SUM(orders) as orders,
                     SUM(revenue) as revenue
-                 FROM tb_zepto_pm_keyword_rca
+                 FROM tb_pm_keyword_rca
                  WHERE ${zoneWhereSql}
                  GROUP BY keyword_type, keyword_name, zone
                  ORDER BY keyword_type ASC, keyword_name ASC, spend DESC

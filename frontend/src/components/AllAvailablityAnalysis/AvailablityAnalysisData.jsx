@@ -234,14 +234,17 @@ const TabbedHeatmapTable = ({
   }
 
   return (
-    <div className="relative rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+    <div className="relative rounded-3xl bg-white border shadow p-3 sm:p-5 flex flex-col gap-4">
+      {/* Floating loader overlay */}
+      <FloatingLoader loading={active.loading} label={`Loading ${active.label}...`} />
+
       {/* -------- TABS -------- */}
-      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+      <div className="flex flex-wrap sm:flex-nowrap gap-2 bg-gray-100 border border-slate-300 rounded-2xl sm:rounded-full p-1 w-full sm:w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-1.5 text-sm rounded-full transition-all 
+            className={`px-4 py-1.5 text-sm rounded-full transition-all flex-shrink-0 w-full sm:w-auto
               ${activeTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             {t.label}
@@ -803,12 +806,12 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
 
   return (
     <motion.div
-      className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
+      className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-5 gap-4"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      <div className="md:col-span-2 space-y-3">
+      <div className="lg:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Category performance</h2>
@@ -861,7 +864,7 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
         </div>
       </div>
 
-      <div className="md:col-span-3 relative">
+      <div className="lg:col-span-3 relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={active.name + (compare?.name ?? "")}
@@ -1342,7 +1345,7 @@ export const AvailablityAnalysisData = ({
 
   return (
 
-    <div className="max-w-7xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-5 px-4 sm:px-6">
       <div className="space-y-4">
         {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
@@ -1378,7 +1381,7 @@ export const AvailablityAnalysisData = ({
           <TabbedHeatmapTable
             olaMode={availability}
             apiData={apiData}
-            filters={matrixUnfilteredFilters}
+            filters={filters}
             onFiltersChange={onFiltersChange}
             loading={loading}
           />

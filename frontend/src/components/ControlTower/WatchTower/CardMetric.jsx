@@ -42,45 +42,48 @@ const CardMetric = ({ data, onViewTrends }) => {
         {/* Header */}
         <Box
           display="flex"
+          flexDirection={{ xs: "column", sm: "row" }}
           justifyContent="space-between"
-          alignItems="center"
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          gap={2}
           mb={3}
         >
           <Box display="flex" alignItems="center" gap={1.5}>
             <Box
               sx={{
-                width: 36,
-                height: 36,
+                width: { xs: 30, sm: 36 },
+                height: { xs: 30, sm: 36 },
                 borderRadius: "50%",
                 bgcolor: "primary.main",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
+                fontSize: { xs: "1rem", sm: "1.2rem" },
               }}
             >
               📈
             </Box>
 
-            <Typography variant="h5" fontWeight={600}>
+            <Typography variant="h5" fontWeight={600} sx={{ fontSize: { xs: "1.1rem", sm: "1.5rem" } }}>
               Watchtower Overview
             </Typography>
 
-            <Chip label="All" size="large" variant="outlined" />
+            <Chip label="All" size="small" variant="outlined" />
           </Box>
-
-          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
-        {/* Cards Row */}
+        {/* Cards Grid */}
         <Box
           sx={{
-            display: "flex",
-            gap: 2,
-            overflowX: scrollNeeded ? "auto" : "hidden",
-            pb: 1,
-            px: 1.5,
-            scrollSnapType: scrollNeeded ? "x mandatory" : "none",
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, 1fr)",
+              lg: "repeat(4, 1fr)",
+            },
+            gap: 3,
+            width: "100%",
           }}
         >
           {isLoading
@@ -107,6 +110,7 @@ const CardMetric = ({ data, onViewTrends }) => {
                   color={color}
                   scrollNeeded={scrollNeeded}
                   totalCards={cards.length}
+                  onClick={() => onViewTrends && onViewTrends(card.title)}
                 />
               );
             })
@@ -122,10 +126,9 @@ const SkeletonMetricCard = ({ width = 250 }) => {
   return (
     <Card
       sx={{
-        flexShrink: 0,
-        width: width,
+        height: "100%",
+        width: "100%",
         borderRadius: 3,
-        scrollSnapAlign: "start",
       }}
     >
       <CardContent>
@@ -167,6 +170,7 @@ const MiniChartCard = ({
   color,
   scrollNeeded,
   totalCards,
+  onClick,
 }) => {
   const [hover, setHover] = useState(null);
 
@@ -191,30 +195,31 @@ const MiniChartCard = ({
 
   return (
     <Card
+      onClick={onClick}
       sx={{
-        flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+        cursor: onClick ? "pointer" : "default",
+        width: "100%",
+        height: "100%",
         borderRadius: 3,
-        scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
       }}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary" fontSize={16}>
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 12, sm: 14 } }}>
           {card.title}
         </Typography>
 
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary" fontSize={15}>
+          <Typography component="span" color="text.secondary" sx={{ fontSize: { xs: 12, sm: 14 } }}>
             {card.sub}
           </Typography>
         </Typography>
 
-        <Typography variant="body3" sx={{ color: card.changeColor, mt: 1 }}>
+        <Typography sx={{ color: card.changeColor, mt: 0.5, fontSize: { xs: 12, sm: 13 }, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary" fontSize={15}>
+          <Typography component="span" color="text.secondary" sx={{ fontSize: { xs: 12, sm: 13 } }}>
             {card.prevText}
           </Typography>
         </Typography>

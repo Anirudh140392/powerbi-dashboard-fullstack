@@ -186,6 +186,7 @@ export default function SalesTrendsDrawer({
     platform,
     brand,
     location,
+    category,
 }) {
     // 1. All Hooks at the top
     const [trendData, setTrendData] = useState([]);
@@ -193,7 +194,7 @@ export default function SalesTrendsDrawer({
     const [options, setOptions] = useState({ platforms: [], brands: [], categories: [], locations: [] });
 
     const [selectedPlatform, setSelectedPlatformState] = useState(platform || "All");
-    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [selectedCategory, setSelectedCategory] = useState(category || "All");
     const [selectedBrandState, setSelectedBrandState] = useState(brand || "All");
     const [selectedLocationState, setSelectedLocationState] = useState(location || "All");
     const [filterType, setFilterType] = useState("Platform");
@@ -217,6 +218,7 @@ export default function SalesTrendsDrawer({
     useEffect(() => { if (platform) setSelectedPlatformState(platform); }, [platform]);
     useEffect(() => { if (brand) setSelectedBrandState(brand); }, [brand]);
     useEffect(() => { if (location) setSelectedLocationState(location); }, [location]);
+    useEffect(() => { if (category) setSelectedCategory(category); }, [category]);
 
     useEffect(() => {
         const loadOptions = async () => {
@@ -318,8 +320,32 @@ export default function SalesTrendsDrawer({
             tooltip: { trigger: "axis" },
             xAxis: { type: "category", data: trendPoints.map(p => p.date), boundaryGap: false },
             yAxis: [
-                { type: "value", position: "left", splitLine: { lineStyle: { color: "#F3F4F6" } } },
-                { type: "value", position: "right", splitLine: { show: false } },
+                {
+                    type: "value",
+                    position: "left",
+                    splitLine: { lineStyle: { color: "#F3F4F6" } },
+                    axisLabel: {
+                        formatter: (val) => {
+                            if (val >= 10000000) return (val / 10000000).toFixed(1) + "Cr";
+                            if (val >= 100000) return (val / 100000).toFixed(1) + "L";
+                            if (val >= 1000) return (val / 1000).toFixed(1) + "K";
+                            return val;
+                        }
+                    }
+                },
+                {
+                    type: "value",
+                    position: "right",
+                    splitLine: { show: false },
+                    axisLabel: {
+                        formatter: (val) => {
+                            if (val >= 10000000) return (val / 10000000).toFixed(1) + "Cr";
+                            if (val >= 100000) return (val / 100000).toFixed(1) + "L";
+                            if (val >= 1000) return (val / 1000).toFixed(1) + "K";
+                            return val;
+                        }
+                    }
+                },
             ],
             series: trendMeta.metrics.filter(m => activeMetrics.includes(m.id)).map(m => ({
                 name: m.label, type: "line", smooth: true, symbol: "circle", symbolSize: 6,
@@ -337,8 +363,33 @@ export default function SalesTrendsDrawer({
     if (!open) return null;
 
     return (
-        <Box sx={{ position: "fixed", inset: 0, bgcolor: "rgba(15,23,42,0.32)", display: "flex", justifyContent: "center", alignItems: "flex-start", p: 2, zIndex: 1300, overflow: "auto" }}>
-            <Box sx={{ mt: 4, width: "min(1200px, 100%)", bgcolor: "white", borderRadius: 3, boxShadow: "0 24px 60px rgba(15,23,42,0.35)", p: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box
+            sx={{
+                position: "fixed",
+                inset: 0,
+                bgcolor: "rgba(15,23,42,0.32)",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "flex-start",
+                p: 2,
+                zIndex: 1300,
+                overflow: "auto",
+            }}
+        >
+            <Box
+                sx={{
+                    mt: { xs: 2, md: 4 },
+                    width: "min(1200px, 100%)",
+                    bgcolor: "white",
+                    borderRadius: 3,
+                    boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
+                    p: { xs: 2, md: 3 },
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                }}
+            >
+                {/* Header row */}
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                     <ToggleButtonGroup exclusive value={view} onChange={(_, v) => v && setView(v)} sx={{ backgroundColor: "#F3F4F6", borderRadius: "999px", p: "3px", "& .MuiToggleButton-root": { textTransform: "none", border: "none", borderRadius: "999px", px: 2.5, py: 0.75, "&.Mui-selected": { backgroundColor: "#0F172A", color: "#fff" } } }}>
                         <ToggleButton value="Trends">Trends</ToggleButton>

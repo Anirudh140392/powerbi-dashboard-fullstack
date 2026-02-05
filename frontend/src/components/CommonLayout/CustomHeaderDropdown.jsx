@@ -82,11 +82,12 @@ const CustomHeaderDropdown = ({
         <Box sx={{ width }}>
             <Typography
                 sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    opacity: 0.7,
+                    fontSize: { xs: "0.6rem", sm: "0.65rem" },
+                    fontWeight: 700,
+                    mb: 0.25,
+                    color: "#64748b",
                     textTransform: "uppercase",
+                    letterSpacing: "0.04em",
                 }}
             >
                 {label}
@@ -96,46 +97,50 @@ const CustomHeaderDropdown = ({
             <Box
                 onClick={handleTriggerClick}
                 sx={{
-                    height: "38px",
+                    height: { xs: "30px", sm: "34px" },
                     bgcolor: "white",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     border: "1px solid",
-                    borderColor: open ? "#3B82F6" : "#E2E8F0",
+                    borderColor: open ? "#6366f1" : "#e2e8f0",
                     display: "flex",
                     alignItems: "center",
-                    px: 1.5,
-                    gap: 1,
+                    px: { xs: 1, sm: 1.25 },
+                    gap: 0.5,
                     cursor: "pointer",
-                    transition: "all 0.2s",
-                    "&:hover": { borderColor: "#3B82F6" },
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: open ? "0 0 0 3px rgba(99, 102, 241, 0.1)" : "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
+                    "&:hover": {
+                        borderColor: "#6366f1",
+                        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.08)"
+                    },
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden", gap: 0.5 }}>
                     <Box
                         sx={{
-                            bgcolor: "#f1f5f9",
-                            px: 1,
-                            py: 0.2,
+                            bgcolor: "#f8fafc",
+                            px: { xs: 0.75, sm: 1 },
+                            py: { xs: 0.125, sm: 0.2 },
                             borderRadius: "4px",
-                            border: "1px solid #e2e8f0",
+                            border: "1px solid #e5e7eb",
                         }}
                     >
                         <Typography
                             sx={{
-                                fontSize: "0.85rem",
+                                fontSize: { xs: "0.75rem", sm: "0.8rem" },
                                 fontWeight: 600,
-                                color: "#0f172a",
+                                color: "#1e293b",
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
-                                maxWidth: "120px",
+                                maxWidth: { xs: "80px", sm: "100px" },
                             }}
                         >
                             {displayValue}
                         </Typography>
                     </Box>
                 </Box>
-                {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {open ? <ChevronUp size={14} color="#6366f1" /> : <ChevronDown size={14} color="#64748b" />}
             </Box>
 
             <Popover

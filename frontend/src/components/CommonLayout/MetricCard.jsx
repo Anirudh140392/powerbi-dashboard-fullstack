@@ -68,7 +68,7 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
       <Card
         sx={{
           flexShrink: 0,
-          width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+          width: { xs: "100%", sm: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%` },
           borderRadius: 3,
           scrollSnapAlign: "start",
           transition: "0.25s",
@@ -92,7 +92,7 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
       <Card
         sx={{
           flexShrink: 0,
-          width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+          width: { xs: "100%", sm: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%` },
           borderRadius: 3,
           scrollSnapAlign: "start",
           transition: "0.25s",
@@ -146,7 +146,7 @@ export default function MetricCard({ card, scrollNeeded, totalCards }) {
     <Card
       sx={{
         flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
+        width: { xs: "100%", sm: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%` },
         borderRadius: 3,
         scrollSnapAlign: "start",
         transition: "0.25s",

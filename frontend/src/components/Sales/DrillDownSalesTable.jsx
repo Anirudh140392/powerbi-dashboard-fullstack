@@ -447,22 +447,23 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
 
     return (
         <div className="flex w-full flex-col rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-6 pt-4 pb-2">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between px-4 pt-4 md:px-6 md:pt-4 pb-2">
                 <div>
                     <h1 className="text-lg font-semibold text-slate-900">Sales at a glance</h1>
                     <p className="text-sm text-slate-500">Hierarchical drilldown with daily and cumulative sales metrics.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="h-6 w-px bg-slate-200"></div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full md:w-auto">
                     <button
                         onClick={() => setShowFilterPanel(true)}
-                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors w-full sm:w-auto justify-center"
                     >
                         <SlidersHorizontal className="h-3.5 w-3.5" />
                         <span>Filters</span>
                     </button>
-                    <div className="h-6 w-px bg-slate-200"></div>
-                    <div className="flex items-center gap-2">
+
+                    <div className="hidden sm:block h-6 w-px bg-slate-200"></div>
+
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50/50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                             Healthy
@@ -479,8 +480,8 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-4">
-                <div className="flex items-center justify-between mb-3 px-2">
+            <div className="flex-1 p-2 md:p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-3 px-2">
                     <div className="text-[11px] text-slate-500 font-medium uppercase tracking-tight">
                         Platform → Region → City → Category
                     </div>

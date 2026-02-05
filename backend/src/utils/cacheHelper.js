@@ -62,7 +62,11 @@ export function generateCacheKey(section, filters) {
         monthOverviewPlatform = '',
         categoryOverviewPlatform = '',
         brandsOverviewPlatform = '',
-        brandsOverviewCategory = ''
+        brandsOverviewCategory = '',
+        // New filters for Visibility Analysis
+        zone = '',
+        metroFlag = '',
+        pincode = ''
     } = filters;
 
     // 4. Append secondary filters
@@ -70,7 +74,14 @@ export function generateCacheKey(section, filters) {
     if (viewMode) key += `:vm_${normalize(viewMode)}`;
     if (level) key += `:lv_${normalize(level)}`;
     if (region && region !== 'all') key += `:reg_${normalize(region)}`;
+
+    // Visibility filters
+    if (zone && zone !== 'all' && zone !== 'All') key += `:zn_${normalize(zone)}`;
+    if (metroFlag && metroFlag !== 'all' && metroFlag !== 'All') key += `:mf_${normalize(metroFlag)}`;
+    if (pincode && pincode !== 'all' && pincode !== 'All') key += `:pc_${normalize(pincode)}`;
+
     if (category && category !== 'all') key += `:cat_${normalize(category)}`;
+
     if (type && type !== 'all') key += `:tp_${normalize(type)}`;
     if (filter && filter !== 'all' && filter !== 'All') key += `:flt_${normalize(filter)}`;
     if (signalType) key += `:sig_${normalize(signalType)}`;
@@ -81,9 +92,8 @@ export function generateCacheKey(section, filters) {
     if (limit) key += `:lim_${limit}`;
 
     // Date ranges
-    if (startDate && endDate) {
-        key += `:dt_${startDate}_${endDate}`;
-    }
+    if (startDate) key += `:sd_${startDate}`;
+    if (endDate) key += `:ed_${endDate}`;
     if (compareStartDate && compareEndDate) {
         key += `:comp_${compareStartDate}_${compareEndDate}`;
     }

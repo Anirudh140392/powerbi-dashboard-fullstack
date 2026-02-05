@@ -116,12 +116,12 @@ async function getEcpByBrand(filters = {}) {
                 ) AS ecp,
                 AVG(
                     CASE 
-                        WHEN s.quantity IS NOT NULL 
-                        AND s.quantity != '' 
-                        AND s.quantity != '0' 
-                        AND isFinite(toFloat64(s.quantity))
-                        AND toFloat64(s.quantity) > 0 
-                        THEN toFloat64(s.quantity) 
+                        WHEN s.gram IS NOT NULL 
+                        AND s.gram != '' 
+                        AND s.gram != '0' 
+                        AND isFinite(toFloat64(s.gram))
+                        AND toFloat64(s.gram) > 0 
+                        THEN toFloat64(s.gram) 
                         ELSE NULL 
                     END
                 ) AS avg_gram

@@ -19,6 +19,7 @@ async function diagnose() {
     process.exit(0);
 }
 
+
 diagnose().catch(err => {
     console.error(err);
     process.exit(1);
