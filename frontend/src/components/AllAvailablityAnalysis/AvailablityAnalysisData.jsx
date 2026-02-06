@@ -32,6 +32,7 @@ import {
 import KPIMatrixTable from "./KpiMatrixTable";
 import SkuCompetitorAnalysis from "./SkuCompetitorAnalysis";
 import PricingAnalysis from "./PricingAnalysis";
+import DateWiseDrilldownTable from "./DateWiseDrilldownTable";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1451,7 +1452,7 @@ export const AvailablityAnalysisData = ({
         <KPIMatrixTable />
 
         {/* OSA Detail View - show skeleton if loading, error if failed */}
-        {loading ? (
+        {/* {loading ? (
           <OsaDetailViewSkeleton />
         ) : apiErrors.osaDetail ? (
           <ErrorWithRefresh
@@ -1465,7 +1466,8 @@ export const AvailablityAnalysisData = ({
             filters={pblUnfilteredFilters}
             initialLoading={loading}
           />
-        )}
+        )} */}
+        <DateWiseDrilldownTable />
         {/* <PricingAnalysis /> */}
         {/* <SkuCompetitorAnalysis /> */}
 
