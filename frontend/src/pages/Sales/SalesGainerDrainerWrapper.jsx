@@ -3,7 +3,7 @@ import { SignalLabVisibility } from "../../components/AllVisiblityAnalysis/Signa
 import VisibilityLayoutOne from "../../components/AllVisiblityAnalysis/VisibilityLayoutOne";
 import { motion } from "framer-motion";
 
-export default function SalesGainerDrainerWrapper() {
+export default function SalesGainerDrainerWrapper({ data }) {
     const [activeTab, setActiveTab] = useState("availability");
 
     return (
@@ -39,10 +39,10 @@ export default function SalesGainerDrainerWrapper() {
                 {/* We pass a prop 'noCard' if we want to strip the card from children, or we just rely on the children update */}
                 {activeTab === "visibility" ? (
                     <div className="mt-4">
-                        <VisibilityLayoutOne />
+                        <VisibilityLayoutOne data={data?.visibility} />
                     </div>
                 ) : (
-                    <SignalLabVisibility type={activeTab} />
+                    <SignalLabVisibility type={activeTab} data={data?.[activeTab]} />
                 )}
             </div>
         </div>
