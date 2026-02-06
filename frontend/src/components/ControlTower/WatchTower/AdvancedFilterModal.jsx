@@ -41,8 +41,9 @@ const mockPlatforms = [
 
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
+    { key: 'categorySize', label: 'Category size' },
     { key: 'spend', label: 'Spend' },
-    { key: 'roas', label: 'Category size' },
+    { key: 'roas', label: 'ROAS' },
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'dspSales', label: 'DSP Sales' },
     { key: 'conversion', label: 'Conversion' },
@@ -213,7 +214,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'inorgSales', 'dspSales', 'conversion'],
+        kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'inorgSales', 'dspSales', 'conversion'],
         filterLogic: 'OR',
     })
 
@@ -246,7 +247,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             platforms: [],
             skuName: '',
             skuCode: '',
-            kpis: ['offtakes', 'spend', 'roas', 'inorgSales', 'dspSales', 'conversion'],
+            kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'inorgSales', 'dspSales', 'conversion'],
             filterLogic: 'OR',
         })
     }

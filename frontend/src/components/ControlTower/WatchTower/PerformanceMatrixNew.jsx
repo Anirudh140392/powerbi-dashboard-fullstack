@@ -154,7 +154,7 @@ const PerformanceMatrixNew = ({ data = [], loading = false }) => {
             id: kpi.id,
             title: kpi.label,
             value: kpi.value,
-            prevValue: kpi.tag && kpi.tag.startsWith('+') ? 'Lower' : 'Higher', // Dummy logic for prev value if not provided
+            prevValue: kpi.prevValue || '-',
             delta: parseFloat(kpi.tag) || 0,
             deltaLabel: kpi.tag,
             icon: kpiIconMap[kpi.id] || Zap,

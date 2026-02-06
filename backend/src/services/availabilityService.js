@@ -1187,6 +1187,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                         argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_inv
                     FROM rb_pdp_olap
                     WHERE ${whereClause}
+                      AND Comp_flag = 1
                     GROUP BY Brand, Web_Pid
                 )
                 SELECT 
@@ -1410,6 +1411,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
+                  AND Comp_flag = 1
                 GROUP BY Brand, DATE
                 ORDER BY DATE ASC
             `;

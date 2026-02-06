@@ -120,10 +120,11 @@ function WatchTower() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = React.useState(0);
 
-  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized, refreshFilters } = React.useContext(FilterContext);
+  const { selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized, refreshFilters, selectedChannel } = React.useContext(FilterContext);
 
   const [filters, setFilters] = useState({
     platform: platform || "All",
+    channel: selectedChannel || "Ecommerce",
     months: 6,
     timeStep: "Monthly",
     brand: selectedBrand,
@@ -327,6 +328,7 @@ function WatchTower() {
       const newFilters = {
         ...prev,
         platform: platform || prev.platform,
+        channel: selectedChannel || prev.channel,
         brand: selectedBrand || prev.brand,
         keyword: selectedKeyword || prev.keyword,
         location: selectedLocation || prev.location,
@@ -340,7 +342,7 @@ function WatchTower() {
       const isSame = Object.keys(newFilters).every(key => newFilters[key] === prev[key]);
       return isSame ? prev : newFilters;
     });
-  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized]);
+  }, [selectedBrand, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, datesInitialized, selectedChannel]);
 
   // ==================== PARALLEL DATA LOADING ====================
   // All 6 API calls run in parallel, whichever completes first displays first
@@ -367,6 +369,7 @@ function WatchTower() {
       // Create a stable key for current filters to compare
       const filterKey = JSON.stringify({
         platform: filters.platform,
+        channel: filters.channel,
         brand: filters.brand,
         location: filters.location,
         startDate: filters.startDate,
@@ -664,7 +667,7 @@ function WatchTower() {
     }
 
     return () => { ignore = true; };
-  }, [monthOverviewPlatform, performanceMatrixDimension, performanceMatrixFilters]); // Add filters to deps
+  }, [monthOverviewPlatform, performanceMatrixDimension, performanceMatrixFilters, filters.startDate, filters.endDate, filters.channel]); // Add filters to deps
 
   // Separate effect for Category Overview platform changes (after initial load)
   useEffect(() => {
@@ -712,7 +715,7 @@ function WatchTower() {
     }
 
     return () => { ignore = true; };
-  }, [categoryOverviewPlatform, performanceMatrixDimension, performanceMatrixFilters]); // Add filters to deps
+  }, [categoryOverviewPlatform, performanceMatrixDimension, performanceMatrixFilters, filters.startDate, filters.endDate, filters.channel]); // Add filters to deps
 
   // Separate effect for Brands Overview changes (after initial load)
   useEffect(() => {
@@ -763,7 +766,7 @@ function WatchTower() {
     }
 
     return () => { ignore = true; };
-  }, [brandsOverviewPlatform, brandsOverviewCategory, performanceMatrixDimension, performanceMatrixFilters]); // Add filters to deps
+  }, [brandsOverviewPlatform, brandsOverviewCategory, performanceMatrixDimension, performanceMatrixFilters, filters.startDate, filters.endDate, filters.channel]); // Add filters to deps
 
   // SKU Overview data fetch
   useEffect(() => {
@@ -801,7 +804,7 @@ function WatchTower() {
       fetchSkuOverview();
     }
     return () => { ignore = true; };
-  }, [performanceMatrixDimension, filters.startDate, filters.endDate, filters.platform, performanceMatrixFilters]);
+  }, [performanceMatrixDimension, filters.startDate, filters.endDate, filters.platform, filters.channel, performanceMatrixFilters]);
 
   // City Overview data fetch
   useEffect(() => {
@@ -837,7 +840,7 @@ function WatchTower() {
       fetchCityOverview();
     }
     return () => { ignore = true; };
-  }, [performanceMatrixDimension, filters.startDate, filters.endDate, filters.platform, performanceMatrixFilters]);
+  }, [performanceMatrixDimension, filters.startDate, filters.endDate, filters.platform, filters.channel, performanceMatrixFilters]);
 
   const kpiIconMap = {
     'Offtake': ShoppingCart,

@@ -181,7 +181,7 @@ export async function loadPlatformData(platform) {
                 agg.impressions += parseFloat(row.Ad_Impressions) || 0;
                 agg.nenoOsa += parseFloat(row.neno_osa) || 0;
                 agg.denoOsa += parseFloat(row.deno_osa) || 0;
-                agg.orders += parseFloat(row.Ad_Orders) || 0;
+                agg.orders += parseFloat(row.Ad_Quanity_sold) || 0;
                 agg.rowCount++;
 
                 // Accumulate brand+month aggregations for instant brand filter lookups
@@ -207,7 +207,7 @@ export async function loadPlatformData(platform) {
                 brandAgg.impressions += parseFloat(row.Ad_Impressions) || 0;
                 brandAgg.nenoOsa += parseFloat(row.neno_osa) || 0;
                 brandAgg.denoOsa += parseFloat(row.deno_osa) || 0;
-                brandAgg.orders += parseFloat(row.Ad_Orders) || 0;
+                brandAgg.orders += parseFloat(row.Ad_Quanity_sold) || 0;
                 brandAgg.rowCount++;
             }
         });

@@ -24,6 +24,7 @@ export const getTrendData = async (req, res) => {
             location: req.query.location || "All",
             brand: req.query.brand || "All",
             category: req.query.category || "All",
+            channel: req.query.channel,
             period: req.query.period,
             timeStep: req.query.timeStep,
             startDate: req.query.startDate,
@@ -252,6 +253,7 @@ export const getKpiTrends = async (req, res) => {
             location: req.query.location || "All",
             brand: req.query.brand || "All",
             category: req.query.category || "All",
+            channel: req.query.channel,
             period: req.query.period,
             timeStep: req.query.timeStep,
             startDate: req.query.startDate,
@@ -294,8 +296,9 @@ export const getCompetition = async (req, res) => {
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
             category: req.query.category || 'All',
-            brand: req.query.brand || 'All',  // FIXED: Added missing brand parameter
-            sku: req.query.sku || 'All',      // FIXED: Added missing sku parameter
+            brand: req.query.brand || 'All',
+            sku: req.query.sku || 'All',
+            channel: req.query.channel,
             period: req.query.period || '1M'
         };
 
@@ -364,6 +367,7 @@ export const getDarkStoreCount = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
+            channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -386,6 +390,7 @@ export const getTopActions = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
+            channel: req.query.channel,
             endDate: req.query.endDate
         };
 
@@ -406,6 +411,7 @@ export const getOsaDeepDive = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
+            channel: req.query.channel,
             endDate: req.query.endDate
         };
 

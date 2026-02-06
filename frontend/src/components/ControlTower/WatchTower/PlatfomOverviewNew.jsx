@@ -23,6 +23,7 @@ const BrandLogo = ({ name, src, className }) => (
 
 const kpiLabels = {
     offtakes: 'OFFTAKES',
+    categorySize: 'CATEGORY SIZE',
     spend: 'SPEND',
     roas: 'ROAS',
     availability: 'AVAILABILITY',
@@ -48,8 +49,9 @@ const PlatformOverviewNew = ({
 }) => {
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
+        { key: 'categorySize', label: 'Category Size' },
         { key: 'spend', label: 'Spend' },
-        { key: 'roas', label: 'Category Size' },
+        { key: 'roas', label: 'ROAS' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
@@ -64,7 +66,7 @@ const PlatformOverviewNew = ({
 
     // Use dimension from prop directly - fully controlled component
     const dimension = propDimension;
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'roas', 'conversion', 'availability', 'marketShare'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
@@ -75,7 +77,7 @@ const PlatformOverviewNew = ({
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
+        kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
         filterLogic: 'OR',
     })
 
@@ -202,6 +204,10 @@ const PlatformOverviewNew = ({
                     value = `${(4.2 + entityIdx * 0.5).toFixed(1)}x`
                     deltaVal = `+${(0.3 + kpiIdx * 0.1).toFixed(1)}x`
                     break
+                case 'categorySize':
+                    value = `₹${(10 + entityIdx * 5).toFixed(1)} Cr`
+                    deltaVal = `+${(1 + kpiIdx * 0.3).toFixed(1)}%`
+                    break
                 case 'conversion':
                     value = `${(75 + entityIdx * 3).toFixed(1)}%`
                     deltaVal = `+${(1 + kpiIdx * 0.2).toFixed(1)} pp`
@@ -260,6 +266,7 @@ const PlatformOverviewNew = ({
                         // Map column titles to KPI keys
                         const keyMap = {
                             'offtakes': 'offtakes',
+                            'categorysize': 'categorySize',
                             'spend': 'spend',
                             'roas': 'roas',
                             'inorgsales': 'inorgSales',
