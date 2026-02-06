@@ -10,8 +10,8 @@ function cn(...classes) { return classes.filter(Boolean).join(' ') }
 // ========================================
 const reportTypes = [
     { key: 'platform', label: 'Platform', entities: ['BLINKIT', 'BLINKIT (SUB)', 'BLINKIT (2)', 'BLINKIT (AMZ)', 'BLINKIT (SWG)'] },
-    { key: 'format', label: 'Format', entities: ['CASSATA', 'CORE TUB', 'CORNETTO', 'MAGNUM', 'PREMIUM TUB'] },
-    { key: 'city', label: 'City', entities: ['AJMER', 'AMRITSAR', 'BATHINDA', 'BHOPAL', 'CHANDIGARH'] },
+    { key: 'format', label: 'Format', entities: ['TOOTHPASTE', 'MOUTHWASH', 'TOOTHBRUSH', 'BODYWASH'] },
+    { key: 'city', label: 'City', entities: ['Agra', 'Karnal', 'Faridabad', 'Bengaluru', 'Mumbai'] },
 ]
 
 const drillDownOptions = [
@@ -40,7 +40,7 @@ const ToggleTabs = ({ tabs, activeTab, onChange }) => (
                 key={tab.key}
                 onClick={() => onChange(tab.key)}
                 className={cn(
-                    'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
+                    'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 cursor-pointer',
                     activeTab === tab.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 )}
             >
@@ -59,7 +59,7 @@ const DrillDownDropdown = ({ options, value, onChange }) => {
         <div className="relative">
             <button
                 onClick={() => setOpen(!open)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
             >
                 Drill-down: {current?.label || 'Select'}
                 <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
@@ -77,7 +77,7 @@ const DrillDownDropdown = ({ options, value, onChange }) => {
                                 key={opt.key}
                                 onClick={() => { onChange(opt.key); setOpen(false); }}
                                 className={cn(
-                                    'w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors',
+                                    'w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors cursor-pointer',
                                     value === opt.key ? 'text-blue-600 font-medium' : 'text-slate-700'
                                 )}
                             >
@@ -217,15 +217,15 @@ export default function KPIMatrixTable({ data }) {
                                     <div className="flex items-center justify-center gap-2">
                                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{e}</span>
                                         <span
-                                            // className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors trend-icon"
-                                            className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors"
+                                            className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors trend-icon"
+                                            // className="cursor-pointer text-slate-400 hover:text-blue-600 transition-colors"
                                             onClick={() => {
                                                 setSelectedColumn(e);
                                                 setCompMetaForDrawer(buildCompMeta(e));
                                                 setOpenTrend(true);
                                             }}
                                         >
-                                            {/* <LineChartIcon size={14} strokeWidth={2.5} /> */}
+                                            <LineChartIcon size={14} strokeWidth={2.5} />
                                         </span>
                                     </div>
                                 </th>
