@@ -1,8 +1,11 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, X, Search } from 'lucide-react'
+import { ChevronRight, X, Search, SlidersHorizontal } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { generateDateOptions } from '../../lib/pricingUtils'
+import { KpiFilterPanel } from "@/components/KpiFilterPanel"
+import { Badge } from "@/components/ui/badge"
+import axiosInstance from "@/api/axiosInstance"
 
 // ========================================
 // UTILITIES
@@ -123,20 +126,163 @@ function DateWiseDrilldownTable() {
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
 
+    // ========================================
+    // FILTER STATE
+    // ========================================
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+    // Tentative filters
+    const [tentativeFilters, setTentativeFilters] = useState({
+        platform: [],
+        format: [],
+        city: [],
+        brand: [],
+        date: [],
+        month: [],
+        zone: [],
+        pincode: [],
+        metroFlag: []
+    });
+
+    // Applied filters
+    const [appliedFilters, setAppliedFilters] = useState({
+        platform: [],
+        format: [],
+        city: [],
+        brand: [],
+        date: [],
+        month: [],
+        zone: [],
+        pincode: [],
+        metroFlag: []
+    });
+
+    // Dynamic Options
+    const [dynamicFilterData, setDynamicFilterData] = useState({
+        platforms: [],
+        formats: [],
+        cities: [],
+        months: [],
+        dates: [],
+        pincodes: [],
+        zones: [],
+        metroFlags: [],
+        brands: [],
+        loading: true
+    });
+
+    const mockKeywords = [{ id: "kw_generic", label: "generic" }];
+
+    // ========================================
+    // FILTER API LOGIC
+    // ========================================
+    const fetchFilterType = async (filterType, cascadeParams = {}) => {
+        try {
+            const params = new URLSearchParams({
+                filterType,
+                platform: cascadeParams.platform || 'All',
+                format: cascadeParams.format || 'All',
+                city: cascadeParams.city || 'All',
+                metroFlag: cascadeParams.metroFlag || 'All',
+                months: cascadeParams.month || 'All'
+            }).toString();
+            const apiBase = '/availability-analysis/filter-options';
+            const res = await axiosInstance.get(`${apiBase}?${params}`);
+            return res.data?.options || [];
+        } catch (error) {
+            console.error(`Error fetching ${filterType}:`, error);
+            return [];
+        }
+    };
+
+    // Initial Load
+    useEffect(() => {
+        const fetchAll = async () => {
+            setDynamicFilterData(prev => ({ ...prev, loading: true }));
+            try {
+                const [platforms, formats, cities, months, dates, pincodes, zones, metroFlags, brands] = await Promise.all([
+                    fetchFilterType('platforms'),
+                    fetchFilterType('formats', tentativeFilters),
+                    fetchFilterType('cities', tentativeFilters),
+                    fetchFilterType('months', tentativeFilters),
+                    fetchFilterType('dates', tentativeFilters),
+                    fetchFilterType('pincodes', tentativeFilters),
+                    fetchFilterType('zones'),
+                    fetchFilterType('metroFlags'),
+                    fetchFilterType('brands') // Try fetching brands
+                ]);
+
+                setDynamicFilterData({
+                    platforms,
+                    formats,
+                    cities,
+                    months,
+                    dates,
+                    pincodes,
+                    zones,
+                    metroFlags,
+                    brands,
+                    loading: false
+                });
+            } catch (err) {
+                console.error("Error loading filters", err);
+                setDynamicFilterData(prev => ({ ...prev, loading: false }));
+            }
+        };
+        fetchAll();
+    }, []);
+
+    // Helper for options
+    const filterOptions = useMemo(() => {
+        const toOptions = (arr) => (arr || []).map(item => ({ id: item, label: item }));
+        const formatMonth = (str) => {
+            if (!str) return str;
+            const [y, m] = str.split('-');
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            return `${monthNames[parseInt(m, 10) - 1]} ${y}`;
+        };
+        const monthOptions = dynamicFilterData.months.map(m => ({ id: m, label: formatMonth(m) }));
+
+        return [
+            { id: "date", label: "Date", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.dates)] },
+            { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
+            { id: "brand", label: "Brand", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.brands)] },
+            { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
+            { id: "format", label: "Format", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
+            { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
+        ];
+    }, [dynamicFilterData]);
+
+    // Data Filtering logic
     const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
 
     const filteredData = useMemo(() => {
-        if (!searchQuery) return BRAND_SKU_DAY_DATA
-        const q = searchQuery.toLowerCase()
-        return BRAND_SKU_DAY_DATA.map(brand => {
-            const matchesBrand = brand.brand.toLowerCase().includes(q)
-            const matchedSkus = brand.skus.filter(sku => sku.name.toLowerCase().includes(q))
+        let currentData = BRAND_SKU_DAY_DATA;
 
-            if (matchesBrand) return brand
-            if (matchedSkus.length > 0) return { ...brand, skus: matchedSkus }
-            return null
-        }).filter(Boolean)
-    }, [searchQuery])
+        // 1. Filter by Search
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            currentData = currentData.map(brand => {
+                const matchesBrand = brand.brand.toLowerCase().includes(q);
+                const matchedSkus = brand.skus.filter(sku => sku.name.toLowerCase().includes(q));
+                if (matchesBrand) return brand;
+                if (matchedSkus.length > 0) return { ...brand, skus: matchedSkus };
+                return null;
+            }).filter(Boolean);
+        }
+
+        // 2. Filter by Applied Filters (Brand)
+        // If we have selected brands in filters, only show those brands
+        if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all') && !appliedFilters.brand.includes('All')) {
+            const selectedBrands = appliedFilters.brand.map(b => b.toLowerCase());
+            currentData = currentData.filter(b => selectedBrands.includes(b.brand.toLowerCase()));
+        }
+
+        // Note: For Platform/City/Format, we would filter here if the data supported it.
+        // Currently data is Brand-level. We'll leave it as just Brand filter for now.
+
+        return currentData;
+    }, [searchQuery, appliedFilters, BRAND_SKU_DAY_DATA])
 
     const METRIC_OPTIONS = [
         { key: 'ecp', label: 'ECP' },
@@ -174,7 +320,7 @@ function DateWiseDrilldownTable() {
             <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 bg-white">
                 <div className="flex items-center gap-6">
                     <h2 className="text-xl font-bold text-[#1E293B]">
-                        Brand → SKU Day-Level <span className="text-blue-600">{activeMetricLabel}</span>
+                        Brand → SKU Day-Level
                     </h2>
 
                     {/* Day Range Selector (Pill Style) */}
@@ -196,7 +342,7 @@ function DateWiseDrilldownTable() {
                     </div>
 
                     {/* Metric Selector (Pill Style) */}
-                    <div className="flex items-center gap-1 p-1 bg-blue-50/50 rounded-xl border border-blue-100">
+                    {/* <div className="flex items-center gap-1 p-1 bg-blue-50/50 rounded-xl border border-blue-100">
                         {METRIC_OPTIONS.map(metric => (
                             <button
                                 key={metric.key}
@@ -211,10 +357,22 @@ function DateWiseDrilldownTable() {
                                 {metric.label}
                             </button>
                         ))}
-                    </div>
+                    </div> */}
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {/* Filters Button */}
+                    <button
+                        onClick={() => {
+                            setTentativeFilters(appliedFilters);
+                            setShowFilterPanel(true);
+                        }}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                    >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>Filters</span>
+                    </button>
+
                     {/* Premium Search Bar */}
                     <div className="relative group min-w-[240px]">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -247,6 +405,59 @@ function DateWiseDrilldownTable() {
                     )}
                 </div>
             </div>
+
+            {/* Filter Modal */}
+            {showFilterPanel && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
+                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
+                            </div>
+                            <button
+                                onClick={() => setShowFilterPanel(false)}
+                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
+                            <KpiFilterPanel
+                                sectionConfig={filterOptions}
+                                keywords={mockKeywords}
+                                sectionValues={tentativeFilters}
+                                onSectionChange={(sectionId, values) => {
+                                    setTentativeFilters(prev => ({
+                                        ...prev,
+                                        [sectionId]: values || []
+                                    }));
+                                }}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                            <button
+                                onClick={() => setShowFilterPanel(false)}
+                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setAppliedFilters(tentativeFilters);
+                                    setShowFilterPanel(false);
+                                }}
+                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                            >
+                                Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Table Area */}
             <div className="overflow-x-auto">
@@ -341,7 +552,7 @@ function DateWiseDrilldownTable() {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div >
     )
 }
 
