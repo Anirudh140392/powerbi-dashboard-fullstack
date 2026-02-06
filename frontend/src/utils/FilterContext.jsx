@@ -65,7 +65,8 @@ export const FilterProvider = ({ children }) => {
     const savedFilters = JSON.parse(localStorage.getItem('savedFilters') || '{}');
 
     // Platform state
-    const [platforms, setPlatforms] = useState(Object.keys(platformData));
+    const [allPlatforms, setAllPlatforms] = useState(Object.keys(platformData));
+    const [platforms, setPlatforms] = useState(["All", ...Object.keys(platformData)]);
     const [platform, setPlatform] = useState(savedFilters.platform || "Zepto");
 
     // Brand state
@@ -267,14 +268,9 @@ export const FilterProvider = ({ children }) => {
 
                 if (fetchedPlatforms && fetchedPlatforms.length > 0) {
                     // Backend is available, use API data
-                    const options = ["All", ...fetchedPlatforms.filter(p => p !== "All")];
-                    setPlatforms(options);
+                    const options = fetchedPlatforms.filter(p => p !== "All");
+                    setAllPlatforms(options);
                     setBackendAvailable(true);
-
-                    // If current platform is not in dynamic options, reset to 'All' or first option
-                    if (!options.includes(platform)) {
-                        setPlatform("All");
-                    }
                 } else {
                     // Empty response, use fallback
                     throw new Error("Empty platform data");
@@ -284,14 +280,36 @@ export const FilterProvider = ({ children }) => {
                 setBackendAvailable(false);
                 // Use hardcoded platforms
                 const fallbackPlatforms = Object.keys(platformData);
-                setPlatforms(fallbackPlatforms);
-                if (!fallbackPlatforms.includes(platform)) {
-                    setPlatform(fallbackPlatforms[0] || "Zepto");
-                }
+                setAllPlatforms(fallbackPlatforms);
             }
         };
         fetchPlatforms();
     }, [filterRefreshCounter]); // Re-fetch when refresh counter changes
+
+    // Update filtered platforms when channel or allPlatforms changes
+    useEffect(() => {
+        if (!allPlatforms || allPlatforms.length === 0) return;
+
+        let filtered = [];
+        if (selectedChannel === "Ecommerce") {
+            // Ecommerce: only Blinkit (case-insensitive)
+            filtered = allPlatforms.filter(p => p.toLowerCase().includes('blinkit'));
+        } else if (selectedChannel === "Modern Trades") {
+            // Modern Trades: everything EXCEPT Blinkit
+            filtered = allPlatforms.filter(p => !p.toLowerCase().includes('blinkit'));
+        } else {
+            // Default or other channels: show all
+            filtered = [...allPlatforms];
+        }
+
+        const options = ["All", ...filtered];
+        setPlatforms(options);
+
+        // If current platform is not in dynamic options, reset to 'All'
+        if (!options.includes(platform)) {
+            setPlatform("All");
+        }
+    }, [selectedChannel, allPlatforms]);
 
     // Fetch brands when platform changes (with fallback)
     useEffect(() => {

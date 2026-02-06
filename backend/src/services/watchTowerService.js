@@ -81,6 +81,32 @@ let cachedMaxDate = { date: null, timestamp: 0 };
 const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Helper to build platform condition based on channel selection
+ * @param {string} platform - The selected platform (e.g. 'All', 'Blinkit')
+ * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
+ * @returns {string|null} - The SQL condition for platform
+ */
+const buildPlatformChannelCond = (platform, channel) => {
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+    if (platform && platform !== 'All') {
+        return `Platform = '${escapeStr(platform)}'`;
+    }
+
+    if (channel === 'Ecommerce' || channel === 'E-commerce') {
+        // Ecommerce mapped to Blinkit
+        return `Platform = 'Blinkit'`;
+    }
+
+    if (channel === 'Modern Trades') {
+        // Modern Trades mapped to everything except Blinkit
+        return `Platform != 'Blinkit'`;
+    }
+
+    return null;
+};
+
+/**
  * Get the latest available date in rb_pdp_olap
  */
 const getCachedMaxDate = async () => {
@@ -323,7 +349,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
     try {
         console.log("Processing Watch Tower request with filters:", filters);
 
-        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category } = filters;
+        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category, channel } = filters;
 
         // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
         const rawBrand = filters['brand[]'] || filters.brand;
@@ -459,6 +485,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             // Date range
             conditions.push(`DATE BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`);
+            conditions.push("Comp_flag = 0");
 
             // Handle brand filter with multi-value support
             const brandFilterArr = normalizeFilterArray(brandFilter);
@@ -471,10 +498,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const platformFilterArr = normalizeFilterArray(platformFilter);
             if (platformFilterArr && platformFilterArr.length > 0) {
                 if (platformFilterArr.length === 1) {
-                    conditions.push(`Platform = '${escapeStr(platformFilterArr[0])}'`);
+                    const cond = buildPlatformChannelCond(platformFilterArr[0], channel);
+                    if (cond) conditions.push(cond);
                 } else {
                     conditions.push(`Platform IN (${platformFilterArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
+            } else {
+                // If platform is 'All' or null, handle based on channel
+                const cond = buildPlatformChannelCond(null, channel);
+                if (cond) conditions.push(cond);
             }
 
             // Handle location with multi-value support
@@ -562,10 +594,25 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const platFilterArr = normalizeFilterArray(platformFilter);
                 if (platFilterArr && platFilterArr.length > 0) {
                     if (platFilterArr.length === 1) {
-                        baseConditions.push(`platform_name = '${escapeStr(platFilterArr[0])}'`);
+                        const cond = buildPlatformChannelCond(platFilterArr[0], channel);
+                        // buildPlatformChannelCond returns SQL like "Platform = '...'", for SOS we need just the platform name or different column
+                        // Actually, rca_kw table has 'platform_name'.
+                        // Let's handle this carefully.
+                        if (platFilterArr[0] !== 'All') {
+                            baseConditions.push(`platform_name = '${escapeStr(platFilterArr[0])}'`);
+                        } else {
+                            const pCond = buildPlatformChannelCond(null, channel);
+                            if (pCond === "Platform = 'Blinkit'") baseConditions.push(`platform_name = 'Blinkit'`);
+                            if (pCond === "Platform != 'Blinkit'") baseConditions.push(`platform_name != 'Blinkit'`);
+                        }
                     } else {
                         baseConditions.push(`platform_name IN (${platFilterArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                     }
+                } else {
+                    // Handle All platform based on channel
+                    const pCond = buildPlatformChannelCond(null, channel);
+                    if (pCond === "Platform = 'Blinkit'") baseConditions.push(`platform_name = 'Blinkit'`);
+                    if (pCond === "Platform != 'Blinkit'") baseConditions.push(`platform_name != 'Blinkit'`);
                 }
 
                 // Build numerator conditions (adds brand filter)
@@ -804,7 +851,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             try {
                 const timerLabel = `[Bulk Platform] Total ${Date.now()}`;
                 console.time(timerLabel);
-                const { brand, location, category, skuName, skuCode } = filters;
+                const { brand, location, category, skuName, skuCode, channel } = filters;
 
                 // Helper to escape strings for ClickHouse
                 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -837,6 +884,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (location && location !== 'All') {
                         conditions.push(`Location = '${escapeStr(location)}'`);
                     }
+
+                    // Channel-based platform filtering
+                    const platformCond = buildPlatformChannelCond(null, channel); // platform is handled separately or is 'All' here
+                    if (platformCond) {
+                        conditions.push(platformCond);
+                    }
+
                     if (category && category !== 'All') {
                         conditions.push(`Category = '${escapeStr(category)}'`);
                     }
@@ -1002,10 +1056,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             }
             if (platformArr && platformArr.length > 0) {
                 if (platformArr.length === 1) {
-                    conditions.push(`Platform = '${escapeStrMain(platformArr[0])}'`);
+                    const cond = buildPlatformChannelCond(platformArr[0], channel);
+                    if (cond) conditions.push(cond);
                 } else {
                     conditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
                 }
+            } else {
+                // If platform is 'All' or null, handle based on channel
+                const cond = buildPlatformChannelCond(null, channel);
+                if (cond) conditions.push(cond);
             }
             if (category && category !== 'All') {
                 conditions.push(`Category = '${escapeStrMain(category)}'`);
@@ -1229,10 +1288,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
                     if (platformArr && platformArr.length > 0) {
                         if (platformArr.length === 1) {
-                            kwBaseConditions.push(`lower(platform_name) = '${escapeStrMain(platformArr[0].toLowerCase())}'`);
+                            const pCond = buildPlatformChannelCond(platformArr[0], channel);
+                            if (pCond === "Platform = 'Blinkit'") kwBaseConditions.push(`lower(platform_name) = 'blinkit'`);
+                            else if (pCond === "Platform != 'Blinkit'") kwBaseConditions.push(`lower(platform_name) != 'blinkit'`);
+                            else kwBaseConditions.push(`lower(platform_name) = '${escapeStrMain(platformArr[0].toLowerCase())}'`);
                         } else {
                             kwBaseConditions.push(`platform_name IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
                         }
+                    } else {
+                        // Handle All platform based on channel
+                        const pCond = buildPlatformChannelCond(null, channel);
+                        if (pCond === "Platform = 'Blinkit'") kwBaseConditions.push(`lower(platform_name) = 'blinkit'`);
+                        else if (pCond === "Platform != 'Blinkit'") kwBaseConditions.push(`lower(platform_name) != 'blinkit'`);
                     }
 
                     const numeratorConditions = [...kwBaseConditions];
@@ -1290,7 +1357,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         prevConditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
                     }
                     if (platformArr && platformArr.length > 0) {
-                        prevConditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
+                        if (platformArr.length === 1) {
+                            const cond = buildPlatformChannelCond(platformArr[0], channel);
+                            if (cond) prevConditions.push(cond);
+                        } else {
+                            prevConditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
+                        }
+                    } else {
+                        // Handle All platform based on channel
+                        const cond = buildPlatformChannelCond(null, channel);
+                        if (cond) prevConditions.push(cond);
                     }
                     if (category && category !== 'All') {
                         prevConditions.push(`Category = '${escapeStrMain(category)}'`);
@@ -1321,10 +1397,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     // Handle Platform filter
                     if (platformArr && platformArr.length > 0) {
                         if (platformArr.length === 1) {
-                            conditions.push(`Platform = '${escapeStrMain(platformArr[0])}'`);
+                            const cond = buildPlatformChannelCond(platformArr[0], channel);
+                            if (cond) conditions.push(cond);
                         } else {
                             conditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
                         }
+                    } else {
+                        // Handle All platform based on channel
+                        const cond = buildPlatformChannelCond(null, channel);
+                        if (cond) conditions.push(cond);
                     }
                     // Handle Location filter
                     if (locationArr && locationArr.length > 0) {
@@ -1504,8 +1585,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         if (!skipPerformanceKpis) {
             try {
-                const momStartDate = startDate.clone().subtract(1, 'month');
-                const momEndDate = endDate.clone().subtract(1, 'month');
+                let momStartDate = startDate.clone().subtract(1, 'month');
+                let momEndDate = endDate.clone().subtract(1, 'month');
+
+                // If explicit compare dates are provided from frontend, use them
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    momStartDate = dayjs(filters.compareStartDate).startOf('day');
+                    momEndDate = dayjs(filters.compareEndDate).endOf('day');
+                }
 
                 // Helper to generate last 7 months
                 const last7Months = [];
@@ -1515,9 +1602,66 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     last7Months.push({ start: mStart, end: mEnd, label: `P${7 - i}`, key: mStart.format('YYYY-MM-01') });
                 }
 
+                // Helper to fetch PRECISE totals for summary cards (non-grouped)
+                const getPrecisePerformanceMetrics = async (start, end, filters) => {
+                    const { brand, platform, location, channel } = filters;
+                    const escapeStrLocal = (str) => str ? str.replace(/'/g, "''") : '';
+
+                    const conditions = [
+                        `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`,
+                        "Comp_flag = 0"
+                    ];
+
+                    const locArr = Array.isArray(location) ? location : (location && location !== 'All' ? [location] : null);
+                    if (locArr && locArr.length > 0) {
+                        conditions.push(`Location IN (${locArr.map(l => `'${escapeStrLocal(l)}'`).join(', ')})`);
+                    }
+
+                    const platArr = Array.isArray(platform) ? platform : (platform && platform !== 'All' ? [platform] : null);
+                    if (platArr && platArr.length > 0) {
+                        conditions.push(`Platform IN (${platArr.map(p => `'${escapeStrLocal(p)}'`).join(', ')})`);
+                    } else {
+                        const platformCond = buildPlatformChannelCond(null, channel);
+                        if (platformCond) conditions.push(platformCond);
+                    }
+
+                    const brandArrLocal = Array.isArray(brand) ? brand : (brand && brand !== 'All' ? [brand] : null);
+                    if (brandArrLocal && brandArrLocal.length > 0) {
+                        const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStrLocal(b)}%'`).join(' OR ');
+                        conditions.push(`(${brandConds})`);
+                    }
+
+                    const query = `
+                        SELECT 
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as adSales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as orders,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend
+                        FROM rb_pdp_olap
+                        WHERE ${conditions.join(' AND ')}
+                    `;
+
+                    try {
+                        const results = await queryClickHouse(query);
+                        return {
+                            sales: parseFloat(results[0]?.sales || 0),
+                            adSales: parseFloat(results[0]?.adSales || 0),
+                            orders: parseFloat(results[0]?.orders || 0),
+                            clicks: parseFloat(results[0]?.clicks || 0),
+                            impressions: parseFloat(results[0]?.impressions || 0),
+                            spend: parseFloat(results[0]?.spend || 0)
+                        };
+                    } catch (error) {
+                        console.error('[getPrecisePerformanceMetrics] Error:', error.message);
+                        return { sales: 0, adSales: 0, orders: 0, clicks: 0, impressions: 0, spend: 0 };
+                    }
+                };
+
                 // ⚡ MEGA OPTIMIZATION: Pre-computed monthly KPI cache with Redis fallback
                 const getBulkPerformanceMetrics = async (startRange, endRange, filters) => {
-                    const { brand, platform, location } = filters;
+                    const { brand, platform, location, channel } = filters;
 
                     // Generate list of months in range
                     const months = [];
@@ -1597,7 +1741,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                         // Build WHERE conditions - use toDate(DATE) since DATE is String
                         const conditions = [
-                            `toDate(DATE) BETWEEN '${startRange.format('YYYY-MM-DD')}' AND '${endRange.format('YYYY-MM-DD')}'`
+                            `toDate(DATE) BETWEEN '${startRange.format('YYYY-MM-DD')}' AND '${endRange.format('YYYY-MM-DD')}'`,
+                            "Comp_flag = 0"
                         ];
 
                         // Add location filter (multi-value support)
@@ -1617,6 +1762,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                                 conditions.push(`Platform = '${escapeStr(platArr[0])}'`);
                             } else {
                                 conditions.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                            }
+                        } else {
+                            // Handle All platform based on channel
+                            const platformCond = buildPlatformChannelCond(null, channel);
+                            if (platformCond) {
+                                conditions.push(platformCond);
                             }
                         }
 
@@ -1677,13 +1828,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Generate unique key for this specific computation - handle arrays
                 const brandKey = Array.isArray(brand) ? brand.sort().join(',') : (brand || 'null');
                 const locationKey = Array.isArray(location) ? location.sort().join(',') : (location || 'null');
-                const coalesceKey = `perf-kpi:${platform}:${earliestDate.format('YYYY-MM')}:${endDate.format('YYYY-MM')}:${brandKey}:${locationKey}`;
+                const coalesceKey = `perf-kpi:${platform}:${earliestDate.format('YYYY-MM')}:${endDate.format('YYYY-MM')}:${brandKey}:${locationKey}:${channel || 'null'}`;
 
                 // Use coalesceRequest to prevent cache stampede
                 let bulkData;
                 try {
                     bulkData = await coalesceRequest(coalesceKey, async () =>
-                        await getBulkPerformanceMetrics(earliestDate, endDate, { brand, platform, location })
+                        await getBulkPerformanceMetrics(earliestDate, endDate, { brand, platform, location, channel })
                     );
                 } catch (err) {
                     console.error('[Bulk Performance KPIs] Error:', err.message);
@@ -1728,7 +1879,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 };
 
                 const calculateConversion = (data) => {
-                    return data.clicks > 0 ? data.orders / data.clicks : 0; // Orders / Clicks
+                    return data.clicks > 0 ? (data.orders / data.clicks) * 100 : 0; // Orders / Clicks * 100
                 };
 
                 const calculateRoas = (data) => {
@@ -1739,9 +1890,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return data.sales > 0 ? (data.spend / data.sales) * 100 : 0;
                 };
 
-                // Extract data for current and MoM periods
-                const currentData = getDataForRange(startDate, endDate);
-                const momData = getDataForRange(momStartDate, momEndDate);
+                // Extract data for current and MoM periods using precise fetch for exact date range accuracy
+                const [currentData, momData] = await Promise.all([
+                    getPrecisePerformanceMetrics(startDate, endDate, { brand, platform, location, channel }),
+                    getPrecisePerformanceMetrics(momStartDate, momEndDate, { brand, platform, location, channel })
+                ]);
 
                 // Calculate trend data for all KPIs from bulk results
                 const inorgTrendData = last7Months.map(m => calculateInorganicSales(getDataForRange(m.start, m.end)));
@@ -1766,10 +1919,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const momBmi = calculateBmi(momData);
                 const bmiChange = momBmi > 0 ? ((currentBmi - momBmi) / momBmi) * 100 : (currentBmi > 0 ? 100 : 0);
 
-                // SOS KPI (still needs separate queries for now - different table)
+                // SOS KPI (USES prevShareOfSearch computed for top metrics for consistency)
                 const currentSosKpi = currentShareOfSearch;
-                const momSosKpi = await getShareOfSearch(momStartDate, momEndDate, brand, platform, location, category);
-                const sosKpiChange = momSosKpi > 0 ? ((currentSosKpi - momSosKpi) / momSosKpi) * 100 : (currentSosKpi > 0 ? 100 : 0);
+                const momSosKpi = prevShareOfSearch;
+                const sosKpiChange = currentSosKpi - momSosKpi; // Calculate pp difference instead of % growth
 
                 // OPTIMIZED: SOS Trend using bulk GROUP BY query instead of 7 individual queries
                 let sosTrendKpiData;
@@ -1886,8 +2039,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     id: "sos_new",
                     label: "SHARE OF SEARCH",
                     value: `${currentSosKpi.toFixed(1)}%`,
+                    prevValue: `${momSosKpi.toFixed(1)}%`,
                     unit: "",
-                    tag: `${sosKpiChange >= 0 ? '+' : ''}${sosKpiChange.toFixed(1)}%`,
+                    tag: `${sosKpiChange >= 0 ? '+' : ''}${sosKpiChange.toFixed(1)} pp`,
                     tagTone: sosKpiChange >= 0 ? "positive" : "warning",
                     footer: "Organic + Paid view",
                     trendTitle: "Share of Search Trend",
@@ -1900,6 +2054,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     id: "inorganic",
                     label: "INORGANIC SALES",
                     value: formatCurrency(currentInorg),
+                    prevValue: formatCurrency(momInorg),
                     unit: "",
                     tag: `${inorgChange >= 0 ? '+' : ''}${inorgChange.toFixed(1)}%`,
                     tagTone: inorgChange >= 0 ? "positive" : "warning",
@@ -1914,10 +2069,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     id: "conversion",
                     label: "CONVERSION",
                     value: currentConv.toFixed(1),
+                    prevValue: momConv.toFixed(1),
                     unit: "",
                     tag: `${convChange >= 0 ? '+' : ''}${convChange.toFixed(1)}%`,
                     tagTone: convChange >= 0 ? "positive" : "warning",
-                    footer: "Clicks / Orders",
+                    footer: "Orders / Clicks",
                     trendTitle: "Conversion Trend",
                     trendSubtitle: "Last 7 periods",
                     trendData: convTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
@@ -1928,6 +2084,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     id: "roas_new",
                     label: "ROAS",
                     value: currentRoas.toFixed(1),
+                    prevValue: momRoas.toFixed(1),
                     unit: "",
                     tag: `${roasChange >= 0 ? '+' : ''}${roasChange.toFixed(1)}%`,
                     tagTone: roasChange >= 0 ? "positive" : "warning",
@@ -2013,6 +2170,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 cacheDistinctPlatforms(platformDefinitions);
                 console.log(`[Platform Overview] Fetched ${platformDefinitions.length} platforms from rca_sku_dim:`, platformDefinitions.map(p => p.label));
             }
+
+            // Filter platform definitions based on channel AFTER cache block
+            if (channel === 'Ecommerce' || channel === 'E-commerce') {
+                platformDefinitions = platformDefinitions.filter(p => p.label.toLowerCase().includes('blinkit'));
+            } else if (channel === 'Modern Trades') {
+                platformDefinitions = platformDefinitions.filter(p => !p.label.toLowerCase().includes('blinkit'));
+            }
         } catch (err) {
             console.error("Error fetching platforms from database:", err);
             // Fallback to hardcoded platforms if database query fails
@@ -2093,9 +2257,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 },
                 {
                     title: "Conversion",
-                    value: `${conversion.toFixed(1)}%`,
+                    value: `${currentConv.toFixed(1)}%`,
                     change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 },
-                    meta: { units: "0 conversions", change: formatChange(conversionChange, true) }
+                    meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) }
                 },
                 {
                     title: "Availability",
@@ -2981,7 +3145,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             title: "Conversion",
                             value: `${catConversion.toFixed(1)}%`,
                             change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "conversions", change: "▲0.0 pp" }
+                            meta: { units: "Orders / Clicks", change: "▲0.0 pp" }
                         },
                         {
                             title: "Availability",
@@ -3646,7 +3810,7 @@ const generateTimeBuckets = (startDate, endDate, timeStep) => {
 // Internal implementation with all the compute logic - MIGRATED TO CLICKHOUSE
 const computeTrendData = async (filters) => {
     try {
-        const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd } = filters;
+        const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd, channel } = filters;
 
         // 1. Determine Date Range
         let endDate = await getCachedMaxDate();
@@ -3695,7 +3859,11 @@ const computeTrendData = async (filters) => {
             if (category && category !== 'All') conds.push(`Category = '${escapeStr(category)}'`);
             if (brand && brand !== 'All') conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
             if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
-            if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
+
+            // Channel-based platform filtering
+            const platformCond = buildPlatformChannelCond(platform, channel);
+            if (platformCond) conds.push(platformCond);
+
             return conds.join(' AND ');
         };
 
@@ -3952,7 +4120,7 @@ const getPlatformOverview = async (filters) => {
         return await coalesceRequest(`compute:${cacheKey}`, async () => {
             console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
 
-            const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category } = filters;
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category, channel } = filters;
 
             // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
             const rawBrand = filters['brand[]'] || filters.brand;
@@ -4023,7 +4191,16 @@ const getPlatformOverview = async (filters) => {
                         type: getPlatformType(name),
                         logo: getPlatformLogo(name)
                     }));
+
+                // Cache the result
                 cacheDistinctPlatforms(platformDefinitions);
+            }
+
+            // Filter platform definitions based on channel AFTER cache block
+            if (channel === 'Ecommerce' || channel === 'E-commerce') {
+                platformDefinitions = platformDefinitions.filter(p => p.label.toLowerCase().includes('blinkit'));
+            } else if (channel === 'Modern Trades') {
+                platformDefinitions = platformDefinitions.filter(p => !p.label.toLowerCase().includes('blinkit'));
             }
 
             // Calculate MoM dates or use provided comparison dates
@@ -4051,6 +4228,13 @@ const getPlatformOverview = async (filters) => {
                 if (category && category !== 'All') {
                     conds.push(`Category = '${escapeStr(category)}'`);
                 }
+
+                // Channel-based platform filtering
+                const platformCond = buildPlatformChannelCond(null, channel);
+                if (platformCond) {
+                    conds.push(platformCond);
+                }
+
                 return conds.join(' AND ');
             };
 
@@ -4079,6 +4263,13 @@ const getPlatformOverview = async (filters) => {
                 if (category && category !== 'All') {
                     conds.push(`category = '${escapeStr(category)}'`);
                 }
+
+                // Add platform/channel filter - for denominator we want all platforms in that channel
+                const platformCond = buildPlatformChannelCond(null, channel);
+                if (platformCond) {
+                    conds.push(platformCond);
+                }
+
                 return conds.join(' AND ');
             };
 
@@ -4252,7 +4443,8 @@ const getPlatformOverview = async (filters) => {
                         neno: parseFloat(c?.neno || 0),
                         deno: parseFloat(c?.deno || 0),
                         ms: currMsValue,
-                        sos: currSosValue
+                        sos: currSosValue,
+                        denomMS: currMsDenomMap.get(key) || 0
                     },
                     prev: {
                         sales: parseFloat(pv?.sales || 0),
@@ -4265,7 +4457,8 @@ const getPlatformOverview = async (filters) => {
                         neno: parseFloat(pv?.neno || 0),
                         deno: parseFloat(pv?.deno || 0),
                         ms: prevMsValue,
-                        sos: prevSosValue
+                        sos: prevSosValue,
+                        denomMS: prevMsDenomMap.get(key) || 0
                     }
                 });
             });
@@ -4283,8 +4476,8 @@ const getPlatformOverview = async (filters) => {
                 return `${sign}${val.toFixed(1)}${suffix}`;
             };
 
-            const generateColumns = (offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, promoMyBrand, promoCompete,
-                prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete,
+            const generateColumns = (offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, promoMyBrand, promoCompete, categorySize,
+                prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete, prevCategorySize,
                 offtakeUnits = 0, inorgUnits = 0, prevOfftakeUnits = 0, prevInorgUnits = 0) => {
                 const offtakeChange = calcChange(offtake, prevOfftake);
                 const spendChange = calcChange(spend, prevSpend);
@@ -4298,13 +4491,15 @@ const getPlatformOverview = async (filters) => {
                 const promoCompeteChange = calcPPChange(promoCompete, prevPromoCompete);
                 const cpmChange = calcChange(cpm, prevCpm);
                 const cpcChange = calcChange(cpc, prevCpc);
+                const categorySizeChange = calcChange(categorySize, prevCategorySize);
 
                 return [
                     { title: "Offtakes", value: formatCurrency(offtake), change: { text: formatChange(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: formatChange(offtakeChange) } },
+                    { title: "Category Size", value: formatCurrency(categorySize), change: { text: formatChange(categorySizeChange), positive: categorySizeChange >= 0 }, meta: { units: "market", change: formatChange(categorySizeChange) } },
                     { title: "Spend", value: formatCurrency(spend), change: { text: formatChange(spendChange), positive: spendChange >= 0 }, meta: { units: "spend", change: formatChange(spendChange) } },
                     { title: "ROAS", value: `${roas.toFixed(2)}x`, change: { text: formatChange(roasChange), positive: roasChange >= 0 }, meta: { units: "return", change: formatChange(roasChange) } },
                     { title: "Inorg Sales", value: formatCurrency(inorgSales), change: { text: formatChange(inorgSalesChange), positive: inorgSalesChange >= 0 }, meta: { units: `${formatUnits(inorgUnits)} units`, change: formatChange(inorgSalesChange) } },
-                    { title: "Conversion", value: `${conversion.toFixed(1)}%`, change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "% conv", change: formatChange(conversionChange, true) } },
+                    { title: "Conversion", value: `${conversion.toFixed(1)}%`, change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) } },
                     { title: "Availability", value: `${availability.toFixed(1)}%`, change: { text: formatChange(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: formatChange(availabilityChange, true) } },
                     { title: "SOS", value: `${sos.toFixed(1)}%`, change: { text: formatChange(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: formatChange(sosChange, true) } },
                     { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: formatChange(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: formatChange(marketShareChange, true) } },
@@ -4421,8 +4616,8 @@ const getPlatformOverview = async (filters) => {
                 type: 'Overall',
                 logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
                 columns: generateColumns(
-                    allOfftake, allAvailability, allSos, allMarketShare, allSpend, allRoas, allInorgSales, allConversion, allCpm, allCpc, 0, 0,
-                    prevAllOfftake, prevAllAvailability, prevAllSos, prevAllMarketShare, prevAllSpend, prevAllRoas, prevAllInorgSales, prevAllConversion, prevAllCpm, prevAllCpc, 0, 0,
+                    allOfftake, allAvailability, allSos, allMarketShare, allSpend, allRoas, allInorgSales, allConversion, allCpm, allCpc, 0, 0, sumMsDenom,
+                    prevAllOfftake, prevAllAvailability, prevAllSos, prevAllMarketShare, prevAllSpend, prevAllRoas, prevAllInorgSales, prevAllConversion, prevAllCpm, prevAllCpc, 0, 0, prevSumMsDenom,
                     allOfftakeUnits, allInorgUnits, prevAllOfftakeUnits, prevAllInorgUnits
                 )
             });
@@ -4474,8 +4669,8 @@ const getPlatformOverview = async (filters) => {
                     label: p.label,
                     type: p.type,
                     logo: p.logo,
-                    columns: generateColumns(offtake, availability, sos, marketShare, totalSpend, roas, inorgSales, conversion, cpm, cpc, 0, 0,
-                        prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, 0, 0,
+                    columns: generateColumns(offtake, availability, sos, marketShare, totalSpend, roas, inorgSales, conversion, cpm, cpc, 0, 0, metrics.curr.denomMS || 0,
+                        prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, 0, 0, metrics.prev.denomMS || 0,
                         offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits)
                 });
             }
@@ -4497,7 +4692,7 @@ const getMonthOverview = async (filters) => {
         return await coalesceRequest(`compute:${cacheKey}`, async () => {
             console.log('[getMonthOverview] Computing OPTIMIZED month overview data...');
 
-            const { months = 1, startDate: qStartDate, endDate: qEndDate, category, monthOverviewPlatform } = filters;
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, category, monthOverviewPlatform, channel } = filters;
 
             // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
             const rawBrand = filters['brand[]'] || filters.brand;
@@ -4514,8 +4709,10 @@ const getMonthOverview = async (filters) => {
 
             // Skip if no platform selected
             if (!moPlatform || moPlatform === 'All') {
-                console.log('[getMonthOverview] No specific platform selected, returning empty');
-                return [];
+                // Determine if we should allow 'All' based on channel? 
+                // Month overview usually needs a specific platform, but if it's 'All', 
+                // we should respect the channel.
+                console.log('[getMonthOverview] Computing across all platforms for channel:', channel);
             }
 
             // Calculate date range
@@ -4558,7 +4755,8 @@ const getMonthOverview = async (filters) => {
             // Build offtake conditions
             const buildMoConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-                conds.push(`Platform = '${escapeStr(moPlatform)}'`);
+                const platformCond = buildPlatformChannelCond(moPlatform, channel);
+                if (platformCond) conds.push(platformCond);
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
                 }
@@ -4574,7 +4772,10 @@ const getMonthOverview = async (filters) => {
             // Build SOS conditions
             const buildSosMoConds = () => {
                 const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-                conds.push(`platform_name = '${escapeStr(moPlatform)}'`);
+                const pCond = buildPlatformChannelCond(moPlatform, channel);
+                if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
+                else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
+                else if (moPlatform && moPlatform !== 'All') conds.push(`platform_name = '${escapeStr(moPlatform)}'`);
                 if (category && category !== 'All') {
                     conds.push(`keyword_category = '${escapeStr(category)}'`);
                 }
@@ -4594,7 +4795,8 @@ const getMonthOverview = async (filters) => {
             // Build MS conditions
             const buildMsMoConds = (brandsFilter = null) => {
                 const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-                conds.push(`Platform = '${escapeStr(moPlatform)}'`);
+                const platformCond = buildPlatformChannelCond(moPlatform, channel);
+                if (platformCond) conds.push(platformCond);
                 conds.push(`sales IS NOT NULL`);
                 if (brandsFilter && brandsFilter.length > 0) {
                     conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
@@ -4675,12 +4877,13 @@ const getMonthOverview = async (filters) => {
             // Build lookup map
             const dataMap = new Map(monthlyData.map(d => [d.month_date, d]));
 
-            const generateMonthColumns = (offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc) => [
+            const generateMonthColumns = (offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, categorySize) => [
                 { title: "Offtakes", value: formatCurrency(offtake), meta: { units: "" } },
+                { title: "Category Size", value: formatCurrency(categorySize), meta: { units: "market" } },
                 { title: "Spend", value: formatCurrency(spend), meta: { units: "" } },
                 { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "" } },
                 { title: "Inorg Sales", value: formatCurrency(inorgSales), meta: { units: "" } },
-                { title: "Conversion", value: conversion.toFixed(1), meta: { units: "Clicks / Orders" } },
+                { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "Orders / Clicks" } },
                 { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "" } },
                 { title: "SOS", value: `${sos.toFixed(1)}%`, meta: { units: "" } },
                 { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "" } },
@@ -4724,7 +4927,7 @@ const getMonthOverview = async (filters) => {
                     date: bucket.date,
                     type: bucket.label,
                     logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
-                    columns: generateMonthColumns(offtake, availability, sos, marketShare, spend, roas, adSales, conversion, cpm, cpc)
+                    columns: generateMonthColumns(offtake, availability, sos, marketShare, spend, roas, adSales, conversion, cpm, cpc, msDenom)
                 };
             });
 
@@ -4745,7 +4948,7 @@ const getCategoryOverview = async (filters) => {
         return await coalesceRequest(`compute:${cacheKey}`, async () => {
             console.log('[getCategoryOverview] Computing OPTIMIZED category overview data...');
 
-            const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform } = filters;
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform, channel } = filters;
 
             // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
             const rawBrand = filters['brand[]'] || filters.brand;
@@ -4787,9 +4990,8 @@ const getCategoryOverview = async (filters) => {
             // Build category conditions for rb_pdp_olap
             const buildCatConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-                if (catPlatform && catPlatform !== 'All') {
-                    conds.push(`Platform = '${escapeStr(catPlatform)}'`);
-                }
+                const platformCond = buildPlatformChannelCond(catPlatform, channel);
+                if (platformCond) conds.push(platformCond);
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
                 }
@@ -4811,9 +5013,10 @@ const getCategoryOverview = async (filters) => {
             // Build SOS conditions for rb_kw
             const buildSosCatConds = () => {
                 const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-                if (catPlatform && catPlatform !== 'All') {
-                    conds.push(`platform_name = '${escapeStr(catPlatform)}'`);
-                }
+                const pCond = buildPlatformChannelCond(catPlatform, channel);
+                if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
+                else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
+                else if (catPlatform && catPlatform !== 'All') conds.push(`platform_name = '${escapeStr(catPlatform)}'`);
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
@@ -4825,9 +5028,8 @@ const getCategoryOverview = async (filters) => {
                 const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 conds.push(`sales IS NOT NULL`);
                 conds.push(`category IS NOT NULL`);
-                if (catPlatform && catPlatform !== 'All') {
-                    conds.push(`Platform = '${escapeStr(catPlatform)}'`);
-                }
+                const platformCond = buildPlatformChannelCond(catPlatform, channel);
+                if (platformCond) conds.push(platformCond);
                 if (brandsFilter && brandsFilter.length > 0) {
                     conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
                 }
@@ -4940,6 +5142,7 @@ const getCategoryOverview = async (filters) => {
                     logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
                     columns: [
                         { title: "Offtakes", value: formatCurrency(offtake), meta: { units: `${formatUnits(offtakeUnits)} units` } },
+                        { title: "Category Size", value: formatCurrency(msDenom), meta: { units: "market" } },
                         { title: "Spend", value: formatCurrency(spend), meta: { units: "spend" } },
                         { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "return" } },
                         { title: "Inorg Sales", value: formatCurrency(adSales), meta: { units: `${formatUnits(orders)} units` } },
@@ -4972,7 +5175,7 @@ const getBrandsOverview = async (filters) => {
         return await coalesceRequest(`compute:${cacheKey}`, async () => {
             console.log('[getBrandsOverview] Computing OPTIMIZED brands overview data...');
 
-            const { months = 1, startDate: qStartDate, endDate: qEndDate, brandsOverviewPlatform, brandsOverviewCategory } = filters;
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, brandsOverviewPlatform, brandsOverviewCategory, channel } = filters;
 
             // Extract filter values - frontend may send as 'location' or 'location[]' (array format)
             const rawLocation = filters['location[]'] || filters.location;
@@ -5012,9 +5215,8 @@ const getBrandsOverview = async (filters) => {
             // Build brand conditions for rb_pdp_olap
             const buildBrandConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-                if (boPlatform && boPlatform !== 'All') {
-                    conds.push(`Platform = '${escapeStr(boPlatform)}'`);
-                }
+                const platformCond = buildPlatformChannelCond(boPlatform, channel);
+                if (platformCond) conds.push(platformCond);
                 if (boCategory && boCategory !== 'All') {
                     conds.push(`Category = '${escapeStr(boCategory)}'`);
                 }
@@ -5037,9 +5239,10 @@ const getBrandsOverview = async (filters) => {
             const buildSosBrandConds = () => {
                 const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 const platformArr = normalizeFilterArray(boPlatform);
-                if (platformArr && platformArr.length > 0) {
-                    conds.push(`platform_name IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                }
+                const pCond = buildPlatformChannelCond(boPlatform, channel);
+                if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
+                else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
+                else if (boPlatform && boPlatform !== 'All') conds.push(`platform_name = '${escapeStr(boPlatform)}'`);
                 const categoryArr = normalizeFilterArray(boCategory);
                 if (categoryArr && categoryArr.length > 0) {
                     conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -5056,9 +5259,8 @@ const getBrandsOverview = async (filters) => {
                 const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 conds.push(`sales IS NOT NULL`);
                 const platformArr = normalizeFilterArray(boPlatform);
-                if (platformArr && platformArr.length > 0) {
-                    conds.push(`Platform IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                }
+                const platformCond = buildPlatformChannelCond(boPlatform, channel);
+                if (platformCond) conds.push(platformCond);
                 const categoryArr = normalizeFilterArray(boCategory);
                 if (categoryArr && categoryArr.length > 0) {
                     conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -5171,10 +5373,11 @@ const getBrandsOverview = async (filters) => {
                     type: "Brand",
                     columns: [
                         { title: "Offtakes", value: formatCurrency(sales), meta: { units: `${(sales / 100000).toFixed(2)} L` } },
+                        { title: "Category Size", value: formatCurrency(totalMarketSales), meta: { units: "market" } },
                         { title: "Spend", value: formatCurrency(spend), meta: { units: formatCurrency(spend) } },
                         { title: "ROAS", value: `${roas.toFixed(1)}x`, meta: { units: formatCurrency(adSales) } },
                         { title: "Inorg Sales", value: formatCurrency(adSales), meta: { units: "units" } },
-                        { title: "Conversion", value: conversion.toFixed(1), meta: { units: "Clicks / Orders" } },
+                        { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "Orders / Clicks" } },
                         { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: `${deno}` } },
                         { title: "SOS", value: `${sos.toFixed(1)}%`, meta: { units: `${sosNum}/${sosDenom}` } },
                         { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: formatCurrency(totalMarketSales) } },
@@ -5230,7 +5433,7 @@ const getKpiTrends = async (filters) => {
     return await getCachedOrCompute(cacheKey, async () => {
         console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
-        const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd } = filters;
+        const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel } = filters;
 
         // 1. Determine Date Range
         let endDate = await getCachedMaxDate();
@@ -5289,8 +5492,9 @@ const getKpiTrends = async (filters) => {
             const locArr = normalizeFilterArray(location);
             if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
-            const platArr = normalizeFilterArray(platform);
-            if (platArr && platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            // Channel-based platform filtering
+            const platformCond = buildPlatformChannelCond(platform, channel);
+            if (platformCond) conds.push(platformCond);
 
             return conds.join(' AND ');
         };
@@ -5647,6 +5851,8 @@ const getCompetitionData = async (filters = {}) => {
             if (skuArr && skuArr.length > 0) {
                 conds.push(`lower(Product) IN (${skuArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
             }
+
+            conds.push(`toString(Comp_flag) = '1'`);
 
             return conds.join(' AND ');
         };
@@ -6063,6 +6269,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 if (bndArr.length > 0) {
                     conds.push(`Brand IN (${bndArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
                 }
+                conds.push(`toString(Comp_flag) = '1'`);
                 conds.push(`Product IS NOT NULL`, `Product != ''`);
                 return queryClickHouse(`SELECT DISTINCT Product as sku FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY sku LIMIT 200`);
             })()
@@ -6355,6 +6562,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             if (location && location !== 'All') {
                 conds.push(`Location = '${escapeStr(location)}'`);
             }
+            conds.push(`toString(Comp_flag) = '1'`);
             conds.push(`Brand = '${escapeStr(brandName)}'`);
 
             // Build conditions to get this specific brand's sales from test_brand_MS
@@ -7034,7 +7242,7 @@ const getSkuOverview = async (filters) => {
         return await coalesceRequest(`compute:${cacheKey}`, async () => {
             console.log('[getSkuOverview] Computing SKU overview data...');
 
-            const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform, channel } = filters;
 
             // Extract filter values
             const rawBrand = filters['brand[]'] || filters.brand;
@@ -7075,12 +7283,16 @@ const getSkuOverview = async (filters) => {
             // Build SKU conditions for rb_pdp_olap
             const buildSkuConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-                if (skuPlatform && skuPlatform !== 'All') {
-                    conds.push(`Platform = '${escapeStr(skuPlatform)}'`);
-                }
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
                 }
+
+                // Channel-based platform filtering
+                const platformCond = buildPlatformChannelCond(skuPlatform, channel);
+                if (platformCond) {
+                    conds.push(platformCond);
+                }
+
                 if (locationArr && locationArr.length > 0) {
                     conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
@@ -7144,6 +7356,7 @@ const getSkuOverview = async (filters) => {
                     type: "SKU",
                     columns: [
                         { title: "Offtakes", value: formatCurrency(sales), meta: { units: `${qty.toFixed(0)} units` } },
+                        { title: "Category Size", value: "₹0", meta: { units: "" } }, // Placeholder for SKU view
                         { title: "Spend", value: formatCurrency(spend), meta: { units: "" } },
                         { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "" } },
                         { title: "Inorg Sales", value: formatCurrency(adSales), meta: { units: "" } },
@@ -7175,7 +7388,7 @@ const getCityOverview = async (filters) => {
         return await coalesceRequest(`compute:${cacheKey}`, async () => {
             console.log('[getCityOverview] Computing City overview data...');
 
-            const { months = 1, startDate: qStartDate, endDate: qEndDate, cityOverviewPlatform } = filters;
+            const { months = 1, startDate: qStartDate, endDate: qEndDate, cityOverviewPlatform, channel } = filters;
 
             // Extract filter values
             const rawBrand = filters['brand[]'] || filters.brand;
@@ -7214,12 +7427,16 @@ const getCityOverview = async (filters) => {
             // Build City conditions for rb_pdp_olap
             const buildCityConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-                if (cityPlatform && cityPlatform !== 'All') {
-                    conds.push(`Platform = '${escapeStr(cityPlatform)}'`);
-                }
                 if (brandArr && brandArr.length > 0) {
                     conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
                 }
+
+                // Channel-based platform filtering
+                const platformCond = buildPlatformChannelCond(cityPlatform, channel);
+                if (platformCond) {
+                    conds.push(platformCond);
+                }
+
                 if (categoryArr && categoryArr.length > 0) {
                     conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
@@ -7280,6 +7497,7 @@ const getCityOverview = async (filters) => {
                     type: "City",
                     columns: [
                         { title: "Offtakes", value: formatCurrency(sales), meta: { units: `${qty.toFixed(0)} units` } },
+                        { title: "Category Size", value: "₹0", meta: { units: "" } }, // Placeholder for City view
                         { title: "Spend", value: formatCurrency(spend), meta: { units: "" } },
                         { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "" } },
                         { title: "Inorg Sales", value: formatCurrency(adSales), meta: { units: "" } },

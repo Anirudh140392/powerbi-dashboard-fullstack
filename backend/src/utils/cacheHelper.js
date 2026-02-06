@@ -67,6 +67,7 @@ export function generateCacheKey(section, filters) {
         zone = '',
         metroFlag = '',
         pincode = '',
+        channel = '',
         // Advanced SKU Search Filters
         skuName = '',
         skuCode = ''
@@ -108,6 +109,7 @@ export function generateCacheKey(section, filters) {
     // Advanced SKU Search Filters
     if (skuName) key += `:sn_${normalize(skuName)}`;
     if (skuCode) key += `:sc_${normalize(skuCode)}`;
+    if (channel) key += `:chn_${normalize(channel)}`;
 
     // Section-specific platform/category overrides (for By Month, By Category, By Brands tabs)
     if (monthOverviewPlatform) key += `:mop_${normalize(monthOverviewPlatform)}`;
