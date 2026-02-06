@@ -779,13 +779,25 @@ const MOCK_SIGNALS = {
   }
 };
 
-export function VisibilityLayoutOne() {
+export function VisibilityLayoutOne({ data }) {
   const [signalType, setSignalType] = useState("drainer");
   const [level, setLevel] = useState("keyword");
   const [selectedItemForDetails, setSelectedItemForDetails] = useState(null);
   const [signals, setSignals] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!data);
   const [error, setError] = useState(null);
+
+  // If data is passed, use it directly
+  useEffect(() => {
+    if (data) {
+      // Assuming data structure matches what's expected (drainer/gainer keys)
+      // We might need to select the correct part based on signalType/level if the passed data is the full set
+      // Or if data is just the array for the current view. 
+      // Let's assume data is the full object { drainer: { keyword: [], sku: [] }, ... } like MOCK_SIGNALS
+      setSignals(data?.[signalType]?.[level] || []);
+      setLoading(false);
+    }
+  }, [data, signalType, level]);
 
   // Get global filters from FilterContext
   const {

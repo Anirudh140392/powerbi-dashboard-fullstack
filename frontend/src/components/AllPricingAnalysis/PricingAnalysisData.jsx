@@ -9,6 +9,7 @@
 
 import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
 import SnapshotOverview from "../CommonLayout/SnapShotOverview";
+import SalesGainerDrainerWrapper from "../../pages/Sales/SalesGainerDrainerWrapper";
 import { FilterContext } from "../../utils/FilterContext";
 import {
   Box,
@@ -2332,7 +2333,7 @@ export default function PricingAnalysisData() {
   return (
     <Box sx={{ p: 0, bgcolor: "#f4f6fb", minHeight: "100vh" }}>
       {/* Top Bar */}
-      {/* <Card
+      <Card
         sx={{
           mb: 2,
           p: 2,
@@ -2347,10 +2348,10 @@ export default function PricingAnalysisData() {
         <Typography variant="body2" color="text.secondary">
           Cross-platform ECP tracking • Brand comparison • Discount movement
         </Typography>
-      </Card> */}
+      </Card>
 
       {/* Snapshot Overview - Pricing Metrics */}
-      <SnapshotOverview
+      {/* <SnapshotOverview
         title="Pricing Overview"
         chip="Live Metrics"
         kpis={[
@@ -2398,10 +2399,11 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
+      <SalesGainerDrainerWrapper /> */}
 
 
       {/* KPI Row - ECP Comparison from API */}
-      {/* <Grid container spacing={2} mb={2}>
+      <Grid container spacing={2} mb={2}>
         {ecpLoading ? (
           // Skeleton loading state for KPI cards
           [1, 2, 3].map((i) => (
@@ -2471,11 +2473,11 @@ export default function PricingAnalysisData() {
             </Grid>
           ))
         )}
-      </Grid> */}
+      </Grid>
 
 
       {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
-      {/* <Grid container spacing={2} mb={2}>
+      <Grid container spacing={2} mb={2}>
         <Grid item xs={12} md={8}>
           {ecpByBrandLoading ? (
             <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
@@ -2587,10 +2589,10 @@ export default function PricingAnalysisData() {
             </Card>
           )}
         </Grid>
-      </Grid> */}
+      </Grid>
 
       {/* Discount Trend Drilldown (Power BI-style) */}
-      {/* {discountTrendLoading ? (
+      {discountTrendLoading ? (
         <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
           <Skeleton variant="text" width="250px" height={32} sx={{ mb: 1 }} />
           <Skeleton variant="text" width="200px" height={20} sx={{ mb: 2 }} />
@@ -2604,10 +2606,10 @@ export default function PricingAnalysisData() {
           onBrandClick={applyGlobalBrandSelection}
           onCategoryExpand={fetchDiscountByBrand}
         />
-      )} */}
+      )}
 
       {/* Tabs + Brand / Own vs Competitors */}
-      {/* <Card
+      <Card
         sx={{
           mb: 3,
           borderRadius: 3,
@@ -2627,9 +2629,9 @@ export default function PricingAnalysisData() {
           <Tab label="Brand Overview" value="overview" />
           <Tab label="Own vs Competitors" value="own" />
         </Tabs>
-      </Card> */}
+      </Card>
 
-      {/* {tab === "overview" && (
+      {tab === "overview" && (
         brandPriceOverviewLoading ? (
           <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
             <Skeleton variant="text" width="250px" height={32} sx={{ mb: 2 }} />
@@ -2645,10 +2647,10 @@ export default function PricingAnalysisData() {
             onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
           />
         )
-      )} */}
+      )}
 
       {/* One View Price Grid Table */}
-      {/* {tab === "overview" && (
+      {tab === "overview" && (
         oneViewPriceGridLoading ? (
           <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
             <Skeleton variant="text" width="250px" height={32} sx={{ mb: 2 }} />
@@ -2663,8 +2665,8 @@ export default function PricingAnalysisData() {
             searchPlaceholder="Search by date, platform, brand, or product"
           />
         )
-      )} */}
-      {/* 
+      )}
+
 
       {tab === "own" && (
         <SuperTable
@@ -2685,8 +2687,8 @@ export default function PricingAnalysisData() {
                 spacing={3}
                 justifyContent="space-between"
               >
-                {/* LEFT BLOCK */}
-      {/* <Box>
+
+                <Box>
                   <Typography variant="caption" color="text.secondary">
                     Own Brand Details
                   </Typography>
@@ -2708,8 +2710,8 @@ export default function PricingAnalysisData() {
                   </Typography>
                 </Box>
 
-                {/* RIGHT BLOCK */}
-      {/* <Box>
+
+                <Box>
                   <Typography variant="caption" color="text.secondary">
                     Competitor Details
                   </Typography>
@@ -2738,10 +2740,10 @@ export default function PricingAnalysisData() {
             </Box>
           )}
         />
-      )} */}
+      )}
 
       {/* Trend + RPI Card with Tabs */}
-      {/* <Card
+      <Card
         sx={{
           mb: 3,
           p: 2,
@@ -3026,7 +3028,7 @@ export default function PricingAnalysisData() {
             </Grid>
           </Box>
         )}
-      </Card> */}
+      </Card>
       {/* MODERN FLOATING FILTER DOCK */}
       {/* <Box
         sx={{
