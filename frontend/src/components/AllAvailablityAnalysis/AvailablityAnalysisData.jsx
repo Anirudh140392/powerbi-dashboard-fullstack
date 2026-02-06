@@ -30,6 +30,8 @@ import {
   BarChart2
 } from "lucide-react";
 import KPIMatrixTable from "./KpiMatrixTable";
+import SkuCompetitorAnalysis from "./SkuCompetitorAnalysis";
+import PricingAnalysis from "./PricingAnalysis";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1464,6 +1466,8 @@ export const AvailablityAnalysisData = ({
             initialLoading={loading}
           />
         )}
+        {/* <PricingAnalysis /> */}
+        {/* <SkuCompetitorAnalysis /> */}
 
       </div>
     </div>
