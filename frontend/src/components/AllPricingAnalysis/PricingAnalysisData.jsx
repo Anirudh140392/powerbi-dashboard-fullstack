@@ -90,6 +90,9 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
+import DiscountEcpPricing from "./discountEcpPricing";
+import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
+import DiscountDrilldownCity from "./DiscountDrilldownCity";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -2399,7 +2402,14 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
-      <SalesGainerDrainerWrapper /> */}
+      <SalesGainerDrainerWrapper />
+      <Box sx={{ pt: 2 }}>
+        <DiscountEcpPricing />
+      </Box>
+      <Box sx={{ pt: 2 }}>
+        <DiscountDrilldownDate />
+      </Box>
+      <DiscountDrilldownCity /> */}
 
 
       {/* KPI Row - ECP Comparison from API */}
@@ -2709,7 +2719,6 @@ export default function PricingAnalysisData() {
                     Own ECP: <strong>₹{row.ownECP}</strong>
                   </Typography>
                 </Box>
-
 
                 <Box>
                   <Typography variant="caption" color="text.secondary">
