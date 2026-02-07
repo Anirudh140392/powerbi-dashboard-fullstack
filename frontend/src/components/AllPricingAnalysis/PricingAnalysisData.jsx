@@ -2332,6 +2332,395 @@ export default function PricingAnalysisData() {
     return row;
   }, [activeBrand, ecpWeekdayWeekendData, ecpWeekdayWeekendSummary]);
 
+  // TABS for Gainer/Drainer
+  const pricingGainerDrainerTabs = [
+    { key: "ecp", label: "ECP" },
+    { key: "discount", label: "Discount" },
+    { key: "rpi", label: "RPI" },
+  ];
+
+  // DUMMY DATA for Gainer/Drainer (Pricing)
+  const pricingGainerDrainerData = {
+    ecp: {
+      drainer: [
+        {
+          id: "ECP-D01",
+          skuCode: "AMU-701",
+          skuName: "Amul Butterscotch 700ml",
+          packSize: "700ml",
+          platform: "Blinkit",
+          categoryTag: "Tub",
+          ecpValue: "₹ 145",
+          impact: "-8.2%",
+          kpis: { mrp: "₹ 180", discount: "19.4%", rpi: "0.85" },
+          topCities: [
+            { city: "Mumbai", metric: "ECP ₹ 142", change: "-4.5%" },
+            { city: "Pune", metric: "Discount 21%", change: "+3.2%" }
+          ]
+        },
+        {
+          id: "ECP-D02",
+          skuCode: "KW-502",
+          skuName: "Kwality Walls Chocolate 500ml",
+          packSize: "500ml",
+          platform: "Zepto",
+          categoryTag: "Tub",
+          ecpValue: "₹ 210",
+          impact: "-6.5%",
+          kpis: { mrp: "₹ 240", discount: "12.5%", rpi: "0.92" },
+          topCities: [
+            { city: "Delhi", metric: "ECP ₹ 205", change: "-3.1%" },
+            { city: "Gurgaon", metric: "RPI 0.88", change: "-0.05" }
+          ]
+        },
+        {
+          id: "ECP-D03",
+          skuCode: "NIC-101",
+          skuName: "NIC Sitaphal 500ml",
+          packSize: "500ml",
+          platform: "Instamart",
+          categoryTag: "Natural",
+          ecpValue: "₹ 280",
+          impact: "-4.9%",
+          kpis: { mrp: "₹ 310", discount: "9.7%", rpi: "1.05" },
+          topCities: [
+            { city: "Bangalore", metric: "ECP ₹ 275", change: "-2.4%" },
+            { city: "Hyderabad", metric: "Discount 11%", change: "+1.5%" }
+          ]
+        },
+        {
+          id: "ECP-D04",
+          skuCode: "VAD-401",
+          skuName: "Vadilal Kesar Pista 1L",
+          packSize: "1L",
+          platform: "Blinkit",
+          categoryTag: "Party Pack",
+          ecpValue: "₹ 190",
+          impact: "-5.3%",
+          kpis: { mrp: "₹ 230", discount: "17.4%", rpi: "0.88" },
+          topCities: [
+            { city: "Ahmedabad", metric: "ECP ₹ 185", change: "-4.1%" },
+            { city: "Surat", metric: "Discount 19%", change: "+2.8%" }
+          ]
+        }
+      ],
+      gainer: [
+        {
+          id: "ECP-G01",
+          skuCode: "KW-801",
+          skuName: "Magnum Truffle 80ml",
+          packSize: "80ml",
+          platform: "Zepto",
+          categoryTag: "Stick",
+          ecpValue: "₹ 85",
+          impact: "+5.4%",
+          kpis: { mrp: "₹ 95", discount: "10.5%", rpi: "1.2" },
+          topCities: [
+            { city: "Bangalore", metric: "ECP ₹ 88", change: "+2.1%" },
+            { city: "Hyderabad", metric: "RPI 1.15", change: "+0.1" }
+          ]
+        },
+        {
+          id: "ECP-G02",
+          skuCode: "AMU-201",
+          skuName: "Amul Vanilla Cup 100ml",
+          packSize: "100ml",
+          platform: "Blinkit",
+          categoryTag: "Cup",
+          ecpValue: "₹ 18",
+          impact: "+3.2%",
+          kpis: { mrp: "₹ 20", discount: "10%", rpi: "1.05" },
+          topCities: [
+            { city: "Mumbai", metric: "ECP ₹ 19", change: "+1.5%" },
+            { city: "Pune", metric: "Discount 8%", change: "-2%" }
+          ]
+        },
+        {
+          id: "ECP-G03",
+          skuCode: "HAV-105",
+          skuName: "Havmor Rajbhog 500ml",
+          packSize: "500ml",
+          platform: "Instamart",
+          categoryTag: "Tub",
+          ecpValue: "₹ 165",
+          impact: "+4.1%",
+          kpis: { mrp: "₹ 175", discount: "5.7%", rpi: "1.12" },
+          topCities: [
+            { city: "Pune", metric: "ECP ₹ 168", change: "+2.5%" },
+            { city: "Mumbai", metric: "RPI 1.08", change: "+0.08" }
+          ]
+        },
+        {
+          id: "ECP-G04",
+          skuCode: "NIC-302",
+          skuName: "NIC Roasted Almond 750ml",
+          packSize: "750ml",
+          platform: "Blinkit",
+          categoryTag: "Natural",
+          ecpValue: "₹ 345",
+          impact: "+2.8%",
+          kpis: { mrp: "₹ 360", discount: "4.2%", rpi: "1.18" },
+          topCities: [
+            { city: "Delhi", metric: "ECP ₹ 350", change: "+1.8%" },
+            { city: "Gurgaon", metric: "Discount 3%", change: "-1.2%" }
+          ]
+        }
+      ]
+    },
+    discount: {
+      drainer: [
+        {
+          id: "DSC-D01",
+          skuCode: "HAV-301",
+          skuName: "Havmor Chocolate 700ml",
+          packSize: "700ml",
+          platform: "Instamart",
+          categoryTag: "Tub",
+          discountValue: "25%",
+          impact: "-10.5%",
+          kpis: { ecp: "₹ 135", mrp: "₹ 180", rpi: "0.78" },
+          topCities: [
+            { city: "Pune", metric: "Discount 28%", change: "+5%" },
+            { city: "Mumbai", metric: "ECP ₹ 130", change: "-3.5%" }
+          ]
+        },
+        {
+          id: "DSC-D02",
+          skuCode: "MOT-102",
+          skuName: "Mother Dairy Kulfi Box",
+          packSize: "6 Units",
+          platform: "Blinkit",
+          categoryTag: "Multipack",
+          discountValue: "18%",
+          impact: "-7.2%",
+          kpis: { ecp: "₹ 148", mrp: "₹ 180", rpi: "0.88" },
+          topCities: [
+            { city: "Delhi", metric: "Discount 22%", change: "+4%" },
+            { city: "Gurgaon", metric: "ECP ₹ 142", change: "-2.8%" }
+          ]
+        },
+        {
+          id: "DSC-D03",
+          skuCode: "KW-605",
+          skuName: "Kwality Walls Cornetto multipack",
+          packSize: "4 x 100ml",
+          platform: "Zepto",
+          categoryTag: "Multipack",
+          discountValue: "22%",
+          impact: "-5.8%",
+          kpis: { ecp: "₹ 210", mrp: "₹ 270", rpi: "0.82" },
+          topCities: [
+            { city: "Bangalore", metric: "Discount 25%", change: "+3.5%" },
+            { city: "Hyderabad", metric: "ECP ₹ 205", change: "-2.1%" }
+          ]
+        },
+        {
+          id: "DSC-D04",
+          skuCode: "AMU-902",
+          skuName: "Amul Cookies n Cream 1L",
+          packSize: "1L",
+          platform: "Blinkit",
+          categoryTag: "Tub",
+          discountValue: "15%",
+          impact: "-4.3%",
+          kpis: { ecp: "₹ 170", mrp: "₹ 200", rpi: "0.95" },
+          topCities: [
+            { city: "Mumbai", metric: "Discount 18%", change: "+2.8%" },
+            { city: "Ahmedabad", metric: "ECP ₹ 165", change: "-1.5%" }
+          ]
+        }
+      ],
+      gainer: [
+        {
+          id: "DSC-G01",
+          skuCode: "KW-901",
+          skuName: "Cornetto Double Choco",
+          packSize: "120ml",
+          platform: "Blinkit",
+          categoryTag: "Cone",
+          discountValue: "5%",
+          impact: "+4.8%",
+          kpis: { ecp: "₹ 62", mrp: "₹ 65", rpi: "1.15" },
+          topCities: [
+            { city: "Hyderabad", metric: "Discount 2%", change: "-3%" },
+            { city: "Bangalore", metric: "ECP ₹ 64", change: "+1.2%" }
+          ]
+        },
+        {
+          id: "DSC-G02",
+          skuCode: "VAD-204",
+          skuName: "Vadilal Belgian Chocolate 500ml",
+          packSize: "500ml",
+          platform: "Zepto",
+          categoryTag: "Tub",
+          discountValue: "8%",
+          impact: "+3.5%",
+          kpis: { ecp: "₹ 210", mrp: "₹ 230", rpi: "1.08" },
+          topCities: [
+            { city: "Delhi", metric: "Discount 5%", change: "-2.5%" },
+            { city: "Gurgaon", metric: "ECP ₹ 215", change: "+1.8%" }
+          ]
+        },
+        {
+          id: "DSC-G03",
+          skuCode: "MOT-301",
+          skuName: "Mother Dairy Vanilla 1L",
+          packSize: "1L",
+          platform: "Instamart",
+          categoryTag: "Tub",
+          discountValue: "10%",
+          impact: "+2.9%",
+          kpis: { ecp: "₹ 162", mrp: "₹ 180", rpi: "1.02" },
+          topCities: [
+            { city: "Bangalore", metric: "Discount 8%", change: "-1.2%" },
+            { city: "Chennai", metric: "ECP ₹ 165", change: "+1.1%" }
+          ]
+        },
+        {
+          id: "DSC-G04",
+          skuCode: "AMU-112",
+          skuName: "Amul Epic Choco 80ml",
+          packSize: "80ml",
+          platform: "Blinkit",
+          categoryTag: "Stick",
+          discountValue: "2%",
+          impact: "+2.1%",
+          kpis: { ecp: "₹ 39", mrp: "₹ 40", rpi: "1.22" },
+          topCities: [
+            { city: "Mumbai", metric: "Discount 0%", change: "-2%" },
+            { city: "Pune", metric: "ECP ₹ 40", change: "+0.5%" }
+          ]
+        }
+      ]
+    },
+    rpi: {
+      drainer: [
+        {
+          id: "RPI-D01",
+          skuCode: "NIC-501",
+          skuName: "NIC Tender Coconut 500ml",
+          packSize: "500ml",
+          platform: "Zepto",
+          categoryTag: "Natural",
+          rpiValue: "0.72",
+          impact: "-12.4%",
+          kpis: { ecp: "₹ 165", discount: "45%", priceChange: "+15%" },
+          topCities: [
+            { city: "Mumbai", metric: "RPI 0.65", change: "-0.15" },
+            { city: "Thane", metric: "ECP ₹ 155", change: "-5.2%" }
+          ]
+        },
+        {
+          id: "RPI-D02",
+          skuCode: "HAV-402",
+          skuName: "Havmor Mango 1L",
+          packSize: "1L",
+          platform: "Blinkit",
+          categoryTag: "Tub",
+          rpiValue: "0.85",
+          impact: "-8.1%",
+          kpis: { ecp: "₹ 185", discount: "25%", priceChange: "+10%" },
+          topCities: [
+            { city: "Pune", metric: "RPI 0.82", change: "-0.08" },
+            { city: "Nashik", metric: "ECP ₹ 180", change: "-3.4%" }
+          ]
+        },
+        {
+          id: "RPI-D03",
+          skuCode: "NIC-201",
+          skuName: "NIC Roasted Almond 500ml",
+          packSize: "500ml",
+          platform: "Instamart",
+          categoryTag: "Natural",
+          rpiValue: "0.88",
+          impact: "-6.5%",
+          kpis: { ecp: "₹ 245", discount: "15%", priceChange: "+5%" },
+          topCities: [
+            { city: "Delhi", metric: "RPI 0.85", change: "-0.05" },
+            { city: "Gurgaon", metric: "ECP ₹ 240", change: "-2.1%" }
+          ]
+        },
+        {
+          id: "RPI-D04",
+          skuCode: "KW-704",
+          skuName: "Kwality Walls Party Pack 1L",
+          packSize: "1L",
+          platform: "Zepto",
+          categoryTag: "Tub",
+          rpiValue: "0.91",
+          impact: "-4.2%",
+          kpis: { ecp: "₹ 195", discount: "10%", priceChange: "+2%" },
+          topCities: [
+            { city: "Bangalore", metric: "RPI 0.88", change: "-0.06" },
+            { city: "Hyderabad", metric: "ECP ₹ 190", change: "-1.8%" }
+          ]
+        }
+      ],
+      gainer: [
+        {
+          id: "RPI-G01",
+          skuCode: "AMU-101",
+          skuName: "Amul Gold Milk 500ml",
+          packSize: "500ml",
+          platform: "Blinkit",
+          categoryTag: "Milk",
+          rpiValue: "1.25",
+          impact: "+6.7%",
+          kpis: { ecp: "₹ 33", discount: "0%", priceChange: "0%" },
+          topCities: [
+            { city: "Delhi", metric: "RPI 1.35", change: "+0.12" },
+            { city: "Noida", metric: "ECP ₹ 33", change: "0%" }
+          ]
+        },
+        {
+          id: "RPI-G02",
+          skuCode: "NIC-405",
+          skuName: "NIC Sitaphal 100ml",
+          packSize: "100ml",
+          platform: "Zepto",
+          categoryTag: "Natural",
+          rpiValue: "1.15",
+          impact: "+5.3%",
+          kpis: { ecp: "₹ 65", discount: "0%", priceChange: "0%" },
+          topCities: [
+            { city: "Mumbai", metric: "RPI 1.25", change: "+0.1" },
+            { city: "Pune", metric: "ECP ₹ 65", change: "0%" }
+          ]
+        },
+        {
+          id: "RPI-G03",
+          skuCode: "HAV-602",
+          skuName: "Havmor Belgian Chocolate 100ml",
+          packSize: "100ml",
+          platform: "Instamart",
+          categoryTag: "Cup",
+          rpiValue: "1.08",
+          impact: "+3.8%",
+          kpis: { ecp: "₹ 45", discount: "5%", priceChange: "-2%" },
+          topCities: [
+            { city: "Bangalore", metric: "RPI 1.12", change: "+0.08" },
+            { city: "Chennai", metric: "ECP ₹ 48", change: "+4.5%" }
+          ]
+        },
+        {
+          id: "RPI-G04",
+          skuCode: "KW-111",
+          skuName: "Kwality Walls Choco Brownie 500ml",
+          packSize: "500ml",
+          platform: "Blinkit",
+          categoryTag: "Tub",
+          rpiValue: "1.05",
+          impact: "+2.4%",
+          kpis: { ecp: "₹ 240", discount: "2%", priceChange: "-1%" },
+          topCities: [
+            { city: "Mumbai", metric: "RPI 1.08", change: "+0.05" },
+            { city: "Ahmedabad", metric: "ECP ₹ 245", change: "+1.2%" }
+          ]
+        }
+      ]
+    }
+  };
+
   // MAIN RETURN
   return (
     <Box sx={{ p: 0, bgcolor: "#f4f6fb", minHeight: "100vh" }}>
@@ -2402,7 +2791,11 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
-      <SalesGainerDrainerWrapper />
+      <SalesGainerDrainerWrapper
+        tabs={pricingGainerDrainerTabs}
+        data={pricingGainerDrainerData}
+        defaultTab="ecp"
+      />
       <Box sx={{ pt: 2 }}>
         <DiscountEcpPricing />
       </Box>

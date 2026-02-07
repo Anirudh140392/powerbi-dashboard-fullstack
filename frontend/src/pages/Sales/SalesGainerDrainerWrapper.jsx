@@ -3,8 +3,18 @@ import { SignalLabVisibility } from "../../components/AllVisiblityAnalysis/Signa
 import VisibilityLayoutOne from "../../components/AllVisiblityAnalysis/VisibilityLayoutOne";
 import { motion } from "framer-motion";
 
-export default function SalesGainerDrainerWrapper({ data }) {
-    const [activeTab, setActiveTab] = useState("availability");
+export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab }) {
+    // Use custom tabs if provided, otherwise use default Sales tabs
+    const defaultTabs = [
+        { key: "availability", label: "Availability" },
+        { key: "sales", label: "Sales" },
+        { key: "performance", label: "Performance" },
+        { key: "inventory", label: "Inventory" },
+        { key: "visibility", label: "Visibility" },
+    ];
+
+    const tabOptions = tabs || defaultTabs;
+    const [activeTab, setActiveTab] = useState(defaultTab || tabOptions[0]?.key || "availability");
 
     return (
         <div className="w-full">
@@ -12,13 +22,7 @@ export default function SalesGainerDrainerWrapper({ data }) {
                 {/* Toggle at the top start of the card */}
                 <div className="flex justify-start mb-4 md:mb-6 overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
                     <div className="flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500 whitespace-nowrap min-w-max">
-                        {[
-                            { key: "availability", label: "Availability" },
-                            { key: "sales", label: "Sales" },
-                            { key: "performance", label: "Performance" },
-                            { key: "inventory", label: "Inventory" },
-                            { key: "visibility", label: "Visibility" },
-                        ].map((option) => (
+                        {tabOptions.map((option) => (
                             <button
                                 key={option.key}
                                 type="button"
