@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, X, ArrowUpRight, ArrowDownRight, LineChart as LineChartIcon, SlidersHorizontal } from 'lucide-react'
 import TrendsCompetitionDrawer from './TrendsCompetitionDrawer'
@@ -561,7 +561,7 @@ export default function KPIMatrixTable({ data }) {
                         {kpis.map((kpi, kIdx) => {
                             const isRowExpanded = expandedRows.includes(kpi.key)
                             return (
-                                <>
+                                <React.Fragment key={kpi.key}>
                                     {/* Data Row */}
                                     <tr
                                         key={kpi.key}
@@ -651,7 +651,7 @@ export default function KPIMatrixTable({ data }) {
                                             </motion.tr>
                                         )}
                                     </AnimatePresence>
-                                </>
+                                </React.Fragment>
                             )
                         })}
                     </tbody>

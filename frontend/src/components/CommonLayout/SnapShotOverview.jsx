@@ -31,9 +31,49 @@ const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
             </div>
         );
     }
+
+    const Icon = kpi.icon || BarChart2;
     const isPositive = kpi.delta > 0;
-    const Icon = kpi.icon || Zap;
     const trendData = kpi.trend ? kpi.trend.map((val) => ({ value: val })) : [];
+
+    // Coming Soon state for premium UI look
+    if (kpi.isComingSoon) {
+        return (
+            <div
+                className="p-4 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 shadow-sm h-full flex flex-col relative overflow-hidden group select-none"
+                style={{ fontFamily: 'Roboto, sans-serif' }}
+            >
+                <div className="flex justify-between items-start mb-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.04em]">{kpi.title}</span>
+                    <div className="px-2 py-0.5 rounded-full bg-blue-50/50 border border-blue-100 text-[8px] font-bold text-blue-500 uppercase tracking-widest">
+                        Coming Soon
+                    </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center py-4 flex-grow">
+                    <motion.div
+                        className="w-12 h-12 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center mb-2"
+                        initial={{ opacity: 0.8 }}
+                        whileHover={{ scale: 1.05 }}
+                    >
+                        <Icon size={20} className="text-slate-300" strokeWidth={1.5} />
+                    </motion.div>
+                    <div className="h-1 w-12 bg-slate-100 rounded-full overflow-hidden relative">
+                        <motion.div
+                            className="absolute top-0 left-0 h-full bg-blue-400"
+                            initial={{ width: "30%" }}
+                            animate={{ left: "100%", width: "0%" }}
+                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-auto pt-2 border-t border-slate-100/50">
+                    <span className="text-[9px] font-medium text-slate-400 italic">Advanced analytics in progress</span>
+                </div>
+            </div>
+        );
+    }
 
     if (variant === 'split') {
         return (

@@ -217,36 +217,64 @@ const getAbsoluteOsaOverview = async (filters) => {
         try {
             const { platform, brand, location, startDate, endDate } = filters;
 
-            // Build conditions
-            const whereClauseStr = buildAvailabilityWhereClause(filters);
-            const whereClause = whereClauseStr !== '1=1' ? `WHERE ${whereClauseStr}` : '';
+            // Date calculations
+            const currentEndDate = endDate ? dayjs(endDate) : dayjs();
+            const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
+            const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
+            const prevEndDate = currentStartDate.subtract(1, 'day');
+            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
-            const query = `
+            // Build filter conditions for current period
+            const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
+            const currentWhere = buildAvailabilityWhereClause(currentFilters);
+
+            // Build filter conditions for previous period
+            const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
+            const prevWhere = buildAvailabilityWhereClause(prevFilters);
+
+            const queryTemplate = (where) => `
                 SELECT 
                     SUM(toFloat64(neno_osa)) as sumNenoOsa,
-                    SUM(toFloat64(deno_osa)) as sumDenoOsa
+                    SUM(toFloat64(deno_osa)) as sumDenoOsa,
+                    SUM(toFloat64(buy_box_neno_osa)) as sumBuyBoxNeno
                 FROM rb_pdp_olap
-                ${whereClause}
+                WHERE ${where}
             `;
 
-            console.log('[getAbsoluteOsaOverview] Query:', query);
-            const result = await queryClickHouse(query);
-            const row = result[0] || {};
+            console.log('[getAbsoluteOsaOverview] Fetching current and previous data');
+            const [currentResult, prevResult] = await Promise.all([
+                queryClickHouse(queryTemplate(currentWhere)),
+                queryClickHouse(queryTemplate(prevWhere))
+            ]);
 
-            const sumNenoOsa = parseFloat(row.sumNenoOsa) || 0;
-            const sumDenoOsa = parseFloat(row.sumDenoOsa) || 0;
+            const curr = currentResult[0] || {};
+            const prev = prevResult[0] || {};
 
-            let stockAvailability = 0;
-            if (sumDenoOsa > 0) {
-                stockAvailability = (sumNenoOsa / sumDenoOsa) * 100;
-            }
+            const currSumNeno = parseFloat(curr.sumNenoOsa) || 0;
+            const currSumDeno = parseFloat(curr.sumDenoOsa) || 0;
+            const currSumBuyBox = parseFloat(curr.sumBuyBoxNeno) || 0;
+
+            const prevSumNeno = parseFloat(prev.sumNenoOsa) || 0;
+            const prevSumDeno = parseFloat(prev.sumDenoOsa) || 0;
+            const prevSumBuyBox = parseFloat(prev.sumBuyBoxNeno) || 0;
+
+            const stockAvailability = currSumDeno > 0 ? (currSumNeno / currSumDeno) * 100 : 0;
+            const prevStockAvailability = prevSumDeno > 0 ? (prevSumNeno / prevSumDeno) * 100 : 0;
+
+            const fillRate = currSumDeno > 0 ? (currSumBuyBox / currSumDeno) * 100 : 0;
+            const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
             return {
                 section: "availability_overview",
                 stockAvailability: parseFloat(stockAvailability.toFixed(2)),
-                sumNenoOsa: sumNenoOsa,
-                sumDenoOsa: sumDenoOsa,
+                prevStockAvailability: parseFloat(prevStockAvailability.toFixed(2)),
+                fillRate: parseFloat(fillRate.toFixed(2)),
+                prevFillRate: parseFloat(prevFillRate.toFixed(2)),
+                sumNenoOsa: currSumNeno,
+                sumDenoOsa: currSumDeno,
                 filters: filters,
+                currentPeriod: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') },
+                comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
                 timestamp: new Date().toISOString()
             };
         } catch (error) {

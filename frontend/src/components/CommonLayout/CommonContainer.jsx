@@ -78,7 +78,7 @@ export default function CommonContainer({
             overflowY: "auto",
             overflowX: "hidden", // 🔥 IMPORTANT
             minHeight: 0, // Ensure flex scrolling works
-            "-webkit-overflow-scrolling": "touch", // Smooth scroll on iOS
+            WebkitOverflowScrolling: "touch", // Smooth scroll on iOS
           }}
         >
           <Container
