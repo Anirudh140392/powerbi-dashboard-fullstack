@@ -42,7 +42,48 @@ const BRAND_SKU_DAY_DATA = [
                     '2026-02-02': { ecp: 145, discount: 5, rpi: 1.2 },
                     '2026-02-01': { ecp: 140, discount: 8, rpi: 1.15 },
                     '2026-01-31': { ecp: 142, discount: 6, rpi: 1.18 }
-                }
+                },
+                cities: [
+                    {
+                        id: 'c1-s1',
+                        name: 'Mumbai',
+                        days: {
+                            '2026-02-06': { ecp: 148, discount: 4, rpi: 1.22 },
+                            '2026-02-05': { ecp: 146, discount: 5, rpi: 1.2 },
+                            '2026-02-04': { ecp: 144, discount: 6, rpi: 1.18 },
+                            '2026-02-03': { ecp: 138, discount: 10, rpi: 1.12 },
+                            '2026-02-02': { ecp: 147, discount: 4, rpi: 1.21 },
+                            '2026-02-01': { ecp: 142, discount: 7, rpi: 1.16 },
+                            '2026-01-31': { ecp: 143, discount: 6, rpi: 1.17 }
+                        }
+                    },
+                    {
+                        id: 'c2-s1',
+                        name: 'Delhi',
+                        days: {
+                            '2026-02-06': { ecp: 142, discount: 6, rpi: 1.18 },
+                            '2026-02-05': { ecp: 144, discount: 5, rpi: 1.2 },
+                            '2026-02-04': { ecp: 146, discount: 4, rpi: 1.22 },
+                            '2026-02-03': { ecp: 134, discount: 14, rpi: 1.08 },
+                            '2026-02-02': { ecp: 143, discount: 6, rpi: 1.19 },
+                            '2026-02-01': { ecp: 138, discount: 9, rpi: 1.14 },
+                            '2026-01-31': { ecp: 141, discount: 6, rpi: 1.19 }
+                        }
+                    },
+                    {
+                        id: 'c3-s1',
+                        name: 'Bangalore',
+                        days: {
+                            '2026-02-06': { ecp: 145, discount: 5, rpi: 1.2 },
+                            '2026-02-05': { ecp: 145, discount: 5, rpi: 1.2 },
+                            '2026-02-04': { ecp: 145, discount: 5, rpi: 1.2 },
+                            '2026-02-03': { ecp: 136, discount: 12, rpi: 1.1 },
+                            '2026-02-02': { ecp: 145, discount: 5, rpi: 1.2 },
+                            '2026-02-01': { ecp: 140, discount: 8, rpi: 1.15 },
+                            '2026-01-31': { ecp: 142, discount: 6, rpi: 1.18 }
+                        }
+                    }
+                ]
             },
             {
                 id: 's2',
@@ -56,7 +97,35 @@ const BRAND_SKU_DAY_DATA = [
                     '2026-02-02': { ecp: 99, discount: 10, rpi: 0.95 },
                     '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
                     '2026-01-31': { ecp: 95, discount: 12, rpi: 0.9 }
-                }
+                },
+                cities: [
+                    {
+                        id: 'c1-s2',
+                        name: 'Chennai',
+                        days: {
+                            '2026-02-06': { ecp: 102, discount: 8, rpi: 0.98 },
+                            '2026-02-05': { ecp: 100, discount: 9, rpi: 0.96 },
+                            '2026-02-04': { ecp: 99, discount: 10, rpi: 0.95 },
+                            '2026-02-03': { ecp: 98, discount: 11, rpi: 0.94 },
+                            '2026-02-02': { ecp: 100, discount: 9, rpi: 0.96 },
+                            '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
+                            '2026-01-31': { ecp: 96, discount: 11, rpi: 0.91 }
+                        }
+                    },
+                    {
+                        id: 'c2-s2',
+                        name: 'Hyderabad',
+                        days: {
+                            '2026-02-06': { ecp: 96, discount: 12, rpi: 0.92 },
+                            '2026-02-05': { ecp: 98, discount: 11, rpi: 0.94 },
+                            '2026-02-04': { ecp: 99, discount: 10, rpi: 0.95 },
+                            '2026-02-03': { ecp: 100, discount: 9, rpi: 0.96 },
+                            '2026-02-02': { ecp: 98, discount: 11, rpi: 0.94 },
+                            '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
+                            '2026-01-31': { ecp: 94, discount: 13, rpi: 0.89 }
+                        }
+                    }
+                ]
             },
         ]
     },
@@ -76,7 +145,35 @@ const BRAND_SKU_DAY_DATA = [
                     '2026-02-02': { ecp: 110, discount: 15, rpi: 1.4 },
                     '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
                     '2026-01-31': { ecp: 105, discount: 17, rpi: 1.3 }
-                }
+                },
+                cities: [
+                    {
+                        id: 'c1-s3',
+                        name: 'Kolkata',
+                        days: {
+                            '2026-02-06': { ecp: 112, discount: 14, rpi: 1.42 },
+                            '2026-02-05': { ecp: 111, discount: 14, rpi: 1.41 },
+                            '2026-02-04': { ecp: 110, discount: 15, rpi: 1.4 },
+                            '2026-02-03': { ecp: 109, discount: 16, rpi: 1.38 },
+                            '2026-02-02': { ecp: 111, discount: 14, rpi: 1.41 },
+                            '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
+                            '2026-01-31': { ecp: 106, discount: 16, rpi: 1.32 }
+                        }
+                    },
+                    {
+                        id: 'c2-s3',
+                        name: 'Pune',
+                        days: {
+                            '2026-02-06': { ecp: 108, discount: 16, rpi: 1.38 },
+                            '2026-02-05': { ecp: 109, discount: 16, rpi: 1.39 },
+                            '2026-02-04': { ecp: 110, discount: 15, rpi: 1.4 },
+                            '2026-02-03': { ecp: 111, discount: 14, rpi: 1.42 },
+                            '2026-02-02': { ecp: 109, discount: 16, rpi: 1.39 },
+                            '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
+                            '2026-01-31': { ecp: 104, discount: 18, rpi: 1.28 }
+                        }
+                    }
+                ]
             },
             {
                 id: 's4',
@@ -90,7 +187,22 @@ const BRAND_SKU_DAY_DATA = [
                     '2026-02-02': { ecp: 88, discount: 3, rpi: 1.05 },
                     '2026-02-01': { ecp: 85, discount: 0, rpi: 1.1 },
                     '2026-01-31': { ecp: 82, discount: 2, rpi: 1.08 }
-                }
+                },
+                cities: [
+                    {
+                        id: 'c1-s4',
+                        name: 'Ahmedabad',
+                        days: {
+                            '2026-02-06': { ecp: 86, discount: 0, rpi: 1.11 },
+                            '2026-02-05': { ecp: 85, discount: 0, rpi: 1.1 },
+                            '2026-02-04': { ecp: 89, discount: 2, rpi: 1.06 },
+                            '2026-02-03': { ecp: 86, discount: 0, rpi: 1.11 },
+                            '2026-02-02': { ecp: 89, discount: 2, rpi: 1.06 },
+                            '2026-02-01': { ecp: 86, discount: 0, rpi: 1.11 },
+                            '2026-01-31': { ecp: 83, discount: 1, rpi: 1.09 }
+                        }
+                    }
+                ]
             },
         ]
     },
@@ -110,11 +222,40 @@ const BRAND_SKU_DAY_DATA = [
                     '2026-02-02': { ecp: 199, discount: 5, rpi: 0.85 },
                     '2026-02-01': { ecp: 199, discount: 5, rpi: 0.85 },
                     '2026-01-31': { ecp: 210, discount: 3, rpi: 0.9 }
-                }
+                },
+                cities: [
+                    {
+                        id: 'c1-s5',
+                        name: 'Gurgaon',
+                        days: {
+                            '2026-02-06': { ecp: 202, discount: 4, rpi: 0.87 },
+                            '2026-02-05': { ecp: 200, discount: 5, rpi: 0.86 },
+                            '2026-02-04': { ecp: 198, discount: 6, rpi: 0.84 },
+                            '2026-02-03': { ecp: 188, discount: 7, rpi: 0.82 },
+                            '2026-02-02': { ecp: 201, discount: 4, rpi: 0.86 },
+                            '2026-02-01': { ecp: 200, discount: 5, rpi: 0.86 },
+                            '2026-01-31': { ecp: 212, discount: 2, rpi: 0.91 }
+                        }
+                    },
+                    {
+                        id: 'c2-s5',
+                        name: 'Noida',
+                        days: {
+                            '2026-02-06': { ecp: 196, discount: 6, rpi: 0.83 },
+                            '2026-02-05': { ecp: 198, discount: 5, rpi: 0.84 },
+                            '2026-02-04': { ecp: 200, discount: 4, rpi: 0.86 },
+                            '2026-02-03': { ecp: 182, discount: 9, rpi: 0.78 },
+                            '2026-02-02': { ecp: 197, discount: 6, rpi: 0.84 },
+                            '2026-02-01': { ecp: 198, discount: 5, rpi: 0.84 },
+                            '2026-01-31': { ecp: 208, discount: 4, rpi: 0.89 }
+                        }
+                    }
+                ]
             },
         ]
     },
 ]
+
 
 // ========================================
 // MAIN COMPONENT
@@ -122,6 +263,7 @@ const BRAND_SKU_DAY_DATA = [
 
 function DateWiseDrilldownTable() {
     const [expandedBrands, setExpandedBrands] = useState(['Colgate'])
+    const [expandedSkus, setExpandedSkus] = useState([]) // Track which SKUs are expanded
     const [dayRange, setDayRange] = useState(7)
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
@@ -298,7 +440,19 @@ function DateWiseDrilldownTable() {
         )
     }
 
-    const closeAll = () => setExpandedBrands([])
+    const toggleSku = (skuId, e) => {
+        e.stopPropagation()
+        setExpandedSkus(prev =>
+            prev.includes(skuId)
+                ? prev.filter(s => s !== skuId)
+                : [...prev, skuId]
+        )
+    }
+
+    const closeAll = () => {
+        setExpandedBrands([])
+        setExpandedSkus([])
+    }
 
     const getMetricValue = (dayData) => {
         if (!dayData) return null
@@ -320,7 +474,7 @@ function DateWiseDrilldownTable() {
             <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 bg-white">
                 <div className="flex items-center gap-6">
                     <h2 className="text-xl font-bold text-[#1E293B]">
-                        Brand → SKU Day-Level
+                        Brand → SKU → City Day-Level
                     </h2>
 
                     {/* Day Range Selector (Pill Style) */}
@@ -513,38 +667,95 @@ function DateWiseDrilldownTable() {
 
                                     {/* SKU Rows */}
                                     <AnimatePresence>
-                                        {isExpanded && brand.skus.map((sku) => (
-                                            <motion.tr
-                                                key={sku.id}
-                                                initial={{ opacity: 0, height: 0 }}
-                                                animate={{ opacity: 1, height: 'auto' }}
-                                                exit={{ opacity: 0, height: 0 }}
-                                                className="bg-white border-b border-slate-50"
-                                            >
-                                                <td className="pl-14 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-slate-300 text-lg leading-none mt-[-4px]">└</span>
-                                                        <span className="text-sm font-semibold text-slate-600 truncate max-w-[280px]" title={sku.name}>
-                                                            {sku.name}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-[11px] font-bold text-slate-500 text-center uppercase whitespace-nowrap">
-                                                    {sku.ml}
-                                                </td>
-                                                {dates.map(d => {
-                                                    const dayData = sku.days[d.key]
-                                                    const val = getMetricValue(dayData)
-                                                    return (
-                                                        <td key={d.key} className="px-3 py-3 text-sm text-center">
-                                                            <span className={cn('tabular-nums', getDayWiseFontColor(val))}>
-                                                                {formatValue(val)}
-                                                            </span>
+                                        {isExpanded && brand.skus.map((sku) => {
+                                            const isSkuExpanded = expandedSkus.includes(sku.id)
+                                            const hasCities = sku.cities && sku.cities.length > 0
+                                            return (
+                                                <React.Fragment key={sku.id}>
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, height: 0 }}
+                                                        animate={{ opacity: 1, height: 'auto' }}
+                                                        exit={{ opacity: 0, height: 0 }}
+                                                        className={cn(
+                                                            'border-b border-slate-50 cursor-pointer transition-colors',
+                                                            isSkuExpanded ? 'bg-indigo-50/30' : 'bg-white hover:bg-slate-50/50'
+                                                        )}
+                                                        onClick={(e) => hasCities && toggleSku(sku.id, e)}
+                                                    >
+                                                        <td className="pl-14 py-3">
+                                                            <div className="flex items-center gap-2">
+                                                                {hasCities ? (
+                                                                    <motion.div
+                                                                        animate={{ rotate: isSkuExpanded ? 90 : 0 }}
+                                                                        transition={{ duration: 0.2 }}
+                                                                    >
+                                                                        <ChevronRight size={14} className="text-slate-400" />
+                                                                    </motion.div>
+                                                                ) : (
+                                                                    <span className="text-slate-300 text-lg leading-none mt-[-4px]">└</span>
+                                                                )}
+                                                                <span className="text-sm font-semibold text-slate-600 truncate max-w-[260px]" title={sku.name}>
+                                                                    {sku.name}
+                                                                </span>
+                                                                {hasCities && (
+                                                                    <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                                                                        {sku.cities.length} Cities
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
-                                                    )
-                                                })}
-                                            </motion.tr>
-                                        ))}
+                                                        <td className="px-4 py-3 text-[11px] font-bold text-slate-500 text-center uppercase whitespace-nowrap">
+                                                            {sku.ml}
+                                                        </td>
+                                                        {dates.map(d => {
+                                                            const dayData = sku.days[d.key]
+                                                            const val = getMetricValue(dayData)
+                                                            return (
+                                                                <td key={d.key} className="px-3 py-3 text-sm text-center">
+                                                                    <span className={cn('tabular-nums', getDayWiseFontColor(val))}>
+                                                                        {formatValue(val)}
+                                                                    </span>
+                                                                </td>
+                                                            )
+                                                        })}
+                                                    </motion.tr>
+
+                                                    {/* City Rows */}
+                                                    <AnimatePresence>
+                                                        {isSkuExpanded && hasCities && sku.cities.map((city) => (
+                                                            <motion.tr
+                                                                key={city.id}
+                                                                initial={{ opacity: 0, height: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto' }}
+                                                                exit={{ opacity: 0, height: 0 }}
+                                                                className="bg-indigo-50/10 border-b border-slate-50/50"
+                                                            >
+                                                                <td className="pl-20 py-2.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-indigo-300 text-base leading-none">└</span>
+                                                                        <span className="text-xs font-medium text-slate-800">
+                                                                            {city.name}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-[10px] text-slate-400 text-center">—</td>
+                                                                {dates.map(d => {
+                                                                    const dayData = city.days[d.key]
+                                                                    const val = getMetricValue(dayData)
+                                                                    return (
+                                                                        <td key={d.key} className="px-3 py-2.5 text-xs text-center">
+                                                                            <span className={cn('tabular-nums', getDayWiseFontColor(val))}>
+                                                                                {formatValue(val)}
+                                                                            </span>
+                                                                        </td>
+                                                                    )
+                                                                })}
+                                                            </motion.tr>
+                                                        ))}
+                                                    </AnimatePresence>
+                                                </React.Fragment>
+                                            )
+                                        })}
                                     </AnimatePresence>
                                 </React.Fragment>
                             )
