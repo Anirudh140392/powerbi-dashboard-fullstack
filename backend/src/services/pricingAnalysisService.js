@@ -5,6 +5,37 @@ import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheH
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
+/**
+ * Helper to parse multiselect filter values
+ * Handles: arrays, comma-separated strings, or single values
+ * @param {string|array} value - Filter value(s)
+ * @returns {array|null} - Array of values or null if empty/All
+ */
+const parseMultiSelectFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string' && value.includes(',')) {
+        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
+/**
+ * Helper to build SQL IN clause for multiselect
+ * @param {string} column - Column name
+ * @param {array} values - Array of values
+ * @returns {string} - SQL condition string
+ */
+const buildInClause = (column, values) => {
+    if (!values || values.length === 0) return null;
+    const escaped = values.map(v => `'${escapeStr(v)}'`).join(',');
+    return `${column} IN (${escaped})`;
+};
+
 
 /**
  * Get ECP Comparison between two time periods
@@ -51,12 +82,16 @@ async function getEcpComparison(filters = {}) {
                 compareEndDate
             };
 
-            if (platform && platform !== 'All') {
-                whereConditions.push(`LOWER(Platform) = LOWER('${platform}')`);
+            // Platform filter (supports multiselect)
+            const platforms = parseMultiSelectFilter(platform);
+            if (platforms) {
+                whereConditions.push(buildInClause('Platform', platforms));
             }
 
-            if (location && location !== 'All') {
-                whereConditions.push(`LOWER(Location) = LOWER('${location}')`);
+            // Location filter (supports multiselect)
+            const locations = parseMultiSelectFilter(location);
+            if (locations) {
+                whereConditions.push(buildInClause('Location', locations));
             }
 
             const whereClause = whereConditions.join(' AND ');

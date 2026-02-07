@@ -8,6 +8,8 @@
 // --------------------------------------------------------------
 
 import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
+import SnapshotOverview from "../CommonLayout/SnapShotOverview";
+import SalesGainerDrainerWrapper from "../../pages/Sales/SalesGainerDrainerWrapper";
 import { FilterContext } from "../../utils/FilterContext";
 import {
   Box,
@@ -81,10 +83,16 @@ import {
   LegendToggle,
   Tune,
   StackedBarChart,
+  TrendingUp,
+  MonetizationOn,
+  Discount,
 } from "@mui/icons-material";
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
+import DiscountEcpPricing from "./discountEcpPricing";
+import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
+import DiscountDrilldownCity from "./DiscountDrilldownCity";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -2326,7 +2334,7 @@ export default function PricingAnalysisData() {
 
   // MAIN RETURN
   return (
-    <Box sx={{ p: 2, bgcolor: "#f4f6fb", minHeight: "100vh" }}>
+    <Box sx={{ p: 0, bgcolor: "#f4f6fb", minHeight: "100vh" }}>
       {/* Top Bar */}
       <Card
         sx={{
@@ -2344,6 +2352,65 @@ export default function PricingAnalysisData() {
           Cross-platform ECP tracking • Brand comparison • Discount movement
         </Typography>
       </Card>
+
+      {/* Snapshot Overview - Pricing Metrics */}
+      {/* <SnapshotOverview
+        title="Pricing Overview"
+        chip="Live Metrics"
+        kpis={[
+          {
+            id: 'avg-ecp',
+            title: 'Avg ECP',
+            value: ecpByBrandData.length > 0
+              ? `₹${(ecpByBrandData.reduce((sum, row) => sum + (row.ecp || 0), 0) / ecpByBrandData.length).toFixed(1)}`
+              : '₹0.0',
+            subtitle: 'MTD',
+            delta: 5.2,
+            deltaLabel: 'vs last month',
+            icon: MonetizationOn,
+            gradient: ['#10b981', '#059669'],
+            trend: [90, 95, 92, 98, 105, 110, 108, 115],
+          },
+          {
+            id: 'rpi',
+            title: 'RPI',
+            value: ecpByBrandData.length > 0
+              ? (ecpByBrandData.reduce((sum, row) => sum + (row.rpi || 0), 0) / ecpByBrandData.length).toFixed(2)
+              : '0.00',
+            subtitle: 'INDEX',
+            delta: 3.1,
+            deltaLabel: 'vs benchmark',
+            icon: TrendingUp,
+            gradient: ['#3b82f6', '#2563eb'],
+            trend: [1.0, 1.05, 1.02, 1.08, 1.12, 1.15, 1.18, 1.20],
+          },
+          {
+            id: 'avg-discount',
+            title: 'Avg Discount',
+            value: ecpByBrandData.length > 0
+              ? `${(ecpByBrandData.reduce((sum, row) => {
+                const discount = ((row.mrp - row.ecp) / row.mrp) * 100;
+                return sum + (isNaN(discount) ? 0 : discount);
+              }, 0) / ecpByBrandData.length).toFixed(1)}%`
+              : '0.0%',
+            subtitle: 'MTD',
+            delta: -2.3,
+            deltaLabel: 'vs last month',
+            icon: Discount,
+            gradient: ['#f59e0b', '#d97706'],
+            trend: [15, 18, 16, 19, 17, 14, 16, 12],
+          },
+        ]}
+      />
+      <SalesGainerDrainerWrapper />
+      <Box sx={{ pt: 2 }}>
+        <DiscountEcpPricing />
+      </Box>
+      <Box sx={{ pt: 2 }}>
+        <DiscountDrilldownDate />
+      </Box>
+      <DiscountDrilldownCity /> */}
+
 
       {/* KPI Row - ECP Comparison from API */}
       <Grid container spacing={2} mb={2}>
@@ -2630,7 +2697,7 @@ export default function PricingAnalysisData() {
                 spacing={3}
                 justifyContent="space-between"
               >
-                {/* LEFT BLOCK */}
+
                 <Box>
                   <Typography variant="caption" color="text.secondary">
                     Own Brand Details
@@ -2653,7 +2720,6 @@ export default function PricingAnalysisData() {
                   </Typography>
                 </Box>
 
-                {/* RIGHT BLOCK */}
                 <Box>
                   <Typography variant="caption" color="text.secondary">
                     Competitor Details
@@ -2695,7 +2761,6 @@ export default function PricingAnalysisData() {
           overflow: "hidden",
         }}
       >
-        {/* Header + Tabs */}
         <Box
           sx={{
             mb: 1.5,
@@ -2731,10 +2796,8 @@ export default function PricingAnalysisData() {
           </Tabs>
         </Box>
 
-        {/* DISCOUNT TREND TAB */}
         {chartTab === "discount" && (
           <>
-            {/* Toolbar ABOVE chart */}
             <Box
               sx={{
                 width: "fit-content",
@@ -2912,7 +2975,6 @@ export default function PricingAnalysisData() {
               </Tooltip>
             </Box>
 
-            {/* Series Selection Menu */}
             <Menu
               anchorEl={seriesMenuAnchor}
               open={Boolean(seriesMenuAnchor)}
@@ -2957,7 +3019,6 @@ export default function PricingAnalysisData() {
           </>
         )}
 
-        {/* RPI TAB */}
         {chartTab === "rpi" && (
           <Box sx={{ mt: 1, height: 320 }}>
             <Grid container spacing={2} sx={{ height: "100%" }}>
@@ -2978,7 +3039,7 @@ export default function PricingAnalysisData() {
         )}
       </Card>
       {/* MODERN FLOATING FILTER DOCK */}
-      <Box
+      {/* <Box
         sx={{
           position: "fixed",
           bottom: 28,
@@ -3009,14 +3070,11 @@ export default function PricingAnalysisData() {
           }}
         >
           <FilterList sx={{ fontSize: 22, color: "#1976d2" }} />
-          <Typography fontWeight={600} sx={{ color: "#1976d2" }}>
-            Filters
-          </Typography>
         </Box>
-      </Box>
+      </Box> */}
 
       {/* POPUP FILTER PANEL */}
-      {FilterPopup}
+      {/* {FilterPopup} */}
     </Box>
   );
 }

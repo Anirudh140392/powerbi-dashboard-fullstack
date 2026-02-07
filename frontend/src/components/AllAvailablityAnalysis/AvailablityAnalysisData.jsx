@@ -20,6 +20,19 @@ import {
   PlatformKpiMatrixSkeleton,
   OsaDetailViewSkeleton,
 } from "./AvailabilitySkeletons";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import {
+  Package,
+  Clock,
+  Truck,
+  MapPin,
+  Activity,
+  BarChart2
+} from "lucide-react";
+import KPIMatrixTable from "./KpiMatrixTable";
+import SkuCompetitorAnalysis from "./SkuCompetitorAnalysis";
+import PricingAnalysis from "./PricingAnalysis";
+import DateWiseDrilldownTable from "./DateWiseDrilldownTable";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1345,12 +1358,23 @@ export const AvailablityAnalysisData = ({
 
   return (
 
-    <div className="max-w-7xl mx-auto space-y-5 px-4 sm:px-6">
-      <div className="space-y-4">
+    <div className="sm:px-2">
+      <div className="space-y-2">
         {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
         {/* AVAILABILITY MODE - Only Absolute (Weighted option removed) */}
 
+        {/* {loading ? (
+          <AvailabilityOverviewSkeleton />
+        ) : apiErrors.overview ? (
+          <ErrorWithRefresh
+            segmentName="Availability Overview"
+            errorMessage={apiErrors.overview}
+            onRetry={() => onRetry?.('overview')}
+          />
+        ) : (
+          <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
+        )} */}
         {/* Availability Overview - show skeleton if loading, error if failed */}
         {loading ? (
           <AvailabilityOverviewSkeleton />
@@ -1361,13 +1385,51 @@ export const AvailablityAnalysisData = ({
             onRetry={() => onRetry?.('overview')}
           />
         ) : (
-          <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
+          <SnapshotOverview
+            title="Availability Overview"
+            icon={BarChart2}
+            kpis={getDynamicCards(availability).map((card, idx) => {
+              // Extract delta value from string like "▲3.1 pts" or "▼5.3%"
+              const deltaMatch = card.change?.match(/([▲▼])([\d.]+)/);
+              const deltaValue = deltaMatch ? parseFloat(deltaMatch[2]) * (deltaMatch[1] === '▼' ? -1 : 1) : 0;
+
+              // Map icons and gradients based on card title
+              let Icon = Activity;
+              let gradient = ['#6366f1', '#8b5cf6'];
+
+              if (card.title.includes("Stock")) {
+                Icon = Package;
+                gradient = ['#10b981', '#059669'];
+              } else if (card.title.includes("Inventory") || card.title.includes("DOI")) {
+                Icon = Clock;
+                gradient = ['#f59e0b', '#d97706'];
+              } else if (card.title.includes("Fill")) {
+                Icon = Truck;
+                gradient = ['#3b82f6', '#2563eb'];
+              } else if (card.title.includes("Metro")) {
+                Icon = MapPin;
+                gradient = ['#8b5cf6', '#7c3aed'];
+              }
+
+              return {
+                id: idx,
+                title: card.title,
+                value: card.value,
+                delta: deltaValue,
+                icon: Icon,
+                trend: card.sparklineData || [],
+                gradient: gradient,
+                subtitle: card.sub?.includes("MTD") ? "MTD" : "OVERALL",
+                deltaLabel: card.prevText || "vs Comparison Period"
+              };
+            })}
+          />
         )}
 
         {/* <SignalLabVisibility type="availability" /> */}
 
         {/* Platform KPI Matrix - show error if any matrix API failed */}
-        {apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi ? (
+        {/* {apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi ? (
           <ErrorWithRefresh
             segmentName="Platform KPI Matrix"
             errorMessage={apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi}
@@ -1385,10 +1447,12 @@ export const AvailablityAnalysisData = ({
             onFiltersChange={onFiltersChange}
             loading={loading}
           />
-        )}
+        )} */}
+
+        <KPIMatrixTable />
 
         {/* OSA Detail View - show skeleton if loading, error if failed */}
-        {loading ? (
+        {/* {loading ? (
           <OsaDetailViewSkeleton />
         ) : apiErrors.osaDetail ? (
           <ErrorWithRefresh
@@ -1402,7 +1466,10 @@ export const AvailablityAnalysisData = ({
             filters={pblUnfilteredFilters}
             initialLoading={loading}
           />
-        )}
+        )} */}
+        <DateWiseDrilldownTable />
+        {/* <PricingAnalysis /> */}
+        {/* <SkuCompetitorAnalysis /> */}
 
       </div>
     </div>
