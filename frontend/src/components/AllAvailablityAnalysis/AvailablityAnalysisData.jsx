@@ -20,7 +20,7 @@ import {
   PlatformKpiMatrixSkeleton,
   OsaDetailViewSkeleton,
 } from "./AvailabilitySkeletons";
-import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import SnapshotOverview from "../CommonLayout/SnapShotOverview";
 import {
   Package,
   Clock,
@@ -1227,7 +1227,10 @@ export const AvailablityAnalysisData = ({
 
     // Get API values
     const stockAvail = apiData?.overview?.stockAvailability;
-    const prevStockAvail = apiData?.overview?.prevStockAvailability || (stockAvail ? stockAvail - 3.1 : null);
+    const prevStockAvail = apiData?.overview?.prevStockAvailability;
+
+    const fillRate = apiData?.overview?.fillRate;
+    const prevFillRate = apiData?.overview?.prevFillRate;
 
     const doi = apiData?.doi?.doi;
     const prevDoi = apiData?.doi?.prevDoi;
@@ -1256,6 +1259,17 @@ export const AvailablityAnalysisData = ({
           change: changeText,
           changeColor: changeColor,
           sparklineData: generateSparklineFromValue(stockAvail, safePrevStockAvail),
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        };
+      }
+
+      // Fill Rate card
+      if (card.title === "Fill Rate") {
+        return {
+          ...card,
+          isComingSoon: true, // Reverted to true as per user request
+          sub: `Supplier fulfillment rate`,
           startDate: filters.startDate,
           endDate: filters.endDate,
         };
@@ -1420,7 +1434,8 @@ export const AvailablityAnalysisData = ({
                 trend: card.sparklineData || [],
                 gradient: gradient,
                 subtitle: card.sub?.includes("MTD") ? "MTD" : "OVERALL",
-                deltaLabel: card.prevText || "vs Comparison Period"
+                deltaLabel: card.prevText || "vs Comparison Period",
+                isComingSoon: card.isComingSoon
               };
             })}
           />
