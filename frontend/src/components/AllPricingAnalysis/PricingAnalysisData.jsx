@@ -2491,7 +2491,7 @@ export default function PricingAnalysisData() {
               enableRowExpansion={false}
               searchPlaceholder="Search by brand"
               onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-            />
+            />   
           )}
         </Grid>
 
