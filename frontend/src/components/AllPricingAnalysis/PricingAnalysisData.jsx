@@ -9,6 +9,7 @@
 
 import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
 import SnapshotOverview from "../CommonLayout/SnapShotOverview";
+import SalesGainerDrainerWrapper from "../../pages/Sales/SalesGainerDrainerWrapper";
 import { FilterContext } from "../../utils/FilterContext";
 import {
   Box,
@@ -89,6 +90,9 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
+import DiscountEcpPricing from "./discountEcpPricing";
+import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
+import DiscountDrilldownCity from "./DiscountDrilldownCity";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -2398,6 +2402,14 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
+      <SalesGainerDrainerWrapper />
+      <Box sx={{ pt: 2 }}>
+        <DiscountEcpPricing />
+      </Box>
+      <Box sx={{ pt: 2 }}>
+        <DiscountDrilldownDate />
+      </Box>
+      <DiscountDrilldownCity />
 
 
       {/* KPI Row - ECP Comparison from API */}
