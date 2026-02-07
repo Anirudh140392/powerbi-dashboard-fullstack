@@ -1,0 +1,26 @@
+{
+  "dateRange": [
+    {
+      "min_date": "2026-01-21 10:36:44",
+      "max_date": "2026-01-21 10:42:04"
+    }
+  ],
+  "brands": [
+    "Godrej No.1",
+    "Cinthol",
+    "Godrej aer",
+    "Godrej Locking Solutions and Systems",
+    "Godrej",
+    "Godrej Ezee",
+    "Godrej Professional",
+    "Dove",
+    "Genteel",
+    null,
+    "Brand: Dettol",
+    "Dettol",
+    "Brand: Godrej Expert"
+  ],
+  "platforms": [
+    "Amazon"
+  ]
+}

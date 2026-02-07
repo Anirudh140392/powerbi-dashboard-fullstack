@@ -5,11 +5,20 @@ import App from "./App";
 import AppThemeProvider from "./utils/ThemeContext";
 import "./index.css";
 
+// Force unregister any service workers that might be lingering
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (let registration of registrations) {
+      registration.unregister();
+    }
+  });
+}
+
 createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <CssBaseline />
+  <>
     <AppThemeProvider>
+      <CssBaseline />
       <App />
     </AppThemeProvider>
-  </React.StrictMode>
+  </>
 );

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, Container } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import { FilterContext } from "../../utils/FilterContext";
 
 export default function CommonContainer({
   title,
@@ -9,13 +10,18 @@ export default function CommonContainer({
   onFiltersChange,
   children,
 }) {
+  const { platforms } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const sidebarWidth = isCollapsed ? "72px" : "250px";
 
   return (
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
+        height: "100dvh",
+        width: "100vw",
 
         // 🔥 REMOVE ALL HORIZONTAL SCROLL
         overflowX: "hidden",
@@ -25,13 +31,15 @@ export default function CommonContainer({
       }}
     >
       <Sidebar
-        platforms={["Blinkit", "Instamart", "Zepto"]}
+        platforms={platforms}
         selectedPlatform={filters?.platform}
         onPlatformChange={(p) =>
           onFiltersChange?.((prev) => ({ ...prev, platform: p }))
         }
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
         sx={{
           overflowX: "hidden", // <-- sidebar safe
         }}
@@ -41,14 +49,16 @@ export default function CommonContainer({
         sx={{
           flex: 1,
 
-          marginLeft: { xs: 0, sm: "250px" },
-          width: { xs: "100%", sm: "calc(100% - 250px)" },
+          marginLeft: { xs: 0, sm: sidebarWidth },
+          width: { xs: "100%", sm: `calc(100% - ${sidebarWidth})` },
           display: "flex",
           flexDirection: "column",
+          transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
 
           // 🔥 Remove horizontal scroll here also
           overflowX: "hidden",
           overflowY: "hidden",
+          minHeight: 0, // Ensure flex child shrinking works
         }}
       >
         <Header
@@ -67,13 +77,15 @@ export default function CommonContainer({
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden", // 🔥 IMPORTANT
+            minHeight: 0, // Ensure flex scrolling works
+            WebkitOverflowScrolling: "touch", // Smooth scroll on iOS
           }}
         >
           <Container
             maxWidth={false}
             disableGutters
             sx={{
-              py: 3,
+              py: 2,
               px: { xs: 2, sm: 3 },
               width: "100%",
               boxSizing: "border-box",
