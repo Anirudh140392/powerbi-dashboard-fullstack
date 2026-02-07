@@ -1,133 +1,57 @@
-import React, { useState, useMemo, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, X, Search, SlidersHorizontal } from 'lucide-react'
-import { cn } from '../../lib/utils'
-import { generateDateOptions } from '../../lib/pricingUtils'
+import React, { useState, useMemo, useEffect } from "react";
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronRight, X, SlidersHorizontal, Search } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { generateDateOptions } from '../../lib/pricingUtils';
 import { KpiFilterPanel } from "@/components/KpiFilterPanel"
-import { Badge } from "@/components/ui/badge"
 import axiosInstance from "@/api/axiosInstance"
 
-// ========================================
-// UTILITIES
-// ========================================
-
-// Font color heatmap for day-wise values (green=high, red=low)
-const getDayWiseFontColor = (value, min = 30, max = 60) => {
-    if (value === null || value === undefined) return 'text-slate-400 font-normal'
-    const normalized = (value - min) / (max - min)
-    if (normalized >= 0.8) return 'text-emerald-600 font-bold'
-    if (normalized >= 0.6) return 'text-emerald-500 font-semibold'
-    if (normalized >= 0.4) return 'text-slate-700 font-medium'
-    if (normalized >= 0.2) return 'text-amber-600 font-medium'
-    return 'text-rose-600 font-semibold'
-}
-
-// ========================================
-// MOCK DATA
-// ========================================
-const BRAND_SKU_DAY_DATA = [
-    {
-        id: 'b1',
-        brand: 'Colgate',
-        skus: [
-            {
-                id: 's1',
-                name: 'Colgate MaxFresh Peppermint Ice Toothpaste',
-                ml: '150 g',
-                days: {
-                    '2026-02-06': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-05': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-04': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-03': { ecp: 136, discount: 12, rpi: 1.1 },
-                    '2026-02-02': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-01': { ecp: 140, discount: 8, rpi: 1.15 },
-                    '2026-01-31': { ecp: 142, discount: 6, rpi: 1.18 }
-                }
-            },
-            {
-                id: 's2',
-                name: 'Colgate Visible White Teeth Whitening',
-                ml: '100 g',
-                days: {
-                    '2026-02-06': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-05': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-04': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-03': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-02': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-01-31': { ecp: 95, discount: 12, rpi: 0.9 }
-                }
-            },
-        ]
-    },
-    {
-        id: 'b2',
-        brand: 'Dabur',
-        skus: [
-            {
-                id: 's3',
-                name: 'Dabur Red Paste - Ayurvedic Health',
-                ml: '200 g',
-                days: {
-                    '2026-02-06': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-05': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-04': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-03': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-02': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-01-31': { ecp: 105, discount: 17, rpi: 1.3 }
-                }
-            },
-            {
-                id: 's4',
-                name: 'Dabur Meswak Complete Oral Care',
-                ml: '150 g',
-                days: {
-                    '2026-02-06': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-02-05': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-02-04': { ecp: 88, discount: 3, rpi: 1.05 },
-                    '2026-02-03': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-02-02': { ecp: 88, discount: 3, rpi: 1.05 },
-                    '2026-02-01': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-01-31': { ecp: 82, discount: 2, rpi: 1.08 }
-                }
-            },
-        ]
-    },
-    {
-        id: 'b3',
-        brand: 'Fiama',
-        skus: [
-            {
-                id: 's5',
-                name: 'Fiama Shower Gel - Blackcurrant & Bearberry',
-                ml: '250 ml',
-                days: {
-                    '2026-02-06': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-05': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-04': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-03': { ecp: 185, discount: 8, rpi: 0.8 },
-                    '2026-02-02': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-01': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-01-31': { ecp: 210, discount: 3, rpi: 0.9 }
-                }
-            },
-        ]
-    },
-]
-
-// ========================================
-// MAIN COMPONENT
-// ========================================
-
-function DateWiseDrilldownTable() {
-    const [expandedBrands, setExpandedBrands] = useState(['Colgate'])
+export const DiscountDrilldownDate = () => {
+    const [expandedBrands, setExpandedBrands] = useState([])
     const [dayRange, setDayRange] = useState(7)
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
 
+    // Generate dates based on range
+    const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
+
+    // Generate dynamic mock data that matches the date keys
+    const data = useMemo(() => {
+        const brands = ['Amul', 'Baskin Robbins', 'Kwality Walls', 'Cream Bell', 'Vadilal']
+
+        return brands.map(brand => {
+            // Generate some skus for each brand
+            const skus = Array.from({ length: Math.floor(Math.random() * 3) + 2 }).map((_, i) => {
+                const ml = ['100 ml', '500 ml', '1 L'][i % 3]
+                const skuName = `${brand} Premium Ice Cream ${ml}`
+
+                // Generate day data matching the current dates
+                const dayData = {}
+                dates.forEach(d => {
+                    // Random values
+                    dayData[d.key] = {
+                        ecp: Math.floor(Math.random() * 200) + 50,
+                        discount: Math.floor(Math.random() * 25),
+                        rpi: Number((Math.random() * 0.8 + 0.6).toFixed(2))
+                    }
+                })
+
+                return {
+                    name: skuName,
+                    ml,
+                    days: dayData
+                }
+            })
+
+            return {
+                brand,
+                skus
+            }
+        })
+    }, [dates]) // Re-generate data when dates change so keys match
+
     // ========================================
-    // FILTER STATE
+    // FILTER STATE & LOGIC
     // ========================================
     const [showFilterPanel, setShowFilterPanel] = useState(false);
 
@@ -173,9 +97,6 @@ function DateWiseDrilldownTable() {
 
     const mockKeywords = [{ id: "kw_generic", label: "generic" }];
 
-    // ========================================
-    // FILTER API LOGIC
-    // ========================================
     const fetchFilterType = async (filterType, cascadeParams = {}) => {
         try {
             const params = new URLSearchParams({
@@ -209,7 +130,7 @@ function DateWiseDrilldownTable() {
                     fetchFilterType('pincodes', tentativeFilters),
                     fetchFilterType('zones'),
                     fetchFilterType('metroFlags'),
-                    fetchFilterType('brands') // Try fetching brands
+                    fetchFilterType('brands')
                 ]);
 
                 setDynamicFilterData({
@@ -232,7 +153,7 @@ function DateWiseDrilldownTable() {
         fetchAll();
     }, []);
 
-    // Helper for options
+    // Filter Configuration
     const filterOptions = useMemo(() => {
         const toOptions = (arr) => (arr || []).map(item => ({ id: item, label: item }));
         const formatMonth = (str) => {
@@ -253,41 +174,11 @@ function DateWiseDrilldownTable() {
         ];
     }, [dynamicFilterData]);
 
-    // Data Filtering logic
-    const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
-
-    const filteredData = useMemo(() => {
-        let currentData = BRAND_SKU_DAY_DATA;
-
-        // 1. Filter by Search
-        if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            currentData = currentData.map(brand => {
-                const matchesBrand = brand.brand.toLowerCase().includes(q);
-                const matchedSkus = brand.skus.filter(sku => sku.name.toLowerCase().includes(q));
-                if (matchesBrand) return brand;
-                if (matchedSkus.length > 0) return { ...brand, skus: matchedSkus };
-                return null;
-            }).filter(Boolean);
-        }
-
-        // 2. Filter by Applied Filters (Brand)
-        // If we have selected brands in filters, only show those brands
-        if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all') && !appliedFilters.brand.includes('All')) {
-            const selectedBrands = appliedFilters.brand.map(b => b.toLowerCase());
-            currentData = currentData.filter(b => selectedBrands.includes(b.brand.toLowerCase()));
-        }
-
-        // Note: For Platform/City/Format, we would filter here if the data supported it.
-        // Currently data is Brand-level. We'll leave it as just Brand filter for now.
-
-        return currentData;
-    }, [searchQuery, appliedFilters, BRAND_SKU_DAY_DATA])
 
     const METRIC_OPTIONS = [
-        { key: 'ecp', label: 'ECP' },
-        { key: 'discount', label: 'Discount' },
-        { key: 'rpi', label: 'RPI' },
+        { key: 'ecp', label: 'ECP', suffix: '₹' },
+        { key: 'discount', label: 'Discount', suffix: '%' },
+        { key: 'rpi', label: 'RPI', suffix: '' },
     ]
 
     const toggleBrand = (brand) => {
@@ -300,79 +191,105 @@ function DateWiseDrilldownTable() {
 
     const closeAll = () => setExpandedBrands([])
 
+    const filteredData = useMemo(() => {
+        let currentData = data
+
+        // 1. Filter by Search
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase()
+            currentData = currentData.filter(item =>
+                item.brand.toLowerCase().includes(q) ||
+                item.skus.some(s => s.name.toLowerCase().includes(q))
+            )
+        }
+
+        // 2. Filter by Applied Filters (Brand)
+        if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all') && !appliedFilters.brand.includes('All')) {
+            const selectedBrands = appliedFilters.brand.map(b => b.toLowerCase());
+            currentData = currentData.filter(item => selectedBrands.includes(item.brand.toLowerCase()));
+        }
+
+        return currentData
+    }, [data, searchQuery, appliedFilters])
+
     const getMetricValue = (dayData) => {
         if (!dayData) return null
-        return dayData[metricType.toLowerCase()]
+        return dayData[metricType]
     }
 
     const formatValue = (val) => {
         if (val === null || val === undefined) return '—'
-        if (metricType === 'ecp') return `₹${val}`
+        const metric = METRIC_OPTIONS.find(m => m.key === metricType)
+        if (metricType === 'rpi') return val.toFixed(2)
         if (metricType === 'discount') return `${val}%`
-        return val.toFixed(2)
+        return `₹${val}`
     }
 
-    const activeMetricLabel = METRIC_OPTIONS.find(m => m.key === metricType)?.label || metricType
+    // New helper function that was missing
+    const getDayWiseFontColor = (val) => {
+        if (val === null || val === undefined) return 'text-slate-300'
+
+        if (metricType === 'discount') {
+            if (val >= 20) return 'text-emerald-600 font-bold'
+            if (val >= 10) return 'text-emerald-500'
+            if (val >= 5) return 'text-amber-500'
+            return 'text-slate-600'
+        }
+
+        if (metricType === 'rpi') {
+            if (val >= 1.2) return 'text-emerald-600'
+            if (val >= 0.9) return 'text-slate-600'
+            return 'text-rose-500'
+        }
+
+        return 'text-slate-600'
+    }
+
+
+    const activeMetric = METRIC_OPTIONS.find(m => m.key === metricType)
 
     return (
-        <div className="bg-white rounded-[24px] overflow-hidden shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.04)] ring-1 ring-slate-200/60 border border-slate-200 mt-8">
-            {/* Header Area */}
-            <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 bg-white">
-                <div className="flex items-center gap-6">
-                    <h2 className="text-xl font-bold text-[#1E293B]">
-                        Brand → SKU Day-Level
-                    </h2>
-
-                    {/* Day Range Selector (Pill Style) */}
-                    <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.03)] ring-1 ring-slate-200/50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-slate-700">Brand → SKU Day-Level {activeMetric.label}</span>
+                    {/* Day Range Selector */}
+                    <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
                         {[7, 14, 30].map(days => (
                             <button
                                 key={days}
                                 onClick={() => setDayRange(days)}
                                 className={cn(
-                                    'px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all',
+                                    'px-2 py-1 text-[10px] font-medium rounded-md transition-all',
                                     dayRange === days
-                                        ? 'bg-white text-[#1E293B] shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-600'
+                                        ? 'bg-white text-slate-900 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
                                 )}
                             >
                                 {days}D
                             </button>
                         ))}
                     </div>
-
-                    {/* Metric Selector (Pill Style) */}
-                    {/* <div className="flex items-center gap-1 p-1 bg-blue-50/50 rounded-xl border border-blue-100">
+                    {/* Metric Selector Dropdown */}
+                    <div className="flex items-center gap-1 p-0.5 bg-blue-50 rounded-lg border border-blue-200">
                         {METRIC_OPTIONS.map(metric => (
                             <button
                                 key={metric.key}
                                 onClick={() => setMetricType(metric.key)}
                                 className={cn(
-                                    'px-4 py-1.5 text-[11px] font-bold rounded-lg transition-all',
+                                    'px-2.5 py-1 text-[10px] font-semibold rounded-md transition-all',
                                     metricType === metric.key
-                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                                        ? 'bg-blue-500 text-white shadow-sm'
                                         : 'text-blue-600 hover:bg-blue-100'
                                 )}
                             >
                                 {metric.label}
                             </button>
                         ))}
-                    </div> */}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-4">
-                    {/* Filters Button */}
-                    <button
-                        onClick={() => {
-                            setTentativeFilters(appliedFilters);
-                            setShowFilterPanel(true);
-                        }}
-                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
-                    >
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
-                        <span>Filters</span>
-                    </button>
-
                     {/* Premium Search Bar */}
                     <div className="relative group min-w-[240px]">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -395,12 +312,24 @@ function DateWiseDrilldownTable() {
                         )}
                     </div>
 
+                    {/* Filters Button */}
+                    <button
+                        onClick={() => {
+                            setTentativeFilters(appliedFilters);
+                            setShowFilterPanel(true);
+                        }}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                    >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>Filters</span>
+                    </button>
+
                     {expandedBrands.length > 0 && (
                         <button
                             onClick={closeAll}
-                            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100 transition-all uppercase tracking-wider"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
                         >
-                            <X size={14} /> Close All ({expandedBrands.length})
+                            <X size={12} /> Close All ({expandedBrands.length})
                         </button>
                     )}
                 </div>
@@ -458,86 +387,80 @@ function DateWiseDrilldownTable() {
                 </div>
             )}
 
-
-            {/* Table Area */}
             <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full">
                     <thead>
-                        <tr className="bg-slate-50/30 text-slate-400">
-                            <th className="text-left pl-8 py-5 text-[11px] font-bold uppercase tracking-widest w-80">
-                                BRAND / SKU
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-900">
+                            <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider w-80">
+                                Brand / SKU
                             </th>
-                            <th className="text-center px-4 py-5 text-[11px] font-bold uppercase tracking-widest w-24">
+                            <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider">
                                 ML
                             </th>
                             {dates.map(d => (
-                                <th key={d.key} className="text-center px-3 py-5 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">
-                                    {d.shortLabel.toUpperCase()}
+                                <th key={d.key} className="text-center px-3 py-3 text-xs font-semibold uppercase tracking-wider">
+                                    {d.shortLabel}
                                 </th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredData.map((brand) => {
+                        {filteredData.map((brand, bIdx) => {
                             const isExpanded = expandedBrands.includes(brand.brand)
 
                             return (
-                                <React.Fragment key={brand.id}>
+                                <React.Fragment key={brand.brand}>
                                     {/* Brand Row */}
                                     <tr
                                         className={cn(
-                                            'border-b border-slate-50 cursor-pointer transition-colors group',
-                                            isExpanded ? 'bg-blue-50/20' : 'hover:bg-slate-50/50'
+                                            'border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-50',
+                                            isExpanded && 'bg-blue-50/30'
                                         )}
                                         onClick={() => toggleBrand(brand.brand)}
                                     >
-                                        <td className="pl-8 py-5">
-                                            <div className="flex items-center gap-3">
-                                                <motion.div
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <motion.span
                                                     animate={{ rotate: isExpanded ? 90 : 0 }}
                                                     transition={{ duration: 0.2 }}
                                                 >
-                                                    <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-500" />
-                                                </motion.div>
-                                                <span className="text-sm font-bold text-slate-800">{brand.brand}</span>
-                                                <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                                    {brand.skus.length} SKUs
-                                                </span>
+                                                    <ChevronRight size={16} className="text-slate-400" />
+                                                </motion.span>
+                                                <span className="text-sm font-semibold text-slate-800">{brand.brand}</span>
+                                                <span className="text-xs text-slate-400">({brand.skus.length} SKUs)</span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-5 text-sm text-slate-300 font-medium text-center">—</td>
+                                        <td className="px-4 py-3 text-sm text-slate-400 text-center">—</td>
                                         {dates.map(d => (
-                                            <td key={d.key} className="px-3 py-5 text-sm text-slate-300 font-medium text-center">—</td>
+                                            <td key={d.key} className="px-3 py-3 text-sm text-slate-400 text-center">—</td>
                                         ))}
                                     </tr>
 
                                     {/* SKU Rows */}
                                     <AnimatePresence>
-                                        {isExpanded && brand.skus.map((sku) => (
+                                        {isExpanded && brand.skus.map((sku, sIdx) => (
                                             <motion.tr
-                                                key={sku.id}
+                                                key={`${brand.brand}-${sku.name}`}
                                                 initial={{ opacity: 0, height: 0 }}
                                                 animate={{ opacity: 1, height: 'auto' }}
                                                 exit={{ opacity: 0, height: 0 }}
-                                                className="bg-white border-b border-slate-50"
+                                                className="bg-slate-50/50 border-b border-slate-50"
                                             >
-                                                <td className="pl-14 py-3">
+                                                <td className="px-4 py-2 pl-10">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-slate-300 text-lg leading-none mt-[-4px]">└</span>
-                                                        <span className="text-sm font-semibold text-slate-600 truncate max-w-[280px]" title={sku.name}>
+                                                        <span className="text-xs text-slate-400">└</span>
+                                                        <span className="text-sm text-slate-700 truncate max-w-[280px]" title={sku.name}>
                                                             {sku.name}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3 text-[11px] font-bold text-slate-500 text-center uppercase whitespace-nowrap">
-                                                    {sku.ml}
-                                                </td>
+                                                <td className="px-4 py-2 text-sm text-slate-600 text-center">{sku.ml}</td>
                                                 {dates.map(d => {
                                                     const dayData = sku.days[d.key]
                                                     const val = getMetricValue(dayData)
                                                     return (
-                                                        <td key={d.key} className="px-3 py-3 text-sm text-center">
-                                                            <span className={cn('tabular-nums', getDayWiseFontColor(val))}>
+                                                        <td key={d.key} className="px-3 py-2 text-sm text-center">
+                                                            <span className={cn('tabular-nums font-medium', getDayWiseFontColor(val))}>
                                                                 {formatValue(val)}
                                                             </span>
                                                         </td>
@@ -552,8 +475,6 @@ function DateWiseDrilldownTable() {
                     </tbody>
                 </table>
             </div>
-        </div >
+        </div>
     )
-}
-
-export default DateWiseDrilldownTable
+};
