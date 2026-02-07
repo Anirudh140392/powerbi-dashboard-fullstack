@@ -7,6 +7,34 @@
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+/**
+ * Helper to parse multiselect filter values
+ */
+const parseMultiSelectFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string' && value.includes(',')) {
+        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
+/**
+ * Helper to build SQL IN clause for multiselect
+ */
+const buildInClause = (column, values) => {
+    if (!values || values.length === 0) return null;
+    const escaped = values.map(v => `'${escapeStr(v)}'`).join(',');
+    return `${column} IN (${escaped})`;
+};
+
 /**
  * Get One View Price Grid data
  * @param {Object} filters - All column filters as query params
@@ -23,14 +51,16 @@ async function getOneViewPriceGrid(filters = {}) {
         // Build dynamic WHERE clauses for all optional filters
         let filterClauses = [];
 
-        // Platform filter
-        if (filters.platform && filters.platform !== 'All') {
-            filterClauses.push(`p.Platform = '${filters.platform}'`);
+        // Platform filter (supports multiselect)
+        const platforms = parseMultiSelectFilter(filters.platform);
+        if (platforms) {
+            filterClauses.push(buildInClause('p.Platform', platforms));
         }
 
-        // Brand filter
-        if (filters.brand && filters.brand !== 'All') {
-            filterClauses.push(`p.Brand = '${filters.brand}'`);
+        // Brand filter (supports multiselect)
+        const brands = parseMultiSelectFilter(filters.brand);
+        if (brands) {
+            filterClauses.push(buildInClause('p.Brand', brands));
         }
 
         // Product filter (partial match - use like with %%)

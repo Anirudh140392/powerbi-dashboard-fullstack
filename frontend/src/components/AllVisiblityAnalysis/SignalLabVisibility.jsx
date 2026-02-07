@@ -1064,7 +1064,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType, usePagination = true }) {
+function SignalLabBase({ metricType, usePagination = true, data }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
     const [rowsPerPage, setRowsPerPage] = useState(4);
@@ -1074,8 +1074,16 @@ function SignalLabBase({ metricType, usePagination = true }) {
     // API data - initially empty to show loader
     const [skusData, setSkusData] = useState([]);
     const [isUsingApiData, setIsUsingApiData] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!data);
     const [apiError, setApiError] = useState(null);
+
+    // Initial load from props if available
+    useEffect(() => {
+        if (data) {
+            setSkusData(data); // Expecting data to be formatted correctly (array of skus)
+            setLoading(false);
+        }
+    }, [data]);
 
     // Reset pagination when tab or signal type changes
     useEffect(() => {
@@ -1101,6 +1109,8 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
     // Fetch data from API - use API data if successful, otherwise keep sample data
     useEffect(() => {
+        if (data) return; // Skip fetch if data is provided
+
         const controller = new AbortController();
         const signal = controller.signal;
         let isMounted = true;
@@ -1341,7 +1351,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
 }
 
 
-export function SignalLabVisibility({ type, usePagination = true }) {
-    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} />;
+export function SignalLabVisibility({ type, usePagination = true, data }) {
+    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} data={data} />;
 }
 

@@ -8,6 +8,34 @@ import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+/**
+ * Helper to parse multiselect filter values
+ */
+const parseMultiSelectFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string' && value.includes(',')) {
+        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
+/**
+ * Helper to build SQL IN clause for multiselect
+ */
+const buildInClause = (column, values) => {
+    if (!values || values.length === 0) return null;
+    const escaped = values.map(v => `'${escapeStr(v)}'`).join(',');
+    return `${column} IN (${escaped})`;
+};
+
 
 /**
  * Get brand-wise discount trend on monthly basis
@@ -35,10 +63,11 @@ async function getBrandDiscountTrend(filters = {}) {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
             const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
 
-            // Build platform filter clause
+            // Build platform filter clause (supports multiselect)
             let platformClause = '';
-            if (filters.platform && filters.platform !== 'All') {
-                platformClause = `AND Platform = '${filters.platform}'`;
+            const platforms = parseMultiSelectFilter(filters.platform);
+            if (platforms) {
+                platformClause = `AND ${buildInClause('Platform', platforms)}`;
             }
 
             // SQL query to get monthly average discount by brand
@@ -167,10 +196,11 @@ async function getAvailableBrands(filters = {}) {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
             const startDate = filters.startDate || dayjs().subtract(6, 'months').format('YYYY-MM-DD');
 
-
+            // Build platform filter clause (supports multiselect)
             let platformClause = '';
-            if (filters.platform && filters.platform !== 'All') {
-                platformClause = `AND Platform = '${filters.platform}'`;
+            const platforms = parseMultiSelectFilter(filters.platform);
+            if (platforms) {
+                platformClause = `AND ${buildInClause('Platform', platforms)}`;
             }
 
             const query = `
