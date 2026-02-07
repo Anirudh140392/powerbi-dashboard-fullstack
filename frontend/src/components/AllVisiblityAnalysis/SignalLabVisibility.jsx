@@ -108,6 +108,13 @@ const KPI_LABELS = {
     drr: "DRR",
     oos: "OOS",
     expiryRisk: "Expiry Risk",
+
+    // Pricing
+    ecp: "ECP",
+    discount: "Discount",
+    rpi: "RPI",
+    mrp: "MRP",
+    priceChange: "Price Change",
 };
 
 /* ------------------------------------------------------
@@ -958,6 +965,9 @@ function SignalCard({ sku, metricType, onShowDetails }) {
         sales: salesKpiOrder,
         performance: performanceKpiOrder,
         inventory: inventoryKpiOrder,
+        ecp: ["mrp", "discount", "rpi"],
+        discount: ["ecp", "mrp", "rpi"],
+        rpi: ["ecp", "discount", "priceChange"],
     };
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
 
@@ -966,11 +976,16 @@ function SignalCard({ sku, metricType, onShowDetails }) {
         sales: { label: "Offtake", key: "offtakeValue" },
         performance: { label: "Offtake", key: "offtakeValue" },
         visibility: { label: "Offtake", key: "offtakeValue" },
-        inventory: { label: "DOI", key: "offtakeValue" }
+        inventory: { label: "DOI", key: "offtakeValue" },
+        ecp: { label: "Avg ECP", key: "ecpValue" },
+        discount: { label: "Avg Discount", key: "discountValue" },
+        rpi: { label: "RPI", key: "rpiValue" },
     };
 
     const config = configMap[metricType] || { label: "Offtake", key: "offtakeValue" };
-    const mainValue = config.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[config.key] || sku.offtakeValue);
+
+    // Determine main value. If config.key is in kpis, use that, else use offtakeValue
+    const mainValue = sku.kpis?.[config.key] || sku?.[config.key] || sku.offtakeValue;
 
     return (
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-3 w-full transition-all duration-300 hover:translate-y-[-4px] hover:shadow-xl hover:border-indigo-100">
@@ -1080,10 +1095,17 @@ function SignalLabBase({ metricType, usePagination = true, data }) {
     // Initial load from props if available
     useEffect(() => {
         if (data) {
-            setSkusData(data); // Expecting data to be formatted correctly (array of skus)
+            if (Array.isArray(data)) {
+                setSkusData(data);
+                setTotalCount(data.length);
+            } else if (data[signalType]) {
+                // If data is an object with drainer/gainer keys
+                setSkusData(data[signalType]);
+                setTotalCount(data[signalType].length);
+            }
             setLoading(false);
         }
-    }, [data]);
+    }, [data, signalType]);
 
     // Reset pagination when tab or signal type changes
     useEffect(() => {

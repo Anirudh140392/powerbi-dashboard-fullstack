@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import CityDetailedTable from "./CityDetailedTable";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
