@@ -68,7 +68,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     selectedChannel,
     setSelectedChannel,
     mslEnabled,
-    setMslEnabled
+    setMslEnabled,
+    categories,
+    selectedCategory,
+    setSelectedCategory
   } = React.useContext(FilterContext);
 
 
@@ -224,21 +227,30 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 }}
                 width={{ xs: "calc(50% - 3px)", sm: 140 }}
               />
-
-              <CustomHeaderDropdown
-                label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
-                options={title === "Performance Marketing" ? zones : locations}
-                value={title === "Performance Marketing" ? selectedZone : selectedLocation}
-                onChange={(newValue) => {
-                  if (title === "Performance Marketing") {
-                    setSelectedZone(newValue);
-                  } else {
-                    setSelectedLocation(newValue);
-                  }
-                }}
-                width={{ xs: "calc(50% - 3px)", sm: 140 }}
-              />
-
+              {title !== 'Availability Analysis' && (
+                <CustomHeaderDropdown
+                  label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
+                  options={title === "Performance Marketing" ? zones : locations}
+                  value={title === "Performance Marketing" ? selectedZone : selectedLocation}
+                  onChange={(newValue) => {
+                    if (title === "Performance Marketing") {
+                      setSelectedZone(newValue);
+                    } else {
+                      setSelectedLocation(newValue);
+                    }
+                  }}
+                  width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                />
+              )}
+              {title === 'Availability Analysis' && (
+                <CustomHeaderDropdown
+                  label="CATEGORY"
+                  options={categories}
+                  value={selectedCategory}
+                  onChange={(newValue) => setSelectedCategory(newValue)}
+                  width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                />
+              )}
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
               <Box sx={{ width: { xs: "calc(50% - 3px)", sm: 200 }, flexShrink: 0 }}>
                 <Typography
