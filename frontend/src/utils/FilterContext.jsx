@@ -88,6 +88,10 @@ export const FilterProvider = ({ children }) => {
     // MSL Toggle state
     const [mslEnabled, setMslEnabled] = useState(savedFilters.mslEnabled ?? false);
 
+    // Category state (for Availability Analysis page)
+    const [categories] = useState(["All", "Cassata", "Core Tub", "Cornetto", "Cup", "KW Sticks", "Magnum", "Others"]);
+    const [selectedCategory, setSelectedCategory] = useState(savedFilters.selectedCategory || "All");
+
     // Zone state (for Performance Marketing page only)
     const [zones, setZones] = useState([]);
     const [selectedZone, setSelectedZone] = useState("All");
@@ -526,7 +530,10 @@ export const FilterProvider = ({ children }) => {
             selectedChannel,
             setSelectedChannel,
             mslEnabled,
-            setMslEnabled
+            setMslEnabled,
+            categories,
+            selectedCategory,
+            setSelectedCategory
         }}>
 
             {children}
