@@ -1079,7 +1079,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType, usePagination = true, data }) {
+function SignalLabBase({ metricType, usePagination = true, data, isPricing = false }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
     const [rowsPerPage, setRowsPerPage] = useState(4);
@@ -1366,6 +1366,7 @@ function SignalLabBase({ metricType, usePagination = true, data }) {
                 <CityDetailedTable
                     sku={selectedSkuForDetails}
                     onClose={() => setSelectedSkuForDetails(null)}
+                    isPricing={isPricing}
                 />
             )}
         </>
@@ -1373,7 +1374,7 @@ function SignalLabBase({ metricType, usePagination = true, data }) {
 }
 
 
-export function SignalLabVisibility({ type, usePagination = true, data }) {
-    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} data={data} />;
+export function SignalLabVisibility({ type, usePagination = true, data, isPricing = false }) {
+    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} data={data} isPricing={isPricing} />;
 }
 
