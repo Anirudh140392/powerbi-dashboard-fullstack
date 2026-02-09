@@ -440,6 +440,19 @@ function DateWiseDrilldownTable() {
         )
     }
 
+    const resetFilters = () => {
+        setTentativeFilters({
+            platform: [],
+            format: [],
+            city: [],
+            brand: [],
+            date: [],
+            month: [],
+            zone: [],
+            pincode: [],
+            metroFlag: []
+        });
+    };
     const toggleSku = (skuId, e) => {
         e.stopPropagation()
         setExpandedSkus(prev =>
@@ -591,22 +604,30 @@ function DateWiseDrilldownTable() {
                             />
                         </div>
 
-                        <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                        <div className="flex justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
                             <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                onClick={resetFilters}
+                                className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
                             >
-                                Cancel
+                                Reset Filter
                             </button>
-                            <button
-                                onClick={() => {
-                                    setAppliedFilters(tentativeFilters);
-                                    setShowFilterPanel(false);
-                                }}
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                            >
-                                Apply Filters
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowFilterPanel(false)}
+                                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setAppliedFilters(tentativeFilters);
+                                        setShowFilterPanel(false);
+                                    }}
+                                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                >
+                                    Apply Filters
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
