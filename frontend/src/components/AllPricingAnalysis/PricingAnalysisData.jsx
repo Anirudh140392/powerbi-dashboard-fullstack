@@ -2791,7 +2791,7 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
-      <SalesGainerDrainerWrapper
+      {/* <SalesGainerDrainerWrapper
         tabs={pricingGainerDrainerTabs}
         data={pricingGainerDrainerData}
         defaultTab="ecp"
@@ -2802,7 +2802,7 @@ export default function PricingAnalysisData() {
       <Box sx={{ pt: 2 }}>
         <DiscountDrilldownDate />
       </Box>
-      <DiscountDrilldownCity />
+      <DiscountDrilldownCity /> */}
 
 
       {/* KPI Row - ECP Comparison from API */}
@@ -2880,7 +2880,7 @@ export default function PricingAnalysisData() {
 
 
       {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
-      <Grid container spacing={2} mb={2}>
+      {/* <Grid container spacing={2} mb={2}>
         <Grid item xs={12} md={8}>
           {ecpByBrandLoading ? (
             <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
@@ -2992,10 +2992,10 @@ export default function PricingAnalysisData() {
             </Card>
           )}
         </Grid>
-      </Grid>
+      </Grid> */}
 
       {/* Discount Trend Drilldown (Power BI-style) */}
-      {discountTrendLoading ? (
+      {/* {discountTrendLoading ? (
         <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
           <Skeleton variant="text" width="250px" height={32} sx={{ mb: 1 }} />
           <Skeleton variant="text" width="200px" height={20} sx={{ mb: 2 }} />
@@ -3009,7 +3009,7 @@ export default function PricingAnalysisData() {
           onBrandClick={applyGlobalBrandSelection}
           onCategoryExpand={fetchDiscountByBrand}
         />
-      )}
+      )} */}
 
       {/* Tabs + Brand / Own vs Competitors */}
       <Card
