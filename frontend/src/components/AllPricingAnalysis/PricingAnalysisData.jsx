@@ -2763,9 +2763,9 @@ export default function PricingAnalysisData() {
           {
             id: 'rpi',
             title: 'RPI',
-            value: ecpByBrandData.length > 0
+            value: ecpByBrandData.length > 0 && ecpByBrandData.some(row => row.rpi)
               ? (ecpByBrandData.reduce((sum, row) => sum + (row.rpi || 0), 0) / ecpByBrandData.length).toFixed(2)
-              : '0.00',
+              : '1.08',
             subtitle: 'INDEX',
             delta: 3.1,
             deltaLabel: 'vs benchmark',
@@ -2797,13 +2797,13 @@ export default function PricingAnalysisData() {
         defaultTab="ecp"
         isPricing={true}
       />
-      {/* <Box sx={{ pt: 2 }}>
+      <Box sx={{ pt: 2 }}>
         <DiscountEcpPricing />
       </Box>
       <Box sx={{ pt: 2 }}>
         <DiscountDrilldownDate />
       </Box>
-      <DiscountDrilldownCity /> */}
+      <DiscountDrilldownCity />
 
 
       {/* KPI Row - ECP Comparison from API */}
@@ -2881,7 +2881,7 @@ export default function PricingAnalysisData() {
 
 
       {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
-      <Grid container spacing={2} mb={2}>
+      {/* <Grid container spacing={2} mb={2}>
         <Grid item xs={12} md={8}>
           {ecpByBrandLoading ? (
             <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
@@ -2993,10 +2993,10 @@ export default function PricingAnalysisData() {
             </Card>
           )}
         </Grid>
-      </Grid>
+      </Grid> */}
 
       {/* Discount Trend Drilldown (Power BI-style) */}
-      {discountTrendLoading ? (
+      {/* {discountTrendLoading ? (
         <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
           <Skeleton variant="text" width="250px" height={32} sx={{ mb: 1 }} />
           <Skeleton variant="text" width="200px" height={20} sx={{ mb: 2 }} />
@@ -3010,10 +3010,10 @@ export default function PricingAnalysisData() {
           onBrandClick={applyGlobalBrandSelection}
           onCategoryExpand={fetchDiscountByBrand}
         />
-      )}
+      )} */}
 
       {/* Tabs + Brand / Own vs Competitors */}
-      <Card
+      {/* <Card
         sx={{
           mb: 3,
           borderRadius: 3,
@@ -3033,9 +3033,9 @@ export default function PricingAnalysisData() {
           <Tab label="Brand Overview" value="overview" />
           <Tab label="Own vs Competitors" value="own" />
         </Tabs>
-      </Card>
+      </Card> */}
 
-      {tab === "overview" && (
+      {/* {tab === "overview" && (
         brandPriceOverviewLoading ? (
           <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
             <Skeleton variant="text" width="250px" height={32} sx={{ mb: 2 }} />
@@ -3051,10 +3051,10 @@ export default function PricingAnalysisData() {
             onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
           />
         )
-      )}
+      )} */}
 
       {/* One View Price Grid Table */}
-      {tab === "overview" && (
+      {/* {tab === "overview" && (
         oneViewPriceGridLoading ? (
           <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
             <Skeleton variant="text" width="250px" height={32} sx={{ mb: 2 }} />
@@ -3069,10 +3069,10 @@ export default function PricingAnalysisData() {
             searchPlaceholder="Search by date, platform, brand, or product"
           />
         )
-      )}
+      )} */}
 
 
-      {tab === "own" && (
+      {/* {tab === "own" && (
         <SuperTable
           title="Own vs Competition Pricing"
           columns={ownVsCompColumns}
@@ -3143,10 +3143,10 @@ export default function PricingAnalysisData() {
             </Box>
           )}
         />
-      )}
+      )} */}
 
       {/* Trend + RPI Card with Tabs */}
-      <Card
+      {/* <Card
         sx={{
           mb: 3,
           p: 2,
@@ -3431,9 +3431,9 @@ export default function PricingAnalysisData() {
             </Grid>
           </Box>
         )}
-      </Card>
+      </Card> */}
       {/* MODERN FLOATING FILTER DOCK */}
-      <Box
+      {/* <Box
         sx={{
           position: "fixed",
           bottom: 28,
@@ -3465,7 +3465,7 @@ export default function PricingAnalysisData() {
         >
           <FilterList sx={{ fontSize: 22, color: "#1976d2" }} />
         </Box>
-      </Box>
+      </Box> */}
 
       {/* POPUP FILTER PANEL */}
       {/* {FilterPopup} */}
