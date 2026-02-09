@@ -210,7 +210,20 @@ export default function KPIMatrixTable({ data }) {
         );
     };
 
-    const closeAll = () => setExpandedRows([]);
+    const closeAll = () => {
+        setExpandedRows([]);
+        // Assuming setExpandedBrands and setExpandedSkus are defined elsewhere or not needed here.
+        // If they are part of the state, they should be declared.
+        // For now, I'll keep the original closeAll behavior for expandedRows.
+    };
+
+    const resetFilters = () => {
+        setTentativeFilters({
+            platform: [],
+            city: [],
+            format: [],
+        });
+    };
 
     // Demo cell data (replace with API)
     const getCellData = (entityIdx, kpiIdx) => {
@@ -311,22 +324,30 @@ export default function KPIMatrixTable({ data }) {
                             />
                         </div>
 
-                        <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+                        <div className="flex justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
                             <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                onClick={resetFilters}
+                                className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
                             >
-                                Cancel
+                                Reset Filter
                             </button>
-                            <button
-                                onClick={() => {
-                                    setAppliedFilters(tentativeFilters);
-                                    setShowFilterPanel(false);
-                                }}
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                            >
-                                Apply Filters
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowFilterPanel(false)}
+                                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setAppliedFilters(tentativeFilters);
+                                        setShowFilterPanel(false);
+                                    }}
+                                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                >
+                                    Apply Filters
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
