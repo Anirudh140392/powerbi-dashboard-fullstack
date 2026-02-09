@@ -90,7 +90,7 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
-import DiscountEcpPricing from "./DiscountEcpPricing";
+import DiscountEcpPricing from "./discountEcpPricing";
 import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
 import DiscountDrilldownCity from "./DiscountDrilldownCity";
 
@@ -2791,7 +2791,7 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
-      {/* <SalesGainerDrainerWrapper
+      <SalesGainerDrainerWrapper
         tabs={pricingGainerDrainerTabs}
         data={pricingGainerDrainerData}
         defaultTab="ecp"
@@ -2802,11 +2802,11 @@ export default function PricingAnalysisData() {
       <Box sx={{ pt: 2 }}>
         <DiscountDrilldownDate />
       </Box>
-      <DiscountDrilldownCity /> */}
+      <DiscountDrilldownCity />
 
 
       {/* KPI Row - ECP Comparison from API */}
-      {/* <Grid container spacing={2} mb={2}>
+      <Grid container spacing={2} mb={2}>
         {ecpLoading ? (
           // Skeleton loading state for KPI cards
           [1, 2, 3].map((i) => (
@@ -2876,7 +2876,7 @@ export default function PricingAnalysisData() {
             </Grid>
           ))
         )}
-      </Grid> */}
+      </Grid>
 
 
       {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
@@ -2896,7 +2896,7 @@ export default function PricingAnalysisData() {
               enableRowExpansion={false}
               searchPlaceholder="Search by brand"
               onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-            />
+            />   
           )}
         </Grid>
 
@@ -3069,7 +3069,7 @@ export default function PricingAnalysisData() {
           />
         )
       )}
-
+{/*       
 
       {tab === "own" && (
         <SuperTable
@@ -3090,8 +3090,8 @@ export default function PricingAnalysisData() {
                 spacing={3}
                 justifyContent="space-between"
               >
-
-                <Box>
+                {/* LEFT BLOCK */}
+      {/* <Box>
                   <Typography variant="caption" color="text.secondary">
                     Own Brand Details
                   </Typography>
@@ -3113,7 +3113,8 @@ export default function PricingAnalysisData() {
                   </Typography>
                 </Box>
 
-                <Box>
+                {/* RIGHT BLOCK */}
+      {/* <Box>
                   <Typography variant="caption" color="text.secondary">
                     Competitor Details
                   </Typography>
@@ -3142,7 +3143,7 @@ export default function PricingAnalysisData() {
             </Box>
           )}
         />
-      )}
+      )} */}
 
       {/* Trend + RPI Card with Tabs */}
       <Card
@@ -3432,7 +3433,7 @@ export default function PricingAnalysisData() {
         )}
       </Card>
       {/* MODERN FLOATING FILTER DOCK */}
-      <Box
+      {/* <Box
         sx={{
           position: "fixed",
           bottom: 28,
@@ -3464,7 +3465,7 @@ export default function PricingAnalysisData() {
         >
           <FilterList sx={{ fontSize: 22, color: "#1976d2" }} />
         </Box>
-      </Box>
+      </Box> */}
 
       {/* POPUP FILTER PANEL */}
       {/* {FilterPopup} */}

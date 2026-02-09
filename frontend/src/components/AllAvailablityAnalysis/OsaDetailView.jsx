@@ -151,6 +151,13 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
     // State to track the applied filters (set when Apply button is clicked)
     const [appliedFilters, setAppliedFilters] = useState({});
 
+    const resetFilters = () => {
+        setFilterSelections({});
+        setSelectedPlatform(null);
+        setSelectedCategory(null);
+        setSelectedMonth(null);
+    };
+
     // New error and refresh states
     const [hasError, setHasError] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
@@ -777,23 +784,31 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                 </div>
 
                                 {/* Modal Footer */}
-                                <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-4 md:px-6 py-4">
+                                <div className="flex justify-between gap-3 border-t border-slate-100 bg-white px-4 md:px-6 py-4">
                                     <button
-                                        onClick={() => setShowFilterPanel(false)}
-                                        className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                        onClick={resetFilters}
+                                        className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
                                     >
-                                        Cancel
+                                        Reset Filter
                                     </button>
-                                    <button
-                                        onClick={() => {
-                                            // Copy current selections to applied filters to trigger API call
-                                            setAppliedFilters({ ...filterSelections });
-                                            setShowFilterPanel(false);
-                                        }}
-                                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                                    >
-                                        Apply Filters
-                                    </button>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowFilterPanel(false)}
+                                            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                // Copy current selections to applied filters to trigger API call
+                                                setAppliedFilters({ ...filterSelections });
+                                                setShowFilterPanel(false);
+                                            }}
+                                            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                        >
+                                            Apply Filters
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
