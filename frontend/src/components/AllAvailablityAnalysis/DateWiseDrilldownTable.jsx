@@ -697,11 +697,11 @@ function DateWiseDrilldownTable() {
                                                                 <span className="text-sm font-semibold text-slate-600 truncate max-w-[260px]" title={sku.name}>
                                                                     {sku.name}
                                                                 </span>
-                                                                {hasCities && (
+                                                                {/* {hasCities && (
                                                                     <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">
                                                                         {sku.cities.length} Cities
                                                                     </span>
-                                                                )}
+                                                                )} */}
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-3 text-[11px] font-bold text-slate-500 text-center uppercase whitespace-nowrap">

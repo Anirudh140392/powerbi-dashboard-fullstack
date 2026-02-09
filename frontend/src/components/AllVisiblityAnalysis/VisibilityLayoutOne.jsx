@@ -779,7 +779,7 @@ const MOCK_SIGNALS = {
   }
 };
 
-export function VisibilityLayoutOne({ data }) {
+export function VisibilityLayoutOne({ data, isPricing = false }) {
   const [signalType, setSignalType] = useState("drainer");
   const [level, setLevel] = useState("keyword");
   const [selectedItemForDetails, setSelectedItemForDetails] = useState(null);
@@ -901,6 +901,7 @@ export function VisibilityLayoutOne({ data }) {
         <CityDetailedTable
           sku={selectedItemForDetails}
           onClose={() => setSelectedItemForDetails(null)}
+          isPricing={isPricing}
         />
       )}
     </div>

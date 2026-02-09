@@ -3,7 +3,7 @@ import { SignalLabVisibility } from "../../components/AllVisiblityAnalysis/Signa
 import VisibilityLayoutOne from "../../components/AllVisiblityAnalysis/VisibilityLayoutOne";
 import { motion } from "framer-motion";
 
-export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab }) {
+export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab, isPricing = false }) {
     // Use custom tabs if provided, otherwise use default Sales tabs
     const defaultTabs = [
         { key: "availability", label: "Availability" },
@@ -43,10 +43,10 @@ export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab }) {
                 {/* We pass a prop 'noCard' if we want to strip the card from children, or we just rely on the children update */}
                 {activeTab === "visibility" ? (
                     <div className="mt-4">
-                        <VisibilityLayoutOne data={data?.visibility} />
+                        <VisibilityLayoutOne data={data?.visibility} isPricing={isPricing} />
                     </div>
                 ) : (
-                    <SignalLabVisibility type={activeTab} data={data?.[activeTab]} />
+                    <SignalLabVisibility type={activeTab} data={data?.[activeTab]} isPricing={isPricing} />
                 )}
             </div>
         </div>

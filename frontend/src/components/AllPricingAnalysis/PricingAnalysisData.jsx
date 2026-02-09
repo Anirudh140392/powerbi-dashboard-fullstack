@@ -2749,7 +2749,7 @@ export default function PricingAnalysisData() {
         kpis={[
           {
             id: 'avg-ecp',
-            title: 'Avg ECP',
+            title: 'ECP',
             value: ecpByBrandData.length > 0
               ? `₹${(ecpByBrandData.reduce((sum, row) => sum + (row.ecp || 0), 0) / ecpByBrandData.length).toFixed(1)}`
               : '₹0.0',
@@ -2775,7 +2775,7 @@ export default function PricingAnalysisData() {
           },
           {
             id: 'avg-discount',
-            title: 'Avg Discount',
+            title: 'Discount',
             value: ecpByBrandData.length > 0
               ? `${(ecpByBrandData.reduce((sum, row) => {
                 const discount = ((row.mrp - row.ecp) / row.mrp) * 100;
@@ -2791,12 +2791,13 @@ export default function PricingAnalysisData() {
           },
         ]}
       />
-      {/* <SalesGainerDrainerWrapper
+      <SalesGainerDrainerWrapper
         tabs={pricingGainerDrainerTabs}
         data={pricingGainerDrainerData}
         defaultTab="ecp"
+        isPricing={true}
       />
-      <Box sx={{ pt: 2 }}>
+      {/* <Box sx={{ pt: 2 }}>
         <DiscountEcpPricing />
       </Box>
       <Box sx={{ pt: 2 }}>
