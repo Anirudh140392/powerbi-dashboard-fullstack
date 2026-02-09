@@ -196,6 +196,30 @@ const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
     const isPositive = kpi.delta > 0
     const trendData = kpi.trend?.map(v => ({ value: v })) || []
 
+    // Coming Soon state with icon instead of text
+    if (kpi.isComingSoon) {
+        return (
+            <div className="py-5 px-5 rounded-xl bg-slate-50/50 border border-dashed border-slate-200 shadow-sm h-full flex flex-col relative overflow-hidden">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 mb-3">
+                    {kpi.title}
+                </span>
+
+                <div className="flex-1 flex flex-col items-center justify-center py-0">
+                    <motion.div
+                        className="w-5 h-5 rounded-xl bg-white border border-slate-100 shadow-sm flex items-center justify-center mb-3"
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                        {Icon && <Icon size={24} className="text-slate-300" strokeWidth={1.5} />}
+                    </motion.div>
+                    <div className="px-3 py-1 rounded-full bg-blue-50/70 border border-blue-100 text-[7px] font-bold text-blue-500 uppercase tracking-widest">
+                        Coming Soon
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     if (variant === 'split') {
         return (
             <div className="p-5 rounded-xl bg-white border border-slate-100 shadow-sm flex flex-col h-full">
