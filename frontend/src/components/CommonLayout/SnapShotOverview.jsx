@@ -322,7 +322,7 @@ const SnapshotOverview = ({
                 </div>
 
                 {/* Content */}
-                <div className="px-4 pb-0">
+                <div className="px-4 pb-2">
                     {/* Top Row: Original Style */}
                     <div className={cn(
                         "grid gap-3",
