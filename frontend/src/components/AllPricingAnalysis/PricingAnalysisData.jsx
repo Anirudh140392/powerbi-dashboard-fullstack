@@ -90,7 +90,7 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
-import DiscountEcpPricing from "./DiscountEcpPricing";
+import DiscountEcpPricing from "./discountEcpPricing";
 import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
 import DiscountDrilldownCity from "./DiscountDrilldownCity";
 
@@ -2897,7 +2897,7 @@ export default function PricingAnalysisData() {
               enableRowExpansion={false}
               searchPlaceholder="Search by brand"
               onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-            />
+            />   
           )}
         </Grid>
 
@@ -3091,8 +3091,8 @@ export default function PricingAnalysisData() {
                 spacing={3}
                 justifyContent="space-between"
               >
-
-                <Box>
+                {/* LEFT BLOCK */}
+      {/* <Box>
                   <Typography variant="caption" color="text.secondary">
                     Own Brand Details
                   </Typography>
@@ -3114,7 +3114,8 @@ export default function PricingAnalysisData() {
                   </Typography>
                 </Box>
 
-                <Box>
+                {/* RIGHT BLOCK */}
+      {/* <Box>
                   <Typography variant="caption" color="text.secondary">
                     Competitor Details
                   </Typography>
