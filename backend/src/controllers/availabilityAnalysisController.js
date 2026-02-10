@@ -92,7 +92,9 @@ export const getPlatformKpiMatrix = async (req, res) => {
             formats: parseFilter(req.query.formats),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes)
+            pincodes: parseFilter(req.query.pincodes),
+            drillDimension: req.query.drillDimension || 'region',
+            includeBreakdown: req.query.includeBreakdown === 'true'
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -852,3 +854,27 @@ export const getCityDetailsForProduct = async (req, res) => {
     }
 };
 
+// ==========================================
+// Brand → SKU → City Day-Level ECP
+// ==========================================
+export const getBrandSkuCityDayLevel = async (req, res) => {
+    try {
+        const filters = {
+            dayRange: parseInt(req.query.dayRange) || 7,
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes),
+        };
+        console.log('[Controller] getBrandSkuCityDayLevel filters:', filters);
+
+        const result = await availabilityService.getBrandSkuCityDayLevel(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[Controller] getBrandSkuCityDayLevel error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};

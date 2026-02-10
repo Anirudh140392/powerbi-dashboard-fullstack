@@ -1,4 +1,4 @@
-import React, { useState, Fragment } from "react";
+import React, { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, X, SlidersHorizontal, TrendingUp, LineChartIcon } from "lucide-react";
 import { KpiFilterPanel } from "@/components/KpiFilterPanel";
@@ -47,44 +47,7 @@ const kpis = [
 // ✅ Only OSA can drill down when competitors is selected, otherwise all KPIs can drill
 const DRILLDOWN_ENABLED_KPIS = new Set(["osa"]);
 
-// ========================================
-// FILTER OPTIONS CONFIG
-// ========================================
-const filterOptions = [
-    {
-        id: 'platform',
-        label: 'Platform',
-        options: [
-            { id: 'Blinkit', label: 'Blinkit' },
-            { id: 'Instamart', label: 'Instamart' },
-            { id: 'Zepto', label: 'Zepto' },
-            { id: 'Flipkart', label: 'Flipkart' },
-            { id: 'Amazon', label: 'Amazon' },
-        ]
-    },
-    {
-        id: 'city',
-        label: 'City',
-        options: [
-            { id: 'Delhi', label: 'Delhi' },
-            { id: 'Mumbai', label: 'Mumbai' },
-            { id: 'Bangalore', label: 'Bangalore' },
-            { id: 'Chennai', label: 'Chennai' },
-            { id: 'Hyderabad', label: 'Hyderabad' },
-        ]
-    },
-    {
-        id: 'format',
-        label: 'Format',
-        options: [
-            { id: 'CASSATA', label: 'CASSATA' },
-            { id: 'CORE TUB', label: 'CORE TUB' },
-            { id: 'CORNETTO', label: 'CORNETTO' },
-            { id: 'MAGNUM', label: 'MAGNUM' },
-            { id: 'PREMIUM TUB', label: 'PREMIUM TUB' },
-        ]
-    },
-];
+// Filter options are fetched dynamically from the backend API
 
 // ========================================
 // SHARED COMPONENTS
@@ -161,13 +124,23 @@ const DrillDownDropdown = ({ value, onChange, reportType }) => {
 // MAIN TABLE COMPONENT
 // UX: single expand icon column (left) instead of clickable cells
 // ========================================
-export default function KPIMatrixTable({ data }) {
+export default function KPIMatrixTable({ filters: globalFilters }) {
     const [reportType, setReportType] = useState("platform");
     const [drillDimension, setDrillDimension] = useState("region");
     const [expandedRows, setExpandedRows] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [apiData, setApiData] = useState(null);
+
+    // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
+    const [filterOptions, setFilterOptions] = useState([
+        { id: 'platform', label: 'Platform', options: [] },
+        { id: 'city', label: 'City', options: [] },
+        { id: 'format', label: 'Format', options: [] },
+    ]);
+    const [filterOptionsLoaded, setFilterOptionsLoaded] = useState(false);
 
     // ========================================
-    // FILTER STATE
+    // FILTER STATE (must be declared before useEffects that reference them)
     // ========================================
     const [showFilterPanel, setShowFilterPanel] = useState(false);
 
@@ -185,20 +158,102 @@ export default function KPIMatrixTable({ data }) {
 
     const appliedCount = Object.values(appliedFilters).flat().length;
 
+    // Fetch filter options only when panel is first opened
+    useEffect(() => {
+        if (!showFilterPanel || filterOptionsLoaded) return;
+        const fetchFilterOptions = async () => {
+            try {
+                const filterTypes = [
+                    { id: 'platform', apiType: 'platforms', label: 'Platform' },
+                    { id: 'city', apiType: 'cities', label: 'City' },
+                    { id: 'format', apiType: 'formats', label: 'Format' },
+                ];
+                const results = await Promise.all(
+                    filterTypes.map(async (ft) => {
+                        const res = await fetch(`/api/availability-analysis/filter-options?filterType=${ft.apiType}`);
+                        if (!res.ok) return { id: ft.id, label: ft.label, options: [] };
+                        const data = await res.json();
+                        const opts = (data.options || []).map(v => ({ id: v, label: v }));
+                        return { id: ft.id, label: ft.label, options: opts };
+                    })
+                );
+                setFilterOptions(results);
+                setFilterOptionsLoaded(true);
+            } catch (err) {
+                console.error('Error fetching filter options:', err);
+            }
+        };
+        fetchFilterOptions();
+    }, [showFilterPanel, filterOptionsLoaded]);
+
+    // ========================================
+    // DATA FETCHING
+    // ========================================
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const params = new URLSearchParams();
+                // Map local reportType to viewMode expected by backend
+                const viewMode = reportType.charAt(0).toUpperCase() + reportType.slice(1);
+                params.append('viewMode', viewMode);
+                params.append('drillDimension', drillDimension);
+
+                // Only request breakdown data when rows are expanded
+                if (expandedRows.length > 0) {
+                    params.append('includeBreakdown', 'true');
+                }
+
+                // Add global filters
+                if (globalFilters) {
+                    Object.entries(globalFilters).forEach(([key, value]) => {
+                        if (value && value !== 'All') {
+                            if (Array.isArray(value)) value.forEach(v => params.append(key, v));
+                            else params.append(key, value);
+                        }
+                    });
+                }
+
+                // Add segment-level applied filters
+                if (appliedFilters.platform?.length > 0) {
+                    appliedFilters.platform.forEach(v => params.append('platform', v));
+                }
+                if (appliedFilters.city?.length > 0) {
+                    appliedFilters.city.forEach(v => params.append('cities', v));
+                }
+                if (appliedFilters.format?.length > 0) {
+                    appliedFilters.format.forEach(v => params.append('categories', v));
+                }
+
+                const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`);
+                if (!res.ok) throw new Error("Failed to fetch");
+                const result = await res.json();
+                setApiData(result);
+            } catch (error) {
+                console.error("Error fetching matrix data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [reportType, drillDimension, globalFilters, appliedFilters, expandedRows.length > 0]);
+
     // ========================================
     // CHART/DRAWER STATE
     // ========================================
     const [showTrendsDrawer, setShowTrendsDrawer] = useState(false);
     const [selectedCellForTrend, setSelectedCellForTrend] = useState({ entity: null, kpi: null });
 
-    const entities = reportTypes.find((r) => r.key === reportType)?.entities || [];
+    // Use API columns if available, otherwise fallback to config
+    const entities = apiData?.columns?.filter(c => c !== 'KPI') || reportTypes.find((r) => r.key === reportType)?.entities || [];
     const drillItems = drillDownOptions.find((d) => d.key === drillDimension)?.items || [];
     const drillLabel = drillDownOptions.find((d) => d.key === drillDimension)?.label;
 
     // Drill-down enabled logic: only OSA for competitors, all KPIs for other options
     const isDrillEnabled = (kpiKey) => {
         if (drillDimension === 'competitors') {
-            return DRILLDOWN_ENABLED_KPIS.has(kpiKey);
+            return DRILLDOWN_ENABLED_KPIS.has(kpiKey.toLowerCase());
         }
         return true; // All KPIs can drill for region/period
     };
@@ -225,17 +280,26 @@ export default function KPIMatrixTable({ data }) {
         });
     };
 
-    // Demo cell data (replace with API)
-    const getCellData = (entityIdx, kpiIdx) => {
-        const base = 60 + entityIdx * 5 + kpiIdx * 3;
-        const value = Math.min(99, Math.max(10, base + (Math.random() - 0.5) * 30));
-        const delta = Math.round((Math.random() - 0.4) * 8);
-        return { value: Math.round(value), delta };
+    // Use API data for cells
+    const getCellData = (entity, kpiLabel) => {
+        if (!apiData?.rows) return { value: 0, delta: 0 };
+        const row = apiData.rows.find(r => r.kpi.toLowerCase() === kpiLabel.toLowerCase());
+        if (!row) return { value: 0, delta: 0 };
+        return {
+            value: row[entity] || 0,
+            delta: row.trend && row.trend[entity] !== undefined ? row.trend[entity] : 0
+        };
     };
 
-    // Demo drill data (replace with API)
-    const getDrillData = (entity, kpi, drillItem) => {
-        return { value: Math.round(60 + Math.random() * 30), delta: Math.round((Math.random() - 0.4) * 5) };
+    // Use API data for drill breakdown
+    const getDrillData = (entity, kpiLabel, drillItem) => {
+        if (!apiData?.rows) return { value: 0, delta: 0 };
+        const row = apiData.rows.find(r => r.kpi.toLowerCase() === kpiLabel.toLowerCase());
+        if (!row || !row.breakdown || !row.breakdown[entity]) return { value: 0, delta: 0 };
+
+        // Match drillItem (e.g. "North Zone" vs "North Zone")
+        const val = row.breakdown[entity][drillItem];
+        return { value: val !== undefined ? val : 0, delta: 0 };
     };
 
     return (
@@ -386,8 +450,9 @@ export default function KPIMatrixTable({ data }) {
 
                         <tbody>
                             {kpis.map((kpi, kIdx) => {
-                                const drillEnabled = isDrillEnabled(kpi.key);
-                                const isRowExpanded = expandedRows.includes(kpi.key);
+                                const isComingSoon = kpi.key === 'fillRate';
+                                const drillEnabled = isComingSoon ? false : isDrillEnabled(kpi.key);
+                                const isRowExpanded = isComingSoon ? false : expandedRows.includes(kpi.key);
 
                                 return (
                                     <Fragment key={kpi.key}>
@@ -423,8 +488,13 @@ export default function KPIMatrixTable({ data }) {
                                             {/* KPI Label */}
                                             <td className="py-3 px-4 text-sm font-medium text-slate-700 select-none">
                                                 <div className="flex items-center gap-2">
-                                                    <span>{kpi.label}</span>
-                                                    {drillEnabled && (
+                                                    <span className={isComingSoon ? 'text-slate-400' : ''}>{kpi.label}</span>
+                                                    {isComingSoon && (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-amber-50 to-orange-50 text-amber-600 border border-amber-200 shadow-sm">
+                                                            🚧 Coming Soon
+                                                        </span>
+                                                    )}
+                                                    {!isComingSoon && drillEnabled && (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] border border-blue-100">
                                                             Drill
                                                         </span>
@@ -433,19 +503,34 @@ export default function KPIMatrixTable({ data }) {
                                             </td>
 
                                             {/* Values */}
-                                            {entities.map((entity, eIdx) => {
-                                                const cell = getCellData(eIdx, kIdx);
+                                            {entities.map((entity) => {
+                                                if (isComingSoon) {
+                                                    return (
+                                                        <td key={entity} className="text-center py-3 px-2">
+                                                            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 border border-dashed border-slate-200">
+                                                                <span className="text-xs font-medium text-slate-400 tracking-wide">—</span>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                const cell = getCellData(entity, kpi.label);
+                                                const isPercentage = kpi.label !== 'Assortment';
+
                                                 return (
                                                     <td key={entity} className="text-center py-3 px-2">
                                                         <motion.div
                                                             className={cn(
                                                                 "inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-transparent",
                                                                 // subtle hover for readability only (not clickable)
-                                                                "hover:bg-slate-50 hover:border-slate-200"
+                                                                "hover:bg-slate-50 hover:border-slate-200",
+                                                                loading && "opacity-50 pointer-events-none"
                                                             )}
                                                             whileHover={{ scale: 1.01 }}
                                                         >
-                                                            <span className="text-sm font-semibold text-slate-800">{cell.value}%</span>
+                                                            <span className="text-sm font-semibold text-slate-800">
+                                                                {cell.value}{isPercentage ? '%' : ''}
+                                                            </span>
                                                             <span
                                                                 className={cn(
                                                                     "text-xs font-medium",
@@ -494,7 +579,9 @@ export default function KPIMatrixTable({ data }) {
                                                                             return (
                                                                                 <div key={item} className="text-xs">
                                                                                     <span className="text-slate-400">{item.split(" ")[0]}</span>
-                                                                                    <span className="ml-1 font-medium text-slate-700">{drillData.value}%</span>
+                                                                                    <span className="ml-1 font-medium text-slate-700">
+                                                                                        {drillData.value}{kpi.key === 'doi' ? 'd' : (kpi.key === 'assortment' ? '' : '%')}
+                                                                                    </span>
                                                                                 </div>
                                                                             );
                                                                         })}

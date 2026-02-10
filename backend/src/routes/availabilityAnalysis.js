@@ -12,7 +12,8 @@ import {
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends,
     getSignalLabData,
-    getCityDetailsForProduct
+    getCityDetailsForProduct,
+    getBrandSkuCityDayLevel
 } from '../controllers/availabilityAnalysisController.js';
 
 export default (app) => {
@@ -385,5 +386,8 @@ export default (app) => {
      *         description: Successful response with city data
      */
     app.get('/api/availability-analysis/signal-lab/city-details', getCityDetailsForProduct);
+
+    // Brand → SKU → City Day-Level ECP
+    app.get('/api/availability-analysis/brand-sku-city-day', getBrandSkuCityDayLevel);
 };
 

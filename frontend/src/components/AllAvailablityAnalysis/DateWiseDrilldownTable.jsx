@@ -22,239 +22,8 @@ const getDayWiseFontColor = (value, min = 30, max = 60) => {
     return 'text-rose-600 font-semibold'
 }
 
-// ========================================
-// MOCK DATA
-// ========================================
-const BRAND_SKU_DAY_DATA = [
-    {
-        id: 'b1',
-        brand: 'Colgate',
-        skus: [
-            {
-                id: 's1',
-                name: 'Colgate MaxFresh Peppermint Ice Toothpaste',
-                ml: '150 g',
-                days: {
-                    '2026-02-06': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-05': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-04': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-03': { ecp: 136, discount: 12, rpi: 1.1 },
-                    '2026-02-02': { ecp: 145, discount: 5, rpi: 1.2 },
-                    '2026-02-01': { ecp: 140, discount: 8, rpi: 1.15 },
-                    '2026-01-31': { ecp: 142, discount: 6, rpi: 1.18 }
-                },
-                cities: [
-                    {
-                        id: 'c1-s1',
-                        name: 'Mumbai',
-                        days: {
-                            '2026-02-06': { ecp: 148, discount: 4, rpi: 1.22 },
-                            '2026-02-05': { ecp: 146, discount: 5, rpi: 1.2 },
-                            '2026-02-04': { ecp: 144, discount: 6, rpi: 1.18 },
-                            '2026-02-03': { ecp: 138, discount: 10, rpi: 1.12 },
-                            '2026-02-02': { ecp: 147, discount: 4, rpi: 1.21 },
-                            '2026-02-01': { ecp: 142, discount: 7, rpi: 1.16 },
-                            '2026-01-31': { ecp: 143, discount: 6, rpi: 1.17 }
-                        }
-                    },
-                    {
-                        id: 'c2-s1',
-                        name: 'Delhi',
-                        days: {
-                            '2026-02-06': { ecp: 142, discount: 6, rpi: 1.18 },
-                            '2026-02-05': { ecp: 144, discount: 5, rpi: 1.2 },
-                            '2026-02-04': { ecp: 146, discount: 4, rpi: 1.22 },
-                            '2026-02-03': { ecp: 134, discount: 14, rpi: 1.08 },
-                            '2026-02-02': { ecp: 143, discount: 6, rpi: 1.19 },
-                            '2026-02-01': { ecp: 138, discount: 9, rpi: 1.14 },
-                            '2026-01-31': { ecp: 141, discount: 6, rpi: 1.19 }
-                        }
-                    },
-                    {
-                        id: 'c3-s1',
-                        name: 'Bangalore',
-                        days: {
-                            '2026-02-06': { ecp: 145, discount: 5, rpi: 1.2 },
-                            '2026-02-05': { ecp: 145, discount: 5, rpi: 1.2 },
-                            '2026-02-04': { ecp: 145, discount: 5, rpi: 1.2 },
-                            '2026-02-03': { ecp: 136, discount: 12, rpi: 1.1 },
-                            '2026-02-02': { ecp: 145, discount: 5, rpi: 1.2 },
-                            '2026-02-01': { ecp: 140, discount: 8, rpi: 1.15 },
-                            '2026-01-31': { ecp: 142, discount: 6, rpi: 1.18 }
-                        }
-                    }
-                ]
-            },
-            {
-                id: 's2',
-                name: 'Colgate Visible White Teeth Whitening',
-                ml: '100 g',
-                days: {
-                    '2026-02-06': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-05': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-04': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-03': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-02': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
-                    '2026-01-31': { ecp: 95, discount: 12, rpi: 0.9 }
-                },
-                cities: [
-                    {
-                        id: 'c1-s2',
-                        name: 'Chennai',
-                        days: {
-                            '2026-02-06': { ecp: 102, discount: 8, rpi: 0.98 },
-                            '2026-02-05': { ecp: 100, discount: 9, rpi: 0.96 },
-                            '2026-02-04': { ecp: 99, discount: 10, rpi: 0.95 },
-                            '2026-02-03': { ecp: 98, discount: 11, rpi: 0.94 },
-                            '2026-02-02': { ecp: 100, discount: 9, rpi: 0.96 },
-                            '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
-                            '2026-01-31': { ecp: 96, discount: 11, rpi: 0.91 }
-                        }
-                    },
-                    {
-                        id: 'c2-s2',
-                        name: 'Hyderabad',
-                        days: {
-                            '2026-02-06': { ecp: 96, discount: 12, rpi: 0.92 },
-                            '2026-02-05': { ecp: 98, discount: 11, rpi: 0.94 },
-                            '2026-02-04': { ecp: 99, discount: 10, rpi: 0.95 },
-                            '2026-02-03': { ecp: 100, discount: 9, rpi: 0.96 },
-                            '2026-02-02': { ecp: 98, discount: 11, rpi: 0.94 },
-                            '2026-02-01': { ecp: 99, discount: 10, rpi: 0.95 },
-                            '2026-01-31': { ecp: 94, discount: 13, rpi: 0.89 }
-                        }
-                    }
-                ]
-            },
-        ]
-    },
-    {
-        id: 'b2',
-        brand: 'Dabur',
-        skus: [
-            {
-                id: 's3',
-                name: 'Dabur Red Paste - Ayurvedic Health',
-                ml: '200 g',
-                days: {
-                    '2026-02-06': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-05': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-04': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-03': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-02': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
-                    '2026-01-31': { ecp: 105, discount: 17, rpi: 1.3 }
-                },
-                cities: [
-                    {
-                        id: 'c1-s3',
-                        name: 'Kolkata',
-                        days: {
-                            '2026-02-06': { ecp: 112, discount: 14, rpi: 1.42 },
-                            '2026-02-05': { ecp: 111, discount: 14, rpi: 1.41 },
-                            '2026-02-04': { ecp: 110, discount: 15, rpi: 1.4 },
-                            '2026-02-03': { ecp: 109, discount: 16, rpi: 1.38 },
-                            '2026-02-02': { ecp: 111, discount: 14, rpi: 1.41 },
-                            '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
-                            '2026-01-31': { ecp: 106, discount: 16, rpi: 1.32 }
-                        }
-                    },
-                    {
-                        id: 'c2-s3',
-                        name: 'Pune',
-                        days: {
-                            '2026-02-06': { ecp: 108, discount: 16, rpi: 1.38 },
-                            '2026-02-05': { ecp: 109, discount: 16, rpi: 1.39 },
-                            '2026-02-04': { ecp: 110, discount: 15, rpi: 1.4 },
-                            '2026-02-03': { ecp: 111, discount: 14, rpi: 1.42 },
-                            '2026-02-02': { ecp: 109, discount: 16, rpi: 1.39 },
-                            '2026-02-01': { ecp: 110, discount: 15, rpi: 1.4 },
-                            '2026-01-31': { ecp: 104, discount: 18, rpi: 1.28 }
-                        }
-                    }
-                ]
-            },
-            {
-                id: 's4',
-                name: 'Dabur Meswak Complete Oral Care',
-                ml: '150 g',
-                days: {
-                    '2026-02-06': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-02-05': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-02-04': { ecp: 88, discount: 3, rpi: 1.05 },
-                    '2026-02-03': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-02-02': { ecp: 88, discount: 3, rpi: 1.05 },
-                    '2026-02-01': { ecp: 85, discount: 0, rpi: 1.1 },
-                    '2026-01-31': { ecp: 82, discount: 2, rpi: 1.08 }
-                },
-                cities: [
-                    {
-                        id: 'c1-s4',
-                        name: 'Ahmedabad',
-                        days: {
-                            '2026-02-06': { ecp: 86, discount: 0, rpi: 1.11 },
-                            '2026-02-05': { ecp: 85, discount: 0, rpi: 1.1 },
-                            '2026-02-04': { ecp: 89, discount: 2, rpi: 1.06 },
-                            '2026-02-03': { ecp: 86, discount: 0, rpi: 1.11 },
-                            '2026-02-02': { ecp: 89, discount: 2, rpi: 1.06 },
-                            '2026-02-01': { ecp: 86, discount: 0, rpi: 1.11 },
-                            '2026-01-31': { ecp: 83, discount: 1, rpi: 1.09 }
-                        }
-                    }
-                ]
-            },
-        ]
-    },
-    {
-        id: 'b3',
-        brand: 'Fiama',
-        skus: [
-            {
-                id: 's5',
-                name: 'Fiama Shower Gel - Blackcurrant & Bearberry',
-                ml: '250 ml',
-                days: {
-                    '2026-02-06': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-05': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-04': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-03': { ecp: 185, discount: 8, rpi: 0.8 },
-                    '2026-02-02': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-02-01': { ecp: 199, discount: 5, rpi: 0.85 },
-                    '2026-01-31': { ecp: 210, discount: 3, rpi: 0.9 }
-                },
-                cities: [
-                    {
-                        id: 'c1-s5',
-                        name: 'Gurgaon',
-                        days: {
-                            '2026-02-06': { ecp: 202, discount: 4, rpi: 0.87 },
-                            '2026-02-05': { ecp: 200, discount: 5, rpi: 0.86 },
-                            '2026-02-04': { ecp: 198, discount: 6, rpi: 0.84 },
-                            '2026-02-03': { ecp: 188, discount: 7, rpi: 0.82 },
-                            '2026-02-02': { ecp: 201, discount: 4, rpi: 0.86 },
-                            '2026-02-01': { ecp: 200, discount: 5, rpi: 0.86 },
-                            '2026-01-31': { ecp: 212, discount: 2, rpi: 0.91 }
-                        }
-                    },
-                    {
-                        id: 'c2-s5',
-                        name: 'Noida',
-                        days: {
-                            '2026-02-06': { ecp: 196, discount: 6, rpi: 0.83 },
-                            '2026-02-05': { ecp: 198, discount: 5, rpi: 0.84 },
-                            '2026-02-04': { ecp: 200, discount: 4, rpi: 0.86 },
-                            '2026-02-03': { ecp: 182, discount: 9, rpi: 0.78 },
-                            '2026-02-02': { ecp: 197, discount: 6, rpi: 0.84 },
-                            '2026-02-01': { ecp: 198, discount: 5, rpi: 0.84 },
-                            '2026-01-31': { ecp: 208, discount: 4, rpi: 0.89 }
-                        }
-                    }
-                ]
-            },
-        ]
-    },
-]
+
+
 
 
 // ========================================
@@ -262,11 +31,18 @@ const BRAND_SKU_DAY_DATA = [
 // ========================================
 
 function DateWiseDrilldownTable() {
-    const [expandedBrands, setExpandedBrands] = useState(['Colgate'])
+    const [expandedBrands, setExpandedBrands] = useState([])
     const [expandedSkus, setExpandedSkus] = useState([]) // Track which SKUs are expanded
     const [dayRange, setDayRange] = useState(7)
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
+
+    // ========================================
+    // API DATA STATE
+    // ========================================
+    const [apiData, setApiData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     // ========================================
     // FILTER STATE
@@ -337,8 +113,10 @@ function DateWiseDrilldownTable() {
         }
     };
 
-    // Initial Load
+    // Initial Load - filter options (lazy, only when panel opens)
+    const [filterOptionsLoaded, setFilterOptionsLoaded] = useState(false);
     useEffect(() => {
+        if (!showFilterPanel || filterOptionsLoaded) return;
         const fetchAll = async () => {
             setDynamicFilterData(prev => ({ ...prev, loading: true }));
             try {
@@ -351,7 +129,7 @@ function DateWiseDrilldownTable() {
                     fetchFilterType('pincodes', tentativeFilters),
                     fetchFilterType('zones'),
                     fetchFilterType('metroFlags'),
-                    fetchFilterType('brands') // Try fetching brands
+                    fetchFilterType('brands')
                 ]);
 
                 setDynamicFilterData({
@@ -366,13 +144,62 @@ function DateWiseDrilldownTable() {
                     brands,
                     loading: false
                 });
+                setFilterOptionsLoaded(true);
             } catch (err) {
                 console.error("Error loading filters", err);
                 setDynamicFilterData(prev => ({ ...prev, loading: false }));
             }
         };
         fetchAll();
-    }, []);
+    }, [showFilterPanel, filterOptionsLoaded]);
+
+    // ========================================
+    // FETCH BRAND-SKU-CITY DAY-LEVEL DATA
+    // ========================================
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const params = new URLSearchParams();
+                params.append('dayRange', dayRange.toString());
+
+                // Send applied filters
+                if (appliedFilters.platform?.length > 0 && !appliedFilters.platform.includes('all')) {
+                    params.append('platform', appliedFilters.platform.join(','));
+                }
+                if (appliedFilters.city?.length > 0 && !appliedFilters.city.includes('all')) {
+                    params.append('cities', appliedFilters.city.join(','));
+                }
+                if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all')) {
+                    params.append('brand', appliedFilters.brand.join(','));
+                }
+                if (appliedFilters.format?.length > 0 && !appliedFilters.format.includes('all')) {
+                    params.append('categories', appliedFilters.format.join(','));
+                }
+
+                const res = await axiosInstance.get(`/availability-analysis/brand-sku-city-day?${params.toString()}`);
+                const responseData = res.data;
+
+                if (responseData?.success && responseData?.data) {
+                    setApiData(responseData.data);
+                    // Auto-expand first brand
+                    if (responseData.data.length > 0 && expandedBrands.length === 0) {
+                        setExpandedBrands([responseData.data[0].brand]);
+                    }
+                } else {
+                    setApiData([]);
+                }
+            } catch (err) {
+                console.error('[DateWiseDrilldownTable] Error fetching data:', err);
+                setError(err.message || 'Failed to load data');
+                setApiData([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [dayRange, appliedFilters]);
 
     // Helper for options
     const filterOptions = useMemo(() => {
@@ -399,9 +226,9 @@ function DateWiseDrilldownTable() {
     const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
 
     const filteredData = useMemo(() => {
-        let currentData = BRAND_SKU_DAY_DATA;
+        let currentData = apiData;
 
-        // 1. Filter by Search
+        // Filter by Search (client-side text filtering)
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             currentData = currentData.map(brand => {
@@ -413,18 +240,8 @@ function DateWiseDrilldownTable() {
             }).filter(Boolean);
         }
 
-        // 2. Filter by Applied Filters (Brand)
-        // If we have selected brands in filters, only show those brands
-        if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all') && !appliedFilters.brand.includes('All')) {
-            const selectedBrands = appliedFilters.brand.map(b => b.toLowerCase());
-            currentData = currentData.filter(b => selectedBrands.includes(b.brand.toLowerCase()));
-        }
-
-        // Note: For Platform/City/Format, we would filter here if the data supported it.
-        // Currently data is Brand-level. We'll leave it as just Brand filter for now.
-
         return currentData;
-    }, [searchQuery, appliedFilters, BRAND_SKU_DAY_DATA])
+    }, [searchQuery, apiData])
 
     const METRIC_OPTIONS = [
         { key: 'ecp', label: 'ECP' },
@@ -653,7 +470,42 @@ function DateWiseDrilldownTable() {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredData.map((brand) => {
+                        {/* Loading State */}
+                        {loading && (
+                            <>
+                                {[1, 2, 3].map(i => (
+                                    <tr key={`skel-${i}`} className="border-b border-slate-50">
+                                        <td className="pl-8 py-5"><div className="h-5 w-48 bg-slate-100 rounded animate-pulse" /></td>
+                                        <td className="px-4 py-5"><div className="h-4 w-12 bg-slate-100 rounded animate-pulse mx-auto" /></td>
+                                        {dates.map((d, j) => (
+                                            <td key={j} className="px-3 py-5"><div className="h-4 w-10 bg-slate-100 rounded animate-pulse mx-auto" /></td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </>
+                        )}
+
+                        {/* Error State */}
+                        {!loading && error && (
+                            <tr>
+                                <td colSpan={dates.length + 2} className="text-center py-12">
+                                    <div className="text-rose-500 text-sm font-medium">⚠️ {error}</div>
+                                    <p className="text-slate-400 text-xs mt-1">Please try again or adjust your filters.</p>
+                                </td>
+                            </tr>
+                        )}
+
+                        {/* Empty State */}
+                        {!loading && !error && filteredData.length === 0 && (
+                            <tr>
+                                <td colSpan={dates.length + 2} className="text-center py-12">
+                                    <div className="text-slate-400 text-sm font-medium">No data found</div>
+                                    <p className="text-slate-400 text-xs mt-1">Try adjusting your filters or date range.</p>
+                                </td>
+                            </tr>
+                        )}
+
+                        {!loading && !error && filteredData.map((brand) => {
                             const isExpanded = expandedBrands.includes(brand.brand)
 
                             return (
