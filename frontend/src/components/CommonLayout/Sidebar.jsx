@@ -96,10 +96,10 @@ const Sidebar = ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        bgcolor: "rgba(17, 24, 39, 0.98)",
-        backdropFilter: "blur(12px)",
-        color: "#fff",
-        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+        bgcolor: "#ffffff",
+        backdropFilter: "none",
+        color: "#475569",
+        borderRight: "1px solid rgba(0, 0, 0, 0.08)",
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         width: sidebarWidth,
         overflow: "hidden", // 🔥 REMOVED SCROLLBAR
@@ -127,7 +127,7 @@ const Sidebar = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: isCollapsed ? 'center' : 'space-between',
-        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+        borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
         position: 'relative',
         overflow: 'hidden'
       }}>
@@ -162,11 +162,11 @@ const Sidebar = ({
           <IconButton
             onClick={toggleSidebar}
             sx={{
-              color: 'rgba(255,255,255,0.4)',
+              color: 'rgba(0,0,0,0.4)',
               p: 0.5,
-              '&:hover': { color: '#fff' },
+              '&:hover': { color: '#000' },
               ...(isCollapsed && {
-                bgcolor: 'rgba(255,255,255,0.05)'
+                bgcolor: 'rgba(0,0,0,0.03)'
               })
             }}
           >
@@ -182,18 +182,18 @@ const Sidebar = ({
             <Box sx={{
               display: 'flex',
               alignItems: 'center',
-              bgcolor: 'rgba(255, 255, 255, 0.04)',
+              bgcolor: 'rgba(0, 0, 0, 0.03)',
               borderRadius: '10px',
               px: 1.2, py: 0.4,
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              '&:focus-within': { borderColor: '#3b82f6', bgcolor: 'rgba(255, 255, 255, 0.06)' }
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              '&:focus-within': { borderColor: '#3b82f6', bgcolor: 'rgba(0, 0, 0, 0.05)' }
             }}>
-              <SearchIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '1rem' }} />
+              <SearchIcon sx={{ color: 'rgba(0,0,0,0.3)', fontSize: '1rem' }} />
               <InputBase
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                sx={{ ml: 0.8, color: '#fff', fontSize: '0.8rem', flex: 1 }}
+                sx={{ ml: 0.8, color: '#1e293b', fontSize: '0.8rem', flex: 1 }}
               />
             </Box>
           </Box>
@@ -226,15 +226,15 @@ const Sidebar = ({
                       px: isCollapsed ? 0 : 1.5,
                       py: 0.8, // 🔥 COMPACT PADDING
                       minHeight: 40,
-                      bgcolor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                      color: isActive ? '#60a5fa' : 'rgba(255,255,255,0.55)',
+                      bgcolor: isActive ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                      color: isActive ? '#2563eb' : '#475569',
                       border: isPiy ? '1px solid rgba(56, 189, 248, 0.2)' : 'none',
                       animation: isPiy ? "border-pulse 2s infinite" : "none",
                       position: 'relative',
                       '&:hover': {
-                        bgcolor: isActive ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                        color: '#fff',
-                        '& .MuiSvgIcon-root': { color: '#fff' }
+                        bgcolor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 0, 0, 0.04)',
+                        color: '#1e293b',
+                        '& .MuiSvgIcon-root': { color: '#2563eb' }
                       },
                       transition: 'all 0.15s ease',
                     }}
@@ -263,7 +263,7 @@ const Sidebar = ({
                           fontSize: "0.85rem",
                           fontWeight: isActive ? 700 : 500,
                           sx: isPiy ? {
-                            background: "linear-gradient(90deg, #e0f2fe, #38bdf8, #e0f2fe)",
+                            background: "linear-gradient(90deg, #1e293b, #3b82f6, #1e293b)",
                             backgroundSize: "200% auto",
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",

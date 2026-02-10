@@ -845,30 +845,35 @@ function WatchTower() {
   const kpiIconMap = {
     'Offtake': ShoppingCart,
     'Availability': Layers,
-    'Share of Search': Eye,
+    'PROMO': Percent, // Renamed from Share of Search
     'Market Share': PieChart
   };
 
   const kpiGradientMap = {
     'Offtake': ['#6366f1', '#8b5cf6'],
     'Availability': ['#14b8a6', '#06b6d4'],
-    'Share of Search': ['#f97316', '#fb923c'],
+    'PROMO': ['#f97316', '#fb923c'], // Renamed from Share of Search
     'Market Share': ['#8b5cf6', '#a855f7']
   };
 
   const mappedTopMetrics = useMemo(() => {
     if (!dashboardData.topMetrics || dashboardData.topMetrics.length === 0) return [];
-    return dashboardData.topMetrics.map(m => ({
-      id: m.name.toLowerCase().replace(/\s+/g, '_'),
-      title: m.name,
-      value: m.label,
-      subtitle: m.subtitle,
-      delta: parseFloat(m.trend) || 0,
-      deltaLabel: m.trend,
-      icon: kpiIconMap[m.name] || LayoutGrid,
-      gradient: kpiGradientMap[m.name] || ['#6366f1', '#8b5cf6'],
-      trend: m.chart || []
-    }));
+    return dashboardData.topMetrics.map(m => {
+      const isSoS = m.name === 'Share of Search';
+      const name = isSoS ? 'PROMO' : m.name;
+
+      return {
+        id: name.toLowerCase().replace(/\s+/g, '_'),
+        title: name,
+        value: m.label,
+        subtitle: m.subtitle,
+        delta: parseFloat(m.trend) || 0,
+        deltaLabel: m.trend,
+        icon: kpiIconMap[name] || LayoutGrid,
+        gradient: kpiGradientMap[name] || ['#6366f1', '#8b5cf6'],
+        trend: m.chart || []
+      };
+    });
   }, [dashboardData.topMetrics]);
 
   return (
