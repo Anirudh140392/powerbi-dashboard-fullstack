@@ -575,16 +575,22 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             // Only fetch breakdown when explicitly requested (user expanded a row)
             if (includeBreakdown && drillDimension === 'region') {
                 const regionBreakdownQuery = `
+                    WITH location_mapping AS (
+                        SELECT location, any(region) as mapped_region
+                        FROM rb_location_darkstore
+                        WHERE region IS NOT NULL AND region != ''
+                        GROUP BY location
+                    )
                     SELECT 
                         t1.${groupColumn} as col_value,
-                        l.region as drill_item,
+                        l.mapped_region as drill_item,
                         SUM(toFloat64(t1.neno_osa)) as sum_neno,
                         SUM(toFloat64(t1.deno_osa)) as sum_deno,
                         SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
                         SUM(toFloat64(t1.Inventory)) as total_inv,
                         SUM(toFloat64(t1.Qty_Sold)) as total_qty_sold
                     FROM rb_pdp_olap t1
-                    LEFT JOIN rb_location_darkstore l ON t1.Location = l.location
+                    LEFT JOIN location_mapping l ON t1.Location = l.location
                     WHERE t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
@@ -615,51 +621,127 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     }
                     if (kpiRows.doi.breakdown[col_value]) {
                         // For breakdown, we use the ratio in the selected period as a simplified DOI
-                        const doi = parseFloat(total_qty_sold) > 0 ? (parseFloat(total_inv) / parseFloat(total_qty_sold)) * periodDays : 0;
+                        const doi = parseFloat(total_qty_sold) > 0 ? (total_inv / total_qty_sold) * periodDays : 0;
                         kpiRows.doi.breakdown[col_value][item] = Math.round(doi);
                     }
-                    // For Assortment and PSL, we could add more or leave as is. 
-                    // Usually OSA is the primary breakdown requested.
+                    if (kpiRows.assortment.breakdown[col_value]) {
+                        // For simplicity, using a static 1 if not explicitly queried per breakdown-item
+                        kpiRows.assortment.breakdown[col_value][item] = kpiRows.assortment[col_value] || 0;
+                    }
+                    if (kpiRows.psl.breakdown[col_value]) {
+                        kpiRows.psl.breakdown[col_value][item] = kpiRows.psl[col_value] || 0;
+                    }
                 });
             } else if (includeBreakdown && drillDimension === 'period') {
                 // Period breakdown (Yesterday, Last Week, MTD, L3M)
-                // This would ideally be 4 separate aggregations or one with CASE statements
-                // For now, let's provide a placeholder or basic Yesterday/MTD
+                const latestDate = await getLatestDate();
+                const yesterdayStr = latestDate.subtract(1, 'day').format('YYYY-MM-DD');
+                const lastWeekStr = latestDate.subtract(7, 'day').format('YYYY-MM-DD');
+                const mtdStr = latestDate.startOf('month').format('YYYY-MM-DD');
+                const l3mStr = latestDate.subtract(90, 'day').format('YYYY-MM-DD');
+                const latestStr = latestDate.format('YYYY-MM-DD');
+
+                console.log(`[Matrix Breakdown] Period breakdown dates: Latest=${latestStr}, Yesterday=${yesterdayStr}, MTD=${mtdStr}`);
+
+                const periodQuery = `
+                    SELECT 
+                        ${groupColumn} as col_value,
+                        -- Yesterday
+                        SUM(if(toDate(DATE) = '${yesterdayStr}', toFloat64(neno_osa), 0)) as neno_yesterday,
+                        SUM(if(toDate(DATE) = '${yesterdayStr}', toFloat64(deno_osa), 0)) as deno_yesterday,
+                        -- Last Week
+                        SUM(if(toDate(DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(neno_osa), 0)) as neno_lastweek,
+                        SUM(if(toDate(DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(deno_osa), 0)) as deno_lastweek,
+                        -- MTD
+                        SUM(if(toDate(DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(neno_osa), 0)) as neno_mtd,
+                        SUM(if(toDate(DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(deno_osa), 0)) as deno_mtd,
+                        -- L3M
+                        SUM(if(toDate(DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(neno_osa), 0)) as neno_l3m,
+                        SUM(if(toDate(DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(deno_osa), 0)) as deno_l3m
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${l3mStr}' AND '${latestStr}'
+                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      ${baseFilter}
+                    GROUP BY col_value
+                `;
+
+                const periodResults = await queryClickHouse(periodQuery);
+
+                // Initialize breakdown structure
                 Object.keys(kpiRows).forEach(k => {
                     kpiRows[k].breakdown = {};
                     columnValues.forEach(cv => {
-                        kpiRows[k].breakdown[cv] = {
-                            'Yesterday': kpiRows[k][cv] ? Math.round(kpiRows[k][cv] * 0.98) : 0,
-                            'Last Week': kpiRows[k][cv] ? Math.round(kpiRows[k][cv] * 0.95) : 0,
-                            'MTD': kpiRows[k][cv],
-                            'L3M': kpiRows[k][cv] ? Math.round(kpiRows[k][cv] * 1.02) : 0
-                        };
+                        kpiRows[k].breakdown[cv] = {};
+                    });
+                });
+
+                periodResults.forEach(r => {
+                    const cv = r.col_value;
+                    const metrics = {
+                        'Yesterday': r.deno_yesterday > 0 ? (r.neno_yesterday / r.deno_yesterday) * 100 : 0,
+                        'Last Week': r.deno_lastweek > 0 ? (r.neno_lastweek / r.deno_lastweek) * 100 : 0,
+                        'MTD': r.deno_mtd > 0 ? (r.neno_mtd / r.deno_mtd) * 100 : 0,
+                        'L3M': r.deno_l3m > 0 ? (r.neno_l3m / r.deno_l3m) * 100 : 0
+                    };
+
+                    // Only update OSA breakdown for now (matching user request focus)
+                    Object.keys(metrics).forEach(periodKey => {
+                        kpiRows.osa.breakdown[cv][periodKey] = Math.round(metrics[periodKey]);
+                    });
+
+                    // Also update others if they had placeholders (for consistency)
+                    ['fillrate', 'assortment', 'psl', 'doi'].forEach(k => {
+                        if (kpiRows[k] && kpiRows[k].breakdown[cv]) {
+                            Object.keys(metrics).forEach(periodKey => {
+                                // For simplicity using OSA as proxy for other period trends if data not explicitly queried
+                                kpiRows[k].breakdown[cv][periodKey] = (kpiRows[k][cv] || 0);
+                            });
+                        }
                     });
                 });
             } else if (includeBreakdown && drillDimension === 'competitors') {
                 // Competitor breakdown - OSA only as per frontend note
-                const compBrands = ['Amul', 'Mother Dairy', 'Havmor', 'Vadilal'];
-                const compQuery = `
+                // 1. Find top 5 competitors by volume (deno_osa) in this context
+                const topCompQuery = `
                     SELECT 
-                        ${groupColumn} as col_value,
-                        Brand as drill_item,
-                        (SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0)) * 100 as osa
+                        Brand,
+                        SUM(toFloat64(deno_osa)) as total_deno
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
-                      AND Brand IN (${compBrands.map(b => `'${escapeStr(b)}'`).join(',')})
-                    GROUP BY col_value, drill_item
+                      AND Comp_flag = 1
+                      ${baseFilter}
+                    GROUP BY Brand
+                    ORDER BY total_deno DESC
+                    LIMIT 5
                 `;
-                const compResults = await queryClickHouse(compQuery);
+                const topComps = await queryClickHouse(topCompQuery);
+                const compBrands = topComps.map(r => r.Brand).filter(Boolean);
 
+                // Initialize breakdown structure for OSA
                 kpiRows.osa.breakdown = {};
                 columnValues.forEach(cv => { kpiRows.osa.breakdown[cv] = {}; });
 
-                compResults.forEach(r => {
-                    if (kpiRows.osa.breakdown[r.col_value]) {
-                        kpiRows.osa.breakdown[r.col_value][r.drill_item] = Math.round(r.osa);
-                    }
-                });
+                if (compBrands.length > 0) {
+                    const compQuery = `
+                        SELECT 
+                            ${groupColumn} as col_value,
+                            Brand as drill_item,
+                            (SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0)) * 100 as osa
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                          AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                          AND Brand IN (${compBrands.map(b => `'${escapeStr(b)}'`).join(',')})
+                          ${baseFilter}
+                        GROUP BY col_value, drill_item
+                    `;
+                    const compResults = await queryClickHouse(compQuery);
+
+                    compResults.forEach(r => {
+                        if (kpiRows.osa.breakdown[r.col_value]) {
+                            kpiRows.osa.breakdown[r.col_value][r.drill_item] = Math.round(r.osa);
+                        }
+                    });
+                }
             }
 
             return {

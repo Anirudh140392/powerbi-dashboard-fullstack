@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react'
 import { FilterContext } from '../../utils/FilterContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, X, Search, SlidersHorizontal } from 'lucide-react'
+import { ChevronRight, X, Search, SlidersHorizontal, RefreshCw } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { generateDateOptions } from '../../lib/pricingUtils'
 import { KpiFilterPanel } from "@/components/KpiFilterPanel"
@@ -46,6 +46,9 @@ function DateWiseDrilldownTable() {
     const [latestDate, setLatestDate] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
+
+    const handleRetry = () => setRetryCount(prev => prev + 1);
 
     // ========================================
     // FILTER STATE
@@ -218,7 +221,7 @@ function DateWiseDrilldownTable() {
             }
         };
         fetchData();
-    }, [dayRange, metricType, appliedFilters, globalPlatform, selectedCategory, selectedBrand]);
+    }, [dayRange, metricType, appliedFilters, globalPlatform, selectedCategory, selectedBrand, retryCount]);
 
     // Helper for options
     const filterOptions = useMemo(() => {
@@ -506,9 +509,24 @@ function DateWiseDrilldownTable() {
                         {/* Error State */}
                         {!loading && error && (
                             <tr>
-                                <td colSpan={dates.length + 2} className="text-center py-12">
-                                    <div className="text-rose-500 text-sm font-medium">⚠️ {error}</div>
-                                    <p className="text-slate-400 text-xs mt-1">Please try again or adjust your filters.</p>
+                                <td colSpan={dates.length + 2} className="text-center py-20 bg-slate-50/30">
+                                    <div className="flex flex-col items-center gap-4 max-w-sm mx-auto p-8 bg-white rounded-3xl border border-slate-100 shadow-sm">
+                                        <div className="h-12 w-12 rounded-2xl bg-rose-50 flex items-center justify-center">
+                                            <RefreshCw size={24} className="text-rose-500" />
+                                        </div>
+                                        <div>
+                                            <div className="text-slate-900 text-lg font-bold mb-1">Failed to Load Metrics</div>
+                                            <p className="text-slate-500 text-sm mb-6">{error || 'Unable to establish connection with the reporting server.'}</p>
+
+                                            <button
+                                                onClick={handleRetry}
+                                                className="inline-flex items-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-all shadow-md active:scale-95"
+                                            >
+                                                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                                                Retry Connection
+                                            </button>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         )}
