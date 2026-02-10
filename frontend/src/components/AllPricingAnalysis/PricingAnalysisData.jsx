@@ -90,7 +90,7 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
-import DiscountEcpPricing from "./discountEcpPricing";
+import DiscountEcpPricing from "./DiscountEcpPricing";
 import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
 import DiscountDrilldownCity from "./DiscountDrilldownCity";
 
