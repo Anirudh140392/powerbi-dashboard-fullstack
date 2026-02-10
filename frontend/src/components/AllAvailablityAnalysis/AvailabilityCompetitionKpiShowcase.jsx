@@ -463,10 +463,10 @@ const KPI_KEYS = [
         unit: "%",
     },
     {
-        key: "Doi",
-        label: "DOI",
-        color: "#8B5CF6",
-        unit: "",
+        key: "Osa",
+        label: "OSA",
+        color: "#F97316",
+        unit: "%",
     },
     {
         key: "Fillrate",
@@ -507,7 +507,6 @@ const BrandTable = ({ rows, loading }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
-                                <th className="px-3 py-2 text-center">DOI</th>
                                 <th className="px-3 py-2 text-center">Fillrate</th>
                                 <th className="px-3 py-2 text-center">Assortment</th>
                                 <th className="px-3 py-2 text-center">PSL</th>
@@ -517,7 +516,6 @@ const BrandTable = ({ rows, loading }) => {
                             {loading && Array.from({ length: 5 }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
@@ -538,11 +536,6 @@ const BrandTable = ({ rows, loading }) => {
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
                                             {(row.osa || 0).toFixed(1)}%
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-semibold text-slate-700">
-                                            {(row.doi || 0).toFixed(1)}
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
@@ -596,7 +589,6 @@ const SkuTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">SKU</th>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
-                                <th className="px-3 py-2 text-center">DOI</th>
                                 <th className="px-3 py-2 text-center">Fillrate</th>
                                 <th className="px-3 py-2 text-center">Assortment</th>
                                 <th className="px-3 py-2 text-center">PSL</th>
@@ -605,7 +597,7 @@ const SkuTable = ({ rows, loading }) => {
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={7} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
@@ -627,11 +619,6 @@ const SkuTable = ({ rows, loading }) => {
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
                                             {(row.osa || 0).toFixed(1)}%
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-semibold text-slate-700">
-                                            {(row.doi || 0).toFixed(1)}
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">

@@ -1100,17 +1100,6 @@ const cardsAbsolute = [
     extraChangeColor: "green",
   },
   {
-    title: "Days of Inventory (DOI)",
-    value: "62.4",
-    sub: "Network average days of cover",
-    change: "▼5.3% (from 65.9)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Target band: 55–65 days",
-    extraChange: "Within target range",
-    extraChangeColor: "green",
-  },
-  {
     title: "Fill Rate",
     value: "Coming Soon...",
     sub: "Supplier fulfillment rate",
@@ -1145,17 +1134,6 @@ const cardsWeighted = [
     prevText: "vs Comparison Period",
     extra: "High risk stores: 16",
     extraChange: "▼2 stores",
-    extraChangeColor: "green",
-  },
-  {
-    title: "Days of Inventory (DOI)",
-    value: "58.1",
-    sub: "Network average days of cover",
-    change: "▼6.8% (from 62.3)",
-    changeColor: "red",
-    prevText: "vs Comparison Period",
-    extra: "Target band: 55–65 days",
-    extraChange: "Within target range",
     extraChangeColor: "green",
   },
   {
@@ -1275,25 +1253,6 @@ export const AvailablityAnalysisData = ({
         };
       }
 
-      // DOI (Days of Inventory) card
-      if (card.title === "Days of Inventory (DOI)" && doi !== undefined) {
-        const change = doiChangePercent || 0;
-        const changeArrow = change < 0 ? "▼" : "▲"; // For DOI, lower is often better
-        // For DOI, decrease (▼) is green (good), increase (▲) is red (bad)
-        const changeColor = change < 0 ? "green" : "red";
-        const changeText = `${changeArrow}${Math.abs(change).toFixed(1)}% (from ${prevDoi?.toFixed(1) || 'N/A'})`;
-
-        return {
-          ...card,
-          value: doi.toFixed(1),
-          sub: `Network average days of cover`,
-          change: changeText,
-          changeColor: changeColor,
-          sparklineData: generateSparklineFromValue(doi, prevDoi || doi * 1.1),
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-        };
-      }
 
       // Metro City Stock Availability card
       if (card.title === "Metro City Stock Availability") {
@@ -1414,9 +1373,6 @@ export const AvailablityAnalysisData = ({
               if (card.title.includes("Stock")) {
                 Icon = Package;
                 gradient = ['#10b981', '#059669'];
-              } else if (card.title.includes("Inventory") || card.title.includes("DOI")) {
-                Icon = Clock;
-                gradient = ['#f59e0b', '#d97706'];
               } else if (card.title.includes("Fill")) {
                 Icon = Truck;
                 gradient = ['#3b82f6', '#2563eb'];

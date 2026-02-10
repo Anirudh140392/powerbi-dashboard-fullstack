@@ -19,6 +19,11 @@ export default function AvailablityAnalysis() {
     setSelectedLocation,
     setTimeStart,
     setTimeEnd,
+    selectedCategory,
+    setSelectedCategory,
+    compareStart,
+    compareEnd,
+    selectedChannel,
     refreshFilters
   } = useContext(FilterContext);
 
@@ -28,12 +33,16 @@ export default function AvailablityAnalysis() {
   const [filters, setFilters] = useState({
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
-    location: selectedLocation || "All",
+    location: "All", // Always 'All' as per user request to use category instead
+    category: selectedCategory || "All",
     zones: selectedZone || "All",
+    channel: selectedChannel || "Ecommerce",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
-    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
+    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
   });
 
   // Wrapper to sync context when filters change locally (e.g. from internal matrix filters)
@@ -46,6 +55,9 @@ export default function AvailablityAnalysis() {
     }
     if (newFilters.location && newFilters.location !== selectedLocation) {
       setSelectedLocation(newFilters.location);
+    }
+    if (newFilters.category && newFilters.category !== selectedCategory) {
+      setSelectedCategory(newFilters.category);
     }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
@@ -70,12 +82,16 @@ export default function AvailablityAnalysis() {
       ...prev,
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
-      location: selectedLocation || prev.location,
+      location: "All", // Always 'All' as per user request to use category instead
+      category: selectedCategory || prev.category,
       zones: selectedZone || prev.zones,
+      channel: selectedChannel || prev.channel,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
-      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate
+      endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate,
+      compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+      compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, selectedZone]);
+  }, [platform, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -305,8 +321,12 @@ export default function AvailablityAnalysis() {
       platform: filters.platform,
       brand: filters.brand,
       location: filters.location,
+      category: filters.category,
+      channel: filters.channel,
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate,
+      compareEndDate: filters.compareEndDate
     });
 
     // Skip if we already fetched with these same filters

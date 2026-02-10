@@ -300,9 +300,9 @@ const DiscountEcpPricing = () => {
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-slate-700">{activeMetric.label} by Category / Brand</span>
-                    <span className="px-2 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-100 rounded">
+                    {/* <span className="px-2 py-0.5 text-[10px] font-medium text-slate-500 bg-slate-100 rounded">
                         {filteredData.length} categories
-                    </span>
+                    </span> */}
                     {/* Metric Selector */}
                     <div className="flex items-center gap-1 p-0.5 bg-blue-50 rounded-lg border border-blue-200">
                         {METRIC_OPTIONS.map(metric => (

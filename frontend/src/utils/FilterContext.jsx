@@ -89,7 +89,7 @@ export const FilterProvider = ({ children }) => {
     const [mslEnabled, setMslEnabled] = useState(savedFilters.mslEnabled ?? false);
 
     // Category state (for Availability Analysis page)
-    const [categories] = useState(["All", "Cassata", "Core Tub", "Cornetto", "Cup", "KW Sticks", "Magnum", "Others"]);
+    const [categories, setCategories] = useState(["All"]);
     const [selectedCategory, setSelectedCategory] = useState(savedFilters.selectedCategory || "All");
 
     // Zone state (for Performance Marketing page only)
@@ -130,6 +130,30 @@ export const FilterProvider = ({ children }) => {
         setBackendAvailable(true); // Reset backend available flag to try API again
         setFilterRefreshCounter(prev => prev + 1); // Increment counter to trigger useEffect re-runs
     };
+
+    // Fetch Categories dynamically
+    useEffect(() => {
+        const fetchCategories = async () => {
+            if (backendAvailable) {
+                try {
+                    const response = await axiosInstance.get("/availability-analysis/filter-options", {
+                        params: {
+                            filterType: 'formats',
+                            platform: platform !== 'All' ? platform : 'All'
+                        }
+                    });
+                    const fetchedCategories = response.data?.options || [];
+                    if (fetchedCategories.length > 0) {
+                        setCategories(["All", ...fetchedCategories]);
+                    }
+                } catch (error) {
+                    console.warn("⚠️ [FilterContext] Category fetch failed:", error.message);
+                }
+            }
+        };
+
+        fetchCategories();
+    }, [platform, backendAvailable, filterRefreshCounter]);
 
     // Fetch Dark Store Count
     useEffect(() => {

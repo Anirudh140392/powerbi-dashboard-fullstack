@@ -38,7 +38,6 @@ const drillDownOptions = [
 
 const kpis = [
     { key: "osa", label: "OSA" },
-    { key: "doi", label: "DOI" },
     { key: "fillRate", label: "FILLRATE" },
     { key: "assortment", label: "ASSORTMENT" },
     { key: "psl", label: "PSL" },
@@ -528,9 +527,7 @@ export default function KPIMatrixTable({ filters: globalFilters }) {
                                                             )}
                                                             whileHover={{ scale: 1.01 }}
                                                         >
-                                                            <span className="text-sm font-semibold text-slate-800">
-                                                                {cell.value}{isPercentage ? '%' : ''}
-                                                            </span>
+                                                            <span className="text-sm font-semibold text-slate-800">{cell.value}{kpi.key === 'doi' ? '' : '%'}</span>
                                                             <span
                                                                 className={cn(
                                                                     "text-xs font-medium",
@@ -579,9 +576,7 @@ export default function KPIMatrixTable({ filters: globalFilters }) {
                                                                             return (
                                                                                 <div key={item} className="text-xs">
                                                                                     <span className="text-slate-400">{item.split(" ")[0]}</span>
-                                                                                    <span className="ml-1 font-medium text-slate-700">
-                                                                                        {drillData.value}{kpi.key === 'doi' ? 'd' : (kpi.key === 'assortment' ? '' : '%')}
-                                                                                    </span>
+                                                                                    <span className="ml-1 font-medium text-slate-700">{drillData.value}{kpi.key === 'doi' ? '' : '%'}</span>
                                                                                 </div>
                                                                             );
                                                                         })}

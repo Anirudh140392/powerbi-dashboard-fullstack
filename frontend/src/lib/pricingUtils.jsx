@@ -210,14 +210,15 @@ export function parseVolume(volumeStr) {
 /**
  * Generate date options for day-level view
  * @param {number} days - Number of days to generate
+ * @param {string|Date} baseDate - Optional base date to start from (default: today)
  * @returns {Array} - Array of date objects
  */
-export function generateDateOptions(days = 7) {
+export function generateDateOptions(days = 7, baseDate = null) {
     const dates = []
-    const today = new Date()
+    const start = baseDate ? new Date(baseDate) : new Date()
 
     for (let i = 0; i < days; i++) {
-        const date = new Date(today)
+        const date = new Date(start)
         date.setDate(date.getDate() - i)
         dates.push({
             key: date.toISOString().split('T')[0],
