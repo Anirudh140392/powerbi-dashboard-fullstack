@@ -1348,10 +1348,7 @@ export const AvailablityAnalysisData = ({
         ) : (
           <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
         )} */}
-        {/* Availability Overview - show skeleton if loading, error if failed */}
-        {loading ? (
-          <AvailabilityOverviewSkeleton />
-        ) : apiErrors.overview ? (
+        {apiErrors.overview ? (
           <ErrorWithRefresh
             segmentName="Availability Overview"
             errorMessage={apiErrors.overview}
@@ -1361,6 +1358,7 @@ export const AvailablityAnalysisData = ({
           <SnapshotOverview
             title="Availability Overview"
             icon={BarChart2}
+            loading={loading}
             kpis={getDynamicCards(availability).map((card, idx) => {
               // Extract delta value from string like "▲3.1 pts" or "▼5.3%"
               const deltaMatch = card.change?.match(/([▲▼])([\d.]+)/);
@@ -1420,7 +1418,7 @@ export const AvailablityAnalysisData = ({
           />
         )} */}
 
-        <KPIMatrixTable filters={filters} />
+        <KPIMatrixTable filters={filters} loading={loading} />
 
         {/* OSA Detail View - show skeleton if loading, error if failed */}
         {/* {loading ? (

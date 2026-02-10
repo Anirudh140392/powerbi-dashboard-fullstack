@@ -1,9 +1,10 @@
 import React, { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronRight, X, SlidersHorizontal, TrendingUp, LineChartIcon } from "lucide-react";
+import { ChevronDown, ChevronRight, X, SlidersHorizontal, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { KpiFilterPanel } from "@/components/KpiFilterPanel";
 import { Badge } from "@/components/ui/badge";
 import TrendsCompetitionDrawer from "./TrendsCompetitionDrawer";
+import { PlatformKpiMatrixSkeleton } from "./AvailabilitySkeletons";
 
 function cn(...classes) {
     return classes.filter(Boolean).join(" ");
@@ -119,16 +120,65 @@ const DrillDownDropdown = ({ value, onChange, reportType }) => {
     );
 };
 
+// ---------------------------------------------------------------------------
+// Error State Component - Shows when API fails with refresh button
+// ---------------------------------------------------------------------------
+const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
+    return (
+        <div className="rounded-[2rem] bg-white border border-slate-100 shadow-xl shadow-slate-200/50 p-12 flex flex-col items-center justify-center min-h-[450px] gap-6 text-center">
+            <div className="h-20 w-20 rounded-3xl bg-rose-50 flex items-center justify-center mb-2 animate-pulse">
+                <AlertTriangle size={40} className="text-rose-500" strokeWidth={1.5} />
+            </div>
+
+            <div className="max-w-md">
+                <h3 className="text-2xl font-bold text-slate-900 mb-2">Internal Fetch Error</h3>
+                <p className="text-slate-500 text-base leading-relaxed mb-8">
+                    We encountered an issue while loading the <span className="font-semibold text-slate-700">{segmentName}</span>.
+                    <br />
+                    <span className="text-sm font-mono bg-slate-50 px-2 py-1 rounded-md mt-2 inline-block">
+                        Error code: {errorMessage || "HTTP_UNKNOWN_ERROR"}
+                    </span>
+                </p>
+
+                <button
+                    onClick={onRetry}
+                    disabled={isRetrying}
+                    className={`inline-flex items-center gap-3 px-8 py-3.5 rounded-2xl text-base font-bold transition-all transform active:scale-95
+                        ${isRetrying
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-[0_8px_20px_-6px_rgba(16,185,129,0.5)]'
+                        }`}
+                >
+                    <RefreshCw size={20} className={isRetrying ? "animate-spin" : ""} />
+                    {isRetrying ? "Establishing Connection..." : "Refresh Matrix Data"}
+                </button>
+            </div>
+
+            <p className="text-xs text-slate-400 font-medium tracking-wide uppercase mt-4">
+                Systems fully operational. Try refreshing to restore data.
+            </p>
+        </div>
+    );
+};
+
 // ========================================
 // MAIN TABLE COMPONENT
 // UX: single expand icon column (left) instead of clickable cells
 // ========================================
-export default function KPIMatrixTable({ filters: globalFilters }) {
+export default function KPIMatrixTable({ filters: globalFilters, loading: parentLoading }) {
     const [reportType, setReportType] = useState("platform");
     const [drillDimension, setDrillDimension] = useState("region");
     const [expandedRows, setExpandedRows] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [apiData, setApiData] = useState(null);
+
+    // Track retry count to trigger re-fetch
+    const [retryCount, setRetryCount] = useState(0);
+
+    // Use parent loading if provided, otherwise fallback to local state
+    const isLoading = parentLoading !== undefined ? parentLoading : loading;
+
 
     // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
     const [filterOptions, setFilterOptions] = useState([
@@ -191,6 +241,7 @@ export default function KPIMatrixTable({ filters: globalFilters }) {
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const params = new URLSearchParams();
                 // Map local reportType to viewMode expected by backend
@@ -225,18 +276,21 @@ export default function KPIMatrixTable({ filters: globalFilters }) {
                 }
 
                 const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`);
-                if (!res.ok) throw new Error("Failed to fetch");
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const result = await res.json();
                 setApiData(result);
-            } catch (error) {
-                console.error("Error fetching matrix data:", error);
+            } catch (err) {
+                console.error("Error fetching matrix data:", err);
+                setError(err.message);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchData();
-    }, [reportType, drillDimension, globalFilters, appliedFilters, expandedRows.length > 0]);
+    }, [reportType, drillDimension, globalFilters, appliedFilters, expandedRows.length, retryCount]);
+
+    const handleRetry = () => setRetryCount(prev => prev + 1);
 
     // ========================================
     // CHART/DRAWER STATE
@@ -300,6 +354,14 @@ export default function KPIMatrixTable({ filters: globalFilters }) {
         const val = row.breakdown[entity][drillItem];
         return { value: val !== undefined ? val : 0, delta: 0 };
     };
+
+    if (isLoading) {
+        return <PlatformKpiMatrixSkeleton />;
+    }
+
+    if (error) {
+        return <ErrorWithRefresh segmentName="Platform KPI Matrix" errorMessage={error} onRetry={handleRetry} isRetrying={loading} />;
+    }
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -571,15 +633,23 @@ export default function KPIMatrixTable({ filters: globalFilters }) {
                                                                 <div key={entity} className="bg-white rounded-lg p-3 border border-slate-100">
                                                                     <div className="text-xs font-medium text-slate-700 mb-2">{entity}</div>
                                                                     <div className="grid grid-cols-2 gap-2">
-                                                                        {drillItems.map((item) => {
-                                                                            const drillData = getDrillData(entity, kpi.key, item);
-                                                                            return (
-                                                                                <div key={item} className="text-xs">
-                                                                                    <span className="text-slate-400">{item.split(" ")[0]}</span>
-                                                                                    <span className="ml-1 font-medium text-slate-700">{drillData.value}{kpi.key === 'doi' ? '' : '%'}</span>
-                                                                                </div>
-                                                                            );
-                                                                        })}
+                                                                        {(() => {
+                                                                            const row = apiData?.rows?.find(r => r.kpi.toLowerCase() === kpi.key.toLowerCase());
+                                                                            const breakdownData = row?.breakdown?.[entity];
+                                                                            const keys = breakdownData ? Object.keys(breakdownData) : drillItems;
+
+                                                                            return keys.map((item) => {
+                                                                                const drillData = getDrillData(entity, kpi.key, item);
+                                                                                return (
+                                                                                    <div key={item} className="text-xs">
+                                                                                        <span className="text-slate-400" title={item}>
+                                                                                            {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
+                                                                                        </span>
+                                                                                        <span className="ml-1 font-medium text-slate-700">{drillData.value}{kpi.key === 'doi' ? '' : '%'}</span>
+                                                                                    </div>
+                                                                                );
+                                                                            });
+                                                                        })()}
                                                                     </div>
                                                                 </div>
                                                             ))}
