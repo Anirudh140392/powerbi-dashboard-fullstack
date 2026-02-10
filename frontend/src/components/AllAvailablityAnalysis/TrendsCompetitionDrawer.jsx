@@ -849,7 +849,6 @@ export default function TrendsCompetitionDrawer({
         columns: [
           { id: "brand", label: "Brand", type: "text" },
           { id: "Osa", label: "Osa", type: "metric" },
-          { id: "Doi", label: "DOI", type: "metric" },
           { id: "Fillrate", label: "Fillrate", type: "metric" },
           { id: "Assortment", label: "Assortment", type: "metric" },
           { id: "Psl", label: "PSL", type: "metric" },
@@ -877,7 +876,6 @@ export default function TrendsCompetitionDrawer({
           {
             brand: "Dabur",
             Osa: { value: 8.6, delta: 0.2 },
-            Doi: { value: 90.6, delta: -1.2 },
             Fillrate: { value: 7.2, delta: 0.3 },
             Assortment: { value: 7.4, delta: 2.9 },
           },
@@ -895,7 +893,6 @@ export default function TrendsCompetitionDrawer({
           {
             brand: "Sensodyne Rapid Relief 40g",
             Osa: { value: 4.4, delta: 0.7 },
-            Doi: { value: 95.0, delta: 2.0 },
             Fillrate: { value: 5.1, delta: 1.3 },
             Assortment: { value: 4.9, delta: -0.5 },
           },
