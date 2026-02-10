@@ -40,6 +40,32 @@ const buildWhereConditions = (filters, includeDate = true) => {
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
 /**
+ * Helper to build platform condition based on channel selection
+ * @param {string} platform - The selected platform (e.g. 'All', 'Blinkit')
+ * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
+ * @param {string} prefix - Table prefix
+ * @returns {string|null} - The SQL condition for platform
+ */
+const buildPlatformChannelCond = (platform, channel, prefix = '') => {
+    if (platform && platform !== 'All') {
+        const pArr = Array.isArray(platform) ? platform : [platform];
+        return `lower(replace(${prefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
+    }
+
+    if (channel === 'Ecommerce' || channel === 'E-commerce') {
+        // Ecommerce mapped to Blinkit
+        return `lower(${prefix}Platform) = 'blinkit'`;
+    }
+
+    if (channel === 'Modern Trades') {
+        // Modern Trades mapped to everything except Blinkit
+        return `lower(${prefix}Platform) != 'blinkit'`;
+    }
+
+    return null;
+};
+
+/**
  * Robust helper to build WHERE clause for availability queries.
  * Supports all advanced filters and correctly handles arrays.
  */
@@ -52,11 +78,12 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     const prefix = tableAlias ? `${tableAlias}.` : '';
 
-    // Standard filters
-    if (platform && platform !== 'All') {
-        const pArr = Array.isArray(platform) ? platform : [platform];
-        conditions.push(`lower(replace(${prefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    // Standard filters with Channel Support
+    const platformCond = buildPlatformChannelCond(platform, filters.channel, prefix);
+    if (platformCond) {
+        conditions.push(platformCond);
     }
+
     if (brand && brand !== 'All') {
         const bArr = Array.isArray(brand) ? brand : [brand];
         conditions.push(`lower(replace(${prefix}Brand, ' ', '_')) IN (${bArr.map(b => `'${escapeStr(b.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
@@ -220,9 +247,19 @@ const getAbsoluteOsaOverview = async (filters) => {
             // Date calculations
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
-            const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+
+            let prevStartDate, prevEndDate;
+
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+                console.log(`[getAbsoluteOsaOverview] Using explicit comparison dates: ${prevStartDate.format('YYYY-MM-DD')} to ${prevEndDate.format('YYYY-MM-DD')}`);
+            } else {
+                const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+                console.log(`[getAbsoluteOsaOverview] Using calculated comparison dates: ${prevStartDate.format('YYYY-MM-DD')} to ${prevEndDate.format('YYYY-MM-DD')}`);
+            }
 
             // Build filter conditions for current period
             const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
@@ -1650,7 +1687,7 @@ const getBrandSkuCityDayLevel = async (filters) => {
             const baseWhereClause = buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
 
-            // Query: Brand, Product (SKU), Location (city), DATE, avg Selling_Price, MRP
+            // Query: Brand, Product (SKU), Location (city), DATE, avg Selling_Price, MRP, OSA, Fillrate
             const query = `
                 SELECT 
                     Brand as brand,
@@ -1659,12 +1696,14 @@ const getBrandSkuCityDayLevel = async (filters) => {
                     Location as city,
                     toDate(DATE) as date,
                     ROUND(AVG(toFloat64OrZero(toString(Selling_Price))), 0) as ecp,
-                    ROUND(AVG(toFloat64OrZero(toString(MRP))), 0) as mrp
+                    ROUND(AVG(toFloat64OrZero(toString(MRP))), 0) as mrp,
+                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(toFloat64OrZero(toString(buy_box_neno_osa))) as total_bb_neno
                 FROM rb_pdp_olap
                 WHERE DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${latestDate.format('YYYY-MM-DD')}'
                   AND Brand IS NOT NULL AND Brand != ''
                   AND Product IS NOT NULL AND Product != ''
-                  AND toFloat64OrZero(toString(Selling_Price)) > 0
                   ${baseFilter}
                 GROUP BY Brand, Product, Web_Pid, Location, toDate(DATE)
                 ORDER BY Brand, Product, Location, date DESC
@@ -1672,54 +1711,101 @@ const getBrandSkuCityDayLevel = async (filters) => {
 
             const results = await queryClickHouse(query);
 
-            // Structure: { brand -> { sku -> { cities -> { date -> ecp } } } }
+            // Structure: { brand -> { days: {}, skus: { sku_id: { days: {}, cities: {} } } } }
             const brandMap = {};
 
             for (const row of results) {
-                const { brand, sku_name, sku_id, city, date, ecp, mrp } = row;
+                const { brand, sku_name, sku_id, city, date, ecp, mrp, total_neno, total_deno, total_bb_neno } = row;
                 const dateStr = dayjs(date).format('YYYY-MM-DD');
                 const ecpVal = Math.round(parseFloat(ecp) || 0);
                 const mrpVal = Math.round(parseFloat(mrp) || 0);
                 const discount = mrpVal > 0 ? Math.round(((mrpVal - ecpVal) / mrpVal) * 100) : 0;
 
-                if (!brandMap[brand]) brandMap[brand] = {};
+                const neno = parseFloat(total_neno) || 0;
+                const deno = parseFloat(total_deno) || 0;
+                const bb_neno = parseFloat(total_bb_neno) || 0;
+                const osa = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+                const fillrate = deno > 0 ? Math.round((bb_neno / deno) * 100) : 0;
+
+                if (!brandMap[brand]) {
+                    brandMap[brand] = {
+                        days: {},
+                        skus: {}
+                    };
+                }
+
+                // Brand-level aggregation
+                if (!brandMap[brand].days[dateStr]) {
+                    brandMap[brand].days[dateStr] = { nenoSum: 0, denoSum: 0, bbNenoSum: 0, ecpSum: 0, mrpSum: 0, count: 0 };
+                }
+                const bAgg = brandMap[brand].days[dateStr];
+                bAgg.nenoSum += neno;
+                bAgg.denoSum += deno;
+                bAgg.bbNenoSum += bb_neno;
+                bAgg.ecpSum += ecpVal;
+                bAgg.mrpSum += mrpVal;
+                bAgg.count += 1;
+
                 const skuKey = `${sku_id}__${sku_name}`;
-                if (!brandMap[brand][skuKey]) {
-                    brandMap[brand][skuKey] = {
+                if (!brandMap[brand].skus[skuKey]) {
+                    brandMap[brand].skus[skuKey] = {
                         name: sku_name,
                         id: sku_id,
                         days: {},
                         cities: {}
                     };
                 }
+                const skuData = brandMap[brand].skus[skuKey];
 
-                // SKU-level: aggregate across cities (we'll average below)
-                if (!brandMap[brand][skuKey].days[dateStr]) {
-                    brandMap[brand][skuKey].days[dateStr] = { ecpSum: 0, mrpSum: 0, count: 0 };
+                // SKU-level: aggregate total neno/deno across cities
+                if (!skuData.days[dateStr]) {
+                    skuData.days[dateStr] = { nenoSum: 0, denoSum: 0, bbNenoSum: 0, ecpSum: 0, mrpSum: 0, count: 0 };
                 }
-                brandMap[brand][skuKey].days[dateStr].ecpSum += ecpVal;
-                brandMap[brand][skuKey].days[dateStr].mrpSum += mrpVal;
-                brandMap[brand][skuKey].days[dateStr].count += 1;
+                const sAgg = skuData.days[dateStr];
+                sAgg.nenoSum += neno;
+                sAgg.denoSum += deno;
+                sAgg.bbNenoSum += bb_neno;
+                sAgg.ecpSum += ecpVal;
+                sAgg.mrpSum += mrpVal;
+                sAgg.count += 1;
 
                 // City level
                 if (city && city.trim()) {
-                    if (!brandMap[brand][skuKey].cities[city]) {
-                        brandMap[brand][skuKey].cities[city] = {};
+                    if (!skuData.cities[city]) {
+                        skuData.cities[city] = {};
                     }
-                    brandMap[brand][skuKey].cities[city][dateStr] = { ecp: ecpVal, discount, mrp: mrpVal };
+                    skuData.cities[city][dateStr] = {
+                        osa,
+                        fillrate,
+                        ecp: ecpVal,
+                        discount,
+                        mrp: mrpVal
+                    };
                 }
             }
 
             // Transform into the frontend format
-            const data = Object.entries(brandMap).map(([brandName, skus], bIdx) => {
-                const skuList = Object.entries(skus).map(([skuKey, skuData], sIdx) => {
-                    // Average SKU-level days across cities
+            const data = Object.entries(brandMap).map(([brandName, brandContent], bIdx) => {
+                const brandDays = {};
+                for (const [dateStr, agg] of Object.entries(brandContent.days)) {
+                    const bOsa = agg.denoSum > 0 ? Math.round((agg.nenoSum / agg.denoSum) * 100) : 0;
+                    const bFr = agg.denoSum > 0 ? Math.round((agg.bbNenoSum / agg.denoSum) * 100) : 0;
+                    const avgEcp = Math.round(agg.ecpSum / agg.count);
+                    const avgMrp = Math.round(agg.mrpSum / agg.count);
+                    const bDiscount = avgMrp > 0 ? Math.round(((avgMrp - avgEcp) / avgMrp) * 100) : 0;
+                    brandDays[dateStr] = { osa: bOsa, fillrate: bFr, ecp: avgEcp, discount: bDiscount, mrp: avgMrp };
+                }
+
+                const skuList = Object.entries(brandContent.skus).map(([skuKey, skuData], sIdx) => {
+                    // Average SKU-level days across cities for ECP/MRP, and total ratio for OSA/FR
                     const days = {};
                     for (const [dateStr, agg] of Object.entries(skuData.days)) {
+                        const skuOsa = agg.denoSum > 0 ? Math.round((agg.nenoSum / agg.denoSum) * 100) : 0;
+                        const skuFr = agg.denoSum > 0 ? Math.round((agg.bbNenoSum / agg.denoSum) * 100) : 0;
                         const avgEcp = Math.round(agg.ecpSum / agg.count);
                         const avgMrp = Math.round(agg.mrpSum / agg.count);
                         const discount = avgMrp > 0 ? Math.round(((avgMrp - avgEcp) / avgMrp) * 100) : 0;
-                        days[dateStr] = { ecp: avgEcp, discount, mrp: avgMrp };
+                        days[dateStr] = { osa: skuOsa, fillrate: skuFr, ecp: avgEcp, discount, mrp: avgMrp };
                     }
 
                     const cities = Object.entries(skuData.cities).map(([cityName, cityDays], cIdx) => ({
@@ -1740,6 +1826,7 @@ const getBrandSkuCityDayLevel = async (filters) => {
                 return {
                     id: `b${bIdx}`,
                     brand: brandName,
+                    days: brandDays,
                     skus: skuList
                 };
             });

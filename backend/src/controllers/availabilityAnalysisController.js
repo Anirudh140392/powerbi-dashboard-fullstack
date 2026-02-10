@@ -54,9 +54,14 @@ export const getAvailabilityOverview = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes)
+            pincodes: parseFilter(req.query.pincodes),
+            channel: req.query.channel,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -90,11 +95,16 @@ export const getPlatformKpiMatrix = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             drillDimension: req.query.drillDimension || 'region',
-            includeBreakdown: req.query.includeBreakdown === 'true'
+            includeBreakdown: req.query.includeBreakdown === 'true',
+            channel: req.query.channel,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -129,9 +139,14 @@ export const getOsaPercentageDetail = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes)
+            pincodes: parseFilter(req.query.pincodes),
+            channel: req.query.channel,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -164,9 +179,14 @@ export const getDOI = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes)
+            pincodes: parseFilter(req.query.pincodes),
+            channel: req.query.channel,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -199,9 +219,14 @@ export const getMetroCityStockAvailability = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes)
+            pincodes: parseFilter(req.query.pincodes),
+            channel: req.query.channel,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -266,10 +291,15 @@ export const getOsaDetailByCategory = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
             zones: parseFilter(req.query.zones),
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
-            kpis: parseFilter(req.query.kpis)
+            kpis: parseFilter(req.query.kpis),
+            channel: req.query.channel,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -299,6 +329,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             category: parseFilter(req.query.category),
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
+            channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -328,6 +359,7 @@ export const getAvailabilityCompetition = async (req, res) => {
             location: parseFilter(req.query.location),
             category: parseFilter(req.query.category),
             brand: parseFilter(req.query.brand),
+            channel: req.query.channel,
             period: req.query.period || '1M',
             startDate: req.query.startDate,
             endDate: req.query.endDate

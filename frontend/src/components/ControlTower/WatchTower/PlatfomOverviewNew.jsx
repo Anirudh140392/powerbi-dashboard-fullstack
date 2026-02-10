@@ -437,9 +437,15 @@ const PlatformOverviewNew = ({
                                                 {e.name.slice(0, 2).toUpperCase()}
                                             </div>
                                         )}
-                                        <span className="text-[12px] font-semibold text-slate-700 truncate max-w-[100px]">
-                                            {e.name.length > 8 ? e.name.slice(0, 8) + '...' : e.name}
-                                        </span>
+                                        {dimension === 'platform' ? (
+                                            <span className="text-[12px] font-semibold text-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide max-w-[150px] inline-block align-middle">
+                                                {e.name}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[12px] font-semibold text--700 truncate max-w-[100px]">
+                                                {e.name.length > 10 ? e.name.slice(0, 10) + '...' : e.name}
+                                            </span>
+                                        )}
 
                                         {/* Action Buttons */}
                                         <div className="flex items-center gap-1 ml-1">

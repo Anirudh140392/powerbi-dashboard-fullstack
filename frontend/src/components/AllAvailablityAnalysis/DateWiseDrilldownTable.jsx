@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useContext } from 'react'
+import { FilterContext } from '../../utils/FilterContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, X, Search, SlidersHorizontal } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -31,16 +32,18 @@ const getDayWiseFontColor = (value, min = 30, max = 60) => {
 // ========================================
 
 function DateWiseDrilldownTable() {
+    const { platform: globalPlatform, selectedBrand, selectedCategory } = useContext(FilterContext)
     const [expandedBrands, setExpandedBrands] = useState([])
     const [expandedSkus, setExpandedSkus] = useState([]) // Track which SKUs are expanded
     const [dayRange, setDayRange] = useState(7)
-    const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
+    const [metricType, setMetricType] = useState('osa') // Defaulting to 'osa'
     const [searchQuery, setSearchQuery] = useState('')
 
     // ========================================
     // API DATA STATE
     // ========================================
     const [apiData, setApiData] = useState([]);
+    const [latestDate, setLatestDate] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -164,7 +167,18 @@ function DateWiseDrilldownTable() {
                 const params = new URLSearchParams();
                 params.append('dayRange', dayRange.toString());
 
-                // Send applied filters
+                // Send global filters as base
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.append('platform', globalPlatform);
+                }
+                if (selectedCategory && selectedCategory !== 'All') {
+                    params.append('category', selectedCategory);
+                }
+                if (selectedBrand && selectedBrand !== 'All') {
+                    params.append('brand', selectedBrand);
+                }
+
+                // Send applied filters (manual overrides in this component)
                 if (appliedFilters.platform?.length > 0 && !appliedFilters.platform.includes('all')) {
                     params.append('platform', appliedFilters.platform.join(','));
                 }
@@ -172,6 +186,8 @@ function DateWiseDrilldownTable() {
                     params.append('cities', appliedFilters.city.join(','));
                 }
                 if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all')) {
+                    // If global brand is set, it's already in params. append only if different? 
+                    // Usually we append and the backend handles it.
                     params.append('brand', appliedFilters.brand.join(','));
                 }
                 if (appliedFilters.format?.length > 0 && !appliedFilters.format.includes('all')) {
@@ -183,6 +199,9 @@ function DateWiseDrilldownTable() {
 
                 if (responseData?.success && responseData?.data) {
                     setApiData(responseData.data);
+                    if (responseData.dateRange?.end) {
+                        setLatestDate(responseData.dateRange.end);
+                    }
                     // Auto-expand first brand
                     if (responseData.data.length > 0 && expandedBrands.length === 0) {
                         setExpandedBrands([responseData.data[0].brand]);
@@ -199,7 +218,7 @@ function DateWiseDrilldownTable() {
             }
         };
         fetchData();
-    }, [dayRange, appliedFilters]);
+    }, [dayRange, metricType, appliedFilters, globalPlatform, selectedCategory, selectedBrand]);
 
     // Helper for options
     const filterOptions = useMemo(() => {
@@ -223,7 +242,7 @@ function DateWiseDrilldownTable() {
     }, [dynamicFilterData]);
 
     // Data Filtering logic
-    const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
+    const dates = useMemo(() => generateDateOptions(dayRange, latestDate), [dayRange, latestDate])
 
     const filteredData = useMemo(() => {
         let currentData = apiData;
@@ -244,6 +263,7 @@ function DateWiseDrilldownTable() {
     }, [searchQuery, apiData])
 
     const METRIC_OPTIONS = [
+        { key: 'osa', label: 'OSA' },
         { key: 'ecp', label: 'ECP' },
         { key: 'discount', label: 'Discount' },
         { key: 'rpi', label: 'RPI' },
@@ -291,6 +311,7 @@ function DateWiseDrilldownTable() {
 
     const formatValue = (val) => {
         if (val === null || val === undefined) return '—'
+        if (metricType === 'osa') return `${val}%`
         if (metricType === 'ecp') return `₹${val}`
         if (metricType === 'discount') return `${val}%`
         return val.toFixed(2)
@@ -459,9 +480,6 @@ function DateWiseDrilldownTable() {
                             <th className="text-left pl-8 py-5 text-[11px] font-bold uppercase tracking-widest w-80">
                                 BRAND / SKU
                             </th>
-                            <th className="text-center px-4 py-5 text-[11px] font-bold uppercase tracking-widest w-24">
-                                ML
-                            </th>
                             {dates.map(d => (
                                 <th key={d.key} className="text-center px-3 py-5 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">
                                     {d.shortLabel.toUpperCase()}
@@ -532,10 +550,18 @@ function DateWiseDrilldownTable() {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-5 text-sm text-slate-300 font-medium text-center">—</td>
-                                        {dates.map(d => (
-                                            <td key={d.key} className="px-3 py-5 text-sm text-slate-300 font-medium text-center">—</td>
-                                        ))}
+                                        {dates.map(d => {
+                                            const dayData = brand.days?.[d.key]
+                                            const val = getMetricValue(dayData)
+                                            const formattedVal = formatValue(val)
+                                            const fontColor = getDayWiseFontColor(val)
+
+                                            return (
+                                                <td key={d.key} className={cn("px-3 py-5 text-sm transition-all text-center whitespace-nowrap", fontColor)}>
+                                                    {formattedVal}
+                                                </td>
+                                            )
+                                        })}
                                     </tr>
 
                                     {/* SKU Rows */}
@@ -570,15 +596,7 @@ function DateWiseDrilldownTable() {
                                                                 <span className="text-sm font-semibold text-slate-600 truncate max-w-[260px]" title={sku.name}>
                                                                     {sku.name}
                                                                 </span>
-                                                                {/* {hasCities && (
-                                                                    <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">
-                                                                        {sku.cities.length} Cities
-                                                                    </span>
-                                                                )} */}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-[11px] font-bold text-slate-500 text-center uppercase whitespace-nowrap">
-                                                            {sku.ml}
                                                         </td>
                                                         {dates.map(d => {
                                                             const dayData = sku.days[d.key]
@@ -611,7 +629,6 @@ function DateWiseDrilldownTable() {
                                                                         </span>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-4 py-2.5 text-[10px] text-slate-400 text-center">—</td>
                                                                 {dates.map(d => {
                                                                     const dayData = city.days[d.key]
                                                                     const val = getMetricValue(dayData)
