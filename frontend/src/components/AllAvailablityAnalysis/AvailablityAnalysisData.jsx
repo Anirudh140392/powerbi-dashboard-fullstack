@@ -1464,7 +1464,7 @@ export const AvailablityAnalysisData = ({
           />
         )} */}
 
-        <KPIMatrixTable />
+        <KPIMatrixTable filters={filters} />
 
         {/* OSA Detail View - show skeleton if loading, error if failed */}
         {/* {loading ? (
