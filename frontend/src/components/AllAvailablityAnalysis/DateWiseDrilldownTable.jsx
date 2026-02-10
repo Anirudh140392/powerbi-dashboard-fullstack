@@ -265,7 +265,7 @@ function DateWiseDrilldownTable() {
     const [expandedBrands, setExpandedBrands] = useState(['Colgate'])
     const [expandedSkus, setExpandedSkus] = useState([]) // Track which SKUs are expanded
     const [dayRange, setDayRange] = useState(7)
-    const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
+    const [metricType, setMetricType] = useState('osa') // Defaulting to 'osa'
     const [searchQuery, setSearchQuery] = useState('')
 
     // ========================================
@@ -427,6 +427,7 @@ function DateWiseDrilldownTable() {
     }, [searchQuery, appliedFilters, BRAND_SKU_DAY_DATA])
 
     const METRIC_OPTIONS = [
+        { key: 'osa', label: 'OSA' },
         { key: 'ecp', label: 'ECP' },
         { key: 'discount', label: 'Discount' },
         { key: 'rpi', label: 'RPI' },
@@ -469,11 +470,16 @@ function DateWiseDrilldownTable() {
 
     const getMetricValue = (dayData) => {
         if (!dayData) return null
+        if (metricType === 'osa') {
+            // Generate a stable random OSA value between 60 and 99 for demo
+            return Math.floor(60 + (dayData.ecp % 40))
+        }
         return dayData[metricType.toLowerCase()]
     }
 
     const formatValue = (val) => {
         if (val === null || val === undefined) return '—'
+        if (metricType === 'osa') return `${val}%`
         if (metricType === 'ecp') return `₹${val}`
         if (metricType === 'discount') return `${val}%`
         return val.toFixed(2)
@@ -642,9 +648,6 @@ function DateWiseDrilldownTable() {
                             <th className="text-left pl-8 py-5 text-[11px] font-bold uppercase tracking-widest w-80">
                                 BRAND / SKU
                             </th>
-                            <th className="text-center px-4 py-5 text-[11px] font-bold uppercase tracking-widest w-24">
-                                ML
-                            </th>
                             {dates.map(d => (
                                 <th key={d.key} className="text-center px-3 py-5 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">
                                     {d.shortLabel.toUpperCase()}
@@ -680,7 +683,6 @@ function DateWiseDrilldownTable() {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="px-4 py-5 text-sm text-slate-300 font-medium text-center">—</td>
                                         {dates.map(d => (
                                             <td key={d.key} className="px-3 py-5 text-sm text-slate-300 font-medium text-center">—</td>
                                         ))}
@@ -718,15 +720,7 @@ function DateWiseDrilldownTable() {
                                                                 <span className="text-sm font-semibold text-slate-600 truncate max-w-[260px]" title={sku.name}>
                                                                     {sku.name}
                                                                 </span>
-                                                                {/* {hasCities && (
-                                                                    <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">
-                                                                        {sku.cities.length} Cities
-                                                                    </span>
-                                                                )} */}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-[11px] font-bold text-slate-500 text-center uppercase whitespace-nowrap">
-                                                            {sku.ml}
                                                         </td>
                                                         {dates.map(d => {
                                                             const dayData = sku.days[d.key]
@@ -759,7 +753,6 @@ function DateWiseDrilldownTable() {
                                                                         </span>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-4 py-2.5 text-[10px] text-slate-400 text-center">—</td>
                                                                 {dates.map(d => {
                                                                     const dayData = city.days[d.key]
                                                                     const val = getMetricValue(dayData)
