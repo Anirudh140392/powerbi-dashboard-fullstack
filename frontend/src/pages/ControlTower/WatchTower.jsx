@@ -258,6 +258,7 @@ export default function WatchTower() {
               </span>
             }
             kpis={COMPARISON_KPIS}
+            variant="watchtower"
           />
         )}
 
@@ -274,18 +275,7 @@ export default function WatchTower() {
         </Box> */}
 
         {/* Top Cards */}
-        <Box
-          sx={{
-            bgcolor: (theme) => theme.palette.background.paper,
-            borderRadius: 6,
-            boxShadow: 1,
-            mb: 4,
-            p: 4,
-          }}
-        >
-          <PerformanceMatrixNew />
 
-        </Box>
         {/* Top Cards */}
         <Box
           sx={{

@@ -131,33 +131,70 @@ const Sidebar = ({
         position: 'relative',
         overflow: 'hidden'
       }}>
-        {!isCollapsed ? (
+        <Box
+          sx={{
+            height: 48,
+            py: 2,
+            display: 'flex',
+            alignItems: 'baseline', // Keep container centered
+            justifyContent: isCollapsed ? 'center' : 'flex-start',
+            px: isCollapsed ? 0 : 2.5,
+            transition: 'all 0.3s ease',
+            overflow: 'hidden',
+            width: isCollapsed ? '100%' : 'auto'
+          }}
+        >
+          {/* EY Logo Container */}
           <Box
-            component="img"
-            src="/sidebar_logo.png"
-            alt="Logo"
             sx={{
-              height: 24, // Optimized height
-              maxWidth: '80%',
-              objectFit: 'contain',
-            }}
-          />
-        ) : (
-          <Box
-            sx={{
-              height: 18, // Reduced height for actual size feel
+              height: 32,
+              width: 58,
+              minWidth: isCollapsed ? 0 : 58,
               display: 'flex',
-              alignItems: 'flex-end',
-              gap: '1.5px', // Tighter gap
-              mr: 1.5,
-              mb: 0.5
+              alignItems: 'flex-end', // Align to bottom to help with baseline
+              justifyContent: 'center',
+              pb: '6px', // Fine-tune vertical position of the logo
+              mr: 0
             }}
           >
-            <Box sx={{ width: 3, height: '40%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
-            <Box sx={{ width: 3, height: '70%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
-            <Box sx={{ width: 3, height: '100%', bgcolor: '#f43f5e', borderRadius: '1px' }} />
+            <svg viewBox="0 0 60 46" height="100%" width="100%" style={{ overflow: 'visible' }}>
+              {/* Yellow Beam - Triangle pointing up-right */}
+              <path d="M0 24 L58 8 V19 L0 24 Z" fill="#FFE600" />
+
+              {/* E */}
+              <path d="M2.5 44 V18 H24 V22 H7 V28 H22 V32 H7 V40 H25 V44 H2.5 Z" fill="#FFFFFF" />
+
+              {/* Y */}
+              <path d="M28 18 L37 32 L46 18 H51 L39 37 V44 H35 V37 L23 18 H28 Z" fill="#FFFFFF" />
+            </svg>
           </Box>
-        )}
+
+          {/* "-mozart" Text */}
+          <Box
+            sx={{
+              opacity: isCollapsed ? 0 : 1,
+              width: isCollapsed ? 0 : 'auto',
+              transform: isCollapsed ? 'translateX(-10px)' : 'translateX(0)',
+              transition: 'all 0.3s ease',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'flex-end', // Align to bottom
+              pb: '3px' // Match the logo's bottom padding for baseline alignment
+            }}
+          >
+            <span style={{
+              color: '#FFFFFF',
+              fontSize: '1.2rem', // Slightly smaller for better proportion
+              fontWeight: 700,
+              fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+              letterSpacing: '-0.5px',
+              marginLeft: '1px'
+            }}>
+              -mozart
+            </span>
+          </Box>
+        </Box>
         {!isMobile && (
           <IconButton
             onClick={toggleSidebar}
@@ -165,8 +202,12 @@ const Sidebar = ({
               color: 'rgba(255,255,255,0.4)',
               p: 0.5,
               '&:hover': { color: '#fff' },
-              ...(isCollapsed && {
+              ...(isCollapsed ? {
+                position: 'absolute',
+                right: 4,
                 bgcolor: 'rgba(255,255,255,0.05)'
+              } : {
+                ml: 'auto'
               })
             }}
           >
@@ -280,7 +321,27 @@ const Sidebar = ({
         ))}
       </Box>
 
-      {/* Footer Branding Removed */}
+      {/* Footer Branding */}
+      {!isCollapsed && (
+        <Box sx={{
+          mt: 'auto',
+          py: 4,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <Typography
+            sx={{
+              fontSize: '0.75rem',
+              color: 'rgba(255,255,255,0.3)',
+              letterSpacing: '0.02em',
+              fontWeight: 400
+            }}
+          >
+            powered by <span style={{ fontWeight: 600, color: 'rgba(242, 236, 236, 0.6)' }}>trailytics</span>
+          </Typography>
+        </Box>
+      )}
     </Box >
   );
 
