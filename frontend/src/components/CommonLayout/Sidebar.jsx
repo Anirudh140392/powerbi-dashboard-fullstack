@@ -9,6 +9,7 @@ import {
   useTheme,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Collapse,
   IconButton,
@@ -36,6 +37,7 @@ import {
   Science as ScienceIcon,
   Schedule as ScheduleIcon,
 } from "@mui/icons-material";
+import sidebarLogo from "../../assets/sidebar_logo.png";
 
 const Sidebar = ({
   platforms = ["Blinkit", "Instamart", "Zepto"],
@@ -96,21 +98,21 @@ const Sidebar = ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        bgcolor: "rgba(17, 24, 39, 0.98)",
+        bgcolor: "#FFFFFF",
         backdropFilter: "blur(12px)",
-        color: "#fff",
-        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+        color: "#1e293b",
+        borderRight: "1px solid rgba(0, 0, 0, 0.08)",
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         width: sidebarWidth,
-        overflow: "hidden", // 🔥 REMOVED SCROLLBAR
+        overflow: "hidden",
       }}
     >
       <style>
         {`
           @keyframes border-pulse {
-            0% { border-color: rgba(56, 189, 248, 0.3); box-shadow: 0 0 5px rgba(56, 189, 248, 0.1); }
-            50% { border-color: rgba(56, 189, 248, 0.8); box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); }
-            100% { border-color: rgba(56, 189, 248, 0.3); box-shadow: 0 0 5px rgba(56, 189, 248, 0.1); }
+            0% { border-color: rgba(37, 99, 235, 0.1); box-shadow: 0 0 5px rgba(37, 99, 235, 0.05); }
+            50% { border-color: rgba(37, 99, 235, 0.3); box-shadow: 0 0 10px rgba(37, 99, 235, 0.1); }
+            100% { border-color: rgba(37, 99, 235, 0.1); box-shadow: 0 0 5px rgba(37, 99, 235, 0.05); }
           }
           @keyframes text-shimmer {
             0% { background-position: -200% center; }
@@ -121,13 +123,13 @@ const Sidebar = ({
 
       {/* Header / Logo */}
       <Box sx={{
-        px: isCollapsed ? 1 : 2,
+        px: isCollapsed ? 0 : 2,
         py: 2,
         height: 60,
         display: 'flex',
         alignItems: 'center',
         justifyContent: isCollapsed ? 'center' : 'space-between',
-        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+        borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
         position: 'relative',
         overflow: 'hidden'
       }}>
@@ -136,7 +138,7 @@ const Sidebar = ({
             height: 48,
             py: 2,
             display: 'flex',
-            alignItems: 'baseline', // Keep container centered
+            alignItems: 'baseline',
             justifyContent: isCollapsed ? 'center' : 'flex-start',
             px: isCollapsed ? 0 : 2.5,
             transition: 'all 0.3s ease',
@@ -151,21 +153,16 @@ const Sidebar = ({
               width: 58,
               minWidth: isCollapsed ? 0 : 58,
               display: 'flex',
-              alignItems: 'flex-end', // Align to bottom to help with baseline
+              alignItems: 'flex-end',
               justifyContent: 'center',
-              pb: '6px', // Fine-tune vertical position of the logo
+              pb: '6px',
               mr: 0
             }}
           >
             <svg viewBox="0 0 60 46" height="100%" width="100%" style={{ overflow: 'visible' }}>
-              {/* Yellow Beam - Triangle pointing up-right */}
               <path d="M0 24 L58 8 V19 L0 24 Z" fill="#FFE600" />
-
-              {/* E */}
-              <path d="M2.5 44 V18 H24 V22 H7 V28 H22 V32 H7 V40 H25 V44 H2.5 Z" fill="#FFFFFF" />
-
-              {/* Y */}
-              <path d="M28 18 L37 32 L46 18 H51 L39 37 V44 H35 V37 L23 18 H28 Z" fill="#FFFFFF" />
+              <path d="M2.5 44 V18 H24 V22 H7 V28 H22 V32 H7 V40 H25 V44 H2.5 Z" fill="#000000" />
+              <path d="M28 18 L37 32 L46 18 H51 L39 37 V44 H35 V37 L23 18 H28 Z" fill="#000000" />
             </svg>
           </Box>
 
@@ -179,33 +176,33 @@ const Sidebar = ({
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               display: 'flex',
-              alignItems: 'flex-end', // Align to bottom
-              pb: '3px' // Match the logo's bottom padding for baseline alignment
+              alignItems: 'flex-end',
+              pb: '3px'
             }}
           >
-            <span style={{
-              color: '#FFFFFF',
-              fontSize: '1.2rem', // Slightly smaller for better proportion
+            {/* <span style={{
+              color: '#000000',
+              fontSize: '1.2rem',
               fontWeight: 700,
               fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
               letterSpacing: '-0.5px',
               marginLeft: '1px'
             }}>
               -mozart
-            </span>
+            </span> */}
           </Box>
         </Box>
         {!isMobile && (
           <IconButton
             onClick={toggleSidebar}
             sx={{
-              color: 'rgba(255,255,255,0.4)',
+              color: 'rgba(0, 0, 0, 0.4)',
               p: 0.5,
-              '&:hover': { color: '#fff' },
+              '&:hover': { color: '#000' },
               ...(isCollapsed ? {
                 position: 'absolute',
                 right: 4,
-                bgcolor: 'rgba(255,255,255,0.05)'
+                bgcolor: 'rgba(0, 0, 0, 0.03)'
               } : {
                 ml: 'auto'
               })
@@ -216,39 +213,57 @@ const Sidebar = ({
         )}
       </Box>
 
-      {/* Search Bar - Slimmer or Conditional */}
+      {/* Search Bar */}
       {
         !isCollapsed && (
           <Box sx={{ px: 2, py: 1.5 }}>
             <Box sx={{
               display: 'flex',
               alignItems: 'center',
-              bgcolor: 'rgba(255, 255, 255, 0.04)',
+              bgcolor: 'rgba(0, 0, 0, 0.03)',
               borderRadius: '10px',
               px: 1.2, py: 0.4,
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              '&:focus-within': { borderColor: '#3b82f6', bgcolor: 'rgba(255, 255, 255, 0.06)' }
+              border: '1px solid rgba(0, 0, 0, 0.06)',
+              '&:focus-within': { borderColor: '#2563eb', bgcolor: '#fff' }
             }}>
-              <SearchIcon sx={{ color: 'rgba(255,255,255,0.3)', fontSize: '1rem' }} />
+              <SearchIcon sx={{ color: 'rgba(0, 0, 0, 0.3)', fontSize: '1rem' }} />
               <InputBase
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                sx={{ ml: 0.8, color: '#fff', fontSize: '0.8rem', flex: 1 }}
+                sx={{ ml: 0.8, color: '#000', fontSize: '0.8rem', flex: 1 }}
               />
             </Box>
           </Box>
         )
       }
 
-      {/* Menu scroll area - Set to overflow hidden to remove scrollbar */}
+      {/* Menu scroll area */}
       <Box sx={{
         flex: 1,
-        overflowY: "hidden",
+        overflowY: "auto", // Re-enable scroll if needed, or keep hidden if requested
         px: isCollapsed ? 1 : 1.5,
+        '&::-webkit-scrollbar': { width: '4px' },
+        '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.05)', borderRadius: '4px' }
       }}>
         {Object.entries(filteredSections).map(([sectionName, items]) => (
-          <Box key={sectionName}>
+          <Box key={sectionName} sx={{ mb: 2 }}>
+            {!isCollapsed && (
+              <Typography
+                variant="overline"
+                sx={{
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  color: "rgba(0, 0, 0, 0.3)",
+                  letterSpacing: "0.05em",
+                  mb: 1,
+                  pl: 1,
+                  display: 'block'
+                }}
+              >
+                {sectionName}
+              </Typography>
+            )}
             {items.map((item) => {
               const isActive = currentPath === item.path;
               const isPiy = item.isPiy;
@@ -261,41 +276,39 @@ const Sidebar = ({
                       if (isMobile && onClose) onClose();
                     }}
                     sx={{
-                      mb: 0.3,
-                      borderRadius: '10px',
-                      justifyContent: isCollapsed ? 'center' : 'flex-start',
+                      minWidth: isCollapsed ? 54 : 44,
+                      justifyContent: isCollapsed ? "center" : "flex-start",
                       px: isCollapsed ? 0 : 1.5,
-                      py: 0.8, // 🔥 COMPACT PADDING
-                      minHeight: 40,
-                      bgcolor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                      color: isActive ? '#60a5fa' : 'rgba(255,255,255,0.55)',
-                      border: isPiy ? '1px solid rgba(56, 189, 248, 0.2)' : 'none',
-                      animation: isPiy ? "border-pulse 2s infinite" : "none",
-                      position: 'relative',
-                      '&:hover': {
-                        bgcolor: isActive ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                        color: '#fff',
-                        '& .MuiSvgIcon-root': { color: '#fff' }
+                      py: 1,
+                      borderRadius: "10px",
+                      mb: 0.5,
+                      bgcolor: isActive ? "rgba(37, 99, 235, 0.06)" : "transparent",
+                      color: isActive ? "#2563eb" : "#475569",
+                      borderLeft: isActive && !isCollapsed ? "3px solid #2563eb" : "3px solid transparent",
+                      "&:hover": {
+                        bgcolor: "rgba(0, 0, 0, 0.03)",
+                        color: "#1e293b",
+                        "& .MuiListItemIcon-root": { color: "#1e293b" }
                       },
-                      transition: 'all 0.15s ease',
+                      transition: "all 0.2s ease",
+                      ...(isPiy && {
+                        border: "1px solid rgba(37, 99, 235, 0.1)",
+                        animation: "border-pulse 2s infinite"
+                      })
                     }}
                   >
-                    {isActive && !isCollapsed && (
-                      <Box sx={{
-                        position: 'absolute', left: 0, top: '25%', bottom: '25%',
-                        width: 3, bgcolor: '#3b82f6', borderRadius: '0 4px 4px 0'
-                      }} />
-                    )}
-
-                    <Box sx={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      minWidth: isCollapsed ? 0 : 32,
-                      color: isActive ? '#60a5fa' : 'inherit',
-                      mr: isCollapsed ? 0 : 1.5,
-                      transition: 'margin 0.3s'
-                    }}>
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 0,
+                        mr: isCollapsed ? 0 : 1.2,
+                        color: isActive ? "#2563eb" : "inherit",
+                        transition: "color 0.2s",
+                        display: 'flex',
+                        justifyContent: 'center'
+                      }}
+                    >
                       {item.icon}
-                    </Box>
+                    </ListItemIcon>
 
                     {!isCollapsed && (
                       <ListItemText
@@ -304,12 +317,14 @@ const Sidebar = ({
                           fontSize: "0.85rem",
                           fontWeight: isActive ? 700 : 500,
                           sx: isPiy ? {
-                            background: "linear-gradient(90deg, #e0f2fe, #38bdf8, #e0f2fe)",
+                            background: "linear-gradient(90deg, #1e293b, #2563eb, #1e293b)",
                             backgroundSize: "200% auto",
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",
                             animation: "text-shimmer 3s linear infinite"
-                          } : {}
+                          } : {
+                            color: isActive ? "#2563eb" : "inherit"
+                          }
                         }}
                       />
                     )}
@@ -325,24 +340,36 @@ const Sidebar = ({
       {!isCollapsed && (
         <Box sx={{
           mt: 'auto',
-          py: 4,
+          py: 3,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
+          borderTop: '1px solid rgba(0,0,0,0.03)'
         }}>
           <Typography
             sx={{
               fontSize: '0.75rem',
-              color: 'rgba(255,255,255,0.3)',
-              letterSpacing: '0.02em',
-              fontWeight: 400
+              color: 'rgba(0,0,0,0.85)',
+              letterSpacing: '0.01em',
+              fontWeight: 500,
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
-            powered by <span style={{ fontWeight: 600, color: 'rgba(242, 236, 236, 0.6)' }}>trailytics</span>
+            powered by
+            <img
+              src={sidebarLogo}
+              alt="trailytics"
+              style={{
+                height: '20px',
+                marginLeft: '8px',
+                display: 'block'
+              }}
+            />
           </Typography>
         </Box>
       )}
-    </Box >
+    </Box>
   );
 
   if (isMobile) {
