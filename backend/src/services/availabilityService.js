@@ -657,22 +657,33 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
                 const periodQuery = `
                     SELECT 
-                        ${groupColumn} as col_value,
+                        t1.${groupColumn} as col_value,
                         -- Yesterday
-                        SUM(if(toDate(DATE) = '${yesterdayStr}', toFloat64(neno_osa), 0)) as neno_yesterday,
-                        SUM(if(toDate(DATE) = '${yesterdayStr}', toFloat64(deno_osa), 0)) as deno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.neno_osa), 0)) as neno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.deno_osa), 0)) as deno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_yesterday,
+                        COUNT(DISTINCT if(toDate(t1.DATE) = '${yesterdayStr}', t1.Web_Pid, NULL)) as assortment_yesterday,
+                        
                         -- Last Week
-                        SUM(if(toDate(DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(neno_osa), 0)) as neno_lastweek,
-                        SUM(if(toDate(DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(deno_osa), 0)) as deno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_lastweek,
+                        COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_lastweek,
+                        
                         -- MTD
-                        SUM(if(toDate(DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(neno_osa), 0)) as neno_mtd,
-                        SUM(if(toDate(DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(deno_osa), 0)) as deno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_mtd,
+                        COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_mtd,
+                        
                         -- L3M
-                        SUM(if(toDate(DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(neno_osa), 0)) as neno_l3m,
-                        SUM(if(toDate(DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(deno_osa), 0)) as deno_l3m
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${l3mStr}' AND '${latestStr}'
-                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_l3m,
+                        COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_l3m
+                    FROM rb_pdp_olap t1
+                    WHERE t1.DATE BETWEEN '${l3mStr}' AND '${latestStr}'
+                      AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
                     GROUP BY col_value
                 `;
@@ -689,26 +700,38 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
                 periodResults.forEach(r => {
                     const cv = r.col_value;
-                    const metrics = {
+
+                    const osaMetrics = {
                         'Yesterday': r.deno_yesterday > 0 ? (r.neno_yesterday / r.deno_yesterday) * 100 : 0,
                         'Last Week': r.deno_lastweek > 0 ? (r.neno_lastweek / r.deno_lastweek) * 100 : 0,
                         'MTD': r.deno_mtd > 0 ? (r.neno_mtd / r.deno_mtd) * 100 : 0,
                         'L3M': r.deno_l3m > 0 ? (r.neno_l3m / r.deno_l3m) * 100 : 0
                     };
 
-                    // Only update OSA breakdown for now (matching user request focus)
-                    Object.keys(metrics).forEach(periodKey => {
-                        kpiRows.osa.breakdown[cv][periodKey] = Math.round(metrics[periodKey]);
-                    });
+                    const frMetrics = {
+                        'Yesterday': r.deno_yesterday > 0 ? (r.buybox_neno_yesterday / r.deno_yesterday) * 100 : 0,
+                        'Last Week': r.deno_lastweek > 0 ? (r.buybox_neno_lastweek / r.deno_lastweek) * 100 : 0,
+                        'MTD': r.deno_mtd > 0 ? (r.buybox_neno_mtd / r.deno_mtd) * 100 : 0,
+                        'L3M': r.deno_l3m > 0 ? (r.buybox_neno_l3m / r.deno_l3m) * 100 : 0
+                    };
 
-                    // Also update others if they had placeholders (for consistency)
-                    ['fillrate', 'assortment', 'psl', 'doi'].forEach(k => {
-                        if (kpiRows[k] && kpiRows[k].breakdown[cv]) {
-                            Object.keys(metrics).forEach(periodKey => {
-                                // For simplicity using OSA as proxy for other period trends if data not explicitly queried
-                                kpiRows[k].breakdown[cv][periodKey] = (kpiRows[k][cv] || 0);
-                            });
-                        }
+                    const assortmentMetrics = {
+                        'Yesterday': parseInt(r.assortment_yesterday, 10) || 0,
+                        'Last Week': parseInt(r.assortment_lastweek, 10) || 0,
+                        'MTD': parseInt(r.assortment_mtd, 10) || 0,
+                        'L3M': parseInt(r.assortment_l3m, 10) || 0
+                    };
+
+                    // Update breakdowns
+                    Object.keys(osaMetrics).forEach(periodKey => {
+                        kpiRows.osa.breakdown[cv][periodKey] = Math.round(osaMetrics[periodKey]);
+                        kpiRows.fillrate.breakdown[cv][periodKey] = Math.round(frMetrics[periodKey]);
+                        kpiRows.assortment.breakdown[cv][periodKey] = assortmentMetrics[periodKey];
+
+                        // For DOI and PSL, we maintain the overall current value for now in period breakdown 
+                        // as they involve complex lookbacks per period, but at least they won't be empty
+                        kpiRows.doi.breakdown[cv][periodKey] = kpiRows.doi[cv] || 0;
+                        kpiRows.psl.breakdown[cv][periodKey] = kpiRows.psl[cv] || 0;
                     });
                 });
             } else if (includeBreakdown && drillDimension === 'competitors') {
