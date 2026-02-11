@@ -609,7 +609,13 @@ const VisiblityAnalysisData = () => {
         deltaLabel: card.change,
         icon: icons[idx] || PieChart,
         gradient: gradients[idx % gradients.length],
-        trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75] // placeholder trend
+        trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75], // placeholder trend
+
+        // Extra fields for DetailedSparklineCard
+        extra: card.extra,
+        extraChange: card.extraChange,
+        extraChangeColor: card.extraChangeColor,
+        prevText: card.prevText
       };
     });
   };
@@ -853,7 +859,18 @@ const VisiblityAnalysisData = () => {
           </div> */}
       </div>
 
-      <MetricCardContainer title="Visibility Overview" cards={cards} />
+      <SnapshotOverview
+        title="Visibility Overview"
+        icon={LayoutGrid}
+        chip="All Platforms"
+        headerRight={
+          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+            vs Previous Period
+          </span>
+        }
+        kpis={visibilityKpis}
+        variant="detailed"
+      />
       {/* MODAL SECTION */}
       {/* <SnapshotOverview
         title="Visibility Overview"
