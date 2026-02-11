@@ -69,7 +69,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         borderBottom: "1px solid",
         borderColor: (theme) => "#e5e7eb",
         px: { xs: 2, sm: 3 },
-        py: 2,
+        py: 0.8,
         position: "sticky",
         top: 0,
         zIndex: 1200,
@@ -113,9 +113,8 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
             <Box sx={{ display: "flex", flexDirection: "column" }}>
               <Typography
-                variant="h6"
-                fontWeight="700"
-                sx={{ whiteSpace: "nowrap", lineHeight: 1.2 }}
+                fontWeight="600"
+                sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: "1.0rem" }}
               >
                 {title}
               </Typography>
@@ -210,7 +209,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={platforms}
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
-                width={130}
+                width={115}
               />
 
               <CustomHeaderDropdown
@@ -218,7 +217,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={brands}
                 value={selectedBrand}
                 onChange={(newValue) => setSelectedBrand(newValue)}
-                width={130}
+                width={115}
               />
 
               <CustomHeaderDropdown
@@ -226,7 +225,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={locations}
                 value={selectedLocation}
                 onChange={(newValue) => setSelectedLocation(newValue)}
-                width={130}
+                width={115}
               />
 
               {location.pathname === "/visibility-anlysis" && (
@@ -240,11 +239,11 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               )}
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: 220, flexShrink: 0 }}>
+              <Box sx={{ width: 200, flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.65rem",
-                    fontWeight: 800,
+                    fontWeight: 600,
                     mb: 0.4,
                     opacity: 0.8,
                     textTransform: "uppercase",

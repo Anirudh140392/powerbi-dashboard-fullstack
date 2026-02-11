@@ -736,7 +736,7 @@ const SnapshotOverview = ({
                     transition={{ duration: 0.4 }}
                 >
                     {/* Header Logic - Only for the overall box */}
-                    <div className="px-6 py-4 flex items-center justify-between border-b border-slate-50">
+                    <div className="px-6 py-2 flex items-center justify-between border-b border-slate-50">
                         <div className="flex items-center gap-4">
                             {Icon && (
                                 <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50 shadow-sm shrink-0">

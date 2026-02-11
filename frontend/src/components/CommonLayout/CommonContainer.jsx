@@ -79,7 +79,7 @@ export default function CommonContainer({
             maxWidth={false}
             disableGutters
             sx={{
-              py: 3,
+              py: 2,
               px: { xs: 2, sm: 3 },
               width: "100%",
               boxSizing: "border-box",

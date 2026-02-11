@@ -77,7 +77,7 @@ const CustomHeaderDropdown = ({
             <Typography
                 sx={{
                     fontSize: "0.65rem",
-                    fontWeight: 800,
+                    fontWeight: 600,
                     mb: 0.4,
                     opacity: 0.8,
                     textTransform: "uppercase",
@@ -121,7 +121,7 @@ const CustomHeaderDropdown = ({
                         <Typography
                             sx={{
                                 fontSize: "0.8rem",
-                                fontWeight: 700,
+                                fontWeight: 600,
                                 color: "#1e293b",
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
