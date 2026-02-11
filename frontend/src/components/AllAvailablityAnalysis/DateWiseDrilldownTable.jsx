@@ -205,10 +205,6 @@ function DateWiseDrilldownTable() {
                     if (responseData.dateRange?.end) {
                         setLatestDate(responseData.dateRange.end);
                     }
-                    // Auto-expand first brand
-                    if (responseData.data.length > 0 && expandedBrands.length === 0) {
-                        setExpandedBrands([responseData.data[0].brand]);
-                    }
                 } else {
                     setApiData([]);
                 }

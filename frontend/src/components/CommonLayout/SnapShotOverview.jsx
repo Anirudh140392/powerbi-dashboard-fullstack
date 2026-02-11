@@ -255,8 +255,8 @@ const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
                 {kpi.title}
             </span>
 
-            <div className="flex items-end justify-between mb-6">
-                <div className="flex items-end gap-1 flex-nowrap whitespace-nowrap">
+            <div className="flex items-end justify-between flex-wrap gap-y-2 mb-6">
+                <div className="flex items-end gap-1 flex-wrap">
                     <span className="text-[26px] font-bold text-slate-900 tracking-tight">
                         {kpi.value}
                     </span>

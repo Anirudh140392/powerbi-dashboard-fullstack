@@ -551,9 +551,14 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                 <div className="flex items-center gap-2">
                                                     <span className={isComingSoon ? 'text-slate-400' : ''}>{kpi.label}</span>
                                                     {isComingSoon && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-amber-50 to-orange-50 text-amber-600 border border-amber-200 shadow-sm">
-                                                            🚧 Coming Soon
-                                                        </span>
+                                                        <motion.span
+                                                            initial={{ opacity: 0.8 }}
+                                                            animate={{ opacity: [0.8, 1, 0.8] }}
+                                                            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm uppercase tracking-widest ring-1 ring-inset ring-white/20"
+                                                        >
+                                                            Coming Soon
+                                                        </motion.span>
                                                     )}
                                                     {!isComingSoon && drillEnabled && (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] border border-blue-100">
@@ -568,8 +573,18 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                 if (isComingSoon) {
                                                     return (
                                                         <td key={entity} className="text-center py-3 px-2">
-                                                            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 border border-dashed border-slate-200">
-                                                                <span className="text-xs font-medium text-slate-400 tracking-wide">—</span>
+                                                            <div className="flex justify-center">
+                                                                <motion.div
+                                                                    className="inline-flex flex-col items-center justify-center p-2 rounded-xl bg-slate-50/50 border border-slate-100/50 min-w-[60px] cursor-default overflow-hidden relative"
+                                                                    whileHover={{ scale: 1.02, backgroundColor: "rgba(248, 250, 252, 0.8)" }}
+                                                                >
+                                                                    <div className="text-[10px] font-bold text-slate-300 tracking-tighter">—</div>
+                                                                    <motion.div
+                                                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full"
+                                                                        animate={{ translateX: ["100%", "-100%"] }}
+                                                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                                                    />
+                                                                </motion.div>
                                                             </div>
                                                         </td>
                                                     );
