@@ -723,15 +723,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     };
 
                     // Update breakdowns
-                    Object.keys(osaMetrics).forEach(periodKey => {
-                        kpiRows.osa.breakdown[cv][periodKey] = Math.round(osaMetrics[periodKey]);
-                        kpiRows.fillrate.breakdown[cv][periodKey] = Math.round(frMetrics[periodKey]);
-                        kpiRows.assortment.breakdown[cv][periodKey] = assortmentMetrics[periodKey];
+                    ['Yesterday', 'Last Week', 'MTD', 'L3M'].forEach(periodKey => {
+                        if (kpiRows.osa.breakdown[cv]) kpiRows.osa.breakdown[cv][periodKey] = Math.round(osaMetrics[periodKey] || 0);
+                        if (kpiRows.fillrate.breakdown[cv]) kpiRows.fillrate.breakdown[cv][periodKey] = Math.round(frMetrics[periodKey] || 0);
+                        if (kpiRows.assortment.breakdown[cv]) kpiRows.assortment.breakdown[cv][periodKey] = assortmentMetrics[periodKey] || 0;
 
                         // For DOI and PSL, we maintain the overall current value for now in period breakdown 
-                        // as they involve complex lookbacks per period, but at least they won't be empty
-                        kpiRows.doi.breakdown[cv][periodKey] = kpiRows.doi[cv] || 0;
-                        kpiRows.psl.breakdown[cv][periodKey] = kpiRows.psl[cv] || 0;
+                        // as they involve complex lookbacks per period
+                        if (kpiRows.doi.breakdown[cv]) kpiRows.doi.breakdown[cv][periodKey] = kpiRows.doi.data?.[cv]?.value || 0;
+                        if (kpiRows.psl.breakdown[cv]) kpiRows.psl.breakdown[cv][periodKey] = kpiRows.psl.data?.[cv]?.value || 0;
                     });
                 });
             } else if (includeBreakdown && drillDimension === 'competitors') {
