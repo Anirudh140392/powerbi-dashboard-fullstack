@@ -584,14 +584,21 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SELECT 
                         t1.${groupColumn} as col_value,
                         l.mapped_region as drill_item,
-                        SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                        SUM(toFloat64(t1.deno_osa)) as sum_deno,
-                        SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
-                        SUM(toFloat64(t1.Inventory)) as total_inv,
-                        SUM(toFloat64(t1.Qty_Sold)) as total_qty_sold
+                        -- KPI Components for selected period
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.neno_osa), 0)) as sum_neno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.deno_osa), 0)) as sum_deno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.buy_box_neno_osa), 0)) as sum_buybox_neno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.MSL), 0)) as sum_msl,
+                        COUNT(DISTINCT if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', t1.Web_Pid, NULL)) as assortment_count,
+                        
+                        -- DOI / Sales components (30-day lookback)
+                        SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.Qty_Sold), 0)) as doi_total_qty_sold,
+                        
+                        -- Latest Inventory (across selected period)
+                        argMax(toFloat64(t1.Inventory), t1.DATE) as latest_inventory
                     FROM rb_pdp_olap t1
                     LEFT JOIN location_mapping l ON t1.Location = l.location
-                    WHERE t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                    WHERE t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
                     GROUP BY col_value, drill_item
@@ -608,7 +615,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 });
 
                 breakdownResults.forEach(r => {
-                    const { col_value, drill_item, sum_neno, sum_deno, sum_buybox_neno, total_inv, total_qty_sold } = r;
+                    const {
+                        col_value, drill_item, sum_neno, sum_deno, sum_buybox_neno,
+                        sum_msl, assortment_count, doi_total_qty_sold, latest_inventory
+                    } = r;
                     const item = drill_item || 'Unknown';
 
                     if (kpiRows.osa.breakdown[col_value]) {
@@ -620,16 +630,18 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         kpiRows.fillrate.breakdown[col_value][item] = Math.round(fr);
                     }
                     if (kpiRows.doi.breakdown[col_value]) {
-                        // For breakdown, we use the ratio in the selected period as a simplified DOI
-                        const doi = parseFloat(total_qty_sold) > 0 ? (total_inv / total_qty_sold) * periodDays : 0;
+                        const drr = parseFloat(doi_total_qty_sold) / 30;
+                        const doi = drr > 0 ? parseFloat(latest_inventory) / drr : 0;
                         kpiRows.doi.breakdown[col_value][item] = Math.round(doi);
                     }
                     if (kpiRows.assortment.breakdown[col_value]) {
-                        // For simplicity, using a static 1 if not explicitly queried per breakdown-item
-                        kpiRows.assortment.breakdown[col_value][item] = kpiRows.assortment[col_value] || 0;
+                        kpiRows.assortment.breakdown[col_value][item] = parseInt(assortment_count, 10) || 0;
                     }
                     if (kpiRows.psl.breakdown[col_value]) {
-                        kpiRows.psl.breakdown[col_value][item] = kpiRows.psl[col_value] || 0;
+                        const msl = parseFloat(sum_msl) || 0;
+                        const inv = parseFloat(latest_inventory) || 0;
+                        const psl = msl > 0 ? (inv / msl) * 100 : (kpiRows.osa.breakdown[col_value][item] * 0.95);
+                        kpiRows.psl.breakdown[col_value][item] = Math.round(psl);
                     }
                 });
             } else if (includeBreakdown && drillDimension === 'period') {
