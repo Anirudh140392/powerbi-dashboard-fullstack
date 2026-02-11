@@ -752,9 +752,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const topComps = await queryClickHouse(topCompQuery);
                 const compBrands = topComps.map(r => r.Brand).filter(Boolean);
 
-                // Initialize breakdown structure for OSA
-                kpiRows.osa.breakdown = {};
-                columnValues.forEach(cv => { kpiRows.osa.breakdown[cv] = {}; });
+                // Initialize breakdown structure for all rows
+                Object.keys(kpiRows).forEach(k => {
+                    kpiRows[k].breakdown = {};
+                    columnValues.forEach(cv => {
+                        kpiRows[k].breakdown[cv] = {};
+                    });
+                });
 
                 if (compBrands.length > 0) {
                     const compQuery = `

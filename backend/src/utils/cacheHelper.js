@@ -65,9 +65,13 @@ export function generateCacheKey(section, filters) {
         brandsOverviewCategory = '',
         // New filters for Visibility Analysis
         zone = '',
+        zones = '', // Plural match for many APIs
         metroFlag = '',
         pincode = '',
         channel = '',
+        // Drill-down specific
+        drillDimension = '',
+        includeBreakdown = '',
         // Advanced SKU Search Filters
         skuName = '',
         skuCode = ''
@@ -80,9 +84,13 @@ export function generateCacheKey(section, filters) {
     if (region && region !== 'all') key += `:reg_${normalize(region)}`;
 
     // Visibility filters
-    if (zone && zone !== 'all' && zone !== 'All') key += `:zn_${normalize(zone)}`;
+    const z = zones || zone;
+    if (z && z !== 'all' && z !== 'All') key += `:zn_${normalize(z)}`;
     if (metroFlag && metroFlag !== 'all' && metroFlag !== 'All') key += `:mf_${normalize(metroFlag)}`;
     if (pincode && pincode !== 'all' && pincode !== 'All') key += `:pc_${normalize(pincode)}`;
+
+    if (drillDimension) key += `:ddim_${normalize(drillDimension)}`;
+    if (includeBreakdown) key += `:ibd_${includeBreakdown}`;
 
     if (category && category !== 'all') key += `:cat_${normalize(category)}`;
 
