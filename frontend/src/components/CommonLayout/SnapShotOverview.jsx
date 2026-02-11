@@ -529,7 +529,7 @@ const SnapshotOverview = ({
         }));
 
         if (sosItem) {
-            topRowItems.push({
+            const sosKpi = {
                 id: 'sos_top',
                 title: 'Share of Search',
                 value: sosItem.value,
@@ -538,7 +538,20 @@ const SnapshotOverview = ({
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
                 trendSeries: makeSeries(35, 30, 0.12)
-            });
+            };
+
+            // Find Market Share to swap
+            const marketShareIndex = topRowItems.findIndex(k => normalize(k.title) === 'market_share');
+
+            if (marketShareIndex !== -1) {
+                // Swap: Put SOS at Market Share index, push Market Share to end
+                const marketShareItem = topRowItems[marketShareIndex];
+                topRowItems[marketShareIndex] = sosKpi;
+                topRowItems.push(marketShareItem);
+            } else {
+                // Default: Append to end
+                topRowItems.push(sosKpi);
+            }
         }
 
         // --- Bottom Row Logic ---
