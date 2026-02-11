@@ -954,7 +954,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const escapeStrMain = (str) => str ? str.replace(/'/g, "''") : '';
         const buildOfftakeConditions = () => {
             // Use toDate(DATE) since DATE column is String type
-            const conditions = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+            const conditions = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
             if (brandArr && brandArr.length > 0) {
                 const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
                 conditions.push(`(${brandConds})`);
@@ -4795,7 +4795,7 @@ const getCategoryOverview = async (filters) => {
     const catPlatform = categoryOverviewPlatform || filters.platform || 'All';
 
     // Calculate date range
-    let endDate = dayjs().endOf('day');
+    let endDate = await getCachedMaxDate();
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
@@ -5015,7 +5015,7 @@ const getBrandsOverview = async (filters) => {
     const boCategory = brandsOverviewCategory || filters.category || 'All';
 
     // Calculate date range
-    let endDate = dayjs().endOf('day');
+    let endDate = await getCachedMaxDate();
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
@@ -7075,7 +7075,7 @@ const getSkuOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate date range
-    let endDate = dayjs().endOf('day');
+    let endDate = await getCachedMaxDate();
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
@@ -7214,7 +7214,7 @@ const getCityOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate date range
-    let endDate = dayjs().endOf('day');
+    let endDate = await getCachedMaxDate();
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');

@@ -285,6 +285,15 @@ function WatchTower() {
   const [brandsOverviewData, setBrandsOverviewData] = useState(null);
   const [brandsOverviewLoading, setBrandsOverviewLoading] = useState(false);
 
+  // Sync section platforms with global platform filter
+  useEffect(() => {
+    if (platform) {
+      setMonthOverviewPlatform(platform);
+      setCategoryOverviewPlatform(platform);
+      setBrandsOverviewPlatform(platform);
+    }
+  }, [platform]);
+
   // Performance Matrix state for new dimensions (SKU, City)
   const [performanceMatrixDimension, setPerformanceMatrixDimension] = useState('platform');
   const [skuOverviewData, setSkuOverviewData] = useState([]);
