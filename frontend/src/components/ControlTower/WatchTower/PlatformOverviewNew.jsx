@@ -177,9 +177,9 @@ const PlatformOverviewNew = ({
         },
     }
     // Generate mock data for each entity (same as App.jsx)
-    function generateEntityData(entityKey, entityIdx) {
+    // Note: context is now defined in useMemo to ensure it updates with filter changes
+    function generateEntityData(entityKey, entityIdx, context) {
         const data = {}
-        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
 
         kpis.forEach((kpi, kpiIdx) => {
             const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
@@ -189,9 +189,15 @@ const PlatformOverviewNew = ({
             let value, deltaVal
             switch (kpi.key) {
                 case 'offtakes':
-                case 'spend':
-                case 'roas':
                     value = `₹${val} Cr`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
+                    break
+                case 'spend':
+                    value = `₹${val} L`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
+                    break
+                case 'roas':
+                    value = `${val.toFixed(1)}`
                     deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
                     break
                 case 'availability':
@@ -245,9 +251,12 @@ const PlatformOverviewNew = ({
     const kpiCount = selectedKpis.length
 
     const entities = useMemo(() => {
+        // Define context here so it updates when filter values change
+        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+
         return currentDimension.entities.map((e, idx) => ({
             ...e,
-            data: generateEntityData(e.key, idx)
+            data: generateEntityData(e.key, idx, context)
         }))
     }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd])
 

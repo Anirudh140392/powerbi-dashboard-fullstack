@@ -202,7 +202,7 @@ export default function WatchTower() {
     },
     {
       id: 'promo',
-      title: 'Promo Spends',
+      title: 'Promo',
       value: `${getLogicalKpiValue('promo', context)}%`,
       delta: -getLogicalKpiValue('promodelta', context) / 5,
       deltaLabel: `-${(getLogicalKpiValue('promodelta', context) / 100).toFixed(2)} pts`,
@@ -253,7 +253,7 @@ export default function WatchTower() {
     {
       id: 'roas',
       title: 'ROAS',
-      value: `${getLogicalKpiValue('roas', context)}x`,
+      value: `${getLogicalKpiValue('roas', context)}`,
       delta: getLogicalKpiValue('roasdelta', context) * 1.5,
       deltaLabel: `+${(getLogicalKpiValue('roasdelta', context) / 20).toFixed(1)}x`,
       icon: DollarSign,
@@ -584,7 +584,7 @@ const FormatPerformanceStudio = ({ rows }) => {
       activeValue: active.offtakes,
       compareValue: compare?.offtakes ?? null,
       max: 100,
-      format: (v) => `${v}`,
+      format: (v) => `${v} Cr`,
     },
     {
       key: "spend",
@@ -592,7 +592,7 @@ const FormatPerformanceStudio = ({ rows }) => {
       activeValue: active.spend,
       compareValue: compare?.spend ?? null,
       max: 20,
-      format: (v) => `₹${v}`,
+      format: (v) => `₹${v} L`,
     },
     {
       key: "roas",
@@ -742,7 +742,7 @@ const FormatPerformanceStudio = ({ rows }) => {
                         fontSize: "0.75rem",
                       }}
                     >
-                      Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
+                      Offtakes {f.offtakes} Cr · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
                 </div>
@@ -796,7 +796,7 @@ const FormatPerformanceStudio = ({ rows }) => {
               <div className="flex flex-col items-end gap-1 text-right">
                 <div className="text-[10px] text-slate-500">Offtakes</div>
                 <div className="text-lg font-semibold">
-                  {formatNumber(active.offtakes)}
+                  {formatNumber(active.offtakes)} Cr
                 </div>
                 <div className="mt-1 text-[10px] text-slate-500">
                   Market share

@@ -593,9 +593,10 @@ const VisiblityAnalysisData = () => {
     timeEnd
   } = useContext(FilterContext);
 
-  const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
-
   const visibilityKpis = useMemo(() => {
+    // User request: restrict Visibility Overview cards to ONLY change on Platform
+    const platformContext = { platform: globalPlatform };
+
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
@@ -604,22 +605,30 @@ const VisiblityAnalysisData = () => {
       ['#8b5cf6', '#a855f7']
     ];
 
+    // Map titles to keys that exist in data center or fall back to defaults
+    const titleToKey = {
+      "Overall Weighted SOS": "sos",
+      "Sponsored Weighted SOS": "promomybrand", // Approximation for sponsored
+      "Organic Weighted SOS": "market", // Approximation for organic
+      "Display SOS": "dspSales" // Approximation for display
+    };
+
     return cards.map((card, idx) => {
-      const kpiKey = card.title.toLowerCase();
-      const val = getLogicalKpiValue(kpiKey, context);
-      const isUp = getLogicalKpiValue(kpiKey + 'dir', context) > 50;
-      const delta = (getLogicalKpiValue(kpiKey + 'delta', context) / 20).toFixed(1);
+      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
+      const val = getLogicalKpiValue(kpiKey, platformContext);
+      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
+      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
 
       return {
         id: `vis-${idx}`,
         title: card.title,
-        value: `${val}%`,
+        value: `${val.toFixed(1)}%`,
         subtitle: card.sub,
         delta: parseFloat(delta),
         deltaLabel: `${isUp ? '▲' : '▼'} ${delta} pts`,
         icon: icons[idx] || PieChart,
         gradient: gradients[idx % gradients.length],
-        trend: getLogicalKpiTrend(kpiKey, context),
+        trend: getLogicalKpiTrend(kpiKey, platformContext),
 
         extra: card.extra,
         extraChange: card.extraChange,
@@ -627,7 +636,7 @@ const VisiblityAnalysisData = () => {
         prevText: card.prevText
       };
     });
-  }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [globalPlatform]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
@@ -768,19 +777,33 @@ const VisiblityAnalysisData = () => {
 
     // 🔥 Utility to compute unified trend + series for ANY item
     const buildRows = (dataArray = [], columnList = [], context = {}) => {
+      // Map readable titles to data center keys
+      const kpiMap = {
+        "Overall Weighted SOS": "sos",
+        "Sponsored Weighted SOS": "promomybrand", // Approximation
+        "Organic Weighted SOS": "market", // Approximation
+        "Display SOS": "dspSales" // Approximation
+      };
+
       return dataArray.map((item) => {
         const trendObj = {};
         const seriesObj = {};
 
+        // Resolve the correct data key if present, else fallback
+        const dataKey = kpiMap[item.kpi] || item.kpi;
+
         columnList.forEach((col) => {
-          const seed = { ...context, kpi: item.kpi, col };
-          const randomVal = getLogicalKpiValue(item.kpi, seed);
-          const randomTrendSeries = getLogicalKpiTrend(item.kpi, seed);
+          const seed = { ...context, kpi: dataKey, col };
+          const randomVal = getLogicalKpiValue(dataKey, seed);
+          const randomTrendSeries = getLogicalKpiTrend(dataKey, seed);
           const validTrend = randomTrendSeries.length >= 2;
 
           const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
-          const prevTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 2] : 0;
-          const trendDelta = Number((lastTrendVal - prevTrendVal).toFixed(1));
+
+          // Use logical delta and direction for consistent 5-7% reporting
+          const logicalDelta = getLogicalKpiValue(dataKey + 'delta', seed);
+          const logicalDir = getLogicalKpiValue(dataKey + 'dir', seed);
+          const trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
 
           trendObj[col] = trendDelta;
           seriesObj[col] = randomTrendSeries;
@@ -800,6 +823,8 @@ const VisiblityAnalysisData = () => {
 
     // ---------------- TABS ----------------
     const tabs = useMemo(() => {
+      const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+
       // ---------------- PLATFORM ----------------
       const platformData = {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
