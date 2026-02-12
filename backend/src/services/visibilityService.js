@@ -28,7 +28,8 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
                 ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
                 ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
             FROM rb_kw
-            WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+            WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND keyword_search_rank < 11
               AND ${platformCondition}
               AND ${locationCondition}
         `;
@@ -73,12 +74,13 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
 
         const query = `
             SELECT 
-                toDate(kw_crawl_date) as crawl_date,
+                toDate(created_on) as crawl_date,
                 ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
                 ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
                 ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
             FROM rb_kw
-            WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+            WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND keyword_search_rank < 11
               AND ${platformCondition}
               AND ${locationCondition}
             GROUP BY crawl_date
@@ -768,7 +770,7 @@ class VisibilityService {
                 const replacements = { startDate, endDate };
 
                 // Base WHERE clause
-                let baseWhere = `toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'`;
+                let baseWhere = `toDate(created_on) BETWEEN '${startDate}' AND '${endDate}' AND keyword_search_rank < 11`;
 
                 // Apply platform filter if provided
                 if (filters.platform && filters.platform !== 'All') {
@@ -843,7 +845,7 @@ class VisibilityService {
                 const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
 
                 // Base WHERE for previous period
-                let prevBaseWhere = `toDate(kw_crawl_date) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                let prevBaseWhere = `toDate(created_on) BETWEEN '${prevStart}' AND '${prevEnd}' AND keyword_search_rank < 11`;
                 if (filters.platform && filters.platform !== 'All') {
                     prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
                 }
@@ -869,8 +871,8 @@ class VisibilityService {
                 // Query builder helper for current/prev/sparkline
                 const getMatrixQueries = (dimColumn, dimAlias, filtersToExclude = []) => {
                     // Build filtered where clauses for this specific matrix
-                    let currentWhere = `toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'`;
-                    let prevWhere = `toDate(kw_crawl_date) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                    let currentWhere = `toDate(created_on) BETWEEN '${startDate}' AND '${endDate}' AND keyword_search_rank < 11`;
+                    let prevWhere = `toDate(created_on) BETWEEN '${prevStart}' AND '${prevEnd}' AND keyword_search_rank < 11`;
 
                     // Helper to add condition if not excluded
                     const addCond = (val, col, exclusionKeys) => {
@@ -936,7 +938,7 @@ class VisibilityService {
                     const sparkline = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            toDate(kw_crawl_date) as date,
+                            toDate(created_on) as date,
                             ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
@@ -1068,11 +1070,12 @@ class VisibilityService {
                     whereConditions.push(locCond);
                 }
                 if (filters.startDate && filters.endDate) {
-                    whereConditions.push(`toDate(kw_crawl_date) BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
+                    whereConditions.push(`toDate(created_on) BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
                 } else {
                     // Default to latest date using subquery for precision
-                    whereConditions.push("toDate(kw_crawl_date) = (SELECT MAX(toDate(kw_crawl_date)) FROM rb_kw)");
+                    whereConditions.push("toDate(created_on) = (SELECT MAX(toDate(created_on)) FROM rb_kw)");
                 }
+                whereConditions.push("keyword_search_rank < 11");
 
                 const sosBrandCondition = buildCHCondition(filters.brand, 'brand_name', { isBrand: true });
 
@@ -1269,9 +1272,9 @@ class VisibilityService {
 
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
-                    SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                    SELECT MAX(toDate(created_on)) as maxDate
                     FROM rb_kw
-                    WHERE kw_crawl_date IS NOT NULL
+                    WHERE created_on IS NOT NULL
                 `);
                 const maxDate = maxDateRes[0]?.maxDate;
 
@@ -1279,10 +1282,11 @@ class VisibilityService {
                     return { terms: [] };
                 }
 
-                let dateCondition = `toDate(kw_crawl_date) = '${maxDate}'`;
+                let dateCondition = `toDate(created_on) = '${maxDate}'`;
                 if (filters.startDate && filters.endDate) {
-                    dateCondition = `toDate(kw_crawl_date) BETWEEN '${dayjs(filters.startDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.endDate).format('YYYY-MM-DD')}'`;
+                    dateCondition = `toDate(created_on) BETWEEN '${dayjs(filters.startDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.endDate).format('YYYY-MM-DD')}'`;
                 }
+                dateCondition += ` AND keyword_search_rank < 11`;
 
                 // 2. Aggregate metrics for keywords
                 const typeFilter = filters.filter && filters.filter !== 'All'
@@ -1323,8 +1327,9 @@ class VisibilityService {
                         brand_name,
                         count() as brand_count
                     FROM rb_kw
-                    WHERE toDate(kw_crawl_date) = '${maxDate}'
+                    WHERE toDate(created_on) = '${maxDate}'
                       AND keyword IN (${keywordList})
+                      AND keyword_search_rank < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
                     GROUP BY keyword, brand_name
@@ -1390,9 +1395,10 @@ class VisibilityService {
 
                 // 1. Get two most recent crawl dates for this keyword
                 const dateQuery = `
-                    SELECT DISTINCT toDate(kw_crawl_date) as crawl_date
+                    SELECT DISTINCT toDate(created_on) as crawl_date
                     FROM rb_kw
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
+                      AND keyword_search_rank < 11
                     ORDER BY crawl_date DESC
                     LIMIT 2
                 `;
@@ -1407,13 +1413,14 @@ class VisibilityService {
                 const drilldownQuery = `
                     SELECT 
                         brand_name,
-                        toDate(kw_crawl_date) as crawl_date,
+                        toDate(created_on) as crawl_date,
                         count() as brand_results,
                         countIf(toString(spons_flag) != '1') as brand_organic,
                         countIf(toString(spons_flag) = '1') as brand_sponsored
                     FROM rb_kw
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
-                      AND toDate(kw_crawl_date) IN ('${latestDate}', '${previousDate}')
+                      AND toDate(created_on) IN ('${latestDate}', '${previousDate}')
+                      AND keyword_search_rank < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
                     GROUP BY brand_name, crawl_date
@@ -1423,10 +1430,11 @@ class VisibilityService {
 
                 // 3. Get total results per date for SOS normalization
                 const totalsQuery = `
-                    SELECT toDate(kw_crawl_date) as crawl_date, count() as total 
+                    SELECT toDate(created_on) as crawl_date, count() as total 
                     FROM rb_kw 
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
-                      AND toDate(kw_crawl_date) IN ('${latestDate}', '${previousDate}')
+                      AND toDate(created_on) IN ('${latestDate}', '${previousDate}')
+                      AND keyword_search_rank < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
                     GROUP BY crawl_date
@@ -1522,12 +1530,12 @@ class VisibilityService {
                     return { options };
                 }
 
-                // MONTHS: from rb_kw.kw_crawl_date
+                // MONTHS: from rb_kw.created_on
                 if (filterType === 'months') {
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT toStartOfMonth(toDate(kw_crawl_date)) as date
+                    SELECT DISTINCT toStartOfMonth(toDate(created_on)) as date
                     FROM rb_kw
-                    WHERE kw_crawl_date IS NOT NULL
+                    WHERE created_on IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 12
                 `);
@@ -1535,12 +1543,18 @@ class VisibilityService {
                     return { options };
                 }
 
-                // DATES: from rb_kw.kw_crawl_date (Active Dates) - This was removed in the new implementation, keeping it for now as it was not explicitly removed.
-                // If the intention was to remove it, it should be removed. For now, I'll assume the new code is additive/replacement for specific filter types.
-                // However, the new code structure implies a complete replacement of the function's logic.
-                // Given the instruction "Migrate filtering and trends logic to ClickHouse" and the provided code block,
-                // it seems the intent is to replace the entire function with the ClickHouse-based logic.
-                // The new code does not have a 'dates' filter type. So, the old 'dates' filter type should be removed.
+                // DATES: from rb_kw.created_on (Active Dates)
+                if (filterType === 'dates') {
+                    const results = await queryClickHouse(`
+                    SELECT DISTINCT toDate(created_on) as date
+                    FROM rb_kw
+                    WHERE created_on IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT 30
+                `);
+                    const options = results.map(r => dayjs(r.date).format('YYYY-MM-DD')).filter(Boolean);
+                    return { options };
+                }
 
                 // FORMATS (Category): from rca_sku_dim.category where status = 1
                 if (filterType === 'formats') {
@@ -1578,12 +1592,12 @@ class VisibilityService {
                     return { options };
                 }
 
-                // DATES: from rb_kw.kw_crawl_date
+                // DATES: from rb_kw.created_on
                 if (filterType === 'dates') {
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT toDate(kw_crawl_date) as date
+                    SELECT DISTINCT toDate(created_on) as date
                     FROM rb_kw
-                    WHERE kw_crawl_date IS NOT NULL
+                    WHERE created_on IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 60
                 `);
@@ -1700,9 +1714,9 @@ class VisibilityService {
 
                 // Get the max date from rb_kw table - ClickHouse
                 const results = await queryClickHouse(`
-                SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                SELECT MAX(toDate(created_on)) as maxDate
                 FROM rb_kw
-                WHERE kw_crawl_date IS NOT NULL
+                WHERE created_on IS NOT NULL
             `);
 
                 const maxDate = results[0]?.maxDate;
@@ -1770,9 +1784,9 @@ class VisibilityService {
                 } else {
                     // Fetch the latest available date from ClickHouse
                     const maxDateRes = await queryClickHouse(`
-                        SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                        SELECT MAX(toDate(created_on)) as maxDate
                         FROM rb_kw
-                        WHERE kw_crawl_date IS NOT NULL
+                        WHERE created_on IS NOT NULL
                     `);
                     const maxDate = maxDateRes[0]?.maxDate;
 
@@ -1804,14 +1818,14 @@ class VisibilityService {
                 const timeStep = filters.timeStep || 'Daily';
 
                 if (timeStep === 'Weekly') {
-                    dateAggregation = 'toStartOfWeek(toDate(kw_crawl_date), 1)'; // 1 for Monday
+                    dateAggregation = 'toStartOfWeek(toDate(created_on), 1)'; // 1 for Monday
                     dateFormat = "DD MMM'YY";
                 } else if (timeStep === 'Monthly') {
-                    dateAggregation = 'toStartOfMonth(toDate(kw_crawl_date))';
+                    dateAggregation = 'toStartOfMonth(toDate(created_on))';
                     dateFormat = "MMM 'YY";
                 } else {
                     // Default to Daily
-                    dateAggregation = 'toDate(kw_crawl_date)';
+                    dateAggregation = 'toDate(created_on)';
                     dateFormat = "DD MMM'YY";
                 }
 
@@ -1824,7 +1838,8 @@ class VisibilityService {
                     ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
                     ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR spons_flag = '1')) * 100.0 / nullIf(count(), 0), 2) AS display_sos
                 FROM rb_kw
-                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND keyword_search_rank < 11
                   AND ${platformCondition}
                   AND ${locationCondition}
                 GROUP BY crawl_date
@@ -1868,9 +1883,9 @@ class VisibilityService {
             try {
                 // First, get the latest available date from ClickHouse
                 const maxDateRes = await queryClickHouse(`
-                SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                SELECT MAX(toDate(created_on)) as maxDate
                 FROM rb_kw
-                WHERE kw_crawl_date IS NOT NULL
+                WHERE created_on IS NOT NULL
             `);
 
                 const maxDate = maxDateRes[0]?.maxDate;
@@ -1922,10 +1937,11 @@ class VisibilityService {
                 // 1. Get total volume for both periods
                 const volumeQuery = `
                 SELECT 
-                    countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}') as current_total,
-                    countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total
+                    countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') as current_total,
+                    countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total
                 FROM rb_kw
-                WHERE (toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
+                WHERE (toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
+                  AND keyword_search_rank < 11
                 ${allFilters}
             `;
 
@@ -1939,15 +1955,16 @@ class VisibilityService {
                 const brandQuery = `
                 SELECT 
                     brand_crawl as brand_name,
-                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
-                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
-                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
-                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
-                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) = '1') * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
-                    ROUND(countIf(toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) != '1') * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
-                    countIf(toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
+                    ROUND(countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
+                    ROUND(countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
+                    ROUND(countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
+                    ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
+                    ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) = '1') * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
+                    ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) != '1') * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
+                    countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
                 FROM rb_kw
-                WHERE (toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(kw_crawl_date) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
+                WHERE (toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
+                  AND keyword_search_rank < 11
                   ${allFilters}
                   AND brand_crawl IS NOT NULL AND brand_crawl != ''
                   AND toString(is_competitor_product) = '1'
@@ -1985,7 +2002,8 @@ class VisibilityService {
                     ROUND(countIf(toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS organic_sos,
                     count() as impressions
                 FROM rb_kw
-                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND keyword_search_rank < 11
                   ${allFilters}
                   AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
                   AND toString(is_competitor_product) = '1'
@@ -2059,9 +2077,9 @@ class VisibilityService {
                 } else {
                     // Fetch the latest available date from ClickHouse
                     const maxDateRes = await queryClickHouse(`
-                        SELECT MAX(toDate(kw_crawl_date)) as maxDate
+                        SELECT MAX(toDate(created_on)) as maxDate
                         FROM rb_kw
-                        WHERE kw_crawl_date IS NOT NULL
+                        WHERE created_on IS NOT NULL
                     `);
                     const maxDate = maxDateRes[0]?.maxDate;
 
@@ -2085,14 +2103,14 @@ class VisibilityService {
                 const timeStep = filters.timeStep || 'Daily';
 
                 if (timeStep === 'Weekly') {
-                    dateAggregation = 'toStartOfWeek(toDate(kw_crawl_date), 1)'; // 1 for Monday
+                    dateAggregation = 'toStartOfWeek(toDate(created_on), 1)'; // 1 for Monday
                     dateFormat = "DD MMM'YY";
                 } else if (timeStep === 'Monthly') {
-                    dateAggregation = 'toStartOfMonth(toDate(kw_crawl_date))';
+                    dateAggregation = 'toStartOfMonth(toDate(created_on))';
                     dateFormat = "MMM 'YY";
                 } else {
                     // Default to Daily
-                    dateAggregation = 'toDate(kw_crawl_date)';
+                    dateAggregation = 'toDate(created_on)';
                     dateFormat = "DD MMM'YY";
                 }
 
@@ -2106,7 +2124,8 @@ class VisibilityService {
                     ${dateAggregation} as crawl_date,
                     count() as total_volume
                 FROM rb_kw
-                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND keyword_search_rank < 11
                   AND ${platformCondition}
                   AND ${locationCondition}
                 GROUP BY crawl_date
@@ -2133,7 +2152,8 @@ class VisibilityService {
                     countIf(toString(spons_flag) != '1') as organic_volume,
                     countIf(toDate(created_on) < '2025-01-01' OR spons_flag = '1') as display_volume
                 FROM rb_kw
-                WHERE toDate(kw_crawl_date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND keyword_search_rank < 11
                   AND ${platformCondition}
                   AND ${locationCondition}
                   AND ${brandsCondition}

@@ -42,7 +42,7 @@ async function getVisibilitySignals(filters = {}) {
         }
 
         // Build WHERE clauses for ClickHouse
-        let whereConditions = [`toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'`];
+        let whereConditions = [`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`, `keyword_search_rank < 11`];
 
         if (platform && platform !== 'All') {
             whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
@@ -172,7 +172,7 @@ async function getVisibilitySignalCityDetails(params = {}) {
         const currentStart = startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
         // Build WHERE conditions for ClickHouse
-        let whereConditions = [`toDate(kw_crawl_date) BETWEEN '${currentStart}' AND '${currentEnd}'`];
+        let whereConditions = [`toDate(created_on) BETWEEN '${currentStart}' AND '${currentEnd}'`, `keyword_search_rank < 11`];
 
         if (platform && platform !== 'All') {
             whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);

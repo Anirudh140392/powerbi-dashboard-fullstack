@@ -625,9 +625,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
 
 
-                // Build base conditions - use toDate() since kw_crawl_date is datetime string
+                // Build base conditions - use toDate() for ClickHouse date comparison
                 const baseConditions = [];
-                baseConditions.push(`toDate(kw_crawl_date) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`);
+                baseConditions.push(`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`);
+                baseConditions.push(`keyword_search_rank < 11`);
 
                 if (categoryFilter && categoryFilter !== 'All') {
                     baseConditions.push(`keyword_category = '${escapeStr(categoryFilter)}'`);
@@ -733,6 +734,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Build base conditions for ClickHouse
                 const buildBaseConditions = () => {
                     const conditions = [];
+                    conditions.push(`keyword_search_rank < 11`);
                     if (categoryFilter) {
                         conditions.push(`lower(keyword_category) = '${escapeStr(categoryFilter.toLowerCase())}'`);
                     }
@@ -765,7 +767,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT brand_name, count() as count
                         FROM rb_kw
-                        WHERE kw_crawl_date BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
+                        WHERE toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
                         AND brand_name IN (${brandInClause})
                         ${baseCondStr}
                         GROUP BY brand_name
@@ -774,14 +776,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT count() as cnt
                         FROM rb_kw
-                        WHERE kw_crawl_date BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
+                        WHERE toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
                         ${baseCondStr}
                     `),
                     // Query 3: Get counts for ALL brands (previous period)
                     queryClickHouse(`
                         SELECT brand_name, count() as count
                         FROM rb_kw
-                        WHERE kw_crawl_date BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
+                        WHERE toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
                         AND brand_name IN (${brandInClause})
                         ${baseCondStr}
                         GROUP BY brand_name
@@ -790,7 +792,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     queryClickHouse(`
                         SELECT count() as cnt
                         FROM rb_kw
-                        WHERE kw_crawl_date BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
+                        WHERE toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
                         ${baseCondStr}
                     `)
                 ]);
@@ -1257,7 +1259,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // 10. Share of Search Trend Data - USING CLICKHOUSE
             (async () => {
                 try {
-                    const kwBaseConditions = [`kw_crawl_date BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+                    const kwBaseConditions = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
                     if (category) kwBaseConditions.push(`lower(keyword_category) = '${escapeStrMain(category.toLowerCase())}'`);
                     if (locationArr && locationArr.length > 0) {
                         if (locationArr.length === 1) {
@@ -1295,16 +1297,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const [brandWeekCounts, totalWeekCounts] = await Promise.all([
                         queryClickHouse(`
-                            SELECT toMonday(toDate(kw_crawl_date)) as week, count() as count
+                            SELECT toMonday(toDate(created_on)) as week, count() as count
                             FROM rb_kw
                             WHERE ${numeratorConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(kw_crawl_date))
+                            GROUP BY toMonday(toDate(created_on))
                         `),
                         queryClickHouse(`
-                            SELECT toMonday(toDate(kw_crawl_date)) as week, count() as count
+                            SELECT toMonday(toDate(created_on)) as week, count() as count
                             FROM rb_kw
                             WHERE ${kwBaseConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(kw_crawl_date))
+                            GROUP BY toMonday(toDate(created_on))
                         `)
                     ]);
 
@@ -1884,7 +1886,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const sosEndDate = last7Months[6].end;
 
                     const sosBaseConds = [
-                        `toDate(kw_crawl_date) BETWEEN '${sosStartDate.format('YYYY-MM-DD')}' AND '${sosEndDate.format('YYYY-MM-DD')}'`
+                        `toDate(created_on) BETWEEN '${sosStartDate.format('YYYY-MM-DD')}' AND '${sosEndDate.format('YYYY-MM-DD')}'`,
+                        `keyword_search_rank < 11`
                     ];
                     if (platform && platform !== 'All') sosBaseConds.push(`platform_name = '${sosEscapeStr(platform)}'`);
                     if (location && location !== 'All') sosBaseConds.push(`location_name = '${sosEscapeStr(location)}'`);
@@ -1905,14 +1908,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     // 2 queries instead of 14
                     const [sosNumByMonth, sosDenomByMonth] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, count() as count
                             FROM rb_kw WHERE ${sosNumConds.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, count() as count
                             FROM rb_kw WHERE ${sosBaseConds.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
                         `)
                     ]);
 
@@ -2764,7 +2767,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     // Query 3: SOS grouped by month (numerator and denominator)
                     (async () => {
                         const sosBaseConds = [
-                            `toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
+                            `toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
+                            `keyword_search_rank < 11`,
                             `platform_name = '${escapeStrMo(moPlatform)}'`
                         ];
                         if (category && category !== 'All') sosBaseConds.push(`keyword_category = '${escapeStrMo(category)}'`);
@@ -2789,14 +2793,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                         const [numByMonth, denomByMonth] = await Promise.all([
                             queryClickHouse(`
-                                SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                                SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, count() as count
                                 FROM rb_kw WHERE ${sosNumConds.join(' AND ')}
-                                GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                                GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
                             `),
                             queryClickHouse(`
-                                SELECT formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month, count() as count
+                                SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, count() as count
                                 FROM rb_kw WHERE ${sosBaseConds.join(' AND ')}
-                                GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                                GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
                             `)
                         ]);
                         return { num: numByMonth, denom: denomByMonth };
@@ -3773,15 +3777,15 @@ const computeTrendData = async (filters) => {
         if (timeStep === 'Monthly') {
             groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-01')`;
             groupExpressionMs = `formatDateTime(toDate(created_on), '%Y-%m-01')`;
-            groupExpressionKw = `formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')`;
+            groupExpressionKw = `formatDateTime(toDate(created_on), '%Y-%m-01')`;
         } else if (timeStep === 'Weekly') {
             groupExpression = `toYearWeek(toDate(DATE), 1)`;
             groupExpressionMs = `toYearWeek(toDate(created_on), 1)`;
-            groupExpressionKw = `toYearWeek(toDate(kw_crawl_date), 1)`;
+            groupExpressionKw = `toYearWeek(toDate(created_on), 1)`;
         } else { // Daily
             groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-%d')`;
             groupExpressionMs = `formatDateTime(toDate(created_on), '%Y-%m-%d')`;
-            groupExpressionKw = `formatDateTime(toDate(kw_crawl_date), '%Y-%m-%d')`;
+            groupExpressionKw = `formatDateTime(toDate(created_on), '%Y-%m-%d')`;
         }
 
         // 3. Build WHERE conditions for rb_pdp_olap
@@ -3871,7 +3875,7 @@ const computeTrendData = async (filters) => {
         // 5. Query Share of Search (SOV) using ClickHouse
         // Platform Overview formula: No spons_flag filter, uses keyword_is_rb_product=1 for our brands
         const buildSosConds = () => {
-            const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+            const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
             if (category && category !== 'All') conds.push(`keyword_category = '${escapeStr(category)}'`);
             if (location && location !== 'All') conds.push(`location_name = '${escapeStr(location)}'`);
             if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
@@ -4149,7 +4153,7 @@ const getPlatformOverview = async (filters) => {
 
     // Build base conditions for rb_kw (SOS)
     const buildSosConds = (start, end) => {
-        const conds = [`toDate(kw_crawl_date) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
+        const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         if (locationArr && locationArr.length > 0) {
             conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
@@ -4188,7 +4192,10 @@ const getPlatformOverview = async (filters) => {
     const prevSosConds = buildSosConds(momStart, momEnd);
 
     // Get valid brand names for market share
-    const validBrandResult = await queryClickHouse(`SELECT DISTINCT brand_name FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL`);
+    const validBrandResult = await queryClickHouse(`
+            SELECT DISTINCT brand_name 
+            FROM rca_sku_dim 
+            WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL`);
     const validBrandNames = validBrandResult.map(b => b.brand_name).filter(Boolean);
     // Handle brand being either a string or an array
     const brandsForNumerator = (brand && brand !== 'All')
@@ -4639,7 +4646,7 @@ const getMonthOverview = async (filters) => {
 
     // Build SOS conditions
     const buildSosMoConds = () => {
-        const conds = [`toDate(kw_crawl_date) BETWEEN '${fetchStartDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+        const conds = [`toDate(created_on) BETWEEN '${fetchStartDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         const pCond = buildPlatformChannelCond(moPlatform, channel);
         if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
         else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
@@ -4701,19 +4708,19 @@ const getMonthOverview = async (filters) => {
                 `),
         queryClickHouse(`
                     SELECT 
-                        formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month_date,
+                        formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
                         count() as count
                     FROM rb_kw
                     WHERE ${sosMoConds} AND toString(keyword_is_rb_product) = '1'
-                    GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                    GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
                 `),
         queryClickHouse(`
                     SELECT 
-                        formatDateTime(toDate(kw_crawl_date), '%Y-%m-01') as month_date,
+                        formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
                         count() as count
                     FROM rb_kw
                     WHERE ${sosMoConds}
-                    GROUP BY formatDateTime(toDate(kw_crawl_date), '%Y-%m-01')
+                    GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
                 `),
         queryClickHouse(`
                     SELECT 
@@ -4891,7 +4898,7 @@ const getCategoryOverview = async (filters) => {
 
     // Build SOS conditions for rb_kw
     const buildSosCatConds = (sDate, eDate) => {
-        const conds = [`toDate(kw_crawl_date) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         const pCond = buildPlatformChannelCond(catPlatform, channel);
         if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
         else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
@@ -5097,7 +5104,7 @@ const getBrandsOverview = async (filters) => {
 
     // Build SOS conditions for rb_kw
     const buildSosBrandConds = (sDate, eDate) => {
-        const conds = [`toDate(kw_crawl_date) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         const platformArr = normalizeFilterArray(boPlatform);
         const pCond = buildPlatformChannelCond(boPlatform, channel);
         if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
@@ -5310,15 +5317,15 @@ const getKpiTrends = async (filters) => {
     if (timeStep === 'Monthly') {
         groupFormat = '%Y-%m-01';
         groupExpression = `formatDateTime(toDate(DATE), '${groupFormat}')`;
-        groupExpressionKw = `formatDateTime(toDate(kw_crawl_date), '${groupFormat}')`;
+        groupExpressionKw = `formatDateTime(toDate(created_on), '${groupFormat}')`;
     } else if (timeStep === 'Weekly') {
         groupFormat = 'WEEK';
         groupExpression = `toYearWeek(toDate(DATE), 1)`;
-        groupExpressionKw = `toYearWeek(toDate(kw_crawl_date), 1)`;
+        groupExpressionKw = `toYearWeek(toDate(created_on), 1)`;
     } else { // Daily
         groupFormat = '%Y-%m-%d';
         groupExpression = `formatDateTime(toDate(DATE), '${groupFormat}')`;
-        groupExpressionKw = `formatDateTime(toDate(kw_crawl_date), '${groupFormat}')`;
+        groupExpressionKw = `formatDateTime(toDate(created_on), '${groupFormat}')`;
     }
 
     // Helper to escape strings for ClickHouse
@@ -5373,7 +5380,7 @@ const getKpiTrends = async (filters) => {
 
     // Build SOS base conditions (matching Platform Overview - no spons_flag filter)
     const buildSosConds = () => {
-        const conds = [`toDate(kw_crawl_date) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+        const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         if (category && category !== 'All') conds.push(`keyword_category = '${escapeStr(category)}'`);
         if (location && location !== 'All') conds.push(`location_name = '${escapeStr(location)}'`);
         if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
@@ -6923,7 +6930,7 @@ const getRcaData = async (filters = {}) => {
 
         // Build conditions
         const buildConds = (table) => {
-            const dateCol = table === 'rb_kw' ? 'kw_crawl_date' : (table === 'test_brand_MS' ? 'created_on' : 'DATE');
+            const dateCol = table === 'rb_kw' ? 'toDate(created_on)' : (table === 'test_brand_MS' ? 'created_on' : 'DATE');
             const conds = [`toDate(${dateCol}) BETWEEN '${startStr}' AND '${endStr}'`];
 
             if (platform && platform !== 'All') {
