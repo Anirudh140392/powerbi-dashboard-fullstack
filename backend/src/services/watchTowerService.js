@@ -7211,7 +7211,7 @@ const getSkuOverview = async (filters) => {
 
         return {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)}`,
-            label: skuName.length > 30 ? skuName.substring(0, 30) + '...' : skuName,
+            label: skuName,
             type: "SKU",
             logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
             columns: generateKpiColumns({
@@ -7406,8 +7406,14 @@ const getCityOverview = async (filters) => {
         };
     });
 
-    console.log(`[getCityOverview] Returning ${cityOverview.length} cities`);
-    return cityOverview;
+    // Ensure 'Other' or 'Unknown' appear at the end
+    const sortedCityOverview = [
+        ...cityOverview.filter(c => c.label.toLowerCase() !== 'other' && c.label.toLowerCase() !== 'unknown'),
+        ...cityOverview.filter(c => c.label.toLowerCase() === 'other' || c.label.toLowerCase() === 'unknown')
+    ];
+
+    console.log(`[getCityOverview] Returning ${sortedCityOverview.length} cities`);
+    return sortedCityOverview;
 };
 
 export default {

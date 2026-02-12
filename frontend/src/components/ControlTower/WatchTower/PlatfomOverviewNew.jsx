@@ -445,7 +445,22 @@ const PlatformOverviewNew = ({
                                                 </span>
                                             </Tooltip>
                                         ) : (
-                                            <Tooltip title={e.name} arrow placement="top">
+                                            <Tooltip
+                                                title={e.name}
+                                                arrow
+                                                placement="top"
+                                                slotProps={{
+                                                    tooltip: {
+                                                        sx: {
+                                                            maxWidth: 400,
+                                                            whiteSpace: 'normal',
+                                                            wordBreak: 'break-word',
+                                                            fontSize: '12px',
+                                                            lineHeight: 1.4,
+                                                        }
+                                                    }
+                                                }}
+                                            >
                                                 <span className="text-[12px] font-semibold text-slate-700 truncate max-w-[250px] inline-block">
                                                     {e.name}
                                                 </span>
