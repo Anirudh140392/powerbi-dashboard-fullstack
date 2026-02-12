@@ -104,80 +104,67 @@ const KPI_ALIASES = {
 // MAIN LOOKUP FUNCTION — No randomness
 // ═══════════════════════════════════════════════════════════════
 function getLogicalKpiValue(kpi, filters = {}) {
-  // Helper to safely get string from potentially array input
   const safeStr = (val) => {
-    if (Array.isArray(val)) return val.length > 0 ? String(val[0]).toLowerCase() : '';
-    return String(val || '').toLowerCase();
+    if (Array.isArray(val)) return val.length > 0 ? String(val[0]).toLowerCase().trim() : '';
+    return String(val || '').toLowerCase().trim();
   };
 
   const rawKey = kpi.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const rowIdx = filters.entityIdx ?? 0;
+  const platform = safeStr(filters.entityKey || filters.col || filters.platform || 'all');
 
-  // Handle delta / direction requests
+  // 1. Handle deltas/dir with unique row-based hashing
   const isDelta = rawKey.endsWith('delta');
   const isDir = rawKey.endsWith('dir');
 
   if (isDelta || isDir) {
     const baseKpi = rawKey.replace(/delta$|dir$/, '');
-    const filterKey = filters.entityKey || filters.col || filters.platform || filters.selectedBrand || filters.p || 'blinkit';
-    const entityKey = safeStr(filterKey);
-    const hash = (entityKey + baseKpi).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    if (isDir) return (hash % 3 === 0) ? 30 : 70;
-    const idx = filters.entityIdx || 0;
-    // For OSA, DOI, Fillrate deltas, return 5-7%
-    if (['osa', 'doi', 'fillrate'].includes(baseKpi)) {
-      return 5.1 + ((hash + idx) % 20) * 0.1; // Returns 5.1, 5.2, ... 7.0
-    }
-    return ((hash + idx) % 3) + 4.5; // Default for others around 4.5-7.5
+    const seedStr = `d_${platform}_${baseKpi}_${rowIdx}`;
+    const hash = seedStr.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
+    const absHash = Math.abs(hash);
+
+    if (isDir) return (absHash % 2 === 0) ? 70 : 30;
+
+    // Varied deltas: 1.5% to 6.5%
+    return 1.5 + (absHash % 50) * 0.1;
   }
 
-  // Resolve the KPI alias
   const kpiKey = KPI_ALIASES[rawKey] || rawKey;
 
-  // Create a composite entity key that incorporates brand, location, AND column
-  // This ensures that changing brand/location filters will visibly change the data
-  const brand = safeStr(filters.selectedBrand || filters.b || '');
-  const location = safeStr(filters.selectedLocation || filters.l || '');
-  const column = safeStr(filters.col || filters.platform || filters.p || 'blinkit');
+  // 2. Lookup Entity Data
+  let entityData = ENTITY_DATA[platform] || BASELINE;
+  let value = entityData[kpiKey] ?? BASELINE[kpiKey] ?? 50;
 
-  // Combine them with separators so "Amul" + "Delhi" gives different results than "AmulDelhi"
-  const compositeKey = [brand, location, column].filter(x => x).join('|');
-  const entityKey = compositeKey || 'default';
+  // 3. Mandatory Variance per Row/Index
+  const varianceSeed = `v_${platform}_${rawKey}_${rowIdx}`;
+  const h = varianceSeed.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
+  const vFactor = Math.abs(h % 100) / 100; // 0.00 to 0.99
 
-  // Direct lookup
-  const entityData = ENTITY_DATA[entityKey] || BASELINE;
-  let value = entityData[kpiKey];
-  if (value === undefined) value = BASELINE[kpiKey];
-  if (value === undefined) value = 50;
+  const isPercentage = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(rawKey);
 
-  // Apply deterministic jitter based on the composite key so that brand/location changes affect the value
-  // even if we fall back to BASELINE data.
-  const varianceSeed = compositeKey || safeStr(filters.col || filters.platform || filters.p || 'blinkit');
-  let variance = getVariance(varianceSeed, rawKey);
+  // Variance range: 0.80 to 1.20
+  let jitter = 0.80 + vFactor * 0.40;
 
-  // For percentage KPIs like OSA, Availability, Fillrate, etc., use a tighter variance
-  // to keep them stable around the ~95% mark as requested.
-  const isPercentageKpi = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(rawKey);
-  if (isPercentageKpi) {
-    // Transform variance 0.7-1.3 into 0.95-1.05 for percentage KPIs
-    variance = 0.95 + (variance - 0.7) * 0.167; // (1.05-0.95)/(1.3-0.7) = 0.167
+  if (isPercentage) {
+    // Tighter range for percentages: 0.92 to 1.08
+    jitter = 0.92 + vFactor * 0.16;
   }
 
   if (typeof value === 'number') {
-    value = value * variance;
-    // Cap at 100% for percentages
-    if (isPercentageKpi && value > 100) value = 99.8;
+    value = value * jitter;
+
+    // Extra micro-offset per row index to break any ties
+    value += (rowIdx * 0.05);
+
+    // Realistic Caps
+    if (isPercentage && value > 99.5) value = 97.4 + (rowIdx % 3) * 0.5;
+    if (isPercentage && value < 10) value = 15.2 + (rowIdx % 5);
   }
 
-  // Stable row-level micro-shift (not random)
-  if (filters.entityIdx !== undefined && filters.entityIdx > 0) {
-    const shift = ((filters.entityIdx * 7) % 5) - 2;
-    if (typeof value === 'number' && value > 10) value += shift * 0.1;
-  }
-
-  // Format
+  // 4. Formatting
   if (typeof value === 'number') {
-    if (Number.isInteger(value) && value > 50) return value;
-    return parseFloat(value.toFixed(1));
+    if (value > 1500) return Math.round(value);
+    return parseFloat(value.toFixed(2));
   }
   return value;
 }
