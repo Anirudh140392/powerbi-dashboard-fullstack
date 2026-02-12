@@ -120,6 +120,9 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
       const trendObj = {};
       const seriesObj = {};
 
+      // Create a shallow copy of the item and a deep copy of values to avoid mutating the shared constant
+      const newItem = { ...item, values: { ...item.values } };
+
       columnList.forEach((col) => {
         const seed = { ...context, kpi: item.kpi, col };
         const randomVal = getLogicalKpiValue(item.kpi, seed);
@@ -127,19 +130,27 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
         const validTrend = randomTrendSeries.length >= 2;
 
         const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
-        const prevTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 2] : 0;
-        const trendDelta = Number((lastTrendVal - prevTrendVal).toFixed(1));
+
+        // Use logical delta and direction for consistent 5-7% reporting
+        const logicalDelta = getLogicalKpiValue(item.kpi + 'delta', seed);
+        const logicalDir = getLogicalKpiValue(item.kpi + 'dir', seed);
+        let trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
+
+        // User request: "Assortment" and "PSL" should have 0 trend
+        if (["Assortment", "PSL"].includes(item.kpi)) {
+          trendDelta = 0;
+        }
 
         trendObj[col] = trendDelta;
         seriesObj[col] = randomTrendSeries;
 
-        // Store the randomized value in the row object for this column
-        item.values[col] = randomVal;
+        // Store the randomized value in the new item's values object
+        newItem.values[col] = randomVal;
       });
 
       return {
-        kpi: item.kpi,
-        ...item.values,
+        kpi: newItem.kpi,
+        ...newItem.values,
         trend: trendObj,
         series: seriesObj,
       };
@@ -1119,8 +1130,18 @@ const getAvailabilityKpis = (type, context = {}) => {
     ['#8b5cf6', '#a855f7']
   ];
 
+  // Map readable titles to data center keys
+  const titleToKey = {
+    "Stock Availability": "osa",
+    "Days of Inventory (DOI)": "doi",
+    "Fill Rate": "fillrate",
+    "Metro City Stock Availability": "availability"
+  };
+
   return source.map((card, idx) => {
-    const kpiKey = card.title.toLowerCase().replace(/\s+/g, '');
+    // RESOLVE KEY: Use the map, or fallback to simple lowercase
+    const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
+
     const val = getLogicalKpiValue(kpiKey, context);
     const isUp = getLogicalKpiValue(kpiKey + 'dir', context) > 50;
     const delta = (getLogicalKpiValue(kpiKey + 'delta', context) / 20).toFixed(1);
@@ -1155,9 +1176,10 @@ export const AvailablityAnalysisData = () => {
     selectedChannel,
   } = useContext(FilterContext);
 
-  const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+  // User request: restrict Availability Overview cards to ONLY change on Platform
+  const platformContext = { platform: globalPlatform };
 
-  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability, context), [availability, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability, platformContext), [availability, globalPlatform]);
 
   return (
 

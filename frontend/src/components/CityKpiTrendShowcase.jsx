@@ -145,12 +145,21 @@ const mockKeywords = [
 function formatKpiValue(kpi, value) {
   if (value === undefined || value === null) return "–";
   const k = kpi.toLowerCase();
-  if (k.includes("osa") || k.includes("fillrate")) return `${value}%`;
-  // PSL should be > 10,000
+
+  if (k.includes("osa") || k.includes("fillrate") || k.includes("sos") || k.includes("share")) return `${value}%`;
+
+  // PSL should be in Lakhs (e.g. 1.7L)
   if (k.includes("psl")) {
     const num = Number(value);
-    return isNaN(num) ? value : num.toLocaleString();
+    return isNaN(num) ? value : `${num.toFixed(1)}L`;
   }
+
+  // Assortment should be a whole number
+  if (k.includes("assortment")) {
+    const num = Number(value);
+    return isNaN(num) ? value : Math.round(num).toString();
+  }
+
   return value.toString();
 }
 
@@ -973,7 +982,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                                 px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
                                   {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : `${trend}`}</span>
+                                  <span className="font-medium text-[9px]">{trendMeta.display}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
@@ -991,7 +1000,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                 <div className="flex items-baseline justify-between">
                                   <span className="text-2xl font-bold tracking-tight text-slate-900">{formatKpiValue(row.kpi, value)}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                    {trend > 0 ? `+${trend}` : `${trend}`}
+                                    {trendMeta.display}
                                   </span>
                                 </div>
 
