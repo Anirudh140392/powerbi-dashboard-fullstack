@@ -59,23 +59,31 @@ const SmallCard = ({ item }) => {
       }}
     >
       <CardContent sx={{ py: 1.2, px: 1.5 }}>
-        <Typography
-          fontSize="0.75rem"
-          fontWeight={400}
-          color="text.secondary"
-          fontFamily="Roboto, sans-serif"
-        >
-          {title}
-        </Typography>
+        <Tooltip title={title} arrow placement="top">
+          <Typography
+            fontSize="0.75rem"
+            fontWeight={400}
+            color="text.secondary"
+            fontFamily="Roboto, sans-serif"
+            noWrap
+            sx={{ maxWidth: '100%', display: 'block' }}
+          >
+            {title}
+          </Typography>
+        </Tooltip>
 
-        <Typography
-          fontWeight={700}
-          fontSize="0.95rem"
-          mt={0.3}
-          fontFamily="Roboto, sans-serif"
-        >
-          {formatValue(value, title)}
-        </Typography>
+        <Tooltip title={formatValue(value, title)} arrow placement="top">
+          <Typography
+            fontWeight={700}
+            fontSize="0.95rem"
+            mt={0.3}
+            fontFamily="Roboto, sans-serif"
+            noWrap
+            sx={{ maxWidth: '100%', display: 'block' }}
+          >
+            {formatValue(value, title)}
+          </Typography>
+        </Tooltip>
 
         {meta && (
           <Box display="flex" alignItems="center" gap={1} mt={0.4}>
@@ -530,13 +538,17 @@ const PlatformOverview = ({
                             },
                           }}
                         >
-                          <Typography
-                            fontWeight={700}
-                            fontSize="0.95rem"
-                            fontFamily="Roboto, sans-serif"
-                          >
-                            {platform.label}
-                          </Typography>
+                          <Tooltip title={platform.label} arrow placement="top">
+                            <Typography
+                              fontWeight={700}
+                              fontSize="0.95rem"
+                              fontFamily="Roboto, sans-serif"
+                              noWrap
+                              sx={{ maxWidth: 150, display: 'block' }}
+                            >
+                              {platform.label}
+                            </Typography>
+                          </Tooltip>
                           {sortType !== "default" && (
                             <Box
                               sx={{

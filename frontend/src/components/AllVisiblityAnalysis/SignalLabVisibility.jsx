@@ -111,9 +111,9 @@ const KPI_LABELS = {
 
     // Pricing
     ecp: "ECP",
+    mrp: "MRP",
     discount: "Discount",
     rpi: "RPI",
-    mrp: "MRP",
     priceChange: "Price Change",
 };
 

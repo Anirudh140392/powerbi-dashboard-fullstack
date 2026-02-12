@@ -453,7 +453,7 @@ const DiscountEcpPricing = () => {
                             const isExpanded = expandedRows.includes(item.category)
 
                             return (
-                                <>
+                                <React.Fragment key={item.category}>
                                     {/* Category Row */}
                                     <tr
                                         key={item.category}
@@ -512,7 +512,7 @@ const DiscountEcpPricing = () => {
                                             </motion.tr>
                                         ))}
                                     </AnimatePresence>
-                                </>
+                                </React.Fragment>
                             )
                         })}
                     </tbody>

@@ -16,6 +16,7 @@ import {
   TextField,
   Button,
   Skeleton,
+  Tooltip,
 } from "@mui/material";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
@@ -509,24 +510,33 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                     >
                       <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
                         {cat.category && (
-                          <Typography
-                            fontSize="0.7rem"
-                            fontWeight={500}
-                            fontFamily="Roboto, sans-serif"
-                            sx={{
-                              color: theme.palette.text.secondary,
-                              backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
-                              px: 1.5,
-                              py: 0.3,
-                              borderRadius: "12px",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.5px"
-                            }}
-                          >
-                            {cat.category}
-                          </Typography>
+                          <Tooltip title={cat.category} arrow placement="top">
+                            <Typography
+                              fontSize="0.7rem"
+                              fontWeight={500}
+                              fontFamily="Roboto, sans-serif"
+                              noWrap
+                              sx={{
+                                color: theme.palette.text.secondary,
+                                backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
+                                px: 1.5,
+                                py: 0.3,
+                                borderRadius: "12px",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px",
+                                maxWidth: 180,
+                                display: "block"
+                              }}
+                            >
+                              {cat.category}
+                            </Typography>
+                          </Tooltip>
                         )}
-                        <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">{cat.name}</Typography>
+                        <Tooltip title={cat.name} arrow placement="top">
+                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif" noWrap sx={{ maxWidth: 300, display: 'block' }}>
+                            {cat.name}
+                          </Typography>
+                        </Tooltip>
                       </Box>
                     </TableCell>
                     {platforms.map((p) => {
