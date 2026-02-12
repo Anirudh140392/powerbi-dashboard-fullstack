@@ -305,7 +305,13 @@ function DateWiseDrilldownTable() {
 
     const getMetricValue = (dayData) => {
         if (!dayData) return null
-        return dayData[metricType.toLowerCase()]
+        const m = metricType.toLowerCase()
+        if (m === 'rpi') {
+            const ecp = dayData.ecp || 0
+            const mrp = dayData.mrp || 0
+            return mrp > 0 ? (ecp / mrp) : 0
+        }
+        return dayData[m]
     }
 
     const formatValue = (val) => {
@@ -346,7 +352,7 @@ function DateWiseDrilldownTable() {
                     </div>
 
                     {/* Metric Selector (Pill Style) */}
-                    {/* <div className="flex items-center gap-1 p-1 bg-blue-50/50 rounded-xl border border-blue-100">
+                    <div className="flex items-center gap-1 p-1 bg-blue-50/50 rounded-xl border border-blue-100">
                         {METRIC_OPTIONS.map(metric => (
                             <button
                                 key={metric.key}
@@ -361,7 +367,7 @@ function DateWiseDrilldownTable() {
                                 {metric.label}
                             </button>
                         ))}
-                    </div> */}
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-4">

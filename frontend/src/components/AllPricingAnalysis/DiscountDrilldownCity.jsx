@@ -16,6 +16,32 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
 
+    // Derived platforms from data
+    const dynamicPlatforms = useMemo(() => {
+        const platformSet = new Set();
+        data.forEach(city => {
+            if (city.totals) {
+                Object.keys(city.totals).forEach(p => {
+                    if (p !== 'total') platformSet.add(p);
+                });
+            }
+        });
+
+        // If data is empty or no platforms found, use defaults as fallback
+        if (platformSet.size === 0) {
+            return [
+                { key: 'blinkit', label: 'Blinkit' },
+                { key: 'instamart', label: 'Instamart' },
+                { key: 'zepto', label: 'Zepto' },
+            ];
+        }
+
+        return Array.from(platformSet).map(key => ({
+            key,
+            label: key.charAt(0).toUpperCase() + key.slice(1)
+        }));
+    }, [data]);
+
     // ========================================
     // FILTER STATE & LOGIC
     // ========================================
@@ -59,7 +85,7 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
 
     const formatValue = (val) => {
         if (val === null || val === undefined) return null
-        if (metricType === 'rpi') return val.toFixed(2)
+        if (metricType === 'rpi') return Number(val).toFixed(2)
         if (metricType === 'discount') return `${val}%`
         return `₹${val}`
     }
@@ -156,7 +182,7 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-900">
                             <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider w-72">City / Brand</th>
                             <th className="text-center px-4 py-3 text-xs font-bold uppercase tracking-wider w-24">ML</th>
-                            {PLATFORMS.map(p => (
+                            {dynamicPlatforms.map(p => (
                                 <th key={p.key} className="text-center px-3 py-3 text-xs font-bold uppercase tracking-wider">{p.label}</th>
                             ))}
                             <th className="text-center px-3 py-3 text-xs font-bold uppercase tracking-wider">Total</th>
@@ -178,9 +204,9 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-center text-sm text-slate-400">—</td>
-                                        <MetricCell platformData={item.totals?.blinkit} />
-                                        <MetricCell platformData={item.totals?.instamart} />
-                                        <MetricCell platformData={item.totals?.zepto} />
+                                        {dynamicPlatforms.map(p => (
+                                            <MetricCell key={p.key} platformData={item.totals?.[p.key]} />
+                                        ))}
                                         <MetricCell platformData={item.totals?.total} />
                                     </tr>
                                     <AnimatePresence>
@@ -199,9 +225,9 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                                                 <td className="px-4 py-2 text-center">
                                                     <span className="text-[10px] font-medium text-slate-500 bg-white border border-slate-100 px-1.5 py-0.5 rounded">{brand.ml}</span>
                                                 </td>
-                                                <MetricCell platformData={brand.blinkit} />
-                                                <MetricCell platformData={brand.instamart} />
-                                                <MetricCell platformData={brand.zepto} />
+                                                {dynamicPlatforms.map(p => (
+                                                    <MetricCell key={p.key} platformData={brand[p.key]} />
+                                                ))}
                                                 <MetricCell platformData={brand.total} />
                                             </motion.tr>
                                         ))}
