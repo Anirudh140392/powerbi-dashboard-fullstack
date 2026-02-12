@@ -1816,8 +1816,8 @@ const getBrandSkuCityDayLevel = async (filters) => {
                     Web_Pid as sku_id,
                     Location as city,
                     toDate(DATE) as date,
-                    ROUND(AVG(toFloat64OrZero(toString(Selling_Price))), 0) as ecp,
-                    ROUND(AVG(toFloat64OrZero(toString(MRP))), 0) as mrp,
+                    ROUND(AVG(NULLIF(toFloat64OrZero(toString(Selling_Price)), 0)), 0) as ecp,
+                    ROUND(AVG(NULLIF(toFloat64OrZero(toString(MRP)), 0)), 0) as mrp,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(buy_box_neno_osa))) as total_bb_neno

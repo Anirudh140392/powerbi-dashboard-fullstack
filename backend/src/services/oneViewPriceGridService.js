@@ -93,6 +93,8 @@ async function getOneViewPriceGrid(filters = {}) {
             : '';
 
         // Main SQL query joining rb_pdp_olap and rb_sku_platform
+        // Uses LEFT JOIN (not INNER JOIN) to avoid filtering out products
+        // that don't have a matching web_pid in rb_sku_platform
         const query = `
             SELECT
                 formatDateTime(p.DATE, '%d %b %Y') as date,
@@ -102,27 +104,25 @@ async function getOneViewPriceGrid(filters = {}) {
                 p.Product as product,
                 CASE WHEN p.Comp_flag = 0 THEN 'Own' ELSE 'Competition' END as skuType,
                 p.Category as format,
-                s.gram as ml,
-                ROUND(AVG(toFloat64(p.MRP)), 1) as mrp,
+                COALESCE(s.gram, '') as ml,
+                ROUND(AVG(toFloat64OrZero(p.MRP)), 1) as mrp,
                 0 as basePrice,
-                ROUND(AVG(toFloat64(p.Discount)), 1) as discount,
-                ROUND(AVG(toFloat64(p.Selling_Price)), 1) as ecp
+                ROUND(AVG(toFloat64OrZero(p.Discount)), 1) as discount,
+                ROUND(AVG(toFloat64OrZero(p.Selling_Price)), 1) as ecp,
+                ROUND(AVG(toFloat64OrZero(p.Selling_Price)) / NULLIF(AVG(toFloat64OrZero(p.MRP)), 0), 2) as rpi
             FROM rb_pdp_olap p
-            INNER JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
+            LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
             WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
               AND p.Product IS NOT NULL
               AND p.Product != ''
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
-              AND s.gram IS NOT NULL
-              AND s.gram != ''
-              AND s.gram != '0'
-              AND toFloat64(s.gram) > 0
               ${additionalFilters}
             GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, s.gram
             ORDER BY p.DATE DESC, p.Platform, p.Brand
-            LIMIT 1000
+            LIMIT 2000
         `;
+
 
         console.log('[OneViewPriceGridService] Executing query...');
         const queryStart = Date.now();
@@ -146,7 +146,8 @@ async function getOneViewPriceGrid(filters = {}) {
             mrp: row.mrp,
             basePrice: row.basePrice,
             discount: row.discount,
-            ecp: row.ecp
+            ecp: row.ecp,
+            rpi: row.rpi
         }));
 
         console.log(`[OneViewPriceGridService] Returning ${data.length} records`);

@@ -1156,6 +1156,9 @@ export default function PricingAnalysisData() {
     datesInitialized,
   } = useContext(FilterContext);
 
+  const [filters, setFilters] = useState(defaultFilters);
+  const [selectedBrand, setSelectedBrand] = useState(null);
+
   // ECP Comparison state
   const [ecpData, setEcpData] = useState([]);
   const [ecpLoading, setEcpLoading] = useState(true); // Start with loading state
@@ -1387,7 +1390,13 @@ export default function PricingAnalysisData() {
           params.platform = globalPlatform;
         }
         if (selectedLocation && selectedLocation !== 'All') {
-          params.location = selectedLocation;
+          params.city = selectedLocation;
+        }
+
+        // Add brand filter if selected
+        const brandFilter = selectedBrand || filters.brand;
+        if (brandFilter && brandFilter !== 'All') {
+          params.brand = brandFilter;
         }
 
         console.log("[PricingAnalysisData] Fetching ECP by City with params:", params);
@@ -1408,7 +1417,7 @@ export default function PricingAnalysisData() {
     };
 
     fetchEcpByCity();
-  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized]);
+  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized, selectedBrand, filters.brand]);
 
   // Discount Trend state
   const [discountTrendData, setDiscountTrendData] = useState([]);
@@ -1528,7 +1537,6 @@ export default function PricingAnalysisData() {
   const [ecpWeekdayWeekendSummary, setEcpWeekdayWeekendSummary] = useState({ brand: 'All Brands', weekday: 0, weekend: 0 });
   const [ecpWeekdayWeekendLoading, setEcpWeekdayWeekendLoading] = useState(false);
 
-  const [filters, setFilters] = useState(defaultFilters);
   const [openPopup, setOpenPopup] = useState(false);
   const [tab, setTab] = useState("overview");
 
@@ -1563,9 +1571,6 @@ export default function PricingAnalysisData() {
       });
     }
   }, [brandDiscountTrendData]);
-
-  // Brand selected from ECP-by-Brand or anywhere (GLOBAL)
-  const [selectedBrand, setSelectedBrand] = useState(null);
 
   const handleChangeFilter = (key) => (e, v) => {
     if (key === "range") setFilters({ ...filters, range: v });
@@ -2553,10 +2558,24 @@ export default function PricingAnalysisData() {
         isPricing={true}
       />
       <Box sx={{ pt: 2 }}>
-        <DiscountEcpPricing />
+        <DiscountEcpPricing
+          filters={filters}
+          selectedBrand={selectedBrand}
+          globalPlatform={globalPlatform}
+          selectedLocation={selectedLocation}
+          timeStart={timeStart}
+          timeEnd={timeEnd}
+        />
       </Box>
       <Box sx={{ pt: 2 }}>
-        <DiscountDrilldownDate />
+        <DiscountDrilldownDate
+          filters={filters}
+          selectedBrand={selectedBrand}
+          globalPlatform={globalPlatform}
+          selectedLocation={selectedLocation}
+          timeStart={timeStart}
+          timeEnd={timeEnd}
+        />
       </Box>
       <DiscountDrilldownCity data={ecpByCityData} loading={ecpByCityLoading} />
 

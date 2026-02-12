@@ -127,7 +127,13 @@ export const getDiscountByCategory = async (req, res) => {
     try {
         const filters = {
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            metricType: req.query.metricType,
+            platform: req.query.platform,
+            brand: req.query.brand,
+            category: req.query.category,
+            format: req.query.format,
+            city: req.query.city
         };
 
         console.log("[PricingAnalysisController] getDiscountByCategory called with filters:", filters);
@@ -148,14 +154,18 @@ export const getDiscountByCategory = async (req, res) => {
 /**
  * Get average discount by Brand within a Category per Platform
  * Endpoint: GET /api/pricing-analysis/discount-by-brand
- * Query params: category, startDate, endDate
+ * Query params: category, startDate, endDate, metricType, platform, brand, city
  */
 export const getDiscountByBrand = async (req, res) => {
     try {
         const filters = {
             category: req.query.category,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            metricType: req.query.metricType,
+            platform: req.query.platform,
+            brand: req.query.brand,
+            city: req.query.city
         };
 
         console.log("[PricingAnalysisController] getDiscountByBrand called with filters:", filters);

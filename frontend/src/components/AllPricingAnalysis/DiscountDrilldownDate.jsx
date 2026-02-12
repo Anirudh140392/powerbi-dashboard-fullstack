@@ -6,7 +6,14 @@ import { generateDateOptions } from '../../lib/pricingUtils';
 import { KpiFilterPanel } from "@/components/KpiFilterPanel"
 import axiosInstance from "@/api/axiosInstance"
 
-export const DiscountDrilldownDate = () => {
+export const DiscountDrilldownDate = ({
+    filters,
+    selectedBrand,
+    globalPlatform,
+    selectedLocation,
+    timeStart,
+    timeEnd
+}) => {
     const [expandedBrands, setExpandedBrands] = useState([])
     const [dayRange, setDayRange] = useState(7)
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
@@ -28,6 +35,26 @@ export const DiscountDrilldownDate = () => {
                     startDate: dates[dates.length - 1].key,
                     endDate: dates[0].key
                 }
+
+                // Sync with global filters
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.platform = globalPlatform;
+                }
+
+                const brandFilter = selectedBrand || filters?.brand;
+                if (brandFilter && brandFilter !== 'All') {
+                    params.brand = brandFilter;
+                }
+
+                if (selectedLocation && selectedLocation !== 'All') {
+                    params.city = selectedLocation;
+                }
+
+                if (filters?.format && filters.format !== 'All') {
+                    params.format = filters.format;
+                }
+
+                console.log("[DiscountDrilldownDate] Fetching with params:", params);
                 const response = await axiosInstance.get('/pricing-analysis/one-view-price-grid', { params })
 
                 if (response.data?.success && response.data?.data) {
@@ -61,7 +88,7 @@ export const DiscountDrilldownDate = () => {
             }
         }
         fetchData()
-    }, [dayRange, metricType, dates])
+    }, [dayRange, metricType, dates, filters, selectedBrand, globalPlatform, selectedLocation])
 
     // ========================================
     // FILTER STATE & LOGIC
