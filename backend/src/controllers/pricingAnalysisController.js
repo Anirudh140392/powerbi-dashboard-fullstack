@@ -3,6 +3,38 @@ import ecpByBrandService from '../services/ecpByBrandService.js';
 import discountTrendService from '../services/discountTrendService.js';
 import brandPriceOverviewService from '../services/brandPriceOverviewService.js';
 import brandDiscountTrendService from '../services/brandDiscountTrendService.js';
+import ecpByCityService from '../services/ecpByCityService.js';
+
+
+/**
+ * Get ECP and Discount data grouped by City and Brand
+ * Endpoint: GET /api/pricing-analysis/ecp-by-city
+ * Query params: platform, startDate, endDate, city, brand
+ */
+export const getEcpByCity = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            city: req.query.city,
+            brand: req.query.brand
+        };
+
+        console.log("[PricingAnalysisController] getEcpByCity called with filters:", filters);
+
+        const result = await ecpByCityService.getEcpByCity(filters);
+
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getEcpByCity:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+};
 
 /**
  * Get Price and Discount Intelligence metrics

@@ -15,7 +15,7 @@ import {
     ArrowDownRight
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
-import { Skeleton, Box } from '@mui/material'
+import { Skeleton, Box, Tooltip } from '@mui/material'
 
 // const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
 //     if (loading) {
@@ -376,9 +376,11 @@ const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
                         >
                             <Icon size={11} />
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.04em]">
-                            {kpi.title}
-                        </span>
+                        <Tooltip title={kpi.title} arrow placement="top">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.04em] truncate max-w-[120px]">
+                                {kpi.title}
+                            </span>
+                        </Tooltip>
                     </div>
 
                     <div className={`flex items-center gap-1 text-[10px] font-bold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -397,9 +399,11 @@ const ComparisonCard = ({ kpi, variant = 'original', loading = false }) => {
             style={{ fontFamily: 'Roboto, sans-serif' }}
         >
             <div className="flex justify-between items-start mb-4">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.04em]">
-                    {kpi.title}
-                </span>
+                <Tooltip title={kpi.title} arrow placement="top">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.04em] truncate max-w-[150px]">
+                        {kpi.title}
+                    </span>
+                </Tooltip>
                 <div
                     className="w-9 h-9 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200/50"
                     style={{ background: `linear-gradient(135deg, ${kpi.gradient?.[0] || '#6366f1'}, ${kpi.gradient?.[1] || '#8b5cf6'})` }}

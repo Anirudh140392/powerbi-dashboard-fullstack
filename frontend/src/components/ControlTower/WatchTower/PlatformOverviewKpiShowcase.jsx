@@ -11,12 +11,12 @@ import {
   Line,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { Box } from "@mui/material";
+import { Box, Tooltip } from "@mui/material";
 import PaginationFooter from "../../CommonLayout/PaginationFooter";
 
 
@@ -772,7 +772,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
                   fontSize={11}
                   tickFormatter={formatValue}
                 />
-                <Tooltip formatter={formatValue} />
+                <RechartsTooltip formatter={formatValue} />
                 <Legend />
 
                 {selectedBrands.map((brand, index) => (
@@ -949,7 +949,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, tren
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="date" hide />
                     <YAxis tickLine={false} fontSize={10} width={32} />
-                    <Tooltip />
+                    <RechartsTooltip />
                     {selectedBrands.map((brand, index) => (
                       <Line
                         key={brand}
@@ -1027,8 +1027,10 @@ const BrandTable = ({ rows, loading }) => {
                     idx % 2 === 1 && "bg-slate-50/60"
                   )}
                 >
-                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
-                    {row.name}
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100 truncate max-w-[120px]">
+                    <Tooltip title={row.name} arrow placement="top">
+                      <span>{row.name}</span>
+                    </Tooltip>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
                     {row.osa.toFixed(1)}%
@@ -1130,11 +1132,15 @@ const SkuTable = ({ rows, loading }) => {
                     idx % 2 === 1 && "bg-slate-50/60"
                   )}
                 >
-                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
-                    {row.name}
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100 truncate max-w-[250px]">
+                    <Tooltip title={row.name} arrow placement="top">
+                      <span>{row.name}</span>
+                    </Tooltip>
                   </td>
-                  <td className="px-3 py-2 text-slate-900 border-r border-slate-100">
-                    {row.brandName}
+                  <td className="px-3 py-2 text-slate-900 border-r border-slate-100 truncate max-w-[180px]">
+                    <Tooltip title={row.brandName} arrow placement="top">
+                      <span>{row.brandName}</span>
+                    </Tooltip>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
                     {row.osa.toFixed(1)}%

@@ -34,6 +34,7 @@ import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
 import { Visibility } from "@mui/icons-material";
 import VisibilityTrendsCompetitionDrawer from "./AllVisiblityAnalysis/VisibilityTrendsCompetitionDrawer";
 import SalesTrendsDrawer from "./Sales/SalesTrendsDrawer";
+import { Tooltip as MuiTooltip } from "@mui/material";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -1402,7 +1403,9 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                    tracking-widest text-slate-900 min-w-[110px]"
                     >
                       <div className="flex items-center justify-center gap-2">
-                        <span>{col}</span>
+                        <MuiTooltip title={col} arrow placement="top">
+                          <span className="truncate max-w-[80px]">{col}</span>
+                        </MuiTooltip>
                         <span
                           className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
                           onClick={() => {
@@ -1431,8 +1434,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                       {/* Sticky KPI Column */}
                       <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
                                        text-xs font-bold text-slate-900 border-b border-slate-100 
-                                       shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                        {row.kpi}
+                                       shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] truncate max-w-[140px]">
+                        <MuiTooltip title={row.kpi} arrow placement="right">
+                          <span>{row.kpi}</span>
+                        </MuiTooltip>
                       </td>
 
                       {isComingSoon ? (

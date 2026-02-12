@@ -11,44 +11,57 @@ export const DiscountDrilldownDate = () => {
     const [dayRange, setDayRange] = useState(7)
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [gridData, setGridData] = useState([])
 
     // Generate dates based on range
     const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
 
-    // Generate dynamic mock data that matches the date keys
-    const data = useMemo(() => {
-        const brands = ['Amul', 'Baskin Robbins', 'Kwality Walls', 'Cream Bell', 'Vadilal']
+    // Fetch real data from API
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true)
+            try {
+                if (!dates || dates.length === 0) return
 
-        return brands.map(brand => {
-            // Generate some skus for each brand
-            const skus = Array.from({ length: Math.floor(Math.random() * 3) + 2 }).map((_, i) => {
-                const ml = ['100 ml', '500 ml', '1 L'][i % 3]
-                const skuName = `${brand} Premium Ice Cream ${ml}`
-
-                // Generate day data matching the current dates
-                const dayData = {}
-                dates.forEach(d => {
-                    // Random values
-                    dayData[d.key] = {
-                        ecp: Math.floor(Math.random() * 200) + 50,
-                        discount: Math.floor(Math.random() * 25),
-                        rpi: Number((Math.random() * 0.8 + 0.6).toFixed(2))
-                    }
-                })
-
-                return {
-                    name: skuName,
-                    ml,
-                    days: dayData
+                const params = {
+                    startDate: dates[dates.length - 1].key,
+                    endDate: dates[0].key
                 }
-            })
+                const response = await axiosInstance.get('/pricing-analysis/one-view-price-grid', { params })
 
-            return {
-                brand,
-                skus
+                if (response.data?.success && response.data?.data) {
+                    // Transform flat data into nested Brand -> SKU -> Date structure
+                    const brandMap = {}
+                    response.data.data.forEach(item => {
+                        const brand = item.brand
+                        const sku = item.product
+                        const date = item.rawDate.split('T')[0]
+
+                        if (!brandMap[brand]) brandMap[brand] = { brand: brand, skus: {} }
+                        if (!brandMap[brand].skus[sku]) brandMap[brand].skus[sku] = { name: sku, ml: item.ml, days: {} }
+
+                        brandMap[brand].skus[sku].days[date] = {
+                            ecp: item.ecp,
+                            discount: item.discount,
+                            rpi: item.rpi
+                        }
+                    })
+
+                    const transformed = Object.values(brandMap).map(b => ({
+                        ...b,
+                        skus: Object.values(b.skus)
+                    }))
+                    setGridData(transformed)
+                }
+            } catch (error) {
+                console.error("Error fetching day-level grid:", error)
+            } finally {
+                setLoading(false)
             }
-        })
-    }, [dates]) // Re-generate data when dates change so keys match
+        }
+        fetchData()
+    }, [dayRange, metricType, dates])
 
     // ========================================
     // FILTER STATE & LOGIC
@@ -206,7 +219,7 @@ export const DiscountDrilldownDate = () => {
     };
 
     const filteredData = useMemo(() => {
-        let currentData = data
+        let currentData = gridData
 
         // 1. Filter by Search
         if (searchQuery) {
@@ -224,7 +237,7 @@ export const DiscountDrilldownDate = () => {
         }
 
         return currentData
-    }, [data, searchQuery, appliedFilters])
+    }, [gridData, searchQuery, appliedFilters])
 
     const getMetricValue = (dayData) => {
         if (!dayData) return null
@@ -409,8 +422,17 @@ export const DiscountDrilldownDate = () => {
                 </div>
             )}
 
-            <div className="overflow-x-auto">
-                <table className="w-full">
+            {/* Premium Table Content */}
+            <div className="relative overflow-x-auto">
+                {loading && (
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="w-8 h-8 rounded-full border-2 border-blue-100 border-t-blue-500 animate-spin" />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Updating Grid...</span>
+                        </div>
+                    </div>
+                )}
+                <table className="w-full border-collapse">
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-900">
                             <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider w-80">

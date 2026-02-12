@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, TextField, Select, MenuItem, useTheme } from '@mui/material';
+import { Box, Typography, Button, TextField, Select, MenuItem, useTheme, Tooltip } from '@mui/material';
 import { Download } from 'lucide-react';
 
 const PlatformIcon = ({ platform }) => {
@@ -225,9 +225,16 @@ export default function SKUTable({ data }) {
                           theme={theme}
                         />
                         <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                            {row.sku}
-                          </Typography>
+                          <Tooltip title={row.sku} arrow placement="top">
+                            <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, maxWidth: 350, display: 'block' }}>
+                              {row.sku}
+                            </Typography>
+                          </Tooltip>
+                          <Tooltip title={row.brand} arrow placement="top">
+                            <Typography variant="body2" noWrap sx={{ color: theme.palette.text.secondary, maxWidth: 180, display: 'block' }}>
+                              {row.brand}
+                            </Typography>
+                          </Tooltip>
                           <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                             {row.weight}
                           </Typography>

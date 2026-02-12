@@ -4465,13 +4465,19 @@ const getPlatformOverview = async (filters) => {
 
     // Calculate overall Market Share (weighted approach: sum of num / sum of denom)
     let sumMsNum = 0, sumMsDenom = 0;
-    for (const [, value] of currMsNumMap) sumMsNum += value;
-    for (const [, value] of currMsDenomMap) sumMsDenom += value;
-    const allMarketShare = sumMsDenom > 0 ? (sumMsNum / sumMsDenom) * 100 : 0;
-
     let prevSumMsNum = 0, prevSumMsDenom = 0;
-    for (const [, value] of prevMsNumMap) prevSumMsNum += value;
-    for (const [, value] of prevMsDenomMap) prevSumMsDenom += value;
+
+    platformDefinitions.forEach(p => {
+        const key = p.label.toLowerCase();
+        sumMsNum += currMsNumMap.get(key) || 0;
+        sumMsDenom += currMsDenomMap.get(key) || 0;
+        prevSumMsNum += prevMsNumMap.get(key) || 0;
+        prevSumMsDenom += prevMsDenomMap.get(key) || 0;
+    });
+
+    console.log(`[getPlatformOverview] All Row Category Size: curr=${sumMsDenom}, prev=${prevSumMsDenom}`);
+
+    const allMarketShare = sumMsDenom > 0 ? (sumMsNum / sumMsDenom) * 100 : 0;
     const prevAllMarketShare = prevSumMsDenom > 0 ? (prevSumMsNum / prevSumMsDenom) * 100 : 0;
 
     platformOverview.push({
@@ -4481,7 +4487,7 @@ const getPlatformOverview = async (filters) => {
         logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
         columns: generateKpiColumns({
             offtake: allOfftake, availability: allAvailability, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, categorySize: sumMsDenom,
-            prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc,
+            prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevCategorySize: prevSumMsDenom,
             offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
         })
     });
@@ -7099,11 +7105,27 @@ const getSkuOverview = async (filters) => {
         return conds.join(' AND ');
     };
 
+
     const currSkuConds = buildSkuConds(startDate, endDate);
     const prevSkuConds = buildSkuConds(prevStartDate, prevEndDate);
 
+    // Build MS conditions for test_brand_MS
+    const buildMsSkuConds = (sDate, eDate) => {
+        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+        conds.push(`sales IS NOT NULL`);
+        const pCond = buildPlatformChannelCond(skuPlatform, channel);
+        if (pCond) conds.push(pCond);
+        if (categoryArr && categoryArr.length > 0) {
+            conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        }
+        if (locationArr && locationArr.length > 0) {
+            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        }
+        return conds.join(' AND ');
+    };
+
     // Query SKU metrics for both periods
-    const [currSkuMetrics, prevSkuMetrics] = await Promise.all([
+    const [currSkuMetrics, prevSkuMetrics, currMsResult, prevMsResult] = await Promise.all([
         queryClickHouse(`
             SELECT Product,
                 SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
@@ -7135,8 +7157,14 @@ const getSkuOverview = async (filters) => {
             FROM rb_pdp_olap
             WHERE ${prevSkuConds} AND Product IS NOT NULL AND Product != ''
             GROUP BY Product
-        `)
+        `),
+        // Market Size
+        queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as total_sales FROM test_brand_MS WHERE ${buildMsSkuConds(startDate, endDate)}`),
+        queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as total_sales FROM test_brand_MS WHERE ${buildMsSkuConds(prevStartDate, prevEndDate)}`)
     ]);
+
+    const currMarketSize = parseFloat(currMsResult[0]?.total_sales || 0);
+    const prevMarketSize = parseFloat(prevMsResult[0]?.total_sales || 0);
 
     const prevSkuMap = new Map(prevSkuMetrics.map(d => [d.Product, d]));
 
@@ -7178,14 +7206,17 @@ const getSkuOverview = async (filters) => {
         const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
+        const marketShare = currMarketSize > 0 ? (offtake / currMarketSize) * 100 : 0;
+        const prevMarketShare = prevMarketSize > 0 ? (prevOfftake / prevMarketSize) * 100 : 0;
+
         return {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)}`,
             label: skuName.length > 30 ? skuName.substring(0, 30) + '...' : skuName,
             type: "SKU",
             logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
             columns: generateKpiColumns({
-                offtake, availability, sos: 0, marketShare: 0, spend, roas, inorgSales: adSales, conversion, cpm, cpc, categorySize: 0,
-                prevOfftake, prevAvailability, prevSos: 0, prevMarketShare: 0, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevCategorySize: 0,
+                offtake, availability, sos: 0, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, categorySize: currMarketSize,
+                prevOfftake, prevAvailability, prevSos: 0, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevCategorySize: prevMarketSize,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };
@@ -7261,8 +7292,20 @@ const getCityOverview = async (filters) => {
     const currCityConds = buildCityConds(startDate, endDate);
     const prevCityConds = buildCityConds(prevStartDate, prevEndDate);
 
+    // Build MS conditions for test_brand_MS
+    const buildMsCityConds = (sDate, eDate) => {
+        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+        conds.push(`sales IS NOT NULL`);
+        const pCond = buildPlatformChannelCond(cityPlatform, channel);
+        if (pCond) conds.push(pCond);
+        if (categoryArr && categoryArr.length > 0) {
+            conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        }
+        return conds.join(' AND ');
+    };
+
     // Query City metrics for both periods
-    const [currCityMetrics, prevCityMetrics] = await Promise.all([
+    const results = await Promise.all([
         queryClickHouse(`
             SELECT Location,
                 SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
@@ -7294,10 +7337,17 @@ const getCityOverview = async (filters) => {
             FROM rb_pdp_olap
             WHERE ${prevCityConds} AND Location IS NOT NULL AND Location != ''
             GROUP BY Location
-        `)
+        `),
+        // Market Share / Category Size by Location
+        queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM test_brand_MS WHERE ${buildMsCityConds(startDate, endDate)} GROUP BY Location`),
+        queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM test_brand_MS WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} GROUP BY Location`)
     ]);
 
+    const [currCityMetrics, prevCityMetrics, currMsResult, prevMsResult] = results;
     const prevCityMap = new Map(prevCityMetrics.map(d => [d.Location, d]));
+
+    const currMsMap = new Map(currMsResult.map(d => [d.Location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
+    const prevMsMap = new Map(prevMsResult.map(d => [d.Location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
 
     const cityOverview = currCityMetrics.map(data => {
         const cityName = data.Location || 'Unknown';
@@ -7337,14 +7387,20 @@ const getCityOverview = async (filters) => {
         const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
+        const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
+        const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
+
+        const marketShare = currCityMarket > 0 ? (offtake / currCityMarket) * 100 : 0;
+        const prevMarketShare = prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : 0;
+
         return {
             key: cityName.toLowerCase().replace(/\s+/g, '_'),
             label: cityName,
             type: "City",
             logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
             columns: generateKpiColumns({
-                offtake, availability, sos: 0, marketShare: 0, spend, roas, inorgSales: adSales, conversion, cpm, cpc, categorySize: 0,
-                prevOfftake, prevAvailability, prevSos: 0, prevMarketShare: 0, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevCategorySize: 0,
+                offtake, availability, sos: 0, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, categorySize: currCityMarket,
+                prevOfftake, prevAvailability, prevSos: 0, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevCategorySize: prevCityMarket,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };

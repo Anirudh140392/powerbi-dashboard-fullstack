@@ -13,6 +13,7 @@ import {
     Settings,
     MapPin,
 } from 'lucide-react'
+import { Tooltip } from "@mui/material";
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { cn } from '../../../lib/utils'
 
@@ -438,13 +439,17 @@ const PlatformOverviewNew = ({
                                             </div>
                                         )}
                                         {dimension === 'platform' ? (
-                                            <span className="text-[12px] font-semibold text-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide max-w-[150px] inline-block align-middle">
-                                                {e.name}
-                                            </span>
+                                            <Tooltip title={e.name} arrow placement="top">
+                                                <span className="text-[12px] font-semibold text-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide max-w-[150px] inline-block align-middle">
+                                                    {e.name}
+                                                </span>
+                                            </Tooltip>
                                         ) : (
-                                            <span className="text-[12px] font-semibold text--700 truncate max-w-[100px]">
-                                                {e.name.length > 10 ? e.name.slice(0, 10) + '...' : e.name}
-                                            </span>
+                                            <Tooltip title={e.name} arrow placement="top">
+                                                <span className="text-[12px] font-semibold text-slate-700 truncate max-w-[250px] inline-block">
+                                                    {e.name}
+                                                </span>
+                                            </Tooltip>
                                         )}
 
                                         {/* Action Buttons */}

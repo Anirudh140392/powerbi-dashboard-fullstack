@@ -4,13 +4,13 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   CartesianGrid,
   XAxis,
   YAxis,
 } from "recharts";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
-import { Typography, Skeleton, Box } from "@mui/material";
+import { Typography, Skeleton, Box, Tooltip } from "@mui/material";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -296,7 +296,11 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
         }}
       >
 
-        <Typography variant="body2" color="text.secondary">{card.label}</Typography>
+        <Tooltip title={card.label} arrow placement="top">
+          <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 150, display: 'block' }}>
+            {card.label}
+          </Typography>
+        </Tooltip>
 
         <div
           onClick={() => onViewTrends(card.label)}
@@ -429,7 +433,7 @@ function TrendPopup({ card, onClose }) {
                 <XAxis dataKey="period" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} width={28} />
 
-                <Tooltip
+                <RechartsTooltip
                   contentStyle={{
                     borderRadius: 8,
                     border: "1px solid #E5E7EB",

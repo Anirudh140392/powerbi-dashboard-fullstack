@@ -4,10 +4,11 @@ import {
     Line,
     XAxis,
     YAxis,
-    Tooltip,
+    Tooltip as RechartsTooltip,
     Legend,
     ResponsiveContainer,
 } from "recharts";
+import { Tooltip } from "@mui/material";
 import axiosInstance from "../../../api/axiosInstance";
 import { FilterContext } from "../../../utils/FilterContext";
 
@@ -292,7 +293,11 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
             renderRow: (row) => (
                 <tr key={row.city} className="border-b border-slate-50">
                     <td className="px-2 py-1 text-slate-700">{row.storeCount || row.count}</td>
-                    <td className="px-2 py-1 font-bold text-slate-700">{row.city}</td>
+                    <td className="px-2 py-1 font-bold text-slate-700 truncate max-w-[120px]">
+                        <Tooltip title={row.city} arrow placement="top">
+                            <span>{row.city}</span>
+                        </Tooltip>
+                    </td>
                     <td className="px-2 py-1 text-rose-600 font-semibold">{row.osa}</td>
                     <td className="px-2 py-1 text-slate-400 italic text-[10px]">{row.fillRate}</td>
                     <td className="px-2 py-1 text-emerald-600 font-medium">{row.sales}</td>
@@ -308,7 +313,11 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
             renderRow: (row) => (
                 <tr key={row.city} className="border-b border-slate-50">
                     <td className="px-2 py-1 text-slate-700">{row.count}</td>
-                    <td className="px-2 py-1 font-bold text-slate-700">{row.city}</td>
+                    <td className="px-2 py-1 font-bold text-slate-700 truncate max-w-[120px]">
+                        <Tooltip title={row.city} arrow placement="top">
+                            <span>{row.city}</span>
+                        </Tooltip>
+                    </td>
                     <td className="px-2 py-1 text-rose-600 font-semibold">{row.sos}</td>
                     <td className="px-2 py-1 text-rose-600">{row.rank}</td>
                     <td className="px-2 py-1 text-slate-600">{row.impression}</td>
@@ -323,7 +332,11 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
             rows: offtakeSkuRows,
             renderRow: (row) => (
                 <tr key={row.sku} className="border-b border-slate-50">
-                    <td className="px-2 py-1 font-bold text-slate-700">{row.sku}</td>
+                    <td className="px-2 py-1 font-bold text-slate-700 truncate max-w-[200px]">
+                        <Tooltip title={row.sku} arrow placement="top">
+                            <span>{row.sku}</span>
+                        </Tooltip>
+                    </td>
                     <td className="px-2 py-1 text-emerald-600 font-medium">{row.value}</td>
                     <td className="px-2 py-1 text-slate-600">{row.volume}</td>
                     <td className="px-2 py-1 text-rose-600 font-medium">{row.fillRate}</td>
@@ -337,7 +350,11 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
             rows: perfCampaignRows,
             renderRow: (row) => (
                 <tr key={row.campaign} className="border-b border-slate-50">
-                    <td className="px-2 py-1 font-bold text-slate-700">{row.campaign}</td>
+                    <td className="px-2 py-1 font-bold text-slate-700 truncate max-w-[200px]">
+                        <Tooltip title={row.campaign} arrow placement="top">
+                            <span>{row.campaign}</span>
+                        </Tooltip>
+                    </td>
                     <td className="px-2 py-1 text-slate-700 font-medium">{row.currentRoas}</td>
                     <td className="px-2 py-1 text-slate-500">{row.prevRoas}</td>
                     <td className="px-2 py-1 text-rose-600 font-bold">{row.drop}</td>
@@ -361,7 +378,11 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
             renderRow: (row) => (
                 <tr key={row.city} className="border-b border-slate-50">
                     <td className="px-2 py-1 text-slate-700">{row.count}</td>
-                    <td className="px-2 py-1 font-bold text-slate-700">{row.city}</td>
+                    <td className="px-2 py-1 font-bold text-slate-700 truncate max-w-[120px]">
+                        <Tooltip title={row.city} arrow placement="top">
+                            <span>{row.city}</span>
+                        </Tooltip>
+                    </td>
                     <td className="px-2 py-1 text-rose-600 font-medium">{row.index}</td>
                     <td className="px-2 py-1 text-slate-600">{row.elast}</td>
                     <td className="px-2 py-1 text-rose-600">{row.vol}</td>
@@ -377,7 +398,11 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
             renderRow: (row) => (
                 <tr key={row.city} className="border-b border-slate-50">
                     <td className="px-2 py-1 text-slate-700">{row.count}</td>
-                    <td className="px-2 py-1 font-bold text-slate-700">{row.city}</td>
+                    <td className="px-2 py-1 font-bold text-slate-700 truncate max-w-[120px]">
+                        <Tooltip title={row.city} arrow placement="top">
+                            <span>{row.city}</span>
+                        </Tooltip>
+                    </td>
                     <td className="px-2 py-1 text-rose-600 font-semibold">{row.fill}</td>
                     <td className="px-2 py-1 text-rose-600">{row.otif}</td>
                     <td className="px-2 py-1 text-rose-600">{row.backIdx}</td>
@@ -569,7 +594,7 @@ const DetailPanel = ({ selected, apiData, loading, osaDeepDive, error, onRetry }
                                 >
                                     <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94a3b8" />
                                     <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" domain={config.domain} />
-                                    <Tooltip contentStyle={{ fontSize: 11 }} />
+                                    <RechartsTooltip contentStyle={{ fontSize: 11 }} />
                                     <Legend wrapperStyle={{ fontSize: 11 }} />
                                     <Line
                                         type="monotone"
