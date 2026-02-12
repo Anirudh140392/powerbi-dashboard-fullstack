@@ -209,7 +209,7 @@ const PlatformOverviewNew = ({
                 case 'promoMyBrand':
                 case 'promoCompete':
                     value = `${val}%`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)} pp`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}%`
                     break
                 case 'cpm':
                     value = `₹${val}`
