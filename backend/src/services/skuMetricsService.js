@@ -379,8 +379,9 @@ async function fetchSosByProduct(filters, metricKey) {
         // Build WHERE conditions
         const where = {};
         if (filters.dateFrom && filters.dateTo) {
-            where.kw_crawl_date = { [Op.between]: [filters.dateFrom, filters.dateTo] };
+            where.created_on = { [Op.between]: [filters.dateFrom, filters.dateTo] };
         }
+        where.keyword_search_rank = { [Op.lt]: 11 };
         if (filters.platform && filters.platform !== 'All') {
             where.platform_name = sequelize.where(sequelize.fn('LOWER', sequelize.col('platform_name')), filters.platform.toLowerCase());
         }
