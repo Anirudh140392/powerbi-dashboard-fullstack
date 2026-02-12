@@ -40,7 +40,7 @@ import {
   LocalShipping as LocalShippingIcon,
   Description as DescriptionIcon,
 } from "@mui/icons-material";
-import sidebarLogo from "../../assets/sidebar_logo.png";
+
 
 const Sidebar = ({
   platforms = ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
@@ -155,21 +155,26 @@ const Sidebar = ({
           {/* EY Logo Container */}
           <Box
             sx={{
-              height: 32,
-              width: 58,
-              minWidth: isCollapsed ? 0 : 58,
+              height: 40,
+              width: isCollapsed ? 40 : 140,
+              minWidth: isCollapsed ? 0 : 140,
               display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'center',
-              pb: '6px',
-              mr: 0
+              alignItems: 'center',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              pb: '0px',
+              mr: 0,
+              transition: 'all 0.3s ease'
             }}
           >
-            <svg viewBox="0 0 60 46" height="100%" width="100%" style={{ overflow: 'visible' }}>
-              <path d="M0 24 L58 8 V19 L0 24 Z" fill="#FFE600" />
-              <path d="M2.5 44 V18 H24 V22 H7 V28 H22 V32 H7 V40 H25 V44 H2.5 Z" fill="#000000" />
-              <path d="M28 18 L37 32 L46 18 H51 L39 37 V44 H35 V37 L23 18 H28 Z" fill="#000000" />
-            </svg>
+            <img
+              src="/trailytics_new_logo.png"
+              alt="Logo"
+              style={{
+                height: '100%',
+                width: '100%',
+                objectFit: 'contain'
+              }}
+            />
           </Box>
 
           {/* "-mozart" Text */}
@@ -346,39 +351,7 @@ const Sidebar = ({
         ))}
       </Box>
 
-      {/* Footer Branding */}
-      {!isCollapsed && (
-        <Box sx={{
-          mt: 'auto',
-          py: 3,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          borderTop: '1px solid rgba(0,0,0,0.03)'
-        }}>
-          <Typography
-            sx={{
-              fontSize: '0.75rem',
-              color: 'rgba(0,0,0,0.85)',
-              letterSpacing: '0.01em',
-              fontWeight: 500,
-              display: 'flex',
-              alignItems: 'center'
-            }}
-          >
-            powered by
-            <img
-              src={sidebarLogo}
-              alt="trailytics"
-              style={{
-                height: '20px',
-                marginLeft: '8px',
-                display: 'block'
-              }}
-            />
-          </Typography>
-        </Box>
-      )}
+
     </Box>
   );
 
