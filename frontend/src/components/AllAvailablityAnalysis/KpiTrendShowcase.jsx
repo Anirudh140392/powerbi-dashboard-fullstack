@@ -316,52 +316,24 @@ const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
 /** Raw config – you can change this and UI will adapt */
 const RAW_DATA = {
   cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
-  categories: ["Body Lotion", "Face Cream", "Soap"],
+  categories: ["Cassata", "Core Tubs", "Cup", "Sandwich"],
   brands: [
-    { id: "my-brand", name: "My Brand", category: "Body Lotion" },
-    { id: "vaseline", name: "Vaseline", category: "Body Lotion" },
-    { id: "nivea", name: "Nivea", category: "Body Lotion" },
-    {
-      id: "parachute-adv",
-      name: "Parachute Advanced",
-      category: "Body Lotion",
-    },
-    { id: "boroplus", name: "Boroplus", category: "Body Lotion" },
-    { id: "cetaphil", name: "Cetaphil", category: "Face Cream" },
-    { id: "joy", name: "Joy", category: "Body Lotion" },
-    { id: "biotique", name: "Biotique", category: "Face Cream" },
+    { id: "kwality-walls", name: "Kwality Walls", category: "All" },
+    { id: "amul", name: "Amul", category: "Cassata" },
+    { id: "mother-dairy", name: "Mother Dairy", category: "Core Tubs" },
+    { id: "vadilal", name: "Vadilal", category: "Cup" },
+    { id: "havmor", name: "Havmor", category: "Sandwich" },
+    { id: "baskin-robbins", name: "Baskin Robbins", category: "Core Tubs" },
+    { id: "london-dairy", name: "London Dairy", category: "Premium" },
+    { id: "cream-bell", name: "Cream Bell", category: "Cup" },
   ],
   skus: [
-    {
-      id: "vas-100",
-      name: "Vaseline 100ml",
-      brandId: "vaseline",
-      category: "Body Lotion",
-    },
-    {
-      id: "vas-200",
-      name: "Vaseline 200ml",
-      brandId: "vaseline",
-      category: "Body Lotion",
-    },
-    {
-      id: "niv-soft-100",
-      name: "Nivea Soft 100ml",
-      brandId: "nivea",
-      category: "Body Lotion",
-    },
-    {
-      id: "para-dry-150",
-      name: "Parachute Dry Skin 150ml",
-      brandId: "parachute-adv",
-      category: "Body Lotion",
-    },
-    {
-      id: "boro-aloe-100",
-      name: "Boroplus Aloe 100ml",
-      brandId: "boroplus",
-      category: "Body Lotion",
-    },
+    { id: "amul-tricone", name: "Amul Tricone 120ml", brandId: "amul", category: "Cone" },
+    { id: "md-cup", name: "Mother Dairy Vanilla Cup", brandId: "mother-dairy", category: "Cup" },
+    { id: "vadilal-bombay", name: "Vadilal Bombay Kulfi", brandId: "vadilal", category: "Stick" },
+    { id: "havmor-block", name: "Havmor Choco Block", brandId: "havmor", category: "Block" },
+    { id: "br-scoop", name: "BR Gold Medal Ribbon", brandId: "baskin-robbins", category: "Scoop" },
+    { id: "london-tub", name: "London Dairy Tiramisu", brandId: "london-dairy", category: "Tub" },
   ],
 };
 

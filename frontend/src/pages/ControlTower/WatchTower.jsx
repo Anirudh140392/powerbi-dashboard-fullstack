@@ -47,6 +47,10 @@ import {
   defaultPlatforms,
   defaultSkus,
 } from "../../utils/DataCenter";
+import {
+  getLogicalKpiValue,
+  getLogicalKpiTrend
+} from "@/components/AllAvailablityAnalysis/availablityDataCenter.jsx";
 import PerformanceMatric from "../../components/ControlTower/WatchTower/PeformanceMatric";
 import { FilterContext } from "../../utils/FilterContext";
 import Loader from "../../components/CommonLayout/Loader";
@@ -79,7 +83,7 @@ export default function WatchTower() {
   const [currentPage, setCurrentPage] = React.useState(0);
 
   const [filters, setFilters] = useState({
-    platform: "Zepto",
+    platform: "Blinkit",
     months: 6,
     timeStep: "Monthly",
   });
@@ -90,7 +94,7 @@ export default function WatchTower() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Zepto",
+    platform: "Blinkit",
   });
 
   const [trendData, setTrendData] = useState({
@@ -138,7 +142,7 @@ export default function WatchTower() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Zepto",
+      platform: card.name ?? "Blinkit",
     }));
 
     setShowTrends(true);
@@ -170,7 +174,117 @@ export default function WatchTower() {
     platform,
     selectedKeyword,
     selectedLocation,
+    selectedChannel,
   } = React.useContext(FilterContext);
+
+  const context = { selectedChannel, platform, selectedBrand, selectedLocation, timeStart, timeEnd };
+
+  const COMPARISON_KPIS = useMemo(() => [
+    {
+      id: 'offtake',
+      title: 'Offtake',
+      value: `₹${getLogicalKpiValue('offtake', context)}Cr`,
+      delta: getLogicalKpiValue('offtakedelta', context),
+      deltaLabel: `+₹${(getLogicalKpiValue('offtakedelta', context) * 5.8).toFixed(1)}L`,
+      icon: ShoppingCart,
+      gradient: ['#6366f1', '#8b5cf6'],
+      trend: getLogicalKpiTrend('offtake', context)
+    },
+    {
+      id: 'availability',
+      title: 'Availability',
+      value: `${getLogicalKpiValue('osa', context)}%`,
+      delta: getLogicalKpiValue('osadelta', context),
+      deltaLabel: `+${(getLogicalKpiValue('osadelta', context) / 4).toFixed(1)} pts`,
+      icon: Layers,
+      gradient: ['#14b8a6', '#06b6d4'],
+      trend: getLogicalKpiTrend('availability', context)
+    },
+    {
+      id: 'promo',
+      title: 'Promo Spends',
+      value: `${getLogicalKpiValue('promo', context)}%`,
+      delta: -getLogicalKpiValue('promodelta', context) / 5,
+      deltaLabel: `-${(getLogicalKpiValue('promodelta', context) / 100).toFixed(2)} pts`,
+      icon: Percent,
+      gradient: ['#f43f5e', '#ec4899'],
+      trend: getLogicalKpiTrend('promo', context)
+    },
+    {
+      id: 'market',
+      title: 'Market Share',
+      value: `${getLogicalKpiValue('market', context)}%`,
+      delta: getLogicalKpiValue('marketdelta', context),
+      deltaLabel: `+${(getLogicalKpiValue('marketdelta', context) / 8).toFixed(2)} pts`,
+      icon: PieChart,
+      gradient: ['#8b5cf6', '#a855f7'],
+      trend: getLogicalKpiTrend('market', context)
+    },
+    {
+      id: 'sos',
+      title: 'Share of Search',
+      value: `${getLogicalKpiValue('sos', context)}%`,
+      delta: -getLogicalKpiValue('sosdelta', context) / 6,
+      deltaLabel: `-${(getLogicalKpiValue('sosdelta', context) / 10).toFixed(1)} pts`,
+      icon: Eye,
+      gradient: ['#f97316', '#fb923c'],
+      trend: getLogicalKpiTrend('sos', context)
+    },
+    {
+      id: 'inorg',
+      title: 'Inorganic Sales',
+      value: `${getLogicalKpiValue('inorg', context)}%`,
+      delta: getLogicalKpiValue('inorgdelta', context),
+      deltaLabel: `+${(getLogicalKpiValue('inorgdelta', context) / 5).toFixed(1)}%`,
+      icon: TrendingUp,
+      gradient: ['#22c55e', '#4ade80'],
+      trend: getLogicalKpiTrend('inorg', context)
+    },
+    {
+      id: 'conversion',
+      title: 'Conversion',
+      value: `${getLogicalKpiValue('conversion', context)}%`,
+      delta: getLogicalKpiValue('convdelta', context) * 2,
+      deltaLabel: `+${(getLogicalKpiValue('convdelta', context) / 30).toFixed(1)}%`,
+      icon: Target,
+      gradient: ['#06b6d4', '#22d3ee'],
+      trend: getLogicalKpiTrend('conversion', context)
+    },
+    {
+      id: 'roas',
+      title: 'ROAS',
+      value: `${getLogicalKpiValue('roas', context)}x`,
+      delta: getLogicalKpiValue('roasdelta', context) * 1.5,
+      deltaLabel: `+${(getLogicalKpiValue('roasdelta', context) / 20).toFixed(1)}x`,
+      icon: DollarSign,
+      gradient: ['#eab308', '#facc15'],
+      trend: getLogicalKpiTrend('roas', context)
+    },
+  ], [selectedChannel, platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+
+  const FORMAT_ROWS = useMemo(() => {
+    const row = (name, key) => {
+      const ctx = { ...context, entityKey: key };
+      return { name, offtakes: getLogicalKpiValue('offtakes', ctx), spend: getLogicalKpiValue('spend', ctx), roas: getLogicalKpiValue('roas', ctx), inorgSalesPct: getLogicalKpiValue('inorg', ctx), conversionPct: getLogicalKpiValue('conversion', ctx), marketSharePct: getLogicalKpiValue('market', ctx), promoMyBrandPct: getLogicalKpiValue('promo', ctx), promoCompetePct: getLogicalKpiValue('promoCompete', ctx), cpm: getLogicalKpiValue('cpm', ctx), cpc: getLogicalKpiValue('cpc', ctx) };
+    };
+    return [
+      row("Cassata", "cassata"),
+      row("Core Tub", "core tub"),
+      row("Cornetto", "cornetto"),
+      row("Cup", "cup"),
+      row("KW Sticks", "kw sticks"),
+      row("Magnum", "magnum"),
+      row("Sandwich", "sandwich"),
+      row("Family Pack", "family pack"),
+      row("Chocobar", "chocobar"),
+      row("Kulfi", "kulfi"),
+      row("Jelly Cups", "jelly cups"),
+      row("Brownie Tub", "brownie tub"),
+      row("Exotics", "exotics"),
+      row("Others", "others"),
+    ];
+  }, [selectedChannel, platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+
 
   // Update filters when context changes
   useEffect(() => {
@@ -217,16 +331,6 @@ export default function WatchTower() {
     fetchData();
   }, [filters]); // Refetch when filters change
 
-  const COMPARISON_KPIS = [
-    { id: 'offtake', title: 'Offtake', value: '₹14.8Cr', delta: 15.9, deltaLabel: '+₹89.3L', icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'], trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75] },
-    { id: 'availability', title: 'Availability', value: '96.8%', delta: 1.8, deltaLabel: '+1.7 pts', icon: Layers, gradient: ['#14b8a6', '#06b6d4'], trend: [85, 87, 86, 88, 90, 89, 92, 94, 93, 95, 96, 97] },
-    { id: 'promo', title: 'Promo Spends', value: '5.21%', delta: -0.7, deltaLabel: '-0.04 pts', icon: Percent, gradient: ['#f43f5e', '#ec4899'], trend: [6.2, 6.0, 5.8, 5.5, 5.3, 5.4, 5.2, 5.1, 5.3, 5.2, 5.2, 5.2] },
-    { id: 'market', title: 'Market Share', value: '24.3%', delta: 3.9, deltaLabel: '+0.92 pts', icon: PieChart, gradient: ['#8b5cf6', '#a855f7'], trend: [20, 21, 21.5, 22, 22.5, 23, 23.2, 23.5, 23.8, 24, 24.2, 24.3] },
-    { id: 'sos', title: 'Share of Search', value: '25%', delta: -1.3, deltaLabel: '-0.4 pts', icon: Eye, gradient: ['#f97316', '#fb923c'], trend: [28, 27, 26.5, 26, 25.5, 25.8, 25.3, 25.1, 25.4, 25.2, 25.1, 25] },
-    { id: 'inorg', title: 'Inorganic Sales', value: '11%', delta: 5.4, deltaLabel: '+1.2%', icon: TrendingUp, gradient: ['#22c55e', '#4ade80'], trend: [8, 8.5, 9, 9.2, 9.5, 10, 10.2, 10.5, 10.8, 11, 10.8, 11] },
-    { id: 'conversion', title: 'Conversion', value: '1%', delta: 28, deltaLabel: '+0.2%', icon: Target, gradient: ['#06b6d4', '#22d3ee'], trend: [0.7, 0.72, 0.75, 0.78, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95, 0.98, 1.0] },
-    { id: 'roas', title: 'ROAS', value: '2x', delta: 16.5, deltaLabel: '+0.3x', icon: DollarSign, gradient: ['#eab308', '#facc15'], trend: [1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.92, 1.95, 2.0] },
-  ]
 
   return (
     <>
@@ -259,6 +363,7 @@ export default function WatchTower() {
             }
             kpis={COMPARISON_KPIS}
             variant="watchtower"
+            seed={platform}
           />
         )}
 
@@ -409,7 +514,7 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio />
+          <FormatPerformanceStudio rows={FORMAT_ROWS} />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -443,212 +548,25 @@ export default function WatchTower() {
     </>
   );
 }
-const FORMAT_ROWS = [
-  {
-    name: "Cassata",
-    offtakes: 4,
-    spend: 0,
-    roas: 3.2,
-    inorgSalesPct: 19,
-    conversionPct: 2.3,
-    marketSharePct: 23,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 384,
-    cpc: 4736,
-  },
-  {
-    name: "Core Tub",
-    offtakes: 61,
-    spend: 2,
-    roas: 5.5,
-    inorgSalesPct: 18,
-    conversionPct: 2.6,
-    marketSharePct: 16,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 404,
-    cpc: 51,
-  },
-  {
-    name: "Cornetto",
-    offtakes: 48,
-    spend: 1,
-    roas: 7.4,
-    inorgSalesPct: 12,
-    conversionPct: 10.7,
-    marketSharePct: 8,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 456,
-    cpc: 71,
-  },
-  {
-    name: "Cup",
-    offtakes: 4,
-    spend: 0,
-    roas: 5.2,
-    inorgSalesPct: 2,
-    conversionPct: 1.9,
-    marketSharePct: 3,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 210,
-    cpc: 15,
-  },
-  {
-    name: "KW Sticks",
-    offtakes: 9,
-    spend: 0,
-    roas: 5.7,
-    inorgSalesPct: 13,
-    conversionPct: 4.1,
-    marketSharePct: 22,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 402,
-    cpc: 96,
-  },
-  {
-    name: "Magnum",
-    offtakes: 14,
-    spend: 0,
-    roas: 9.9,
-    inorgSalesPct: 35,
-    conversionPct: 5.6,
-    marketSharePct: 22,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 428,
-    cpc: 169,
-  },
-  {
-    name: "Others",
-    offtakes: 0,
-    spend: 0,
-    roas: 14.2,
-    inorgSalesPct: 100,
-    conversionPct: 1.4,
-    marketSharePct: 0,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 337,
-    cpc: 16,
-  },
 
-  /* ---------------------- NEW 7 ROWS ---------------------- */
-
-  {
-    name: "Sandwich",
-    offtakes: 18,
-    spend: 1,
-    roas: 6.8,
-    inorgSalesPct: 22,
-    conversionPct: 3.5,
-    marketSharePct: 14,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 390,
-    cpc: 62,
-  },
-  {
-    name: "Family Pack",
-    offtakes: 33,
-    spend: 1,
-    roas: 4.9,
-    inorgSalesPct: 27,
-    conversionPct: 4.4,
-    marketSharePct: 18,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 362,
-    cpc: 85,
-  },
-  {
-    name: "Chocobar",
-    offtakes: 21,
-    spend: 0,
-    roas: 8.3,
-    inorgSalesPct: 31,
-    conversionPct: 6.1,
-    marketSharePct: 11,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 412,
-    cpc: 102,
-  },
-  {
-    name: "Kulfi",
-    offtakes: 12,
-    spend: 0,
-    roas: 6.1,
-    inorgSalesPct: 7,
-    conversionPct: 2.8,
-    marketSharePct: 6,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 298,
-    cpc: 48,
-  },
-  {
-    name: "Jelly Cups",
-    offtakes: 7,
-    spend: 0,
-    roas: 4.4,
-    inorgSalesPct: 5,
-    conversionPct: 1.7,
-    marketSharePct: 4,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 276,
-    cpc: 39,
-  },
-  {
-    name: "Brownie Tub",
-    offtakes: 26,
-    spend: 1,
-    roas: 7.9,
-    inorgSalesPct: 18,
-    conversionPct: 4.8,
-    marketSharePct: 12,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 430,
-    cpc: 121,
-  },
-  {
-    name: "Exotics",
-    offtakes: 5,
-    spend: 0,
-    roas: 12.3,
-    inorgSalesPct: 43,
-    conversionPct: 5.3,
-    marketSharePct: 2,
-    promoMyBrandPct: 100,
-    promoCompetePct: 100,
-    cpm: 389,
-    cpc: 155,
-  },
-];
-
-const FormatPerformanceStudio = () => {
-  const [activeName, setActiveName] = useState(FORMAT_ROWS[0]?.name);
+const FormatPerformanceStudio = ({ rows }) => {
+  const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
   const active = useMemo(
-    () => FORMAT_ROWS.find((f) => f.name === activeName) ?? FORMAT_ROWS[0],
-    [activeName]
+    () => rows.find((f) => f.name === activeName) ?? rows[0],
+    [activeName, rows]
   );
   const compare = useMemo(
     () =>
       compareName
-        ? FORMAT_ROWS.find((f) => f.name === compareName) ?? null
+        ? rows.find((f) => f.name === compareName) ?? null
         : null,
-    [compareName]
+    [compareName, rows]
   );
   const maxOfftakes = useMemo(
-    () => Math.max(...FORMAT_ROWS.map((f) => f.offtakes || 1)),
-    []
+    () => Math.max(...rows.map((f) => f.offtakes || 1)),
+    [rows]
   );
   const formatNumber = (value) =>
     Number.isFinite(value) ? value.toLocaleString("en-IN") : "NaN";
@@ -656,8 +574,8 @@ const FormatPerformanceStudio = () => {
   const pct = (value) =>
     Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
   const [visibleCount, setVisibleCount] = useState(7);
-  const visibleItems = FORMAT_ROWS.slice(0, visibleCount);
-  const total = FORMAT_ROWS.length;
+  const visibleItems = rows.slice(0, visibleCount);
+  const total = rows.length;
 
   const kpiBands = [
     {
@@ -777,7 +695,7 @@ const FormatPerformanceStudio = () => {
         </div>
 
         <div className="space-y-2 max-h-150 overflow-y-auto pr-1 ">
-          {FORMAT_ROWS.map((f, index) => {
+          {rows.map((f, index) => {
             const isActive = f.name === activeName;
 
             return (

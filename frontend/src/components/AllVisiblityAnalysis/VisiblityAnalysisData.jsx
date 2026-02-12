@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useContext } from 'react'
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -16,14 +16,12 @@ import {
   YAxis,
 } from 'recharts'
 import {
-  DRILL_COLUMNS,
-  FORMAT_MATRIX,
-  FORMAT_MATRIX_Visibility,
-  FORMAT_ROWS,
-  OLA_Detailed,
-  ONE_VIEW_DRILL_DATA,
-  PRODUCT_MATRIX
+  PRODUCT_MATRIX,
+  getLogicalKpiValue,
+  getLogicalKpiTrend,
+  FORMAT_MATRIX_Visibility
 } from "../AllAvailablityAnalysis/availablityDataCenter";
+import { FilterContext } from "../../utils/FilterContext";
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
 import SimpleTableWithTabs from '../CommonLayout/SimpleTableWithTabs'
@@ -586,7 +584,18 @@ const VisiblityAnalysisData = () => {
       extraChangeColor: "green",
     },
   ];
-  const getVisibilityKpis = () => {
+  const {
+    selectedChannel,
+    platform: globalPlatform,
+    selectedBrand,
+    selectedLocation,
+    timeStart,
+    timeEnd
+  } = useContext(FilterContext);
+
+  const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+
+  const visibilityKpis = useMemo(() => {
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
@@ -596,31 +605,29 @@ const VisiblityAnalysisData = () => {
     ];
 
     return cards.map((card, idx) => {
-      // Extract numeric delta from string like "▲4.3 pts"
-      const deltaMatch = card.change.match(/[▲▼]([\d.]+)/);
-      const delta = deltaMatch ? parseFloat(deltaMatch[1]) * (card.change.includes('▼') ? -1 : 1) : 0;
+      const kpiKey = card.title.toLowerCase();
+      const val = getLogicalKpiValue(kpiKey, context);
+      const isUp = getLogicalKpiValue(kpiKey + 'dir', context) > 50;
+      const delta = (getLogicalKpiValue(kpiKey + 'delta', context) / 20).toFixed(1);
 
       return {
         id: `vis-${idx}`,
         title: card.title,
-        value: card.value,
+        value: `${val}%`,
         subtitle: card.sub,
-        delta: delta,
-        deltaLabel: card.change,
+        delta: parseFloat(delta),
+        deltaLabel: `${isUp ? '▲' : '▼'} ${delta} pts`,
         icon: icons[idx] || PieChart,
         gradient: gradients[idx % gradients.length],
-        trend: [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75], // placeholder trend
+        trend: getLogicalKpiTrend(kpiKey, context),
 
-        // Extra fields for DetailedSparklineCard
         extra: card.extra,
         extraChange: card.extraChange,
         extraChangeColor: card.extraChangeColor,
         prevText: card.prevText
       };
     });
-  };
-
-  const visibilityKpis = useMemo(() => getVisibilityKpis(), []);
+  }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
@@ -720,7 +727,15 @@ const VisiblityAnalysisData = () => {
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
     { id: "keywords", label: "Keyword" },
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-    { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+    {
+      id: "platform", label: "Platform", options: [
+        { id: "blinkit", label: "Blinkit" },
+        { id: "instamart", label: "Instamart" },
+        { id: "zepto", label: "Zepto" },
+        { id: "flipkart", label: "Flipkart" },
+        { id: "amazon", label: "Amazon" }
+      ]
+    },
     {
       id: "kpi",
       label: "KPI",
@@ -742,24 +757,36 @@ const VisiblityAnalysisData = () => {
 
   const TabbedHeatmapTable = () => {
     const [activeTab, setActiveTab] = useState("platform");
+    const {
+      selectedChannel,
+      platform: globalPlatform,
+      selectedBrand,
+      selectedLocation,
+      timeStart,
+      timeEnd
+    } = useContext(FilterContext);
 
     // 🔥 Utility to compute unified trend + series for ANY item
-    const buildRows = (dataArray = [], columnList = []) => {
+    const buildRows = (dataArray = [], columnList = [], context = {}) => {
       return dataArray.map((item) => {
-        const primaryTrendSeries = item?.trend?.["Spend"] || [];
-        const valid = primaryTrendSeries.length >= 2;
-
-        const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-        const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
-
-        const globalDelta = Number((lastVal - prevVal).toFixed(1));
-
         const trendObj = {};
         const seriesObj = {};
 
         columnList.forEach((col) => {
-          trendObj[col] = globalDelta;           // same delta for every column
-          seriesObj[col] = primaryTrendSeries;   // sparkline same for each column
+          const seed = { ...context, kpi: item.kpi, col };
+          const randomVal = getLogicalKpiValue(item.kpi, seed);
+          const randomTrendSeries = getLogicalKpiTrend(item.kpi, seed);
+          const validTrend = randomTrendSeries.length >= 2;
+
+          const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
+          const prevTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 2] : 0;
+          const trendDelta = Number((lastTrendVal - prevTrendVal).toFixed(1));
+
+          trendObj[col] = trendDelta;
+          seriesObj[col] = randomTrendSeries;
+
+          // Store the randomized value in the row object for this column
+          item.values[col] = randomVal;
         });
 
         return {
@@ -771,39 +798,44 @@ const VisiblityAnalysisData = () => {
       });
     };
 
-    // ---------------- PLATFORM ----------------
-    const platformData = {
-      columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
-      rows: buildRows(
-        FORMAT_MATRIX_Visibility.PlatformData,
-        FORMAT_MATRIX_Visibility.PlatformColumns
-      ),
-    };
-
-    // ---------------- FORMAT ----------------
-    const formatData = {
-      columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
-      rows: buildRows(
-        FORMAT_MATRIX_Visibility.FormatData,
-        FORMAT_MATRIX_Visibility.formatColumns
-      ),
-    };
-
-    // ---------------- CITY ----------------
-    const cityData = {
-      columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
-      rows: buildRows(
-        FORMAT_MATRIX_Visibility.CityData,
-        FORMAT_MATRIX_Visibility.CityColumns
-      ),
-    };
-
     // ---------------- TABS ----------------
-    const tabs = [
-      { key: "platform", label: "Platform", data: platformData },
-      { key: "format", label: "Format", data: formatData },
-      { key: "city", label: "City", data: cityData },
-    ];
+    const tabs = useMemo(() => {
+      // ---------------- PLATFORM ----------------
+      const platformData = {
+        columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
+        rows: buildRows(
+          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.PlatformData])),
+          FORMAT_MATRIX_Visibility.PlatformColumns,
+          context
+        ),
+      };
+
+      // ---------------- FORMAT ----------------
+      const formatData = {
+        columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
+        rows: buildRows(
+          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.FormatData])),
+          FORMAT_MATRIX_Visibility.formatColumns,
+          context
+        ),
+      };
+
+      // ---------------- CITY ----------------
+      const cityData = {
+        columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
+        rows: buildRows(
+          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.CityData])),
+          FORMAT_MATRIX_Visibility.CityColumns,
+          context
+        ),
+      };
+
+      return [
+        { key: "platform", label: "Platform", data: platformData },
+        { key: "format", label: "Format", data: formatData },
+        { key: "city", label: "City", data: cityData },
+      ];
+    }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
     const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 

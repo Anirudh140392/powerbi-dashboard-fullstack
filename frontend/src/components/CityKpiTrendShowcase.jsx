@@ -142,6 +142,18 @@ const mockKeywords = [
 
 // --- Helpers ---------------------------------------------------------------
 
+function formatKpiValue(kpi, value) {
+  if (value === undefined || value === null) return "–";
+  const k = kpi.toLowerCase();
+  if (k.includes("osa") || k.includes("fillrate")) return `${value}%`;
+  // PSL should be > 10,000
+  if (k.includes("psl")) {
+    const num = Number(value);
+    return isNaN(num) ? value : num.toLocaleString();
+  }
+  return value.toString();
+}
+
 function getCellClasses(value) {
   if (value >= 90) return "bg-green-100 text-green-900 border-green-200";
   if (value >= 80) return "bg-green-50 text-green-800 border-green-100";
@@ -953,7 +965,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                            ${cellClasses}`}
                               >
                                 <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? (isPercentageBased ? `${value}%` : `${value}`) : "–"}
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : "–"}
                                 </span>
 
                                 <span
@@ -977,7 +989,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{isPercentageBased ? `${value}%` : value}</span>
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{formatKpiValue(row.kpi, value)}</span>
                                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
                                     {trend > 0 ? `+${trend}` : `${trend}`}
                                   </span>

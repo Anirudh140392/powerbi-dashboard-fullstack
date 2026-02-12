@@ -1,9 +1,282 @@
-// Helper function to apply variance for weighted data
-function applyWeightedVariance(value, variancePercent = 12) {
-  if (typeof value !== 'number') return value;
-  const variance = (Math.random() - 0.5) * 2 * variancePercent;
-  const newValue = Math.round(value * (1 + variance / 100));
-  return Math.max(0, Math.min(100, newValue)); // Clamp between 0-100
+// ═══════════════════════════════════════════════════════════════
+// COMPLETE LOGICAL DATA MATRIX — NO RANDOMNESS
+// Every entity × KPI combination has a unique hardcoded value.
+// ═══════════════════════════════════════════════════════════════
+
+// Helper (kept for legacy references but NO randomness inside)
+function applyWeightedVariance(value) {
+  return typeof value === 'number' ? value : 0;
+}
+
+const getSeedFromStr = (str) => {
+  let h = 0xdeadbeef;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
+  }
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+const getVariance = (seedStr, pointSeed = "") => {
+  const val = getSeedFromStr((seedStr || "default") + pointSeed);
+  // Range: 0.8 to 1.2 for slightly more subtle but visible changes
+  return 0.8 + val * 0.4;
+};
+
+// ── Per-Entity KPI Data (keys are lowercase) ─────────────────
+const ENTITY_DATA = {
+  // ── PLATFORMS ───────────────────────────────────────────────
+  blinkit: { offtakes: 4.8, spend: 0.82, roas: 5.9, categorySize: 18.2, conversion: 3.2, availability: 95.8, sos: 32.4, marketShare: 28.5, inorgSales: 14.2, dspSales: 8.5, promoMyBrand: 22.1, promoCompete: 18.4, cpm: 165, cpc: 14.2, osa: 95.8, doi: 38, fillrate: 96.5, assortment: 156, psl: 14500, promo: 7.2, market: 28.5, inorg: 14.2 },
+  instamart: { offtakes: 3.9, spend: 0.68, roas: 5.7, categorySize: 15.8, conversion: 2.8, availability: 94.7, sos: 29.5, marketShare: 25.1, inorgSales: 12.8, dspSales: 7.2, promoMyBrand: 19.8, promoCompete: 16.2, cpm: 152, cpc: 15.8, osa: 94.7, doi: 42, fillrate: 95.8, assortment: 142, psl: 12800, promo: 6.4, market: 25.1, inorg: 12.8 },
+  zepto: { offtakes: 3.2, spend: 0.55, roas: 5.8, categorySize: 13.5, conversion: 2.5, availability: 94.2, sos: 26.8, marketShare: 22.4, inorgSales: 11.5, dspSales: 6.8, promoMyBrand: 17.5, promoCompete: 14.8, cpm: 138, cpc: 16.5, osa: 94.2, doi: 44, fillrate: 95.2, assortment: 134, psl: 11200, promo: 5.8, market: 22.4, inorg: 11.5 },
+  flipkart: { offtakes: 2.4, spend: 0.42, roas: 5.7, categorySize: 11.2, conversion: 1.9, availability: 94.5, sos: 24.2, marketShare: 19.8, inorgSales: 10.2, dspSales: 5.5, promoMyBrand: 15.2, promoCompete: 12.5, cpm: 178, cpc: 19.2, osa: 94.5, doi: 48, fillrate: 95.5, assortment: 128, psl: 9800, promo: 5.2, market: 19.8, inorg: 10.2 },
+  amazon: { offtakes: 2.8, spend: 0.48, roas: 5.8, categorySize: 12.4, conversion: 2.1, availability: 95.2, sos: 25.5, marketShare: 21.2, inorgSales: 10.8, dspSales: 6.2, promoMyBrand: 16.4, promoCompete: 13.8, cpm: 185, cpc: 18.5, osa: 95.2, doi: 46, fillrate: 96.2, assortment: 132, psl: 10500, promo: 5.5, market: 21.2, inorg: 10.8 },
+
+  // ── ICE CREAM BRANDS / KW Competitors ──────────────────────
+  "kwality walls": { offtakes: 5.6, spend: 0.95, roas: 5.9, categorySize: 21.2, conversion: 3.5, availability: 96.2, sos: 38.2, marketShare: 32.4, inorgSales: 16.5, dspSales: 9.8, promoMyBrand: 26.2, promoCompete: 22.5, cpm: 135, cpc: 12.8, osa: 96.2, doi: 34, fillrate: 97.5, assortment: 168, psl: 16500, promo: 8.2, market: 32.4, inorg: 16.5 },
+  amul: { offtakes: 4.2, spend: 0.75, roas: 5.6, categorySize: 17.5, conversion: 2.8, availability: 95.5, sos: 34.5, marketShare: 28.1, inorgSales: 14.2, dspSales: 8.2, promoMyBrand: 22.5, promoCompete: 19.2, cpm: 148, cpc: 14.5, osa: 95.5, doi: 39, fillrate: 96.8, assortment: 155, psl: 14200, promo: 7.2, market: 28.1, inorg: 14.2 },
+  "mother dairy": { offtakes: 3.1, spend: 0.52, roas: 6.0, categorySize: 12.8, conversion: 2.2, availability: 94.8, sos: 25.1, marketShare: 18.5, inorgSales: 9.8, dspSales: 5.5, promoMyBrand: 14.8, promoCompete: 12.2, cpm: 162, cpc: 17.5, osa: 94.8, doi: 45, fillrate: 95.5, assortment: 132, psl: 9800, promo: 5.2, market: 18.5, inorg: 9.8 },
+  vadilal: { offtakes: 2.5, spend: 0.38, roas: 6.6, categorySize: 9.8, conversion: 1.8, availability: 94.2, sos: 22.4, marketShare: 15.2, inorgSales: 8.5, dspSales: 4.8, promoMyBrand: 12.5, promoCompete: 10.8, cpm: 172, cpc: 19.2, osa: 94.2, doi: 48, fillrate: 95.2, assortment: 118, psl: 8500, promo: 4.5, market: 15.2, inorg: 8.5 },
+  havmor: { offtakes: 1.8, spend: 0.32, roas: 5.6, categorySize: 7.5, conversion: 1.5, availability: 93.8, sos: 18.2, marketShare: 12.5, inorgSales: 7.2, dspSales: 4.2, promoMyBrand: 10.2, promoCompete: 8.5, cpm: 195, cpc: 22.5, osa: 93.8, doi: 52, fillrate: 94.8, assortment: 98, psl: 7200, promo: 3.8, market: 12.5, inorg: 7.2 },
+  cornetto: { offtakes: 2.5, spend: 0.38, roas: 6.6, categorySize: 9.8, conversion: 1.8, availability: 94.2, sos: 22.4, marketShare: 15.2, inorgSales: 8.5, dspSales: 4.8, promoMyBrand: 12.5, promoCompete: 10.8, cpm: 172, cpc: 19.2, osa: 94.2, doi: 48, fillrate: 95.2, assortment: 118, psl: 8500, promo: 4.5, market: 15.2, inorg: 8.5 },
+  magnum: { offtakes: 1.8, spend: 0.32, roas: 5.6, categorySize: 7.5, conversion: 1.5, availability: 93.8, sos: 18.2, marketShare: 12.5, inorgSales: 7.2, dspSales: 4.2, promoMyBrand: 10.2, promoCompete: 8.5, cpm: 195, cpc: 22.5, osa: 93.8, doi: 52, fillrate: 94.8, assortment: 98, psl: 7200, promo: 3.8, market: 12.5, inorg: 7.2 },
+  feast: { offtakes: 1.2, spend: 0.22, roas: 5.5, categorySize: 5.8, conversion: 1.2, availability: 93.5, sos: 14.5, marketShare: 9.8, inorgSales: 5.8, dspSales: 3.5, promoMyBrand: 8.2, promoCompete: 6.8, cpm: 215, cpc: 24.8, osa: 93.5, doi: 56, fillrate: 94.5, assortment: 82, psl: 5800, promo: 3.2, market: 9.8, inorg: 5.8 },
+  twister: { offtakes: 0.9, spend: 0.18, roas: 5.0, categorySize: 4.2, conversion: 0.9, availability: 92.8, sos: 11.2, marketShare: 7.5, inorgSales: 4.5, dspSales: 2.8, promoMyBrand: 6.5, promoCompete: 5.2, cpm: 235, cpc: 28.5, osa: 92.8, doi: 62, fillrate: 93.8, assortment: 68, psl: 4500, promo: 2.5, market: 7.5, inorg: 4.5 },
+
+  // ── MONTHS ─────────────────────────────────────────────────
+  oct: { offtakes: 4.5, spend: 0.78, roas: 5.8, categorySize: 17.8, conversion: 3.1, availability: 91.5, sos: 31.2, marketShare: 27.5, inorgSales: 13.8, dspSales: 8.2, promoMyBrand: 21.5, promoCompete: 17.8, cpm: 148, cpc: 14.8, osa: 91.5, doi: 39, fillrate: 94.2, assortment: 152, psl: 13800, promo: 7.0, market: 27.5, inorg: 13.8 },
+  nov: { offtakes: 3.8, spend: 0.65, roas: 5.8, categorySize: 15.2, conversion: 2.7, availability: 89.8, sos: 28.5, marketShare: 24.8, inorgSales: 12.2, dspSales: 7.5, promoMyBrand: 19.2, promoCompete: 15.8, cpm: 155, cpc: 16.2, osa: 89.8, doi: 42, fillrate: 93.5, assortment: 145, psl: 12200, promo: 6.2, market: 24.8, inorg: 12.2 },
+  dec: { offtakes: 5.2, spend: 0.88, roas: 5.9, categorySize: 20.5, conversion: 3.5, availability: 93.2, sos: 34.8, marketShare: 29.5, inorgSales: 15.5, dspSales: 9.2, promoMyBrand: 25.5, promoCompete: 21.2, cpm: 138, cpc: 13.5, osa: 93.2, doi: 36, fillrate: 95.8, assortment: 162, psl: 15500, promo: 8.5, market: 29.5, inorg: 15.5 },
+  jan: { offtakes: 3.2, spend: 0.52, roas: 6.2, categorySize: 12.8, conversion: 2.2, availability: 87.5, sos: 25.2, marketShare: 22.1, inorgSales: 10.8, dspSales: 6.2, promoMyBrand: 16.8, promoCompete: 13.5, cpm: 168, cpc: 18.5, osa: 87.5, doi: 46, fillrate: 91.2, assortment: 135, psl: 10800, promo: 5.5, market: 22.1, inorg: 10.8 },
+
+  // ── ICE CREAM CATEGORIES ──────────────────────────────────
+  cassata: { offtakes: 2.8, spend: 0.42, roas: 6.7, categorySize: 10.5, conversion: 2.8, availability: 91.2, sos: 28.5, marketShare: 24.2, inorgSales: 12.5, dspSales: 7.2, promoMyBrand: 18.5, promoCompete: 15.2, cpm: 145, cpc: 15.2, osa: 91.2, doi: 38, fillrate: 94.5, assortment: 24, psl: 8500, promo: 6.2, market: 24.2, inorg: 12.5 },
+  "core tub": { offtakes: 3.5, spend: 0.58, roas: 6.0, categorySize: 14.2, conversion: 3.1, availability: 92.5, sos: 30.2, marketShare: 26.5, inorgSales: 13.8, dspSales: 8.2, promoMyBrand: 20.5, promoCompete: 17.2, cpm: 138, cpc: 14.5, osa: 92.5, doi: 36, fillrate: 95.2, assortment: 18, psl: 9800, promo: 7.0, market: 26.5, inorg: 13.8 },
+  cup: { offtakes: 1.8, spend: 0.28, roas: 6.4, categorySize: 7.2, conversion: 2.2, availability: 88.5, sos: 22.5, marketShare: 18.8, inorgSales: 9.5, dspSales: 5.5, promoMyBrand: 14.2, promoCompete: 11.8, cpm: 158, cpc: 17.2, osa: 88.5, doi: 42, fillrate: 92.8, assortment: 12, psl: 6200, promo: 4.8, market: 18.8, inorg: 9.5 },
+  "kw sticks": { offtakes: 1.5, spend: 0.22, roas: 6.8, categorySize: 5.8, conversion: 1.8, availability: 86.2, sos: 19.8, marketShare: 15.5, inorgSales: 7.8, dspSales: 4.5, promoMyBrand: 12.2, promoCompete: 9.8, cpm: 168, cpc: 19.5, osa: 86.2, doi: 45, fillrate: 91.2, assortment: 8, psl: 4800, promo: 3.8, market: 15.5, inorg: 7.8 },
+  sandwich: { offtakes: 2.2, spend: 0.35, roas: 6.3, categorySize: 8.8, conversion: 2.5, availability: 90.2, sos: 25.5, marketShare: 21.2, inorgSales: 10.8, dspSales: 6.2, promoMyBrand: 16.5, promoCompete: 13.8, cpm: 148, cpc: 16.2, osa: 90.2, doi: 40, fillrate: 93.5, assortment: 15, psl: 7200, promo: 5.5, market: 21.2, inorg: 10.8 },
+  "family pack": { offtakes: 2.5, spend: 0.38, roas: 6.6, categorySize: 9.5, conversion: 2.4, availability: 89.8, sos: 24.8, marketShare: 20.5, inorgSales: 10.2, dspSales: 5.8, promoMyBrand: 15.8, promoCompete: 13.2, cpm: 152, cpc: 16.8, osa: 89.8, doi: 41, fillrate: 93.2, assortment: 14, psl: 7800, promo: 5.2, market: 20.5, inorg: 10.2 },
+  chocobar: { offtakes: 1.2, spend: 0.18, roas: 6.7, categorySize: 4.5, conversion: 1.5, availability: 85.5, sos: 17.2, marketShare: 13.5, inorgSales: 6.8, dspSales: 3.8, promoMyBrand: 10.2, promoCompete: 8.5, cpm: 175, cpc: 20.5, osa: 85.5, doi: 48, fillrate: 89.8, assortment: 6, psl: 3800, promo: 3.2, market: 13.5, inorg: 6.8 },
+  kulfi: { offtakes: 1.0, spend: 0.15, roas: 6.7, categorySize: 3.8, conversion: 1.2, availability: 83.2, sos: 14.5, marketShare: 11.2, inorgSales: 5.5, dspSales: 3.2, promoMyBrand: 8.5, promoCompete: 7.2, cpm: 185, cpc: 22.5, osa: 83.2, doi: 52, fillrate: 88.5, assortment: 5, psl: 3200, promo: 2.8, market: 11.2, inorg: 5.5 },
+  "jelly cups": { offtakes: 0.8, spend: 0.12, roas: 6.7, categorySize: 3.2, conversion: 1.0, availability: 81.5, sos: 12.2, marketShare: 9.5, inorgSales: 4.5, dspSales: 2.5, promoMyBrand: 7.2, promoCompete: 5.8, cpm: 195, cpc: 24.5, osa: 81.5, doi: 55, fillrate: 86.5, assortment: 4, psl: 2500, promo: 2.2, market: 9.5, inorg: 4.5 },
+  "brownie tub": { offtakes: 0.6, spend: 0.10, roas: 6.0, categorySize: 2.5, conversion: 0.8, availability: 79.8, sos: 10.5, marketShare: 7.8, inorgSales: 3.8, dspSales: 2.2, promoMyBrand: 5.8, promoCompete: 4.8, cpm: 208, cpc: 26.5, osa: 79.8, doi: 58, fillrate: 85.2, assortment: 3, psl: 2000, promo: 1.8, market: 7.8, inorg: 3.8 },
+  exotics: { offtakes: 0.5, spend: 0.08, roas: 6.3, categorySize: 2.2, conversion: 0.7, availability: 78.5, sos: 8.5, marketShare: 6.2, inorgSales: 3.2, dspSales: 1.8, promoMyBrand: 4.8, promoCompete: 3.8, cpm: 218, cpc: 28.5, osa: 78.5, doi: 60, fillrate: 84.2, assortment: 3, psl: 1800, promo: 1.5, market: 6.2, inorg: 3.2 },
+  others: { offtakes: 0.4, spend: 0.05, roas: 5.5, categorySize: 1.8, conversion: 0.5, availability: 75.2, sos: 6.2, marketShare: 4.5, inorgSales: 2.5, dspSales: 1.2, promoMyBrand: 3.5, promoCompete: 2.5, cpm: 235, cpc: 32.5, osa: 75.2, doi: 65, fillrate: 82.5, assortment: 2, psl: 1200, promo: 1.0, market: 4.5, inorg: 2.5 },
+
+  // ── SKUs (Kwality Walls product SKUs) ─────────────────────
+  sku1: { offtakes: 1.8, spend: 0.28, roas: 6.4, categorySize: 6.8, conversion: 2.5, availability: 92.8, sos: 28.5, marketShare: 22.4, inorgSales: 11.2, dspSales: 6.5, promoMyBrand: 18.5, promoCompete: 15.2, cpm: 148, cpc: 14.2, osa: 92.8, doi: 38, fillrate: 95.2, assortment: 1, psl: 4200, promo: 5.8, market: 22.4, inorg: 11.2 },
+  sku2: { offtakes: 1.5, spend: 0.24, roas: 6.3, categorySize: 5.8, conversion: 2.2, availability: 90.5, sos: 25.2, marketShare: 19.8, inorgSales: 9.8, dspSales: 5.8, promoMyBrand: 16.2, promoCompete: 13.5, cpm: 158, cpc: 16.5, osa: 90.5, doi: 41, fillrate: 93.8, assortment: 1, psl: 3500, promo: 5.2, market: 19.8, inorg: 9.8 },
+  sku3: { offtakes: 1.2, spend: 0.18, roas: 6.7, categorySize: 4.5, conversion: 1.8, availability: 87.2, sos: 21.5, marketShare: 16.5, inorgSales: 8.2, dspSales: 4.8, promoMyBrand: 13.5, promoCompete: 11.2, cpm: 168, cpc: 18.8, osa: 87.2, doi: 45, fillrate: 91.5, assortment: 1, psl: 2800, promo: 4.5, market: 16.5, inorg: 8.2 },
+  sku4: { offtakes: 0.9, spend: 0.15, roas: 6.0, categorySize: 3.5, conversion: 1.4, availability: 84.5, sos: 18.2, marketShare: 13.2, inorgSales: 6.8, dspSales: 3.5, promoMyBrand: 10.8, promoCompete: 8.8, cpm: 182, cpc: 21.5, osa: 84.5, doi: 49, fillrate: 89.2, assortment: 1, psl: 2200, promo: 3.8, market: 13.2, inorg: 6.8 },
+
+  // ── LOCATIONS ──────────────────────────────────────────────
+  mumbai: { offtakes: 5.2, spend: 0.88, roas: 5.9, categorySize: 20.5, conversion: 3.4, availability: 93.2, sos: 33.5, marketShare: 29.8, inorgSales: 15.5, dspSales: 9.2, promoMyBrand: 24.5, promoCompete: 20.5, cpm: 142, cpc: 13.5, osa: 93.2, doi: 36, fillrate: 95.5, assortment: 158, psl: 15500, promo: 7.8, market: 29.8, inorg: 15.5 },
+  delhi: { offtakes: 4.8, spend: 0.82, roas: 5.8, categorySize: 18.8, conversion: 3.1, availability: 91.5, sos: 31.2, marketShare: 27.5, inorgSales: 14.2, dspSales: 8.5, promoMyBrand: 22.5, promoCompete: 18.8, cpm: 148, cpc: 14.2, osa: 91.5, doi: 38, fillrate: 94.8, assortment: 152, psl: 14200, promo: 7.2, market: 27.5, inorg: 14.2 },
+  bangalore: { offtakes: 3.5, spend: 0.58, roas: 6.0, categorySize: 14.2, conversion: 2.5, availability: 88.5, sos: 27.2, marketShare: 23.5, inorgSales: 11.8, dspSales: 6.8, promoMyBrand: 18.2, promoCompete: 15.2, cpm: 155, cpc: 16.2, osa: 88.5, doi: 43, fillrate: 92.5, assortment: 138, psl: 11800, promo: 6.0, market: 23.5, inorg: 11.8 },
+  hyderabad: { offtakes: 2.8, spend: 0.45, roas: 6.2, categorySize: 11.5, conversion: 2.0, availability: 85.8, sos: 24.5, marketShare: 20.2, inorgSales: 10.2, dspSales: 5.5, promoMyBrand: 15.5, promoCompete: 12.8, cpm: 162, cpc: 18.2, osa: 85.8, doi: 47, fillrate: 90.8, assortment: 128, psl: 10200, promo: 5.2, market: 20.2, inorg: 10.2 },
+  pune: { offtakes: 2.2, spend: 0.35, roas: 6.3, categorySize: 9.2, conversion: 1.7, availability: 83.2, sos: 21.5, marketShare: 17.8, inorgSales: 8.8, dspSales: 4.8, promoMyBrand: 13.5, promoCompete: 11.2, cpm: 175, cpc: 20.5, osa: 83.2, doi: 50, fillrate: 89.5, assortment: 118, psl: 8800, promo: 4.5, market: 17.8, inorg: 8.8 },
+  chennai: { offtakes: 2.0, spend: 0.32, roas: 6.3, categorySize: 8.5, conversion: 1.5, availability: 81.5, sos: 19.8, marketShare: 15.5, inorgSales: 7.5, dspSales: 4.2, promoMyBrand: 12.2, promoCompete: 10.5, cpm: 182, cpc: 21.8, osa: 81.5, doi: 52, fillrate: 88.2, assortment: 112, psl: 7500, promo: 4.0, market: 15.5, inorg: 7.5 },
+  kolkata: { offtakes: 2.1, spend: 0.35, roas: 6.0, categorySize: 8.8, conversion: 1.6, availability: 82.8, sos: 20.5, marketShare: 16.8, inorgSales: 8.2, dspSales: 4.5, promoMyBrand: 13.2, promoCompete: 10.8, cpm: 178, cpc: 21.2, osa: 82.8, doi: 51, fillrate: 88.8, assortment: 115, psl: 8200, promo: 4.2, market: 16.8, inorg: 8.2 },
+};
+
+// ── Fallback baseline ────────────────────────────────────────
+const BASELINE = { offtakes: 2.5, spend: 0.40, roas: 5.8, categorySize: 10.0, conversion: 2.0, availability: 95.0, sos: 25.0, marketShare: 20.0, inorgSales: 10.0, dspSales: 6.0, promoMyBrand: 15.0, promoCompete: 12.0, cpm: 155, cpc: 17.0, osa: 95.0, doi: 42, fillrate: 96.0, assortment: 130, psl: 10000, promo: 5.5, market: 20.0, inorg: 10.0 };
+
+// ── KPI Alias Map ────────────────────────────────────────────
+const KPI_ALIASES = {
+  offtake: 'offtakes', offtakes: 'offtakes',
+  spend: 'spend',
+  roas: 'roas',
+  categorysize: 'categorySize',
+  conversion: 'conversion',
+  availability: 'availability', osa: 'osa',
+  sos: 'sos',
+  marketshare: 'marketShare', market: 'market',
+  inorgsales: 'inorgSales', inorg: 'inorg',
+  dspsales: 'dspSales',
+  promomybrand: 'promoMyBrand', promo: 'promo',
+  promocompete: 'promoCompete',
+  cpm: 'cpm', cpc: 'cpc',
+  doi: 'doi', fillrate: 'fillrate',
+  assortment: 'assortment', psl: 'psl',
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN LOOKUP FUNCTION — No randomness
+// ═══════════════════════════════════════════════════════════════
+function getLogicalKpiValue(kpi, filters = {}) {
+  // Helper to safely get string from potentially array input
+  const safeStr = (val) => {
+    if (Array.isArray(val)) return val.length > 0 ? String(val[0]).toLowerCase() : '';
+    return String(val || '').toLowerCase();
+  };
+
+  const rawKey = kpi.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Handle delta / direction requests
+  const isDelta = rawKey.endsWith('delta');
+  const isDir = rawKey.endsWith('dir');
+
+  if (isDelta || isDir) {
+    const baseKpi = rawKey.replace(/delta$|dir$/, '');
+    const filterKey = filters.entityKey || filters.platform || filters.selectedBrand || filters.p || 'blinkit';
+    const entityKey = safeStr(filterKey);
+    const hash = (entityKey + baseKpi).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    if (isDir) return (hash % 3 === 0) ? 30 : 70;
+    const idx = filters.entityIdx || 0;
+    return ((hash + idx) % 8) + 2;
+  }
+
+  // Resolve the KPI alias
+  const kpiKey = KPI_ALIASES[rawKey] || rawKey;
+
+  // Resolve entity key (entityKey > selectedBrand > platform > selectedLocation)
+  const entityKey = safeStr(
+    filters.entityKey ||
+    filters.selectedBrand ||
+    filters.platform ||
+    filters.selectedLocation ||
+    filters.p || filters.b || filters.l ||
+    'blinkit'
+  );
+
+  // Direct lookup
+  const entityData = ENTITY_DATA[entityKey] || BASELINE;
+  let value = entityData[kpiKey];
+  if (value === undefined) value = BASELINE[kpiKey];
+  if (value === undefined) value = 50;
+
+  // Apply deterministic jitter based on platform
+  const platformSeed = safeStr(filters.platform || filters.p || 'blinkit');
+  let variance = getVariance(platformSeed, rawKey);
+
+  // For percentage KPIs like OSA, Availability, Fillrate, etc., use a tighter variance
+  // to keep them stable around the ~95% mark as requested.
+  const isPercentageKpi = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(rawKey);
+  if (isPercentageKpi) {
+    // Transform variance 0.8-1.2 into 0.98-1.02
+    variance = 0.98 + (variance - 0.8) * 0.1;
+  }
+
+  if (typeof value === 'number') {
+    value = value * variance;
+    // Cap at 100% for percentages
+    if (isPercentageKpi && value > 100) value = 99.8;
+  }
+
+  // Stable row-level micro-shift (not random)
+  if (filters.entityIdx !== undefined && filters.entityIdx > 0) {
+    const shift = ((filters.entityIdx * 7) % 5) - 2;
+    if (typeof value === 'number' && value > 10) value += shift * 0.1;
+  }
+
+  // Format
+  if (typeof value === 'number') {
+    if (Number.isInteger(value) && value > 50) return value;
+    return parseFloat(value.toFixed(1));
+  }
+  return value;
+}
+
+// ── Trend Generator ──────────────────────────────────────────
+function getLogicalKpiTrend(kpi, filters = {}, points = 12) {
+  const base = getLogicalKpiValue(kpi, filters);
+  const k = kpi.toLowerCase();
+  const shapes = {
+    growth: [0.85, 0.87, 0.90, 0.92, 0.94, 0.96, 0.98, 1.00, 1.02, 1.05, 1.08, 1.12],
+    stable: [0.98, 1.02, 1.00, 0.99, 1.01, 1.00, 0.98, 1.02, 1.00, 1.01, 0.99, 1.00],
+    seasonal: [0.80, 0.85, 0.90, 0.95, 1.00, 1.10, 1.20, 1.10, 1.00, 0.95, 0.90, 0.85],
+  };
+  let shape = shapes.stable;
+  if (k.includes('offtake') || k.includes('market')) shape = shapes.growth;
+  if (k.includes('promo') || k.includes('category')) shape = shapes.seasonal;
+
+  const isPercentageKpi = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(k);
+
+  const platformSeed = filters.platform || filters.p || 'blinkit';
+  return shape.slice(0, points).map((f, i) => {
+    let multiplier = f;
+    if (isPercentageKpi) {
+      // Dampen the trend fluctuation for percentages (e.g. 0.8 -> 0.95, 1.2 -> 1.05)
+      multiplier = 1 + (f - 1) * 0.25;
+    }
+    const pointVariance = getVariance(platformSeed, kpi + i);
+    let val = base * multiplier * pointVariance;
+    if (isPercentageKpi && val > 100) val = 99.5 + (i % 5) * 0.1;
+    return parseFloat(val.toFixed(1));
+  });
+}
+
+// ── OLD DATA REGISTRY (kept for backward compat) ─────────────
+const LOGICAL_DATA_REGISTRY = {
+  // Baseline values for a single "Unit" (1 City, 1 Brand, 1 Platform)
+  baselines: {
+    offtake: 2.1, // Cr per unit
+    osa: 88.5,    // % (Average)
+    doi: 45.0,    // Days (Average)
+    fillrate: 92.2, // % (Average)
+    assortment: 120, // SKU count
+    psl: 12000,   // Units (Sum)
+    promo: 6.5,   // % Spends
+    market: 24.2, // % Share (Leader base)
+    sos: 28.0,    // % Share (Leader base)
+    inorg: 12.4,  // % Share
+    conversion: 2.1, // % Rate
+    roas: 4.8,    // x (Average)
+    cpm: 145,     // Sum/Avg
+    cpc: 18.2,    // Avg
+    spend: 0.25,  // Cr per unit
+  },
+  // Weight Multipliers for Dimensions
+  weights: {
+    locations: {
+      "Mumbai": 1.25,
+      "Delhi": 1.15,
+      "Bangalore": 0.85,
+      "Hyderabad": 0.75,
+      "Pune": 0.65,
+      "Chennai": 0.60,
+      "Kolkata": 0.65,
+      "All": 5.5, // Aggregate sum of top locations (approx 6-7 equivalent cities)
+    },
+    brands: {
+      "Kwality Walls": 1.4, // Leader
+      "Amul": 1.2,
+      "Mother Dairy": 0.9,
+      "Cornetto": 0.6,
+      "Magnum": 0.5,
+      "Feast": 0.4,
+      "Twister": 0.3,
+      "Kwality Wall's (India) Limited": 1.4,
+      "All": 4.5, // Aggregate sum of brands
+    },
+    platforms: {
+      "Blinkit": 1.2,
+      "Instamart": 1.1,
+      "Zepto": 1.0,
+      "Amazon": 0.9,
+      "Flipkart": 0.8,
+      "Reliance Fresh": 0.7,
+      "Big Bazaar": 0.6,
+      "DMart": 0.6,
+      "All": 6.0, // Aggregate sum of platforms
+    },
+    channels: {
+      "Ecom": 1.1,
+      "ModernTrade": 0.9,
+      "All": 1.8, // Aggregate (Ecom + ModernTrade)
+    }
+  }
+}
+
+// Old getLogicalKpiValue removed — now using entity-lookup version above
+
+
+function getRandomKpiValue(kpi) {
+  return getLogicalKpiValue(kpi, {});
+}
+
+function getRandomKpiTrend(base = 80) {
+  return getLogicalKpiTrend("generic", { base });
 }
 
 // Helper to create weighted variant of product matrix data
@@ -27,7 +300,7 @@ function createWeightedProductMatrix(absolute) {
 }
 
 const PRODUCT_MATRIX_ABSOLUTE = {
-  formatColumns: ["Blinkit", "Blinkit (2)", "Blinkit (Virtual)", "Blinkit (Sub)"],
+  formatColumns: ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
   data: [
     {
       format: "Cassata",
@@ -169,31 +442,11 @@ function createWeightedOLADetailed(absolute) {
 const OLA_Detailed_ABSOLUTE = [
   {
     platform: "Blinkit",
-    ola: 90, // auto-calculated below
+    ola: 90,
     zones: [
       {
-        zone: "East",
-        ola: 95,
-        cities: []
-      },
-      {
-        zone: "North 1",
-        ola: 95,
-        cities: []
-      },
-      {
-        zone: "North 2",
-        ola: 89,
-        cities: []
-      },
-      {
-        zone: "South",
-        ola: 87,
-        cities: []
-      },
-      {
         zone: "West",
-        ola: 84, // average of cities below
+        ola: 84,
         cities: [
           { city: "Ahmedabad", ola: 89 },
           { city: "Mumbai", ola: 79 },
@@ -208,29 +461,25 @@ const OLA_Detailed_ABSOLUTE = [
       }
     ]
   },
-
   {
-    platform: "Blinkit (2)",
-    ola: 82, // same as its only zone
-    zones: [
-      {
-        zone: "All",
-        ola: 82,
-        cities: []
-      }
-    ]
+    platform: "Instamart",
+    ola: 82,
+    zones: [{ zone: "All", ola: 82, cities: [] }]
   },
-
   {
-    platform: "Blinkit (Virtual)",
-    ola: 72, // same as its only zone
-    zones: [
-      {
-        zone: "East",
-        ola: 72,
-        cities: []
-      }
-    ]
+    platform: "Zepto",
+    ola: 72,
+    zones: [{ zone: "East", ola: 72, cities: [] }]
+  },
+  {
+    platform: "Flipkart",
+    ola: 85,
+    zones: [{ zone: "North", ola: 85, cities: [] }]
+  },
+  {
+    platform: "Amazon",
+    ola: 88,
+    zones: [{ zone: "South", ola: 88, cities: [] }]
   }
 ];
 
@@ -292,7 +541,7 @@ function createWeightedFormatMatrix(absolute) {
 }
 
 const FORMAT_MATRIX_ABSOLUTE = {
-  PlatformColumns: ["Blinkit", "Blinkit (Sub)", "Blinkit (2)", "Blinkit (Amz)", "Blinkit (Swg)"],
+  PlatformColumns: ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
 
   formatColumns: [
     "Cassata", "Core Tub", "Cornetto", "Magnum",
@@ -313,35 +562,35 @@ const FORMAT_MATRIX_ABSOLUTE = {
     {
       kpi: "Osa",
       values: {
-        Blinkit: 82, "Blinkit (Sub)": 78, "Blinkit (2)": 65, "Blinkit (Amz)": 75, "Blinkit (Swg)": 70
+        Blinkit: 82, Instamart: 78, Zepto: 65, Flipkart: 75, Amazon: 70
       },
       trend: generateTrendMulti(78)
     },
     {
       kpi: "Doi",
       values: {
-        Blinkit: 45, "Blinkit (Sub)": 52, "Blinkit (2)": 48, "Blinkit (Amz)": 49, "Blinkit (Swg)": 47
+        Blinkit: 45, Instamart: 52, Zepto: 48, Flipkart: 49, Amazon: 47
       },
       trend: generateTrendMulti(48)
     },
     {
       kpi: "Fillrate",
       values: {
-        Blinkit: 91, "Blinkit (Sub)": 84, "Blinkit (2)": 79, "Blinkit (Amz)": 86, "Blinkit (Swg)": 81
+        Blinkit: 91, Instamart: 84, Zepto: 79, Flipkart: 86, Amazon: 81
       },
       trend: generateTrendMulti(85)
     },
     {
       kpi: "Assortment",
       values: {
-        Blinkit: 142, "Blinkit (Sub)": 138, "Blinkit (2)": 122, "Blinkit (Amz)": 135, "Blinkit (Swg)": 128
+        Blinkit: 142, Instamart: 138, Zepto: 122, Flipkart: 135, Amazon: 128
       },
       trend: generateTrendMulti(66)
     },
     {
       kpi: "PSL",
       values: {
-        Blinkit: 18, "Blinkit (Sub)": 12, "Blinkit (2)": 25, "Blinkit (Amz)": 11, "Blinkit (Swg)": 20
+        Blinkit: 18, Instamart: 12, Zepto: 25, Flipkart: 11, Amazon: 20
       },
       trend: generateTrendMulti(15)
     }
@@ -457,7 +706,7 @@ const FORMAT_MATRIX = {
 
 
 const FORMAT_MATRIX_Visibility = {
-  PlatformColumns: ["Blinkit", "Blinkit (Sub)", "Blinkit (2)", "Blinkit (Amz)", "Blinkit (Swg)"],
+  PlatformColumns: ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
 
   formatColumns: [
     "Cassata", "Core Tub", "Cornetto", "Magnum",
@@ -477,22 +726,22 @@ const FORMAT_MATRIX_Visibility = {
   PlatformData: [
     {
       kpi: "Overall Weighted SOS",
-      values: { Blinkit: 92, "Blinkit (Sub)": 88, "Blinkit (2)": 85, "Blinkit (Amz)": 87, "Blinkit (Swg)": 90 },
+      values: { Blinkit: 92, Instamart: 88, Zepto: 85, Flipkart: 87, Amazon: 90 },
       trend: generateTrendMulti(88)
     },
     {
       kpi: "Sponsored Weighted SOS",
-      values: { Blinkit: 12, "Blinkit (Sub)": 15, "Blinkit (2)": 10, "Blinkit (Amz)": 16, "Blinkit (Swg)": 14 },
+      values: { Blinkit: 12, Instamart: 15, Zepto: 10, Flipkart: 16, Amazon: 14 },
       trend: generateTrendMulti(14)
     },
     {
       kpi: "Organic Weighted SOS",
-      values: { Blinkit: 96, "Blinkit (Sub)": 94, "Blinkit (2)": 92, "Blinkit (Amz)": 91, "Blinkit (Swg)": 89 },
+      values: { Blinkit: 96, Instamart: 94, Zepto: 92, Flipkart: 91, Amazon: 89 },
       trend: generateTrendMulti(92)
     },
     {
       kpi: "Display SOS",
-      values: { Blinkit: 89, "Blinkit (Sub)": 91, "Blinkit (2)": 85, "Blinkit (Amz)": 88, "Blinkit (Swg)": 86 },
+      values: { Blinkit: 89, Instamart: 91, Zepto: 85, Flipkart: 88, Amazon: 86 },
       trend: generateTrendMulti(88)
     }
   ],
@@ -791,7 +1040,7 @@ const ONE_VIEW_DRILL_DATA = [
 
   // ---------------- ZEPTO ----------------
   {
-    label: "Blinkit (Sub)",
+    label: "Instamart",
     values: {},
     children: [
       {
@@ -880,4 +1129,16 @@ const DRILL_COLUMNS = [
 
 
 
-export { FORMAT_MATRIX, FORMAT_ROWS, PRODUCT_MATRIX, OLA_Detailed, ONE_VIEW_DRILL_DATA, DRILL_COLUMNS, FORMAT_MATRIX_Visibility };
+export {
+  FORMAT_MATRIX,
+  FORMAT_ROWS,
+  PRODUCT_MATRIX,
+  OLA_Detailed,
+  ONE_VIEW_DRILL_DATA,
+  DRILL_COLUMNS,
+  FORMAT_MATRIX_Visibility,
+  getRandomKpiValue,
+  getRandomKpiTrend,
+  getLogicalKpiValue,
+  getLogicalKpiTrend
+};

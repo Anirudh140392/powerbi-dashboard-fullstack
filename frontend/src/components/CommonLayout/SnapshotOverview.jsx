@@ -27,12 +27,25 @@ function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
 }
 
-function makeSeries(seedBase, n = 30, volatility = 0.12) {
+function makeSeries(seedBase, n = 30, volatility = 0.12, platformSeed = "default") {
+    // Normalization to handle arrays or null/undefined
+    const seedStr = Array.isArray(platformSeed)
+        ? (platformSeed.length > 0 ? String(platformSeed[0]) : "default")
+        : String(platformSeed || "default");
+
+    // Generate a numeric seed from the platform string
+    let pSeed = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        pSeed = (pSeed << 5) - pSeed + seedStr.charCodeAt(i);
+        pSeed |= 0;
+    }
+    const combinedSeed = Math.abs(seedBase + pSeed);
+
     let x = seedBase;
     const out = [];
     for (let i = 0; i < n; i++) {
-        const drift = 1 + (Math.sin((i + seedBase) * 0.35) * volatility) / 2;
-        const noise = 1 + (Math.cos((i + seedBase) * 0.63) * volatility) / 3;
+        const drift = 1 + (Math.sin((i + combinedSeed) * 0.35) * volatility) / 2;
+        const noise = 1 + (Math.cos((i + combinedSeed) * 0.63) * volatility) / 3;
         x = x * drift * noise;
         out.push(x);
     }
@@ -585,7 +598,8 @@ const SnapshotOverview = ({
     performanceData = [],
     performanceLoading = false,
     loading = false,
-    variant = "detailed" // 'watchtower' | 'detailed'
+    variant = "detailed", // 'watchtower' | 'detailed'
+    seed = "default"
 }) => {
     // 🔹 Map and Reorganize Data for 5+4 layout
     const { topKpis, bottomKpis } = useMemo(() => {
@@ -614,7 +628,7 @@ const SnapshotOverview = ({
 
         let topRowItems = baseTop.map((kpi, idx) => ({
             ...kpi,
-            trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02)
+            trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
         }));
 
         if (sosItem) {
@@ -626,7 +640,7 @@ const SnapshotOverview = ({
                 deltaLabel: sosItem.tag,
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
-                trendSeries: makeSeries(35, 30, 0.12)
+                trendSeries: makeSeries(35, 30, 0.12, seed)
             };
 
             // Find Market Share to swap ensuring SOS comes BEFORE it
@@ -662,7 +676,7 @@ const SnapshotOverview = ({
         // Helper to check for zero/empty
         const isZero = (v) => !v || v === '0' || v === '0.0' || v === 0;
 
-        const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, defaultVal, defaultDelta, icon, gradient) => {
+        const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, defaultVal, defaultDelta, icon, gradient, idx) => {
             const val = baseItem?.value || perfItem?.value || defaultVal;
             const delta = baseItem?.delta || parseFloat(perfItem?.tag) || defaultDelta;
 
@@ -675,7 +689,7 @@ const SnapshotOverview = ({
                 icon: icon,
                 gradient: gradient,
                 subtitle: "Actionable Insight",
-                trendSeries: makeSeries(50, 30, 0.1)
+                trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
         };
 
@@ -683,17 +697,17 @@ const SnapshotOverview = ({
 
         // Inorganic Sales
         bottomItems.push(buildBottomItem(
-            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', '₹2.4 Cr', 12.5, TrendingUp, ['#22c55e', '#4ade80']
+            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', '₹2.4 Cr', 12.5, TrendingUp, ['#22c55e', '#4ade80'], 0
         ));
 
         // Conversion
         bottomItems.push(buildBottomItem(
-            conversionItem, conversionPerf, 'conversion', 'Conversion', '3.8%', -2.1, Target, ['#06b6d4', '#22d3ee']
+            conversionItem, conversionPerf, 'conversion', 'Conversion', '3.8%', -2.1, Target, ['#06b6d4', '#22d3ee'], 1
         ));
 
         // ROAS
         bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', '4.2', 5.4, DollarSign, ['#eab308', '#facc15']
+            roasItem, roasPerf, 'roas', 'ROAS', '4.2', 5.4, DollarSign, ['#eab308', '#facc15'], 2
         ));
 
         // 4. Orders (Always last in this specific list)
@@ -709,7 +723,7 @@ const SnapshotOverview = ({
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
             subtitle: "Actionable Insight",
-            trendSeries: makeSeries(45, 30, 0.14)
+            trendSeries: makeSeries(45, 30, 0.14, seed)
         };
 
         bottomItems.push(finalOrders);
@@ -722,9 +736,9 @@ const SnapshotOverview = ({
         if (variant === 'watchtower') return [];
         return kpis.map((k, i) => ({
             ...k,
-            trendSeries: k.trendSeries || k.trend || makeSeries(50 + i, 20, 0.2)
+            trendSeries: k.trendSeries || k.trend || makeSeries(50 + i, 20, 0.2, seed)
         }))
-    }, [kpis, variant]);
+    }, [kpis, variant, seed]);
 
     if (variant === 'watchtower') {
         return (

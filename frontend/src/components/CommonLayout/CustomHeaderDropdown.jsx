@@ -17,6 +17,7 @@ const CustomHeaderDropdown = ({
     value,
     onChange,
     width = 200,
+    multiSelect = true,
 }) => {
     const [anchorEl, setAnchorEl] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
@@ -35,6 +36,12 @@ const CustomHeaderDropdown = ({
     );
 
     const emitChange = (newList) => {
+        if (!multiSelect) {
+            onChange(newList[0]);
+            handleClose();
+            return;
+        }
+
         if (newList.length === options.length || newList.length === 0) {
             onChange("All");
         } else {
@@ -43,6 +50,11 @@ const CustomHeaderDropdown = ({
     };
 
     const handleToggleOption = (option) => {
+        if (!multiSelect) {
+            emitChange([option]);
+            return;
+        }
+
         let newList;
         if (currentSelected.includes(option)) {
             newList = currentSelected.filter((item) => item !== option);
@@ -188,28 +200,31 @@ const CustomHeaderDropdown = ({
                     />
 
                     {/* Select All */}
-                    <Box
-                        onClick={handleSelectAll}
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                            cursor: "pointer",
-                            "&:hover": { opacity: 0.8 },
-                        }}
-                    >
-                        <Checkbox
-                            size="small"
-                            checked={currentSelected.length === options.length && options.length > 0}
-                            indeterminate={currentSelected.length > 0 && currentSelected.length < options.length}
-                            sx={{ p: 0.5 }}
-                        />
-                        <Typography sx={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                            Select All
-                        </Typography>
-                    </Box>
-
-                    <Divider />
+                    {multiSelect && (
+                        <>
+                            <Box
+                                onClick={handleSelectAll}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                    cursor: "pointer",
+                                    "&:hover": { opacity: 0.8 },
+                                }}
+                            >
+                                <Checkbox
+                                    size="small"
+                                    checked={currentSelected.length === options.length && options.length > 0}
+                                    indeterminate={currentSelected.length > 0 && currentSelected.length < options.length}
+                                    sx={{ p: 0.5 }}
+                                />
+                                <Typography sx={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                                    Select All
+                                </Typography>
+                            </Box>
+                            <Divider />
+                        </>
+                    )}
 
                     {/* Options List */}
                     <Box
@@ -239,11 +254,13 @@ const CustomHeaderDropdown = ({
                                         "&:hover": { bgcolor: "#F8FAFC" },
                                     }}
                                 >
-                                    <Checkbox
-                                        size="small"
-                                        checked={currentSelected.includes(option)}
-                                        sx={{ p: 0.5 }}
-                                    />
+                                    {multiSelect && (
+                                        <Checkbox
+                                            size="small"
+                                            checked={currentSelected.includes(option)}
+                                            sx={{ p: 0.5 }}
+                                        />
+                                    )}
                                     <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
                                         {option}
                                     </Typography>

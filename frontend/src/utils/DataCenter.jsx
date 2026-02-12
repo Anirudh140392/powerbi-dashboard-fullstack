@@ -1161,10 +1161,10 @@ export const defaultPlatforms = [
     ],
   },
 
-  // ---------------- SWIGGY (Q-com) ----------------
+  // ---------------- INSTAMART (Q-com) ----------------
   {
-    key: "swiggy",
-    label: "Swiggy",
+    key: "instamart",
+    label: "Instamart",
     type: "Q-com",
     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
     columns: [
@@ -1339,6 +1339,93 @@ export const defaultPlatforms = [
         value: "₹7.4",
         change: { text: "▲1.2% (+₹0.09)", positive: true },
         meta: { units: "4.7 lac clicks", change: "▲1.2%" },
+      },
+    ],
+  },
+  // ---------------- FLIPKART ----------------
+  {
+    key: "flipkart",
+    label: "Flipkart",
+    type: "Marketplace",
+    logo: "https://logos-world.net/wp-content/uploads/2020/11/Flipkart-Logo.png",
+    columns: [
+      {
+        title: "Offtakes",
+        value: "₹2.24 Cr",
+        change: { text: "▲2.4% (+₹5.8 lac)", positive: true },
+        meta: { units: "1.12 lac units", change: "▲1.6%" },
+      },
+      {
+        title: "Spend",
+        value: "₹0.38 Cr",
+        change: { text: "▲1.2% (+₹0.5 lac)", positive: true },
+        meta: { units: "₹38 lac", change: "▲1.2%" },
+      },
+      {
+        title: "ROAS",
+        value: "7.1x",
+        change: { text: "▲0.4% (+0.03x)", positive: true },
+        meta: { units: "₹2.68 Cr return", change: "▲0.4%" },
+      },
+      {
+        title: "Inorg Sales",
+        value: "₹0.52 Cr",
+        change: { text: "▲1.6% (+₹0.9 lac)", positive: true },
+        meta: { units: "0.38 lac units", change: "▲1.6%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.16 Cr",
+        change: { text: "▲1.5% (+₹0.2 lac)", positive: true },
+        meta: { units: "0.10 lac units", change: "▲1.5%" },
+      },
+      {
+        title: "Conversion",
+        value: "4.1%",
+        change: { text: "▲0.1 pp", positive: true },
+        meta: { units: "36.2k conversions", change: "▲0.1 pp" },
+      },
+      {
+        title: "Availability",
+        value: "92.8%",
+        change: { text: "▲0.4 pp", positive: true },
+        meta: { units: "3,840 stores", change: "▲0.4 pp" },
+      },
+      {
+        title: "SOS",
+        value: "32.4%",
+        change: { text: "▲0.2 pp", positive: true },
+        meta: { units: "Shelf index 32.4", change: "▲0.2 pp" },
+      },
+      {
+        title: "Market Share",
+        value: "33.2%",
+        change: { text: "▲0.3 pp", positive: true },
+        meta: { units: "Category: ₹6.82 Cr", change: "▲0.3 pp" },
+      },
+      {
+        title: "Promo My Brand",
+        value: "19.8%",
+        change: { text: "▲0.5 pp", positive: true },
+        meta: { units: "Depth 19.8%", change: "▲0.5 pp" },
+      },
+      {
+        title: "Promo Compete",
+        value: "26.4%",
+        change: { text: "▲0.3 pp", positive: true },
+        meta: { units: "Depth 26.4%", change: "▲0.3 pp" },
+      },
+      {
+        title: "CPM",
+        value: "₹128",
+        change: { text: "▲1.6% (+₹2.1)", positive: true },
+        meta: { units: "46.2 lac impressions", change: "▲1.6%" },
+      },
+      {
+        title: "CPC",
+        value: "₹7.1",
+        change: { text: "▲1.1% (+₹0.08)", positive: true },
+        meta: { units: "4.2 lac clicks", change: "▲1.1%" },
       },
     ],
   },

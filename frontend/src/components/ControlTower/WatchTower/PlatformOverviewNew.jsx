@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useContext } from 'react'
 import { motion } from 'framer-motion'
+import { FilterContext } from '../../../utils/FilterContext'
 import {
     TrendingUp,
     TrendingDown,
@@ -12,6 +13,7 @@ import {
     MapPin,
     SlidersHorizontal,
 } from 'lucide-react'
+import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { cn } from '../../../lib/utils'
 
@@ -56,6 +58,15 @@ const PlatformOverviewNew = ({
     onViewTrends = () => { },
     onViewRca = () => { },
 }) => {
+    const {
+        selectedChannel,
+        platform: globalPlatform,
+        selectedBrand,
+        selectedLocation,
+        timeStart,
+        timeEnd
+    } = useContext(FilterContext);
+
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'spend', label: 'Spend' },
@@ -99,22 +110,16 @@ const PlatformOverviewNew = ({
                     color: '#fbbf24'
                 },
                 {
-                    key: 'zepto',
-                    name: 'Zepto',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
-                    color: '#8b5cf6'
-                },
-                {
-                    key: 'swiggy',
-                    name: 'Swiggy Instamart',
+                    key: 'instamart',
+                    name: 'Instamart',
                     logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
                     color: '#f97316'
                 },
                 {
-                    key: 'amazon',
-                    name: 'Amazon',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
-                    color: '#f59e0b'
+                    key: 'zepto',
+                    name: 'Zepto',
+                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
+                    color: '#8b5cf6'
                 },
                 {
                     key: 'flipkart',
@@ -123,21 +128,21 @@ const PlatformOverviewNew = ({
                     color: '#2874f0'
                 },
                 {
-                    key: 'myntra',
-                    name: 'Myntra',
-                    logoSrc: 'https://cdn.worldvectorlogo.com/logos/myntra-1.svg',
-                    color: '#ff3f6c'
-                },
+                    key: 'amazon',
+                    name: 'Amazon',
+                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+                    color: '#f59e0b'
+                }
             ]
         },
         brand: {
             label: 'Brand',
             icon: Tag,
             entities: [
-                { key: 'dove', name: 'Dove', color: '#0ea5e9' },
-                { key: 'nivea', name: 'Nivea', color: '#1d4ed8' },
-                { key: 'vaseline', name: 'Vaseline', color: '#f97316' },
-                { key: 'ponds', name: 'Ponds', color: '#ec4899' },
+                { key: 'cornetto', name: 'Cornetto', color: '#e11d48' },
+                { key: 'magnum', name: 'Magnum', color: '#7c3aed' },
+                { key: 'feast', name: 'Feast', color: '#0ea5e9' },
+                { key: 'twister', name: 'Twister', color: '#f97316' },
             ]
         },
         month: {
@@ -154,62 +159,63 @@ const PlatformOverviewNew = ({
             label: 'Category',
             icon: Grid3X3,
             entities: [
-                { key: 'bodyLotion', name: 'Body Lotion', color: '#14b8a6' },
-                { key: 'faceCream', name: 'Face Cream', color: '#06b6d4' },
-                { key: 'hairOil', name: 'Hair Oil', color: '#0ea5e9' },
-                { key: 'handwash', name: 'Handwash', color: '#22c55e' },
+                { key: 'cassata', name: 'Cassata', color: '#14b8a6' },
+                { key: 'core tub', name: 'Core Tub', color: '#06b6d4' },
+                { key: 'cup', name: 'Cup', color: '#0ea5e9' },
+                { key: 'sandwich', name: 'Sandwich', color: '#22c55e' },
             ]
         },
         sku: {
             label: 'SKU',
             icon: Package,
             entities: [
-                { key: 'sku1', name: 'Dove 100ml', color: '#0ea5e9' },
-                { key: 'sku2', name: 'Nivea 200ml', color: '#1d4ed8' },
-                { key: 'sku3', name: 'Vaseline 150ml', color: '#f97316' },
-                { key: 'sku4', name: 'Ponds 100ml', color: '#ec4899' },
+                { key: 'sku1', name: 'KW Cornetto Disc 110ml', color: '#0ea5e9' },
+                { key: 'sku2', name: 'KW Magnum Almond 90ml', color: '#1d4ed8' },
+                { key: 'sku3', name: 'KW Feast Jaljeera 65ml', color: '#f97316' },
+                { key: 'sku4', name: 'KW Cup Vanilla 100ml', color: '#ec4899' },
             ]
         },
     }
     // Generate mock data for each entity (same as App.jsx)
     function generateEntityData(entityKey, entityIdx) {
         const data = {}
+        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+
         kpis.forEach((kpi, kpiIdx) => {
-            const baseVal = 10 + entityIdx * 5 + kpiIdx * 2
-            const isUp = (entityIdx + kpiIdx) % 3 !== 0
+            const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
+            const val = getLogicalKpiValue(kpi.key, seed);
+            const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
 
             let value, deltaVal
             switch (kpi.key) {
                 case 'offtakes':
-                    value = `₹${(baseVal * 0.1).toFixed(2)} Cr`
-                    deltaVal = `${isUp ? '+' : '-'}${(1 + kpiIdx * 0.3).toFixed(1)}%`
-                    break
                 case 'spend':
-                    value = `₹${(baseVal * 0.05).toFixed(2)} Cr`
-                    deltaVal = `${isUp ? '+' : '-'}${(0.5 + kpiIdx * 0.2).toFixed(1)}%`
-                    break
-                case 'roas': // Category size
-                    value = `₹${(baseVal * 1.5).toFixed(1)} Cr`
-                    deltaVal = `${isUp ? '+' : '-'}${(0.5 + kpiIdx * 0.1).toFixed(1)}%`
+                case 'roas':
+                    value = `₹${val} Cr`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
                     break
                 case 'availability':
                 case 'conversion':
                 case 'sos':
                 case 'marketShare':
-                    value = `${(70 + entityIdx * 3 + kpiIdx).toFixed(1)}%`
-                    deltaVal = `${isUp ? '+' : '-'}${(0.5 + kpiIdx * 0.1).toFixed(1)} pp`
+                case 'inorgSales':
+                case 'dspSales':
+                case 'promoMyBrand':
+                case 'promoCompete':
+                    value = `${val}%`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)} pp`
                     break
                 case 'cpm':
-                    value = `₹${(120 + entityIdx * 10 + kpiIdx * 5).toFixed(0)}`
-                    deltaVal = `${isUp ? '+' : '-'}${(5 + kpiIdx).toFixed(0)}`
+                    value = `₹${val}`
+                    deltaVal = `${isUp ? '+' : '-'}${Math.floor(getLogicalKpiValue(kpi.key + 'delta', seed) / 5)}`
                     break
                 case 'cpc':
-                    value = `₹${(15 + entityIdx * 2 + kpiIdx).toFixed(0)}`
-                    deltaVal = `${isUp ? '+' : '-'}${(1 + kpiIdx * 0.5).toFixed(1)}`
+                    value = `₹${val}`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}`
                     break
                 default:
-                    value = `${(baseVal * 0.8).toFixed(1)}%`
-                    deltaVal = `${isUp ? '+' : '-'}${(0.3 + kpiIdx * 0.1).toFixed(1)}%`
+                    value = `${val}%`
+                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
             }
 
             data[kpi.key] = {
@@ -243,7 +249,7 @@ const PlatformOverviewNew = ({
             ...e,
             data: generateEntityData(e.key, idx)
         }))
-    }, [currentDimension])
+    }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd])
 
     const SectionWrapper = ({
         title,

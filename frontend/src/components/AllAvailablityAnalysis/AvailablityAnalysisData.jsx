@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
@@ -8,6 +8,8 @@ import {
   OLA_Detailed,
   ONE_VIEW_DRILL_DATA,
   PRODUCT_MATRIX,
+  getLogicalKpiValue,
+  getLogicalKpiTrend
 } from "./availablityDataCenter";
 import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
@@ -22,6 +24,7 @@ import {
   MapPin,
   LayoutGrid
 } from "lucide-react";
+import { FilterContext } from "../../utils/FilterContext";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -102,24 +105,36 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 
 const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
   const [activeTab, setActiveTab] = useState("platform");
+  const {
+    selectedChannel,
+    platform: globalPlatform,
+    selectedBrand,
+    selectedLocation,
+    timeStart,
+    timeEnd
+  } = useContext(FilterContext);
 
   // 🔥 Utility to compute unified trend + series for ANY item
-  const buildRows = (dataArray, columnList) => {
+  const buildRows = (dataArray, columnList, context = {}) => {
     return dataArray.map((item) => {
-      const primaryTrendSeries = item.trend?.["Spend"] || [];
-      const valid = primaryTrendSeries.length >= 2;
-
-      const lastVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 1] : 0;
-      const prevVal = valid ? primaryTrendSeries[primaryTrendSeries.length - 2] : 0;
-
-      const globalDelta = Number((lastVal - prevVal).toFixed(1));
-
       const trendObj = {};
       const seriesObj = {};
 
       columnList.forEach((col) => {
-        trendObj[col] = globalDelta;              // 🔥 apply SAME delta to every column
-        seriesObj[col] = primaryTrendSeries;      // 🔥 sparkline same for each column
+        const seed = { ...context, kpi: item.kpi, col };
+        const randomVal = getLogicalKpiValue(item.kpi, seed);
+        const randomTrendSeries = getLogicalKpiTrend(item.kpi, seed);
+        const validTrend = randomTrendSeries.length >= 2;
+
+        const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
+        const prevTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 2] : 0;
+        const trendDelta = Number((lastTrendVal - prevTrendVal).toFixed(1));
+
+        trendObj[col] = trendDelta;
+        seriesObj[col] = randomTrendSeries;
+
+        // Store the randomized value in the row object for this column
+        item.values[col] = randomVal;
       });
 
       return {
@@ -131,30 +146,28 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
     });
   };
 
-  // ---------------- PLATFORM ----------------
-  const platformData = {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns),
-  };
-
-  // ---------------- FORMAT ----------------
-  const formatData = {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns),
-  };
-
-  // ---------------- CITY ----------------
-  const cityData = {
-    columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
-    rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns),
-  };
-
   // ---------------- TABS ----------------
-  const tabs = [
-    { key: "platform", label: "Platform", data: platformData },
-    { key: "format", label: "Format", data: formatData },
-    { key: "city", label: "City", data: cityData },
-  ];
+  const tabs = useMemo(() => {
+    const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+    const platformData = {
+      columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
+      rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns, context),
+    };
+    const formatData = {
+      columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
+      rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns, context),
+    };
+    const cityData = {
+      columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
+      rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns, context),
+    };
+
+    return [
+      { key: "platform", label: "Platform", data: platformData },
+      { key: "format", label: "Format", data: formatData },
+      { key: "city", label: "City", data: cityData },
+    ];
+  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
   const active = tabs.find((t) => t.key === activeTab);
 
@@ -1096,7 +1109,7 @@ const cards = {
   weighted: cardsWeighted
 };
 
-const getAvailabilityKpis = (type) => {
+const getAvailabilityKpis = (type, context = {}) => {
   const source = cards[type];
   const icons = [Layers, Package, Zap, MapPin];
   const gradients = [
@@ -1107,20 +1120,21 @@ const getAvailabilityKpis = (type) => {
   ];
 
   return source.map((card, idx) => {
-    // Extract numeric delta from string like "▲3.1 pts"
-    const deltaMatch = card.change.match(/[▲▼]([\d.]+)/);
-    const delta = deltaMatch ? parseFloat(deltaMatch[1]) * (card.change.includes('▼') ? -1 : 1) : 0;
+    const kpiKey = card.title.toLowerCase().replace(/\s+/g, '');
+    const val = getLogicalKpiValue(kpiKey, context);
+    const isUp = getLogicalKpiValue(kpiKey + 'dir', context) > 50;
+    const delta = (getLogicalKpiValue(kpiKey + 'delta', context) / 20).toFixed(1);
 
     return {
       id: `avail-${type}-${idx}`,
       title: card.title,
-      value: card.value,
+      value: card.title.includes('DOI') ? val.toFixed(1) : `${val}%`,
       subtitle: card.sub,
-      delta: delta,
-      deltaLabel: card.change,
+      delta: parseFloat(delta),
+      deltaLabel: `${isUp ? '▲' : '▼'} ${delta}${card.title.includes('DOI') ? '%' : ' pts'}`,
       icon: icons[idx] || Layers,
       gradient: gradients[idx % gradients.length],
-      trend: card.sparklineData || [30, 35, 32, 45, 50, 48, 55, 60, 58, 65, 70, 75]
+      trend: getLogicalKpiTrend(kpiKey, context)
     };
   });
 };
@@ -1132,7 +1146,18 @@ export const AvailablityAnalysisData = () => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
 
-  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability), [availability]);
+  const {
+    selectedBrand,
+    timeStart,
+    timeEnd,
+    platform: globalPlatform,
+    selectedLocation,
+    selectedChannel,
+  } = useContext(FilterContext);
+
+  const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+
+  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability, context), [availability, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
   return (
 
