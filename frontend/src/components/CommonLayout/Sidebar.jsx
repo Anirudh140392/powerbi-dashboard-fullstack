@@ -36,11 +36,14 @@ import {
   AdsClick as AdsClickIcon,
   Science as ScienceIcon,
   Schedule as ScheduleIcon,
+  StarBorder as StarBorderIcon,
+  LocalShipping as LocalShippingIcon,
+  Description as DescriptionIcon,
 } from "@mui/icons-material";
 import sidebarLogo from "../../assets/sidebar_logo.png";
 
 const Sidebar = ({
-  platforms = ["Blinkit", "Instamart", "Zepto"],
+  platforms = ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
   selectedPlatform,
   onPlatformChange,
   open = false,
@@ -73,6 +76,9 @@ const Sidebar = ({
       { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Rating", path: "https://prestige-lac.vercel.app/", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Supply", path: "https://sku360.up.railway.app", icon: <LocalShippingIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Content", path: "https://content-pied-psi.vercel.app/", icon: <DescriptionIcon sx={{ fontSize: '1rem' }} /> },
     ],
   };
 
@@ -272,8 +278,12 @@ const Sidebar = ({
                 <Tooltip key={item.label} title={isCollapsed ? item.label : ""} placement="right">
                   <ListItemButton
                     onClick={() => {
-                      navigate(item.path);
-                      if (isMobile && onClose) onClose();
+                      if (item.path.startsWith('http')) {
+                        window.open(item.path, '_blank');
+                      } else {
+                        navigate(item.path);
+                        if (isMobile && onClose) onClose();
+                      }
                     }}
                     sx={{
                       minWidth: isCollapsed ? 54 : 44,

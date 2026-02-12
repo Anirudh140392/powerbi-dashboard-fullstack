@@ -210,6 +210,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
                 width={115}
+                multiSelect={false}
               />
 
               <CustomHeaderDropdown
