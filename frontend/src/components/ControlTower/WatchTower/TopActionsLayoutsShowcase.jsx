@@ -79,11 +79,11 @@ const DetailPanel = ({ selected }) => {
     }
 
     const issue1Kpis = [
-        { name: "OSA %", value: "91.2%", delta: "-4.1 pt" },
-        { name: "Fill Rate", value: "86.4%", delta: "-6.8 pt" },
+        { name: "OSA %", value: "91.2%", delta: "-4.1%" },
+        { name: "Fill Rate", value: "86.4%", delta: "-6.8%" },
         { name: "Sales MTD", value: "₹12.4 Cr", delta: "+8.2%" },
-        { name: "Lost Sales", value: "₹1.7 Cr", delta: "+22%" },
-        { name: "Active Stores", value: "412", delta: "-12" },
+        { name: "Lost Sales", value: "₹1.7 Cr", delta: "" },
+        { name: "Active Stores", value: "412", delta: "" },
         { name: "Hero SKUs", value: "4", delta: "0" },
     ];
 
