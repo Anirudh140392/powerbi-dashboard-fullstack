@@ -669,19 +669,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (pCond === "Platform != 'Blinkit'") baseConditions.push(`platform_name != 'Blinkit'`);
                 }
 
-                // Build numerator conditions (adds brand filter)
+                // Build numerator conditions (Fixed: Always use keyword_is_rb_product='1' for our brands)
                 const numeratorConditions = [...baseConditions];
-                const brandFilterArr = normalizeFilterArray(brandFilter);
-                if (brandFilterArr && brandFilterArr.length > 0) {
-                    if (brandFilterArr.length === 1) {
-                        numeratorConditions.push(`brand_name = '${escapeStr(brandFilterArr[0])}'`);
-                    } else {
-                        numeratorConditions.push(`brand_name IN (${brandFilterArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
-                    }
-                } else {
-                    // "All" brands selected - use keyword_is_rb_product='1' for our brands
-                    numeratorConditions.push(`toString(keyword_is_rb_product) = '1'`);
-                }
+                numeratorConditions.push(`toString(keyword_is_rb_product) = '1'`);
 
                 // Execute both count queries in parallel
                 const [numResult, denomResult] = await Promise.all([
@@ -1285,15 +1275,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
 
                     const numeratorConditions = [...kwBaseConditions];
-                    if (brandArr && brandArr.length > 0) {
-                        if (brandArr.length === 1) {
-                            numeratorConditions.push(`lower(brand_name) = '${escapeStrMain(brandArr[0].toLowerCase())}'`);
-                        } else {
-                            numeratorConditions.push(`brand_name IN (${brandArr.map(b => `'${escapeStrMain(b)}'`).join(', ')})`);
-                        }
-                    } else {
-                        numeratorConditions.push(`keyword_is_rb_product = 1`);
-                    }
+                    // Fixed: Always use keyword_is_rb_product='1' for SOS Trend
+                    numeratorConditions.push(`toString(keyword_is_rb_product) = '1'`);
 
                     const [brandWeekCounts, totalWeekCounts] = await Promise.all([
                         queryClickHouse(`
@@ -2571,7 +2554,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (platformBrandCondition) platformOfftakeWhere.Brand = platformBrandCondition;
                 const platLocCondition = buildMultiValueCondition(locationArr);
                 if (platLocCondition) platformOfftakeWhere.Location = platLocCondition;
-                if (category && category !== 'All') platformOfftakeWhere.Category = category;
+
+                // Handle category with multi-value support
+                if (categoryArr && categoryArr.length > 0) {
+                    platformOfftakeWhere[Op.and] = platformOfftakeWhere[Op.and] || [];
+                    const lowerCategories = categoryArr.map(c => c.toLowerCase());
+                    platformOfftakeWhere[Op.and].push(
+                        Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('Category')), { [Op.in]: lowerCategories })
+                    );
+                }
 
                 // ⚡ Fetch both promo metrics concurrently
                 const [promoMyBrandResult, promoCompeteResult] = await Promise.all([
@@ -2592,8 +2583,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
                             Platform: p.label,
                             Comp_flag: 1,
-                            ...(location && location !== 'All' && { Location: location }),
-                            ...(category && category !== 'All' && { Category: category }),
+                            ...(location && location !== 'All' && { Location: location }), // Note: Location already handled in platformOfftakeWhere if we refactored fully, but keeping existing structure for minimal diff
+                            ...(categoryArr && categoryArr.length > 0 && {
+                                [Op.and]: [
+                                    Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('Category')), {
+                                        [Op.in]: categoryArr.map(c => c.toLowerCase())
+                                    })
+                                ]
+                            }),
                             ...(brand && brand !== 'All' && { Brand: { [Op.notLike]: `%${brand}%` } })
                         },
                         raw: true
@@ -4033,17 +4030,24 @@ const getPerformanceMetrics = async (filters) => {
 const getPlatformOverview = async (filters) => {
     console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel } = filters;
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
+    const rawCategory = filters['category[]'] || filters.category; // Added category handling
+
+    // Helper to split comma-separated strings
+    const splitIfString = (val) => (typeof val === 'string' && val.includes(',')) ? val.split(',') : val;
 
     // Normalize multi-value filters
-    const brandArr = normalizeFilterArray(rawBrand);
-    const locationArr = normalizeFilterArray(rawLocation);
+    const brandArr = normalizeFilterArray(splitIfString(rawBrand))?.map(b => b.trim());
+    const locationArr = normalizeFilterArray(splitIfString(rawLocation))?.map(l => l.trim());
+    const categoryArr = normalizeFilterArray(splitIfString(rawCategory))?.map(c => c.trim()); // Normalize category
+
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
+    const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null; // Normalize category variable
 
     const monthsBack = parseInt(months, 10) || 1;
 
@@ -4133,13 +4137,17 @@ const getPlatformOverview = async (filters) => {
     const buildOfftakeConds = (start, end) => {
         const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `lower(Brand) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
-        if (category && category !== 'All') {
-            conds.push(`Category = '${escapeStr(category)}'`);
+        if (categoryArr && categoryArr.length > 0) {
+            if (categoryArr.length === 1) {
+                conds.push(`lower(Category) = '${escapeStr(categoryArr[0].toLowerCase())}'`);
+            } else {
+                conds.push(`lower(Category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
         }
 
         // Channel-based platform filtering
@@ -4155,10 +4163,14 @@ const getPlatformOverview = async (filters) => {
     const buildSosConds = (start, end) => {
         const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
-        if (category && category !== 'All') {
-            conds.push(`keyword_category = '${escapeStr(category)}'`);
+        if (categoryArr && categoryArr.length > 0) {
+            if (categoryArr.length === 1) {
+                conds.push(`lower(keyword_category) = '${escapeStr(categoryArr[0].toLowerCase())}'`);
+            } else {
+                conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
         }
         return conds.join(' AND ');
     };
@@ -4168,13 +4180,17 @@ const getPlatformOverview = async (filters) => {
         const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
         if (brandsFilter && brandsFilter.length > 0) {
-            conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+            conds.push(`lower(brand) IN (${brandsFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
-        if (category && category !== 'All') {
-            conds.push(`category = '${escapeStr(category)}'`);
+        if (categoryArr && categoryArr.length > 0) {
+            if (categoryArr.length === 1) {
+                conds.push(`lower(category) = '${escapeStr(categoryArr[0].toLowerCase())}'`);
+            } else {
+                conds.push(`lower(category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
         }
 
         // Add platform/channel filter - for denominator we want all platforms in that channel
@@ -6748,7 +6764,7 @@ const getTopActions = async (filters = {}) => {
         const result = {
             counts: { darkstoreCount, skuCount },
             kpis: {
-                osa: { value: hasOlapData ? `${currentOsa.toFixed(1)}%` : "N/A", delta: hasOlapData ? `${osaDelta >= 0 ? '+' : ''}${osaDelta.toFixed(1)} pt` : "0" },
+                osa: { value: hasOlapData ? `${currentOsa.toFixed(1)}%` : "N/A", delta: hasOlapData ? `${osaDelta >= 0 ? '+' : ''}${osaDelta.toFixed(1)}%` : "0" },
                 fillRate: { value: "Coming Soon", delta: "0" },
                 salesMtd: { value: hasOlapData ? `₹${(currentSales / 10000000).toFixed(1)} Cr` : "N/A", delta: hasOlapData ? `${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}%` : "0" },
                 lostSales: { value: hasOlapData ? `₹${(lostSales / 10000000).toFixed(1)} Cr` : "N/A", delta: "" },

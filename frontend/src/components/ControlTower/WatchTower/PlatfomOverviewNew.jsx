@@ -202,8 +202,8 @@ const PlatformOverviewNew = ({
                     deltaVal = `+${(0.5 + kpiIdx * 0.2).toFixed(1)}%`
                     break
                 case 'roas':
-                    value = `${(4.2 + entityIdx * 0.5).toFixed(1)}x`
-                    deltaVal = `+${(0.3 + kpiIdx * 0.1).toFixed(1)}x`
+                    value = `${(4.2 + entityIdx * 0.5).toFixed(1)}`
+                    deltaVal = `+${(0.3 + kpiIdx * 0.1).toFixed(1)}`
                     break
                 case 'categorySize':
                     value = `₹${(10 + entityIdx * 5).toFixed(1)} Cr`
@@ -211,15 +211,15 @@ const PlatformOverviewNew = ({
                     break
                 case 'conversion':
                     value = `${(75 + entityIdx * 3).toFixed(1)}%`
-                    deltaVal = `+${(1 + kpiIdx * 0.2).toFixed(1)} pp`
+                    deltaVal = `+${(1 + kpiIdx * 0.2).toFixed(1)}%`
                     break
                 case 'availability':
                     value = `${(76 + entityIdx * 3).toFixed(1)}%`
-                    deltaVal = `+${(1 + kpiIdx * 0.1).toFixed(1)} pp`
+                    deltaVal = `+${(1 + kpiIdx * 0.1).toFixed(1)}%`
                     break
                 case 'marketShare':
                     value = `${(78 + entityIdx * 3).toFixed(1)}%`
-                    deltaVal = `+${(1.3 + kpiIdx * 0.1).toFixed(1)} pp`
+                    deltaVal = `+${(1.3 + kpiIdx * 0.1).toFixed(1)}%`
                     break
                 default:
                     value = `${(baseVal * 0.8).toFixed(1)}%`
@@ -283,9 +283,9 @@ const PlatformOverviewNew = ({
                         };
                         const mappedKey = keyMap[key] || key;
                         columnsData[mappedKey] = {
-                            value: col.value,
+                            value: mappedKey === 'roas' && typeof col.value === 'string' ? col.value.replace(/x/gi, '') : col.value,
                             delta: col.change ? {
-                                value: col.change.text,
+                                value: col.change.text ? col.change.text.replace(/pp|pt/gi, '%').replace(/x/gi, '') : '',
                                 dir: col.change.positive ? 'up' : 'down'
                             } : { value: '', dir: 'up' }
                         };

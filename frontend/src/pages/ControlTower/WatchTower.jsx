@@ -629,6 +629,54 @@ function WatchTower() {
     }
   };
 
+  // Separate effect for Platform Overview changes (after initial load)
+  useEffect(() => {
+    let ignore = false;
+
+    const fetchPlatformOverview = async () => {
+      // Skip only if initial load hasn't completed
+      if (loading) return;
+
+      console.log("🔄 Fetching Platform Overview with filters:", performanceMatrixFilters);
+      setPlatformOverviewLoading(true);
+
+      try {
+        const platformOverviewParams = {
+          ...filters,
+          category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : filters.category,
+          brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
+          // Override dates if period is set in advanced filters
+          startDate: performanceMatrixFilters.dateFrom || filters.startDate,
+          endDate: performanceMatrixFilters.dateTo || filters.endDate,
+        };
+
+        const response = await axiosInstance.get("/watchtower/platform-overview", {
+          params: platformOverviewParams
+        });
+
+        if (!ignore) {
+          setDashboardData(prev => ({
+            ...prev,
+            platformOverview: response.data || []
+          }));
+          setPlatformOverviewLoading(false);
+          console.log("✅ Platform overview updated");
+        }
+      } catch (error) {
+        if (!ignore) {
+          console.error("❌ Error updating Platform Overview:", error);
+          setPlatformOverviewLoading(false);
+        }
+      }
+    };
+
+    if (!loading && performanceMatrixDimension === 'platform') {
+      fetchPlatformOverview();
+    }
+
+    return () => { ignore = true; };
+  }, [performanceMatrixDimension, performanceMatrixFilters, filters.startDate, filters.endDate, filters.channel]);
+
   // Separate effect for Month Overview platform changes (after initial load)
   useEffect(() => {
     let ignore = false;

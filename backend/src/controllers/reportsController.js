@@ -157,19 +157,30 @@ export const downloadReport = async (req, res) => {
             `;
         } else if (reportType === "Visibility Analysis") {
             query = `
+                WITH category_stats AS (
+                    SELECT 
+                        toDate(kw_crawl_date) as JoinDate, platform_name as Platform, keyword_category as Category,
+                        count() as Total_Category_Keywords
+                    FROM rb_kw
+                    WHERE toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
+                    AND keyword_search_rank < 11
+                    ${platform && platform !== 'All' ? `AND platform_name = '${platform.replace(/'/g, "''")}'` : ''}
+                    GROUP BY JoinDate, Platform, Category
+                )
                 SELECT 
-                    toDate(kw_crawl_date) as DATE, platform_name as Platform, brand_name as Brand, keyword_category as Category,
-                    count() as Total_Keywords,
-                    round(countIf(brand_name != '') * 100.0 / nullIf(count(), 0), 2) as Overall_SOS_Percentage,
-                    round(countIf(toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) as Sponsored_SOS_Percentage,
-                    round(countIf(toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) as Organic_SOS_Percentage,
-                    round(avgIf(toInt64OrZero(toString(keyword_search_rank)), toString(spons_flag) = '1'), 2) as Ad_POS,
-                    round(avgIf(toInt64OrZero(toString(keyword_search_rank)), toString(spons_flag) != '1'), 2) as Org_Pos
-                FROM rb_kw
-                WHERE toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
-                ${platform && platform !== 'All' ? `AND platform_name = '${platform.replace(/'/g, "''")}'` : ''}
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND brand_name = '${brand.replace(/'/g, "''")}'` : ''}
-                GROUP BY DATE, Platform, Brand, Category
+                    toDate(t.kw_crawl_date) as DATE, t.platform_name as Platform, t.brand_name as Brand, t.keyword_category as Keyword_Category, t.keyword_type as Keyword_Type,
+                    round(countIf(toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Overall_SOS_Percentage,
+                    round(countIf(toString(t.spons_flag) = '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Sponsored_SOS_Percentage,
+                    round(countIf(toString(t.spons_flag) != '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Organic_SOS_Percentage,
+                    round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) = '1'), 2) as Ad_POS,
+                    round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) != '1'), 2) as Org_Pos
+                FROM rb_kw t
+                LEFT JOIN category_stats c ON toDate(t.kw_crawl_date) = c.JoinDate AND t.platform_name = c.Platform AND t.keyword_category = c.Category
+                WHERE toDate(t.kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
+                AND t.keyword_search_rank < 11
+                ${platform && platform !== 'All' ? `AND t.platform_name = '${platform.replace(/'/g, "''")}'` : ''}
+                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND t.brand_name = '${brand.replace(/'/g, "''")}'` : ''}
+                GROUP BY DATE, Platform, Brand, t.keyword_category, t.keyword_type
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Market Share") {
@@ -210,7 +221,7 @@ export const downloadReport = async (req, res) => {
                     FROM daily_agg
                 )
                 SELECT 
-                    t.DATE, t.Platform, t.Brand, t.City, t.Format, t.Product,
+                    t.DATE as DATE, t.Platform as Platform, t.Brand as Brand, t.City as City, t.Format as Format, t.Product as Product,
                     round(t.daily_sales, 2) as Overall_Sales,
                     t.daily_orders as Orders,
                     round(t.daily_sales / nullIf(t.daily_orders, 0), 2) as ASP,
@@ -236,15 +247,24 @@ export const downloadReport = async (req, res) => {
             `;
         } else if (reportType === "Pricing Analysis") {
             query = `
+                WITH category_stats AS (
+                    SELECT 
+                        toDate(DATE) as JoinDate, Location, Category,
+                        avg(toFloat64OrZero(Selling_Price)) as Cat_Avg_Price
+                    FROM rb_pdp_olap
+                    ${whereClause}
+                    GROUP BY JoinDate, Location, Category
+                )
                 SELECT 
-                    DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    round(avg(toFloat64OrZero(Selling_Price)), 2) as ECP,
-                    round(avg(toFloat64OrZero(MRP)), 2) as MRP,
-                    round((1 - (SUM(toFloat64OrZero(Sales)) / nullIf(SUM(toFloat64OrZero(MRP) * assumeNotNull(Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
-                    round(avg(toFloat64OrZero(Selling_Price)) / nullIf(any(avg(toFloat64OrZero(Selling_Price))) OVER (PARTITION BY DATE, Category, Location), 0), 2) as RPI
-                FROM rb_pdp_olap
-                ${whereClause}
-                GROUP BY DATE, Platform, Brand, Location, Category, Product
+                    toDate(t.DATE) as DATE, t.Platform, t.Brand, t.Location as City, t.Category as Format, t.Product,
+                    round(avg(toFloat64OrZero(t.Selling_Price)), 2) as ECP,
+                    round(avg(toFloat64OrZero(t.MRP)), 2) as MRP,
+                    round((1 - (SUM(toFloat64OrZero(t.Sales)) / nullIf(SUM(toFloat64OrZero(t.MRP) * assumeNotNull(t.Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
+                    round(avg(toFloat64OrZero(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
+                FROM rb_pdp_olap t
+                LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.Location = c.Location AND t.Category = c.Category
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, 't.$1')}
+                GROUP BY DATE, t.Platform, t.Brand, t.Location, t.Category, t.Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Performance Marketing") {

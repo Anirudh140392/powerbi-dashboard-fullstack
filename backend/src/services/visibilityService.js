@@ -15,6 +15,8 @@ function buildCHCondition(value, column, options = {}) {
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
+const RB_SOS_CONDITION = "toString(keyword_is_rb_product) = '1'";
+
 async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
@@ -24,9 +26,9 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         // Single query that calculates ALL SOS types at once - ClickHouse syntax
         const query = `
             SELECT 
-                ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
-                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
+                ROUND(countIf(${RB_SOS_CONDITION}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
             FROM rb_kw
             WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
               AND keyword_search_rank < 11
@@ -75,9 +77,9 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const query = `
             SELECT 
                 toDate(created_on) as crawl_date,
-                ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
-                ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
+                ROUND(countIf(${RB_SOS_CONDITION}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
             FROM rb_kw
             WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
               AND keyword_search_rank < 11
@@ -834,8 +836,8 @@ class VisibilityService {
                     }
                 }
 
-                // Brand Condition for SOS calculation
-                const brandSOSCondition = buildCHCondition(filters.brand, 'brand_name', { isBrand: true });
+                // Brand Condition for SOS calculation - Used ONLY for RB SOS now
+                const brandSOSCondition = RB_SOS_CONDITION;
 
                 // Date ranges for trend calculation (Current vs Previous)
                 const start = dayjs(startDate);
@@ -1810,7 +1812,8 @@ class VisibilityService {
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+                // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+                const brandSOSCondition = RB_SOS_CONDITION; // Force RB SOS
 
                 // Determine aggregation based on timeStep
                 let dateAggregation;
