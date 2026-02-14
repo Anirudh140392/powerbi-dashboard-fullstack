@@ -987,7 +987,7 @@ const getFirstCity = (platform, region) =>
 
 const avgForKeys = (rows) => (rows.length ? Math.round(average(rows)) : 0);
 
-const OlaLightThemeDashboard = ({setOlaMode, olaMode}) => {
+const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
   const [level, setLevel] = useState("Platform");
   const [activeItem, setActiveItem] = useState("Blinkit");
   const [path, setPath] = useState({
@@ -1052,11 +1052,10 @@ const OlaLightThemeDashboard = ({setOlaMode, olaMode}) => {
           <button
             onClick={() => setOlaMode("absolute")}
             className={`rounded-full px-3 py-1 font-medium shadow-sm 
-      ${
-        olaMode === "absolute"
-          ? "bg-slate-900 text-slate-50"
-          : "bg-slate-100 text-slate-700 border border-slate-200"
-      }`}
+      ${olaMode === "absolute"
+                ? "bg-slate-900 text-slate-50"
+                : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
           >
             Absolute OLA
           </button>
@@ -1064,11 +1063,10 @@ const OlaLightThemeDashboard = ({setOlaMode, olaMode}) => {
           <button
             onClick={() => setOlaMode("weighted")}
             className={`rounded-full px-3 py-1 font-medium 
-      ${
-        olaMode === "weighted"
-          ? "bg-slate-900 text-slate-50 shadow-sm"
-          : "bg-slate-100 text-slate-700 border border-slate-200"
-      }`}
+      ${olaMode === "weighted"
+                ? "bg-slate-900 text-slate-50 shadow-sm"
+                : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
           >
             Weighted OLA
           </button>
@@ -1095,7 +1093,7 @@ const OlaLightThemeDashboard = ({setOlaMode, olaMode}) => {
               <p className="text-3xl font-semibold tracking-tight">77%</p>
             </div>
             <div className="rounded-xl bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-              +2.1 pts vs TDP-1
+              +2.1% vs TDP-1
             </div>
           </div>
           <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
@@ -1106,12 +1104,12 @@ const OlaLightThemeDashboard = ({setOlaMode, olaMode}) => {
             <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100 flex flex-col gap-1">
               <span className="text-[11px] text-slate-500">In-stock</span>
               <span className="text-lg font-semibold">77%</span>
-              <span className="text-[11px] text-emerald-600">▲ metro +3 pts</span>
+              <span className="text-[11px] text-emerald-600">▲ metro +3%</span>
             </div>
             <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100 flex flex-col gap-1">
               <span className="text-[11px] text-slate-500">Metro OLA</span>
               <span className="text-lg font-semibold">77%</span>
-              <span className="text-[11px] text-sky-600">▲ non-metro +1 pt</span>
+              <span className="text-[11px] text-sky-600">▲ non-metro +1%</span>
             </div>
           </div>
         </motion.div> */}
@@ -1145,11 +1143,10 @@ const OlaLightThemeDashboard = ({setOlaMode, olaMode}) => {
                   setLevel("Platform");
                   selectItem(p.name);
                 }}
-                className={`relative h-36 rounded-2xl border bg-white flex flex-col items-center justify-center gap-1 px-2 transition-colors ${
-                  activeItem === p.name
+                className={`relative h-36 rounded-2xl border bg-white flex flex-col items-center justify-center gap-1 px-2 transition-colors ${activeItem === p.name
                     ? "border-slate-900/80"
                     : "border-slate-100 hover:border-slate-300"
-                }`}
+                  }`}
               >
                 <ResponsiveContainer width="100%" height="70%">
                   <RadialBarChart
@@ -1449,9 +1446,8 @@ const MatrixPlatformFormat = () => {
 
     return {
       value,
-      label: `${selection.platform}${
-        selection.region ? " · " + selection.region : ""
-      }${selection.city ? " · " + selection.city : ""}`,
+      label: `${selection.platform}${selection.region ? " · " + selection.region : ""
+        }${selection.city ? " · " + selection.city : ""}`,
       bucket: `${quarterLabel} · ${monthLabel}`,
       quarterAvg,
       networkAvg,
@@ -1513,7 +1509,7 @@ const MatrixPlatformFormat = () => {
           isCity ? "bg-white" : "",
           hoverRowKey === rk ? "bg-sky-50/60" : "",
           selection &&
-          rowKey(selection.platform, selection.region, selection.city) === rk
+            rowKey(selection.platform, selection.region, selection.city) === rk
             ? "bg-sky-100/70"
             : "",
         ]
@@ -2118,9 +2114,8 @@ const QuarterlyDrilldownGrid = () => {
               <motion.button
                 key={key}
                 onClick={() => setActiveKpi(key)}
-                className={`relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${
-                  isActive ? "text-slate-900" : "text-slate-500"
-                }`}
+                className={`relative px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${isActive ? "text-slate-900" : "text-slate-500"
+                  }`}
                 whileHover={{ y: -1 }}
               >
                 {isActive && (
@@ -2488,11 +2483,10 @@ const FormatPerformanceStudio = () => {
                 key={f.name}
                 onMouseEnter={() => setActiveName(f.name)}
                 onClick={() => setActiveName(f.name)}
-                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${
-                  isActive
+                className={`w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
                     ? "border-sky-400 bg-sky-50 shadow-sm"
                     : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                }`}
+                  }`}
                 whileHover={{ scale: 1.01 }}
                 transition={{ type: "spring", stiffness: 260, damping: 20 }}
               >
@@ -2700,25 +2694,22 @@ const FormatPerformanceStudio = () => {
                         prev === f.name ? null : f.name
                       )
                     }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${
-                      isCompare
+                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
                         ? "border-violet-500 bg-violet-50 shadow-sm"
                         : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                    }`}
+                      }`}
                     whileHover={{ y: -2 }}
                   >
                     <div
                       className="h-2 w-10 rounded-full"
                       style={{
-                        background: `linear-gradient(to right, rgba(14,165,233,${
-                          0.3 + weight * 0.4
-                        }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
+                        background: `linear-gradient(to right, rgba(14,165,233,${0.3 + weight * 0.4
+                          }), rgba(99,102,241,${0.2 + weight * 0.5}))`,
                       }}
                     />
                     <span
-                      className={`truncate ${
-                        isActive ? "font-semibold" : "font-normal"
-                      }`}
+                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        }`}
                     >
                       {f.name}
                     </span>
@@ -2791,11 +2782,10 @@ const FormatDrillDownTable = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-2 text-sm rounded-xl border transition-all ${
-                activeTab === tab
+              className={`px-3 py-2 text-sm rounded-xl border transition-all ${activeTab === tab
                   ? "border-slate-900 text-slate-900 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
                   : "border-slate-200 text-slate-600 bg-white hover:border-slate-300"
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -3003,7 +2993,7 @@ const FormatDrillDownTable = () => {
 
 export const TestingAvailablityData = () => {
   const [marketShareMode, setMarketShareMode] = useState("geographical");
-  const [olaMode, setOlaMode] = useState("absolute") 
+  const [olaMode, setOlaMode] = useState("absolute")
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-amber-50 via-white to-sky-50 text-slate-900 px-4 py-6">
@@ -3067,7 +3057,7 @@ export const TestingAvailablityData = () => {
         </div> */}
 
         <div className="space-y-4">
-          <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode}/>
+          <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} />
           {/* <FormatDrillDownTable />
           <BrandPositioningMap />
           <CohortHeatmapDemo />
