@@ -421,75 +421,414 @@ const KpiNode = ({ data }) => {
   );
 };
 
-// --- Mock Data ---
-const INITIAL_TREE = {
-  id: "root",
-  label: "Offtake",
-  value: "₹ 53.8 lac",
-  change: "2.3%",
-  isPositive: true,
-  category: "offtake",
-  importance: "outcome",
-  insight: "Strong Growth",
-  meta: [{ label: "Est. Category Share", value: "2.1%", change: "11.2%", isPositive: true }],
-  children: [
-    { id: "asp", label: "ASP", value: "₹ 189.2", change: "0.2%", isPositive: true, category: "price", importance: "primary", meta: [{ label: "Overall ASP", value: "₹ 185.0" }] },
-    {
-      id: "indexed-impressions",
-      label: "Indexed Impressions",
-      value: "3.4 lac",
-      change: "12.8%",
-      isPositive: false,
-      category: "impressions",
-      importance: "primary",
-      insight: "Systemic Drop",
-      meta: [{ label: "Overall SOS", value: "1.1%", change: "0.5%", isPositive: true }],
-      children: [
-        { id: "availability", label: "Wt. OSA %", value: "84.2%", change: "6.7%", isPositive: true, category: "availability", children: [{ id: "listing", label: "DS Listing %", value: "65.6%", change: "2.1%", isPositive: true, category: "availability" }] },
-        {
-          id: "organic-impressions",
-          label: "Organic Impressions",
-          value: "1.9 lac",
-          change: "32.4%",
-          isPositive: false,
-          category: "organic",
-          insight: "High Decline",
-          meta: [{ label: "Organic SOS", value: "1.1%", change: "0.8%", isPositive: false }],
-          children: [
-            { id: "org-generic", label: "Generic Keywords", value: "1.1 lac", change: "23.7%", isPositive: false, category: "organic" },
-            { id: "org-branded", label: "Branded Keywords", value: "69.4 K", change: "10.6%", isPositive: false, category: "organic" },
-          ],
-        },
-      ],
-    },
-    {
-      id: "indexed-cvr",
-      label: "Indexed CVR",
-      value: "5.7%",
-      change: "22.3%",
-      isPositive: true,
-      category: "conversion",
+// --- Dynamic Data Helpers ---
+const getSeedFromStr = (str) => {
+  let h = 0xdeadbeef;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
+  }
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+const getDynamicRcaTreeData = (context) => {
+  const { platform, brand, sku, category, month } = context;
+
+  // Seed for overall consistency - now including month
+  const seed = getSeedFromStr(`${platform}-${brand}-${sku}-${category || "All"}-${month || "All"}`);
+
+  // Base Multipliers to differentiate entities SIGNIFICANTLY
+  const getEntityBase = (name, range = 0.5, offset = 1.0) => {
+    const s = getSeedFromStr(name || "All");
+    return (offset - range / 2) + (s * range);
+  };
+
+  const platformMult = getEntityBase(platform, 1.5);
+  const brandMult = getEntityBase(brand, 2.0);
+  const catMult = getEntityBase(category, 1.0);
+  
+  // Amplify behavior for certain platforms (Amazon should show larger swings)
+  const platformAmplify = platform?.toLowerCase() === "amazon" ? 3.0 : 1.0;
+
+  let subsetMultiplier = 1.0;
+  if (brand && brand !== "All Brands") {
+    const s = getSeedFromStr(brand);
+    subsetMultiplier *= (0.15 + (s * 0.35));
+  }
+  if (sku && sku !== "All SKUs") {
+    const s = getSeedFromStr(sku);
+    subsetMultiplier *= (0.02 + (s * 0.1));
+  }
+
+  // Increase jitter and final volume for platforms that should show larger variation
+  const volJitter = (0.6 + (seed * 0.8)) * (0.8 + platformAmplify * 0.6);
+  const finalVolume = platformMult * brandMult * catMult * subsetMultiplier * volJitter * platformAmplify;
+
+  const formatLac = (val) => {
+    if (val >= 100) return `₹ ${(val / 100).toFixed(1)} Cr`;
+    if (val >= 1) return `₹ ${val.toFixed(1)} lac`;
+    if (val <= 0.05) return `${(val * 1000).toFixed(0)} units`;
+    return `${(val * 100).toFixed(1)} K`;
+  };
+
+  const getPercentageValue = (base, seedStr, spread = 20) => {
+    const s = getSeedFromStr(seedStr);
+    const effectiveSpread = spread * (1 + (platformAmplify - 1) * 0.9);
+    const variation = (s * effectiveSpread) - (effectiveSpread / 2);
+    const v = Math.max(2, Math.min(99, base + variation));
+    return `${v.toFixed(1)}%`;
+  };
+
+  const getVal = (base, isPct = false, seedStr = "", spread = 20) => {
+    if (isPct) return getPercentageValue(base, seedStr, spread);
+    const rawVal = base * finalVolume;
+    // Always format numeric magnitudes using `formatLac` so large values
+    // are displayed in lac/Cr notation (e.g., `₹ 3.9 Cr`). This ensures
+    // Amazon Offtake and other high-magnitude KPIs use consistent units.
+    return formatLac(rawVal);
+  };
+
+  const getChange = (baseSeed) => {
+    const s = getSeedFromStr(seed + baseSeed);
+    // scale magnitude of reported change for amplified platforms
+    const scale = 1 + (platformAmplify - 1) * 1.5; // e.g. amazon -> larger changes
+    const val = (0.1 + (s * 44.9 * scale)).toFixed(1);
+    return { val: `${val}%`, isPos: s > 0.4 };
+  };
+
+  const brandId = brand || "base";
+  const skuId = sku || "base";
+
+  // --- AMAZON SPECIFIC TREE ---
+  if (platform?.toLowerCase() === "amazon") {
+    const rootChange = getChange("root");
+    return {
+      id: "root",
+      label: "Offtake",
+      value: getVal(5.0 * 100), // Amazon usually has higher scale
+      change: rootChange.val,
+      isPositive: rootChange.isPos,
+      category: "offtake",
       importance: "outcome",
-      insight: "Efficiency High",
+      insight: rootChange.isPos ? "Portfolio Growth" : "Market Pressure",
       children: [
         {
-          id: "ad-impressions",
-          label: "Ad Impressions",
-          value: "1.5 lac",
-          change: "11.4%",
-          isPositive: false,
-          category: "ad",
-          meta: [{ label: "Ad SOS", value: "1.2%", change: "2.4%", isPositive: true }],
+          id: "gvs",
+          label: "GVs",
+          value: formatLac(133.1 * finalVolume),
+          change: getChange("gvs").val,
+          isPositive: getChange("gvs").isPos,
+          category: "impressions",
+          importance: "primary",
+          meta: [{ label: "GV Share", value: "100.0%", change: "0.00", isPositive: true }],
           children: [
-            { id: "ad-branded", label: "Branded Keywords", value: "51.6 K", change: "3.7%", isPositive: false, category: "ad" },
-            { id: "ad-comp", label: "Comp Keywords", value: "30.5 K", change: "22.5%", isPositive: true, category: "ad" },
-          ],
+            {
+              id: "organic-gvs",
+              label: "Organic GVs",
+              value: formatLac(73.3 * finalVolume),
+              change: getChange("org_gv").val,
+              isPositive: getChange("org_gv").isPos,
+              category: "organic",
+              meta: [
+                { label: "Organic Share of Search", value: getVal(45.5, true, "osas", 10) },
+                { label: "Organic GV%", value: getVal(55.0, true, "ogvp", 10) }
+              ]
+            },
+            {
+              id: "ad-gvs",
+              label: "Ad GVs",
+              value: formatLac(59.8 * finalVolume),
+              change: getChange("ad_gv").val,
+              isPositive: getChange("ad_gv").isPos,
+              category: "ad",
+              meta: [
+                { label: "Sp. Share of Search", value: getVal(64.8, true, "ssos", 10) },
+                { label: "AD Driven GV%", value: getVal(44.9, true, "adgv", 10) },
+                { label: "AD Spend", value: `₹ ${(3.0 * finalVolume).toFixed(1)}M` },
+                { label: "Total ROAS", value: (3.2 * (0.8 + seed * 0.4)).toFixed(2) }
+              ],
+              children: [
+                {
+                  id: "dsp",
+                  label: "DSP",
+                  value: "-- Coming Soon --",
+                  change: "0.0%",
+                  isPositive: true,
+                  category: "ad",
+                  meta: [
+                    { label: "Display GVs", value: "-- Coming Soon --" },
+                    { label: "Conversion", value: "-- Coming Soon --" }
+                  ]
+                },
+                {
+                  id: "sponsored-search",
+                  label: "Sponsored Search",
+                  value: formatLac(46.8 * finalVolume),
+                  change: getChange("sps").val,
+                  isPositive: getChange("sps").isPos,
+                  category: "ad",
+                  meta: [{ label: "Search GVs", value: formatLac(46.8 * finalVolume) }, { label: "Conversion", value: "23.19%" }],
+                  children: [
+                    {
+                      id: "sp",
+                      label: "Sponsored Product",
+                      value: formatLac(35.5 * finalVolume),
+                      change: getChange("sp").val,
+                      isPositive: getChange("sp").isPos,
+                      category: "ad",
+                      meta: [
+                        { label: "SP GVs", value: formatLac(35.5 * finalVolume) },
+                        { label: "Conversion", value: getVal(26.6, true, "spc", 5) },
+                        { label: "SP ROAS", value: "3.56" },
+                        { label: "SP SPEND", value: "2.62M" }
+                      ]
+                    },
+                    {
+                      id: "sb",
+                      label: "Sponsored Brand",
+                      value: formatLac(4.3 * finalVolume),
+                      change: getChange("sb").val,
+                      isPositive: getChange("sb").isPos,
+                      category: "ad",
+                      meta: [
+                        { label: "SB All GVs", value: formatLac(4.3 * finalVolume) },
+                        { label: "Conversion", value: "17.56%" },
+                        { label: "SB ROAS", value: "0.42" },
+                        { label: "SB SPEND", value: "264.49K" }
+                      ]
+                    },
+                    {
+                      id: "sd",
+                      label: "Sponsored Display",
+                      value: formatLac(6.9 * finalVolume),
+                      change: getChange("sd").val,
+                      isPositive: getChange("sd").isPos,
+                      category: "ad",
+                      meta: [
+                        { label: "SD GVs", value: formatLac(6.9 * finalVolume) },
+                        { label: "Conversion", value: "9.00%" },
+                        { label: "SD ROAS", value: "1.64" },
+                        { label: "SD SPEND", value: "112.06K" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              id: "sov-overall",
+              label: "SOV Overall",
+              value: "15.66%",
+              change: "0.0%",
+              isPositive: true,
+              category: "impressions",
+              meta: [{ label: "SOV", value: "15.66%" }]
+            }
+          ]
         },
-        { id: "discounting", label: "Wt. Disc %", value: "31.8%", change: "4.7%", isPositive: false, category: "discounting" },
-        { id: "rating-count", label: "Rating Count", value: "1.8 lac", change: "11.6%", isPositive: true, category: "rating" },
-      ],
-    },
-  ],
+        {
+          id: "cvr",
+          label: "CVR",
+          value: getVal(39.5, true, "cvr_main", 10),
+          change: getChange("cvr").val,
+          isPositive: getChange("cvr").isPos,
+          category: "conversion",
+          importance: "primary",
+          children: [
+            {
+              id: "availability",
+              label: "Availability",
+              value: getVal(77.9, true, "avail", 10),
+              change: getChange("ava").val,
+              isPositive: getChange("ava").isPos,
+              category: "availability",
+              children: [
+                {
+                  id: "buybox",
+                  label: "BuyBox%",
+                  value: getVal(58.3, true, "bbox", 15),
+                  change: getChange("bbx").val,
+                  isPositive: getChange("bbx").isPos,
+                  category: "availability"
+                },
+                {
+                  id: "seller-listing",
+                  label: "Seller Listing%",
+                  value: getVal(56.7, true, "slst", 15),
+                  change: getChange("sls").val,
+                  isPositive: getChange("sls").isPos,
+                  category: "availability"
+                }
+              ]
+            },
+            {
+              id: "delivery-time",
+              label: "Delivery Time",
+              value: "1.5 Days",
+              change: getChange("del").val,
+              isPositive: getChange("del").isPos,
+              category: "segment",
+              meta: [{ label: "Delivery Time", value: "1.5 Days" }]
+            },
+            {
+              id: "discounting",
+              label: "Discounting%",
+              value: getVal(9.8, true, "disc", 5),
+              change: getChange("dsc").val,
+              isPositive: getChange("dsc").isPos,
+              category: "discounting"
+            },
+            {
+              id: "organic-cvr",
+              label: "Organic CVR",
+              value: getVal(58.9, true, "ocvr", 10),
+              change: getChange("ocvr").val,
+              isPositive: getChange("ocvr").isPos,
+              category: "organic"
+            },
+            {
+              id: "inorganic-cvr",
+              label: "Inorganic CVR",
+              value: getVal(26.6, true, "icvr", 10),
+              change: getChange("icvr").val,
+              isPositive: getChange("icvr").isPos,
+              category: "ad"
+            },
+            {
+              id: "delivery-slots", // Same day, 1 day, etc
+              label: "Delivery Slots",
+              value: "Analysis",
+              category: "segment",
+              children: [
+                { id: "same-day", label: "Same Day GVs%", value: "11.29%", category: "segment" },
+                { id: "one-day", label: "1 Day GVs%", value: "0.00%", category: "segment" },
+                { id: "two-day", label: "2 Day GVs%", value: "69.56%", category: "segment" },
+                { id: "greater-two", label: "> 2 Days GVs%", value: "19.14%", category: "segment" }
+              ]
+            }
+          ]
+        },
+        {
+          id: "asp",
+          label: "ASP",
+          value: `₹ ${(742.0 * getEntityBase(skuId + brandId, 0.4)).toFixed(2)}`,
+          change: getChange("asp").val,
+          isPositive: getChange("asp").isPos,
+          category: "price",
+          importance: "primary",
+          children: [
+            { id: "combo-sales", label: "Combo Sales%", value: "44.16%", category: "segment" },
+            { id: "large-sales", label: "Large Sales%", value: "61.72%", category: "segment" },
+            { id: "premium-sales", label: "Premium Sales%", value: "26.34%", category: "segment" }
+          ]
+        }
+      ]
+    };
+  }
+
+  // --- STANDARD TREE (DEFAULT) ---
+  const rootChange = getChange("root");
+  const aspChange = getChange("asp");
+  const impChange = getChange("imp");
+  const cvrChange = getChange("cvr");
+  const osaChange = getChange("osa");
+  const orgChange = getChange("org");
+  const adChange = getChange("ad");
+
+  return {
+    id: "root",
+    label: "Offtake",
+    value: getVal(53.8),
+    change: rootChange.val,
+    isPositive: rootChange.isPos,
+    category: "offtake",
+    importance: "outcome",
+    insight: rootChange.isPos ? "Volume Growth" : "Critical Decline",
+    meta: [{ label: "Est. Category Share", value: getVal(5.1, true, seed + "catshare", 15), change: getChange("meta1").val, isPositive: getChange("meta1").isPos }],
+    children: [
+      {
+        id: "asp",
+        label: "ASP",
+        value: `₹ ${(189.2 * getEntityBase(skuId + brandId, 1.2)).toFixed(1)}`,
+        change: aspChange.val,
+        isPositive: aspChange.isPos,
+        category: "price",
+        importance: "primary",
+        meta: [{ label: "Baseline ASP", value: "₹ 185.0" }]
+      },
+      {
+        id: "indexed-impressions",
+        label: "Indexed Impressions",
+        value: formatLac(3.4 * finalVolume * getEntityBase(platform + "imp", 0.8)),
+        change: impChange.val,
+        isPositive: impChange.isPos,
+        category: "impressions",
+        importance: "primary",
+        insight: impChange.isPos ? "High Visibility" : "Visibility Loss",
+        meta: [{ label: "Overall SOS", value: getVal(12.5, true, seed + "sos", 25), change: getChange("meta2").val, isPositive: getChange("meta2").isPos }],
+        children: [
+          {
+            id: "availability",
+            label: "Wt. OSA %",
+            value: getVal(72.5, true, seed + "osa", 40),
+            change: osaChange.val,
+            isPositive: osaChange.isPos,
+            category: "availability",
+            children: [
+              {
+                id: "listing",
+                label: "DS Listing %",
+                value: getVal(60.0, true, seed + "listing", 50),
+                change: getChange("meta3").val,
+                isPositive: getChange("meta3").isPos,
+                category: "availability"
+              }
+            ]
+          },
+          {
+            id: "organic-impressions",
+            label: "Organic Impressions",
+            value: formatLac(1.9 * finalVolume * getEntityBase(category + "org", 0.6)),
+            change: orgChange.val,
+            isPositive: orgChange.isPos,
+            category: "organic",
+            insight: orgChange.isPos ? "Organic Pull" : "Low Ranking",
+            meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
+            children: [
+              { id: "org-generic", label: "Generic Keywords", value: formatLac(1.1 * finalVolume * getEntityBase("gen", 0.4)), change: getChange("gen").val, isPositive: getChange("gen").isPos, category: "organic" },
+              { id: "org-branded", label: "Branded Keywords", value: formatLac(0.694 * finalVolume * getEntityBase("brand_kw", 0.4)), change: getChange("brand_kw").val, isPositive: getChange("brand_kw").isPos, category: "organic" },
+            ],
+          },
+        ],
+      },
+      {
+        id: "indexed-cvr",
+        label: "Indexed CVR",
+        value: getVal(6.2, true, seed + "cvr", 8),
+        change: cvrChange.val,
+        isPositive: cvrChange.isPos,
+        category: "conversion",
+        importance: "outcome",
+        insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
+        children: [
+          {
+            id: "ad-impressions",
+            label: "Ad Impressions",
+            value: formatLac(1.5 * finalVolume * getEntityBase(brand + "ad", 0.9)),
+            change: adChange.val,
+            isPositive: adChange.isPos,
+            category: "ad",
+            meta: [{ label: "Ad SOS", value: getVal(4.5, true, seed + "adsos", 10), change: getChange("meta5").val, isPositive: getChange("meta5").isPos }],
+            children: [
+              { id: "ad-branded", label: "Branded Keywords", value: formatLac(0.516 * finalVolume * getEntityBase("adb", 0.5)), change: getChange("adb").val, isPositive: getChange("adb").isPos, category: "ad" },
+              { id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad" },
+            ],
+          },
+          { id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting" },
+          { id: "rating-count", label: "Rating Count", value: formatLac(1.8 * finalVolume * getEntityBase("rat", 0.7)), change: getChange("meta7").val, isPositive: getChange("meta7").isPos, category: "rating" },
+        ],
+      },
+    ],
+  };
 };
 
 const nodeTypes = { kpi: KpiNode };
@@ -700,7 +1039,7 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
 };
 
 // --- Internal RCATree Component ---
-const RcaTreeInner = () => {
+const RcaTreeInner = ({ context, title }) => {
   const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -708,7 +1047,9 @@ const RcaTreeInner = () => {
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const reactFlowInstance = useReactFlow();
 
-  const index = useMemo(() => buildIndex(INITIAL_TREE), []);
+  const currentTreeData = useMemo(() => getDynamicRcaTreeData(context), [context]);
+
+  const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
   const focusId = selectedNodeId || hoveredNodeId;
 
   const focusSet = useMemo(() => {
@@ -744,8 +1085,8 @@ const RcaTreeInner = () => {
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
     const results = { nodes: [], edges: [] };
-    const rootWidth = computeSubtreeWidth(INITIAL_TREE, collapsedNodes);
-    layoutTreeNodes(INITIAL_TREE, -rootWidth / 2, 0, collapsedNodes, results);
+    const rootWidth = computeSubtreeWidth(currentTreeData, collapsedNodes);
+    layoutTreeNodes(currentTreeData, -rootWidth / 2, 0, collapsedNodes, results);
 
     const nodes = results.nodes.map((n) => {
       const isFocused = focusSet ? focusSet.has(n.id) : true;
@@ -786,7 +1127,7 @@ const RcaTreeInner = () => {
     });
 
     return { nodes, edges };
-  }, [collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -798,6 +1139,7 @@ const RcaTreeInner = () => {
 
   useEffect(() => {
     reactFlowInstance.fitView?.({ padding: 0.22, duration: 350 });
+
     const t = setTimeout(() => {
       const current = reactFlowInstance.getZoom ? reactFlowInstance.getZoom() : 1;
       reactFlowInstance.zoomTo?.(Math.min(1.12, current * 1.03), { duration: 240 });
@@ -839,10 +1181,10 @@ const RcaTreeInner = () => {
   );
 };
 
-export default function RCATree() {
+export default function RCATree({ context, title }) {
   return (
     <ReactFlowProvider>
-      <RcaTreeInner />
+      <RcaTreeInner context={context} title={title} />
     </ReactFlowProvider>
   );
 }

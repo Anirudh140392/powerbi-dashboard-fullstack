@@ -195,7 +195,7 @@ export default function WatchTower() {
       title: 'Availability',
       value: `${getLogicalKpiValue('osa', context)}%`,
       delta: getLogicalKpiValue('osadelta', context),
-      deltaLabel: `+${(getLogicalKpiValue('osadelta', context) / 4).toFixed(1)} pts`,
+      deltaLabel: `+${(getLogicalKpiValue('osadelta', context) / 4).toFixed(1)}%`,
       icon: Layers,
       gradient: ['#14b8a6', '#06b6d4'],
       trend: getLogicalKpiTrend('availability', context)
@@ -205,7 +205,7 @@ export default function WatchTower() {
       title: 'Promo',
       value: `${getLogicalKpiValue('promo', context)}%`,
       delta: -getLogicalKpiValue('promodelta', context) / 5,
-      deltaLabel: `-${(getLogicalKpiValue('promodelta', context) / 100).toFixed(2)} pts`,
+      deltaLabel: `-${(getLogicalKpiValue('promodelta', context) / 100).toFixed(2)}%`,
       icon: Percent,
       gradient: ['#f43f5e', '#ec4899'],
       trend: getLogicalKpiTrend('promo', context)
@@ -215,7 +215,7 @@ export default function WatchTower() {
       title: 'Market Share',
       value: `${getLogicalKpiValue('market', context)}%`,
       delta: getLogicalKpiValue('marketdelta', context),
-      deltaLabel: `+${(getLogicalKpiValue('marketdelta', context) / 8).toFixed(2)} pts`,
+      deltaLabel: `+${(getLogicalKpiValue('marketdelta', context) / 8).toFixed(2)}%`,
       icon: PieChart,
       gradient: ['#8b5cf6', '#a855f7'],
       trend: getLogicalKpiTrend('market', context)
@@ -225,7 +225,7 @@ export default function WatchTower() {
       title: 'Share of Search',
       value: `${getLogicalKpiValue('sos', context)}%`,
       delta: -getLogicalKpiValue('sosdelta', context) / 6,
-      deltaLabel: `-${(getLogicalKpiValue('sosdelta', context) / 10).toFixed(1)} pts`,
+      deltaLabel: `-${(getLogicalKpiValue('sosdelta', context) / 10).toFixed(1)}%`,
       icon: Eye,
       gradient: ['#f97316', '#fb923c'],
       trend: getLogicalKpiTrend('sos', context)

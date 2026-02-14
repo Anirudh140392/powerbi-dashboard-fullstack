@@ -67,7 +67,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [showFilters, setShowFilters] = useState(false);
 
     // Sample Options
-    const platforms = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket'];
+    const platforms = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket', 'Amazon'];
     const categories = ['Chocolate', 'Energy Drinks', 'Snacking', 'Soft Drinks'];
     const brands = ['All Brands', "Hershey's", 'Ferrero', 'Mondelez'];
     const skus = ['All SKUs', 'SKU-772: Milk Chocolate 40g', 'SKU-819: Dark Almond 80g', 'SKU-902: Hazelnut Crunch 50g'];

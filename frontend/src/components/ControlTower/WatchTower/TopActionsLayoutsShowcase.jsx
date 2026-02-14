@@ -79,11 +79,11 @@ const DetailPanel = ({ selected }) => {
     }
 
     const issue1Kpis = [
-        { name: "OSA %", value: "91.2%", delta: "-4.1 pt" },
-        { name: "Fill Rate", value: "86.4%", delta: "-6.8 pt" },
+        { name: "OSA %", value: "91.2%", delta: "-4.1%" },
+        { name: "Fill Rate", value: "86.4%", delta: "-6.8%" },
         { name: "Sales MTD", value: "₹12.4 Cr", delta: "+8.2%" },
-        { name: "Lost Sales", value: "₹1.7 Cr", delta: "+22%" },
-        { name: "Active Stores", value: "412", delta: "-12" },
+        { name: "Lost Sales", value: "₹1.7 Cr", delta: "" },
+        { name: "Active Stores", value: "412", delta: "" },
         { name: "Hero SKUs", value: "4", delta: "0" },
     ];
 
@@ -226,26 +226,26 @@ const DetailPanel = ({ selected }) => {
     ];
 
     const sosVisibilityKpis = [
-        { name: "SOS %", value: "71%", delta: "-6 pt" },
+        { name: "SOS %", value: "71%", delta: "-6%" },
         { name: "Search Rank (avg)", value: "#6", delta: "-2" },
-        { name: "Impression Share", value: "58%", delta: "-7 pt" },
-        { name: "Top Slot Presence", value: "43%", delta: "-11 pt" },
-        { name: "Hero SKU Coverage", value: "78%", delta: "-8 pt" },
+        { name: "Impression Share", value: "58%", delta: "-7%" },
+        { name: "Top Slot Presence", value: "43%", delta: "-11%" },
+        { name: "Hero SKU Coverage", value: "78%", delta: "-8%" },
     ];
 
     const priceElasticityKpis = [
         { name: "Price Index vs Comp", value: "0.96", delta: "-0.04" },
         { name: "Elasticity Coefficient", value: "-1.48", delta: "+0.12" },
-        { name: "Volume vs Base", value: "-7.2%", delta: "-2.1 pt" },
-        { name: "Promo Lift", value: "+11%", delta: "+4 pt" },
-        { name: "Promo Depth (avg)", value: "18%", delta: "+3 pt" },
+        { name: "Volume vs Base", value: "-7.2%", delta: "-2.1%" },
+        { name: "Promo Lift", value: "+11%", delta: "+4%" },
+        { name: "Promo Depth (avg)", value: "18%", delta: "+3%" },
         { name: "Price Gaps Fixed", value: "37", delta: "+12" },
     ];
 
     const poFillRateKpis = [
-        { name: "PO Fill Rate", value: "86.1%", delta: "-5.9 pt" },
-        { name: "OTIF %", value: "82.4%", delta: "-7.1 pt" },
-        { name: "Backorder %", value: "9.6%", delta: "+3.2 pt" },
+        { name: "PO Fill Rate", value: "86.1%", delta: "-5.9%" },
+        { name: "OTIF %", value: "82.4%", delta: "-7.1%" },
+        { name: "Backorder %", value: "9.6%", delta: "+3.2%" },
         { name: "Depots < 85%", value: "7", delta: "+3" },
         { name: "Lines Short Shipped", value: "312", delta: "+84" },
         { name: "Avg Lead Time", value: "3.8 days", delta: "+0.6" },
@@ -253,14 +253,14 @@ const DetailPanel = ({ selected }) => {
 
     const offtakeKpis = [
         { name: "Offtake MTD", value: "₹18.4 Cr", delta: "+6.8%" },
-        { name: "Fill Rate", value: "88.2%", delta: "-2.4 pt" },
+        { name: "Fill Rate", value: "88.2%", delta: "-2.4%" },
     ];
 
     const perfMarketingKpis = [
         { name: "ROAS", value: "3.1", delta: "+0.4" },
-        { name: "CTR", value: "2.6%", delta: "+0.7 pt" },
+        { name: "CTR", value: "2.6%", delta: "+0.7%" },
         { name: "CPC", value: "₹6.1", delta: "-₹1.2" },
-        { name: "Conversion Rate", value: "9.4%", delta: "+1.6 pt" },
+        { name: "Conversion Rate", value: "9.4%", delta: "+1.6%" },
     ];
 
     const genericKpisByIssue = {
