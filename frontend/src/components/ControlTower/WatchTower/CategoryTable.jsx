@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   Card,
@@ -15,73 +15,258 @@ import {
   useTheme,
   TextField,
   Button,
+  Skeleton,
+  Tooltip,
 } from "@mui/material";
 import TableChartIcon from "@mui/icons-material/TableChart";
 import { Download } from "lucide-react";
+import axiosInstance from "../../../api/axiosInstance";
+import { FilterContext } from "../../../utils/FilterContext";
 
-export default function CategoryTable({ categories, activeTab }) {
-  const platforms = Object.keys(categories[0]).filter((k) => k !== "name");
-  const [searchTerm, setSearchTerm] = useState("");
+export default function CategoryTable({ categories, activeTab = "", filters = {} }) {
+  const { platforms: availablePlatforms } = React.useContext(FilterContext);
+  const [dynamicPlatforms, setDynamicPlatforms] = useState([]);
 
-  const allMetricKeys = useMemo(() => {
-    const set = new Set();
-    categories.forEach((cat) => {
-      platforms.forEach((p) => {
-        Object.keys(cat[p] || {})
-          .filter((k) => !k.endsWith("_change"))
-          .forEach((k) => set.add(k));
-      });
+  // Fetch platforms dynamically from backend
+  useEffect(() => {
+    const fetchPlatforms = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/platforms');
+        if (response.data && response.data.length > 0) {
+          // Always include 'all' in the platform list (backend calculates this)
+          const platformsWithAll = ['all', ...response.data.map(p => p.toLowerCase())];
+          // Remove duplicates
+          const uniquePlatforms = [...new Set(platformsWithAll)];
+          setDynamicPlatforms(uniquePlatforms);
+        }
+      } catch (error) {
+        console.error('Error fetching platforms for SKU table:', error);
+        // Fallback to extracting from categories if API fails
+        if (categories && categories.length > 0) {
+          const extractedPlatforms = Object.keys(categories[0]).filter(
+            (k) => k !== "name" && k !== "category"
+          );
+          setDynamicPlatforms(extractedPlatforms);
+        }
+      }
+    };
+    fetchPlatforms();
+  }, [categories]);
+
+  // Sort platforms intelligently: All first, then selected platform, then alphabetical
+  const platforms = useMemo(() => {
+    const platformList = dynamicPlatforms.length > 0
+      ? dynamicPlatforms
+      : (categories && categories.length > 0
+        ? Object.keys(categories[0]).filter((k) => k !== "name" && k !== "category")
+        : (availablePlatforms || []).map(p => p.toLowerCase()));
+
+    const selectedPlatform = filters.platform?.toLowerCase();
+
+    return [...platformList].sort((a, b) => {
+      const aLower = typeof a === 'string' ? a.toLowerCase() : a;
+      const bLower = typeof b === 'string' ? b.toLowerCase() : b;
+
+      // "All" always first
+      if (aLower === 'all') return -1;
+      if (bLower === 'all') return 1;
+
+      // Selected platform second (after "All")
+      if (selectedPlatform && selectedPlatform !== 'all') {
+        if (aLower === selectedPlatform) return -1;
+        if (bLower === selectedPlatform) return 1;
+      }
+
+      // Rest alphabetically
+      return aLower.localeCompare(bLower);
     });
-    return Array.from(set);
-  }, []);
-
-  const metricOptions = allMetricKeys.map((key) => ({
-    label: key.replace(/_/g, " ").toUpperCase(),
-    key,
-  }));
-
-  const [selectedMetric, setSelectedMetric] = useState(metricOptions[0]);
+  }, [dynamicPlatforms, categories, availablePlatforms, filters.platform]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [metricOptions, setMetricOptions] = useState([]);
+  const [selectedMetric, setSelectedMetric] = useState(null);
+  const [skuData, setSkuData] = useState([]);
+  const [loading, setLoading] = useState(false);
   const theme = useTheme();
 
-  /* ---------------------------------------------------------
-     🔽 FILTER DATA FOR DOWNLOAD + DISPLAY
-  --------------------------------------------------------- */
-  const filteredCategories = useMemo(() => {
-    return categories.filter((c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [searchTerm, categories]);
+  // Fetch metrics from key_metrics table on component mount
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const response = await axiosInstance.get('/watchtower/metrics');
+        if (response.data && response.data.length > 0) {
+          const formattedMetrics = response.data.map(metric => {
+            // Create a readable label from the key
+            let label = metric.key;
 
-  /* ---------------------------------------------------------
-     🔽 CSV DOWNLOAD FUNCTION
-  --------------------------------------------------------- */
-  const handleDownload = () => {
-    let csv = [];
+            // If the key has underscores or is all lowercase, format it nicely
+            if (label.includes('_') || label === label.toLowerCase()) {
+              // Replace underscores with spaces and title case each word
+              label = label
+                .split('_')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+            }
 
-    // Header row
-    csv.push(["Category/SKU", ...platforms.map((p) => p.toUpperCase())].join(","));
+            return {
+              key: metric.key,
+              label: label
+            };
+          });
+          setMetricOptions(formattedMetrics);
+          setSelectedMetric(formattedMetrics[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+        // Fallback to extracting from data if API fails
+        const set = new Set();
+        categories.forEach((cat) => {
+          platforms.forEach((p) => {
+            Object.keys(cat[p] || {})
+              .filter((k) => !k.endsWith("_change") && k !== "value")
+              .forEach((k) => set.add(k));
+          });
+        });
+        const fallbackMetrics = Array.from(set).map((key) => {
+          // Create readable label
+          let label = key;
+          if (label.includes('_') || label === label.toLowerCase()) {
+            label = label
+              .split('_')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
+          }
 
-    // Single metric label row
-    csv.push(["", selectedMetric.label]);
+          return { key, label };
+        });
+        setMetricOptions(fallbackMetrics);
+        if (fallbackMetrics.length > 0) {
+          setSelectedMetric(fallbackMetrics[0]);
+        }
+      }
+    };
 
-    // Values rows
-    filteredCategories.forEach((cat) => {
-      const row = [cat.name];
+    fetchMetrics();
+  }, []);
 
-      platforms.forEach((p) => {
-        const main = cat[p][selectedMetric.key] || "-";
-        const change = cat[p][selectedMetric.key + "_change"] || "-";
-        row.push(`${main} (${change})`);
-      });
+  // Ref to track last fetched params and prevent duplicate API calls
+  const lastFetchedRef = useRef(null);
 
-      csv.push(row.join(","));
+  // Fetch SKU data when metric changes
+  useEffect(() => {
+    if (!selectedMetric) return;
+
+    // Create a stable key for current fetch params
+    const fetchKey = JSON.stringify({
+      metric: selectedMetric?.key,
+      platform: filters.platform,
+      brand: filters.brand,
+      location: filters.location,
+      startDate: filters.startDate,
+      endDate: filters.endDate
     });
 
-    // Convert to Blob
-    const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+    // Skip if we already fetched with these same params
+    if (lastFetchedRef.current === fetchKey) {
+      return;
+    }
+
+    // Mark these params as being fetched
+    lastFetchedRef.current = fetchKey;
+
+    const fetchSkuData = async () => {
+      setLoading(true);
+      try {
+        console.log('🔍 Fetching SKU data with filters:', {
+          metric: selectedMetric?.key || 'none',
+          platform: filters.platform || 'All',
+          brand: filters.brand || 'All',
+          location: filters.location || 'All',
+          dateRange: filters.startDate && filters.endDate
+            ? `${filters.startDate} to ${filters.endDate}`
+            : 'No date filter'
+        });
+
+        // Convert metric key to lowercase to match backend response format
+        const metricKeyLower = selectedMetric.key.toLowerCase();
+
+        const response = await axiosInstance.get('/watchtower/sku-metrics', {
+          params: {
+            metric: metricKeyLower,
+            platform: filters.platform,
+            brand: filters.brand,
+            location: filters.location,
+            dateFrom: filters.startDate,
+            dateTo: filters.endDate,
+          }
+        });
+        setSkuData(response.data || []);
+      } catch (error) {
+        console.error('Error fetching SKU data:', error);
+        setSkuData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSkuData();
+  }, [selectedMetric, filters.platform, filters.brand, filters.location, filters.startDate, filters.endDate]);
+
+
+  /* --------------------- FILTER --------------------- */
+  // Use SKU data if available, otherwise fall back to categories prop
+  const dataToDisplay = skuData.length > 0 ? skuData : categories;
+
+  const filteredCategories = useMemo(() => {
+    return dataToDisplay.filter((c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [searchTerm, dataToDisplay]);
+
+
+  /* -------------------- PAGINATION -------------------- */
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [page, setPage] = useState(0);
+
+  const paginatedRows = useMemo(() => {
+    return filteredCategories.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [filteredCategories, page, rowsPerPage]);
+
+  const totalPages = Math.ceil(filteredCategories.length / rowsPerPage);
+
+  /* --------------------- CSV DOWNLOAD --------------------- */
+  const capitalize = (s) => {
+    if (typeof s !== 'string') return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
+  const handleDownloadCSV = () => {
+    if (!selectedMetric) return;
+
+    // Convert metric key to lowercase to match backend response format
+    const metricKeyLower = selectedMetric.key.toLowerCase();
+
+    const csvRows = [];
+    const headers = ["SKU", ...platforms.map((p) => capitalize(p))];
+    csvRows.push(headers.join(","));
+
+    filteredCategories.forEach((cat) => {
+      const row = [cat.name];
+      platforms.forEach((p) => {
+        // Safely access nested properties with fallbacks
+        const platformData = cat[p] || {};
+        const main = platformData[metricKeyLower] || "-";
+        const change = platformData[metricKeyLower + "_change"] || "-";
+        row.push(`${main} (${change})`);
+      });
+      csvRows.push(row.join(","));
+    });
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
-    // Auto-download
     const a = document.createElement("a");
     a.href = url;
     a.download = `table_export_${selectedMetric.key}.csv`;
@@ -92,7 +277,6 @@ export default function CategoryTable({ categories, activeTab }) {
   const renderChange = (value) => {
     if (!value) return "-";
     const positive = value.startsWith("+");
-
     return (
       <span
         style={{
@@ -140,28 +324,35 @@ export default function CategoryTable({ categories, activeTab }) {
             >
               <TableChartIcon sx={{ color: theme.palette.primary.main }} />
             </Box>
-            <Typography fontSize="1.25rem" fontWeight={700}>
+
+            <Typography fontSize="1.2rem" fontWeight={700} fontFamily="Roboto, sans-serif">
               {activeTab}
             </Typography>
           </Box>
 
+          {/* RIGHT CONTROLS */}
           <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-            <Typography
-              variant="body2"
-              sx={{ color: "#6b7280", fontWeight: 600 }}
-            >
+            {/* Metrics Name Label */}
+            <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "text.secondary" }}>
               Metrics:
             </Typography>
 
+            {/* Metrics Dropdown */}
             <Select
               size="small"
-              value={selectedMetric.key}
-              sx={{ minWidth: 120 }}
+              value={selectedMetric?.key || ''}
               onChange={(e) =>
                 setSelectedMetric(
                   metricOptions.find((m) => m.key === e.target.value)
                 )
               }
+              sx={{
+                minWidth: 150,
+                height: 36,
+                fontSize: "0.85rem",
+                background: "#f3f4f6",
+              }}
+              disabled={!selectedMetric || metricOptions.length === 0 || loading}
             >
               {metricOptions.map((opt) => (
                 <MenuItem key={opt.key} value={opt.key}>
@@ -170,12 +361,16 @@ export default function CategoryTable({ categories, activeTab }) {
               ))}
             </Select>
 
-            {/* Search */}
+
+            {/* SEARCH */}
             <TextField
               size="small"
               placeholder="Search"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(0); // reset page on search
+              }}
               sx={{ width: 200 }}
             />
 
@@ -183,7 +378,7 @@ export default function CategoryTable({ categories, activeTab }) {
             <Button
               variant="outlined"
               size="small"
-              onClick={handleDownload}
+              onClick={handleDownloadCSV}
               sx={{ minWidth: "auto", p: 1 }}
             >
               <Download size={18} />
@@ -198,7 +393,6 @@ export default function CategoryTable({ categories, activeTab }) {
         >
           <Table stickyHeader>
             <TableHead>
-              {/* ROW 1 */}
               <TableRow>
                 <TableCell
                   sx={{
@@ -206,14 +400,20 @@ export default function CategoryTable({ categories, activeTab }) {
                       theme.palette.mode === "dark"
                         ? theme.palette.background.default
                         : "#f9fafb",
-                    fontWeight: 700,
                     position: "sticky",
                     left: 0,
                     zIndex: 10,
+                    textAlign: "center",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    lineHeight: 1.4,
+                    fontFamily: "Roboto, sans-serif",
                   }}
                 >
-                  {activeTab === "Split by Category" ? "Category" : "Sku"}
+                  {activeTab === "Split by Category" ? "Category" : "SKU"}
                 </TableCell>
+
+
 
                 {platforms.map((p) => (
                   <TableCell
@@ -225,14 +425,17 @@ export default function CategoryTable({ categories, activeTab }) {
                           ? theme.palette.background.default
                           : "#f9fafb",
                       fontWeight: 700,
+                      fontSize: "0.95rem",
+                      fontFamily: "Roboto, sans-serif",
                     }}
                   >
-                    {p.toUpperCase()}
+                    <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif">
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </Typography>
                   </TableCell>
                 ))}
               </TableRow>
 
-              {/* ROW 2 */}
               <TableRow>
                 <TableCell
                   sx={{
@@ -252,52 +455,172 @@ export default function CategoryTable({ categories, activeTab }) {
                         ? theme.palette.background.default
                         : "#f9fafb",
                     color: theme.palette.text.primary,
-                    fontWeight: 900,
-                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    fontFamily: "Roboto, sans-serif",
                   }}
                 >
-                  {selectedMetric.label}
+                  {selectedMetric ? (selectedMetric.label.toLowerCase().charAt(0).toUpperCase() + selectedMetric.label.toLowerCase().slice(1)) : 'Loading...'}
                 </TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
-              {filteredCategories.map((cat, i) => (
-                <TableRow key={i} hover>
-                  <TableCell
-                    sx={{
-                      position: "sticky",
-                      left: 0,
-                      background: theme.palette.background.paper,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {cat.name}
-                  </TableCell>
-
-                  {platforms.map((p) => {
-                    const main = cat[p][selectedMetric.key];
-                    const change = cat[p][selectedMetric.key + "_change"];
-                    return (
-                      <TableCell key={p + i} align="center">
-                        <Box
-                          display="flex"
-                          flexDirection="column"
-                          alignItems="center"
-                        >
-                          <Typography fontWeight={600}>{main}</Typography>
-                          <Typography fontSize="0.75rem">
-                            {renderChange(change)}
-                          </Typography>
+              {loading ? (
+                // Skeleton loading rows
+                [1, 2, 3, 4, 5].map((i) => (
+                  <TableRow key={i}>
+                    <TableCell
+                      sx={{
+                        position: "sticky",
+                        left: 0,
+                        background: theme.palette.background.paper,
+                        textAlign: "center",
+                      }}
+                    >
+                      <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                        <Skeleton variant="rounded" width={60} height={18} animation="wave" sx={{ borderRadius: 2 }} />
+                        <Skeleton variant="text" width={120} height={22} animation="wave" sx={{ borderRadius: 1 }} />
+                      </Box>
+                    </TableCell>
+                    {platforms.map((p, j) => (
+                      <TableCell key={p + j} align="center">
+                        <Box display="flex" flexDirection="column" alignItems="center">
+                          <Skeleton variant="text" width={60} height={22} animation="wave" sx={{ borderRadius: 1 }} />
+                          <Skeleton variant="text" width={40} height={16} animation="wave" sx={{ borderRadius: 1 }} />
                         </Box>
                       </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                paginatedRows.map((cat, i) => (
+                  <TableRow key={i} hover>
+                    <TableCell
+                      sx={{
+                        position: "sticky",
+                        left: 0,
+                        background: theme.palette.background.paper,
+                        fontSize: "0.95rem",
+                        fontWeight: 700,
+                        lineHeight: 1.4,
+                        fontFamily: "Roboto, sans-serif",
+                        textAlign: "center",
+                      }}
+                    >
+                      <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                        {cat.category && (
+                          <Tooltip title={cat.category} arrow placement="top">
+                            <Typography
+                              fontSize="0.7rem"
+                              fontWeight={500}
+                              fontFamily="Roboto, sans-serif"
+                              noWrap
+                              sx={{
+                                color: theme.palette.text.secondary,
+                                backgroundColor: theme.palette.mode === "dark" ? theme.palette.background.default : "#f1f5f9",
+                                px: 1.5,
+                                py: 0.3,
+                                borderRadius: "12px",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px",
+                                maxWidth: 180,
+                                display: "block"
+                              }}
+                            >
+                              {cat.category}
+                            </Typography>
+                          </Tooltip>
+                        )}
+                        <Tooltip title={cat.name} arrow placement="top">
+                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif" noWrap sx={{ maxWidth: 300, display: 'block' }}>
+                            {cat.name}
+                          </Typography>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                    {platforms.map((p) => {
+                      if (!selectedMetric) return null;
+
+                      // Convert metric key to lowercase to match backend response format
+                      const metricKeyLower = selectedMetric.key.toLowerCase();
+
+                      // Safely access nested properties with fallbacks
+                      const platformData = cat[p] || {};
+                      const main = platformData[metricKeyLower] || "-";
+                      const change = platformData[metricKeyLower + "_change"] || "-";
+
+                      return (
+                        <TableCell key={p + i} align="center">
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                            alignItems="center"
+                          >
+                            <Typography
+                              fontSize="0.95rem"
+                              fontWeight={700}
+                              fontFamily="Roboto, sans-serif"
+                            >
+                              {main}
+                            </Typography>
+                            <Typography fontSize="0.75rem" fontWeight={400} fontFamily="Roboto, sans-serif">
+                              {renderChange(change)}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* PAGINATION */}
+        <div className="mt-3 flex items-center justify-between text-[11px]" style={{ fontFamily: 'Roboto, sans-serif' }}>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
+            >
+              Prev
+            </button>
+
+            <span>
+              Page <b>{page + 1}</b> / {totalPages}
+            </span>
+
+            <button
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded-full border px-3 py-1 disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div>
+              Rows/page
+              <select
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setPage(0); // Reset to first page when changing rows per page
+                }}
+                className="ml-1 rounded-full border px-2 py-1"
+              >
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+                <option value={4}>4</option>
+                <option value={5}>5</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </Card>
     </Box>
   );

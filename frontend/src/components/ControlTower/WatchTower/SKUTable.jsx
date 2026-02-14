@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, TextField, Select, MenuItem, useTheme } from '@mui/material';
+import { Box, Typography, Button, TextField, Select, MenuItem, useTheme, Tooltip } from '@mui/material';
 import { Download } from 'lucide-react';
 
 const PlatformIcon = ({ platform }) => {
@@ -23,6 +23,41 @@ const PlatformIcon = ({ platform }) => {
   );
 };
 
+/* ---------------- SKU IMAGE WITH ERROR HANDLING ---------------- */
+const SKUImage = ({ src, alt, theme }) => {
+  const [error, setError] = React.useState(false);
+
+  if (error || !src) {
+    return (
+      <Box
+        sx={{
+          width: 40,
+          height: 40,
+          borderRadius: 1,
+          bgcolor: theme.palette.action.hover,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: theme.palette.text.secondary }}>
+          IMG
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setError(true)}
+      style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
+    />
+  );
+};
+
 export default function SKUTable({ data }) {
   const theme = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,8 +71,8 @@ export default function SKUTable({ data }) {
           <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 600 }}>
             Metrics:
           </Typography>
-          <Select 
-            size="small" 
+          <Select
+            size="small"
             value="offtake"
             sx={{ minWidth: 120 }}
           >
@@ -45,7 +80,7 @@ export default function SKUTable({ data }) {
             <MenuItem value="growth">Growth</MenuItem>
           </Select>
         </Box>
-        
+
         <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField
             size="small"
@@ -54,8 +89,8 @@ export default function SKUTable({ data }) {
             onChange={(e) => setSearchTerm(e.target.value)}
             sx={{ width: 200 }}
           />
-          <Select 
-            size="small" 
+          <Select
+            size="small"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             sx={{ minWidth: 150 }}
@@ -64,8 +99,8 @@ export default function SKUTable({ data }) {
             <MenuItem value="Toothpaste">Toothpaste</MenuItem>
             <MenuItem value="Toothbrush">Toothbrush</MenuItem>
           </Select>
-          <Button 
-            variant="outlined" 
+          <Button
+            variant="outlined"
             size="small"
             sx={{ minWidth: 'auto', p: 1 }}
           >
@@ -75,14 +110,14 @@ export default function SKUTable({ data }) {
       </Box>
 
       {/* Table */}
-      <Box sx={{ 
-        border: `1px solid ${theme.palette.divider}`, 
-        borderRadius: 2, 
+      <Box sx={{
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
         overflow: 'hidden',
         bgcolor: theme.palette.background.paper
       }}>
-        <Box sx={{ 
-          maxHeight: '500px', 
+        <Box sx={{
+          maxHeight: '500px',
           overflowY: 'auto',
           '&::-webkit-scrollbar': {
             width: 8
@@ -102,19 +137,19 @@ export default function SKUTable({ data }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
                 <tr style={{ backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb', position: 'sticky', top: 0, zIndex: 2 }}>
-                  <th style={{ 
-                    textAlign: 'left', 
-                    padding: '12px', 
-                    fontWeight: 700, 
+                  <th style={{
+                    textAlign: 'left',
+                    padding: '12px',
+                    fontWeight: 700,
                     color: theme.palette.text.primary,
                     borderRight: `1px solid ${theme.palette.divider}`,
                     minWidth: '300px'
                   }}>
                     SKU
                   </th>
-                  <th colSpan="2" style={{ 
-                    padding: '12px', 
-                    textAlign: 'center', 
+                  <th colSpan="2" style={{
+                    padding: '12px',
+                    textAlign: 'center',
                     fontWeight: 700,
                     borderRight: `1px solid ${theme.palette.divider}`
                   }}>
@@ -123,9 +158,9 @@ export default function SKUTable({ data }) {
                       <span>All</span>
                     </Box>
                   </th>
-                  <th colSpan="2" style={{ 
-                    padding: '12px', 
-                    textAlign: 'center', 
+                  <th colSpan="2" style={{
+                    padding: '12px',
+                    textAlign: 'center',
                     fontWeight: 700,
                     borderRight: '1px solid #e5e7eb'
                   }}>
@@ -134,9 +169,9 @@ export default function SKUTable({ data }) {
                       <span>Blinkit</span>
                     </Box>
                   </th>
-                  <th colSpan="2" style={{ 
-                    padding: '12px', 
-                    textAlign: 'center', 
+                  <th colSpan="2" style={{
+                    padding: '12px',
+                    textAlign: 'center',
                     fontWeight: 700,
                     borderRight: '1px solid #e5e7eb'
                   }}>
@@ -145,9 +180,9 @@ export default function SKUTable({ data }) {
                       <span>Zepto</span>
                     </Box>
                   </th>
-                  <th colSpan="2" style={{ 
-                    padding: '12px', 
-                    textAlign: 'center', 
+                  <th colSpan="2" style={{
+                    padding: '12px',
+                    textAlign: 'center',
                     fontWeight: 700
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
@@ -170,42 +205,49 @@ export default function SKUTable({ data }) {
               </thead>
               <tbody>
                 {data.map((row, idx) => (
-                  <tr 
-                    key={idx} 
-                    style={{ 
+                  <tr
+                    key={idx}
+                    style={{
                       borderTop: `1px solid ${theme.palette.divider}`,
                       backgroundColor: theme.palette.background.paper
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.palette.action.hover}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.palette.background.paper}
                   >
-                    <td style={{ 
+                    <td style={{
                       padding: '12px',
                       borderRight: `1px solid ${theme.palette.divider}`
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <img 
-                          src={row.productImage || 'https://via.placeholder.com/40'} 
+                        <SKUImage
+                          src={row.productImage || 'https://via.placeholder.com/40'}
                           alt={row.sku}
-                          style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
+                          theme={theme}
                         />
                         <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                            {row.sku}
-                          </Typography>
+                          <Tooltip title={row.sku} arrow placement="top">
+                            <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, maxWidth: 350, display: 'block' }}>
+                              {row.sku}
+                            </Typography>
+                          </Tooltip>
+                          <Tooltip title={row.brand} arrow placement="top">
+                            <Typography variant="body2" noWrap sx={{ color: theme.palette.text.secondary, maxWidth: 180, display: 'block' }}>
+                              {row.brand}
+                            </Typography>
+                          </Tooltip>
                           <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                             {row.weight}
                           </Typography>
                         </Box>
                       </Box>
                     </td>
-                    
+
                     {/* All Platform */}
                     <td style={{ padding: '8px', textAlign: 'center', fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>
                       {row.all.offtake}
                     </td>
-                    <td style={{ 
-                      padding: '8px', 
+                    <td style={{
+                      padding: '8px',
                       textAlign: 'center',
                       color: row.all.growth?.includes('-') ? theme.palette.error.main : theme.palette.success.main,
                       fontWeight: 600,
@@ -213,13 +255,13 @@ export default function SKUTable({ data }) {
                     }}>
                       {row.all.growth}
                     </td>
-                    
+
                     {/* Blinkit Platform */}
                     <td style={{ padding: '8px', textAlign: 'center', fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>
                       {row.blinkit.offtake}
                     </td>
-                    <td style={{ 
-                      padding: '8px', 
+                    <td style={{
+                      padding: '8px',
                       textAlign: 'center',
                       color: row.blinkit.growth?.includes('-') ? theme.palette.error.main : theme.palette.success.main,
                       fontWeight: 600,
@@ -227,7 +269,7 @@ export default function SKUTable({ data }) {
                     }}>
                       {row.blinkit.growth}
                     </td>
-                    
+
                     {/* Zepto Platform */}
                     <td style={{ padding: '8px', textAlign: 'center', color: '#9ca3af', borderRight: '1px solid #e5e7eb' }}>
                       {row.zepto.offtake}
@@ -235,13 +277,13 @@ export default function SKUTable({ data }) {
                     <td style={{ padding: '8px', textAlign: 'center', color: theme.palette.text.secondary, borderRight: `1px solid ${theme.palette.divider}` }}>
                       {row.zepto.growth}
                     </td>
-                    
+
                     {/* Instamart Platform */}
                     <td style={{ padding: '8px', textAlign: 'center', fontWeight: 700, borderRight: `1px solid ${theme.palette.divider}` }}>
                       {row.instamart.offtake}
                     </td>
-                    <td style={{ 
-                      padding: '8px', 
+                    <td style={{
+                      padding: '8px',
                       textAlign: 'center',
                       color: row.instamart.growth?.includes('-') ? theme.palette.error.main : theme.palette.success.main,
                       fontWeight: 600

@@ -1,9 +1,13 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Typography,
   IconButton,
   Button,
+  Autocomplete,
+  TextField,
+  Switch,
 } from "@mui/material";
 
 import {
@@ -12,275 +16,397 @@ import {
 } from "@mui/icons-material";
 
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import LightModeIcon from "@mui/icons-material/LightMode";
-import DarkModeIcon from "@mui/icons-material/DarkMode";
 
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { AppThemeContext } from "../../utils/ThemeContext";
+import { FilterContext } from "../../utils/FilterContext";
+import DateRangeComparePicker from "./DateRangeComparePicker";
 
+import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import CustomHeaderDropdown from "./CustomHeaderDropdown";
 
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
-  const [timeStart, setTimeStart] = React.useState(dayjs("2025-10-01"));
-  const [timeEnd, setTimeEnd] = React.useState(dayjs("2025-10-06"));
-
-  const [compareStart, setCompareStart] = React.useState(dayjs("2025-09-01"));
-  const [compareEnd, setCompareEnd] = React.useState(dayjs("2025-09-06"));
-
   const [priceMode, setPriceMode] = React.useState("MRP");
+  const [isExpanded, setIsExpanded] = React.useState(true);
 
-  // 🎯 DARK/LIGHT MODE CONTEXT
-  const { mode, toggleTheme } = React.useContext(AppThemeContext);
+  const {
+    brands,
+    selectedBrand,
+    setSelectedBrand,
+    keywords,
+    selectedKeyword,
+    setSelectedKeyword,
+    locations,
+    selectedLocation,
+    setSelectedLocation,
+    platforms,
+    platform,
+    setPlatform,
+    timeStart,
+    setTimeStart,
+    timeEnd,
+    setTimeEnd,
+    compareStart,
+    setCompareStart,
+    compareEnd,
+    setCompareEnd,
+    setComparisonLabel,
+    maxDate,
+    zones,
+    selectedZone,
+    setSelectedZone,
+    pmPlatforms,
+    pmSelectedPlatform,
+    setPmSelectedPlatform,
+    pmBrands,
+    pmSelectedBrand,
+    setPmSelectedBrand,
+    darkStoreData,
+    channels,
+    selectedChannel,
+    setSelectedChannel,
+    mslEnabled,
+    setMslEnabled,
+    categories,
+    selectedCategory,
+    setSelectedCategory
+  } = React.useContext(FilterContext);
+
+
+  const location = useLocation();
+
+  // 🌗 Dark/Light Mode
+  const { mode } = React.useContext(AppThemeContext);
 
   return (
     <Box
       sx={{
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
-        borderColor: (theme) =>
-          theme.palette.mode === "dark" ? "#374151" : "#e5e7eb",
-        px: 3,
-        py: 2,
+        borderColor: (theme) => "#e5e7eb",
+        px: { xs: 1.5, sm: 3 },
+        py: { xs: 0.75, sm: 1.5 },
         position: "sticky",
         top: 0,
-        zIndex: 1100,
+        zIndex: 1200,
+        transition: "all 0.3s ease",
+        // Premium subtle shadow
+        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
       }}
     >
-
-      {/* ----------------------------- FIRST ROW ----------------------------- */}
+      {/* ---------------- FIRST ROW ---------------- */}
       <Box
         sx={{
           display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
           justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: 2,
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: { xs: 0.25, sm: 1 },
+          pb: 0,
         }}
       >
-        {/* LEFT SECTION */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        {/* LEFT SIDE */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <IconButton
             onClick={onMenuClick}
-            sx={{ display: { xs: "block", sm: "none" }, color: (theme) => theme.palette.text.primary }}
+            sx={{ display: { xs: "block", sm: "none" } }}
           >
             <MenuIcon />
           </IconButton>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <IconButton size="small" sx={{ color: (theme) => theme.palette.text.primary }}>
-              <ArrowBackIcon />
+            <IconButton
+              size="small"
+              onClick={() => setIsExpanded(!isExpanded)}
+              sx={{
+                bgcolor: "#f1f5f9",
+                "&:hover": { bgcolor: "#e2e8f0" },
+                transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.3s ease",
+              }}
+            >
+              <ChevronDown size={18} />
             </IconButton>
 
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 700,
-                color: (theme) => theme.palette.text.primary,
-              }}
-            >
-              {title}
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* DATE PICKERS SECTION */}
-        <Box sx={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {/* TIME PERIOD */}
-          <Box>
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                color: (theme) => theme.palette.text.secondary,
-                mb: 0.5,
-              }}
-            >
-              TIME PERIOD
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DatePicker
-                format="DD MMM YY"
-                value={timeStart}
-                onChange={(v) => setTimeStart(v)}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: {
-                      width: 135,
-                    },
-                  },
-                }}
-              />
-
-              <ArrowForwardIcon
+            <Box sx={{ display: "flex", flexDirection: "column" }}>
+              <Typography
+                variant="h6"
+                fontWeight="700"
                 sx={{
-                  color: (theme) => theme.palette.text.secondary,
-                  fontSize: 18,
+                  whiteSpace: "nowrap",
+                  lineHeight: 1.2,
+                  fontSize: { xs: "1.1rem", sm: "1.25rem" }
                 }}
-              />
-
-              <DatePicker
-                format="DD MMM YY"
-                value={timeEnd}
-                onChange={(v) => setTimeEnd(v)}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: {
-                      width: 135,
-                    },
-                  },
-                }}
-              />
-            </Box>
-          </Box>
-
-          {/* COMPARE WITH */}
-          <Box>
-            <Typography
-              sx={{
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                color: (theme) => theme.palette.text.secondary,
-                mb: 0.5,
-              }}
-            >
-              COMPARE WITH
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <DatePicker
-                format="DD MMM YY"
-                value={compareStart}
-                onChange={(v) => setCompareStart(v)}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: {
-                      width: 135,
-                    },
-                  },
-                }}
-              />
-
-              <ArrowForwardIcon
-                sx={{
-                  color: (theme) => theme.palette.text.secondary,
-                  fontSize: 18,
-                }}
-              />
-
-              <DatePicker
-                format="DD MMM YY"
-                value={compareEnd}
-                onChange={(v) => setCompareEnd(v)}
-                slotProps={{
-                  textField: {
-                    size: "small",
-                    sx: {
-                      width: 135,
-                    },
-                  },
-                }}
-              />
+              >
+                {title}
+              </Typography>
+              {title !== "Performance Marketing" && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      bgcolor: "#22C55E",
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#64748b",
+                    }}
+                  >
+                    {darkStoreData?.totalCount || 0} Active Dark Store{(darkStoreData?.totalCount || 0) !== 1 ? 's' : ''}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           </Box>
         </Box>
-      </Box>
 
-      {/* ----------------------------- SECOND ROW ----------------------------- */}
-      <Box
-        sx={{
-          display: "flex",
-          gap: 2,
-          alignItems: "center",
-          mt: 3,
-          flexWrap: "wrap",
-          justifyContent: "flex-end",
-        }}
-      >
-        {/* GC Labs */}
-        {/* <Button
-          variant="contained"
-          sx={{
-            background: "#7c3aed",
-            textTransform: "none",
-            fontSize: "0.75rem",
-          }}
-        >
-          GC Labs
-        </Button> */}
+        {/* FILTERS CONTAINER */}
+        <AnimatePresence>
+          {isExpanded && (
+            <Box
+              component={motion.div}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              sx={{
+                display: "flex",
+                gap: { xs: 0.5, sm: 1.5 },
+                flexWrap: { xs: "wrap", sm: "nowrap" },
+                overflowX: { xs: "visible", sm: "auto" },
+                width: { xs: "100%", sm: "auto" },
+                justifyContent: { xs: "flex-start", sm: "flex-end" },
+                paddingBottom: { xs: 0.25, sm: 0.75 },
+                paddingTop: { xs: 0.5, sm: 0 },
+                "&::-webkit-scrollbar": { display: "none" },
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
+              }}
+            >
 
-        {/* Data Till */}
-        <Button
-          variant="outlined"
-          sx={{
-            borderColor: (theme) =>
-              theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
-            color: (theme) => theme.palette.text.primary,
-            textTransform: "none",
-            fontSize: "0.75rem",
-          }}
-        >
-          Data till 06 Oct 25
-        </Button>
+              {/* CHANNEL SELECTION */}
+              <CustomHeaderDropdown
+                label="CHANNEL"
+                options={channels}
+                value={selectedChannel}
+                onChange={(newValue) => setSelectedChannel(newValue)}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+              />
 
-        {/* MRP / SP Toggle */}
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant={priceMode === "MRP" ? "contained" : "outlined"}
-            onClick={() => setPriceMode("MRP")}
-            sx={{
-              background:
-                priceMode === "MRP" ? "#059669" : "transparent",
-              borderColor: (theme) =>
-                theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
-              textTransform: "none",
-              fontSize: "0.75rem",
-            }}
-          >
-            MRP
-          </Button>
+              {/* PLATFORM SELECTION */}
+              <CustomHeaderDropdown
+                label="PLATFORM"
+                options={title === "Performance Marketing" ? pmPlatforms : platforms}
+                value={title === "Performance Marketing" ? pmSelectedPlatform : platform}
+                onChange={(newValue) => {
+                  if (title === "Performance Marketing") {
+                    setPmSelectedPlatform(newValue);
+                  } else {
+                    setPlatform(newValue);
+                  }
+                }}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+              />
 
-          <Button
-            variant={priceMode === "SP" ? "contained" : "outlined"}
-            onClick={() => setPriceMode("SP")}
-            sx={{
-              background:
-                priceMode === "SP" ? "#059669" : "transparent",
-              borderColor: (theme) =>
-                theme.palette.mode === "dark" ? "#4b5563" : "#d1d5db",
-              textTransform: "none",
-              fontSize: "0.75rem",
-            }}
-          >
-            SP
-          </Button>
-        </Box>
+              <CustomHeaderDropdown
+                label="BRAND"
+                options={title === "Performance Marketing" ? pmBrands : brands}
+                value={title === "Performance Marketing" ? pmSelectedBrand : selectedBrand}
+                onChange={(newValue) => {
+                  if (title === "Performance Marketing") {
+                    setPmSelectedBrand(newValue);
+                  } else {
+                    setSelectedBrand(newValue);
+                  }
+                }}
+                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+              />
+              {title !== 'Availability Analysis' && (
+                <CustomHeaderDropdown
+                  label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
+                  options={title === "Performance Marketing" ? zones : locations}
+                  value={title === "Performance Marketing" ? selectedZone : selectedLocation}
+                  onChange={(newValue) => {
+                    if (title === "Performance Marketing") {
+                      setSelectedZone(newValue);
+                    } else {
+                      setSelectedLocation(newValue);
+                    }
+                  }}
+                  width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                />
+              )}
+              {title === 'Availability Analysis' && (
+                <CustomHeaderDropdown
+                  label="CATEGORY"
+                  options={categories}
+                  value={selectedCategory}
+                  onChange={(newValue) => setSelectedCategory(newValue)}
+                  width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                />
+              )}
+              {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
+              <Box sx={{ width: { xs: "calc(50% - 3px)", sm: 200 }, flexShrink: 0 }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.1,
+                    opacity: 0.7,
+                  }}
+                >
+                  TIME PERIOD
+                </Typography>
+                <DateRangeComparePicker
+                  timeStart={timeStart}
+                  timeEnd={timeEnd}
+                  compareStart={compareStart}
+                  compareEnd={compareEnd}
+                  maxDate={maxDate}
+                  onApply={(start, end, cStart, cEnd, compareOn, label) => {
+                    setTimeStart(start);
+                    setTimeEnd(end);
 
-        {/* 🌗 DARK/LIGHT MODE TOGGLE BUTTON */}
-        {/* <IconButton
-          onClick={toggleTheme}
-          sx={{
-            ml: 1,
-            background:
-              mode === "dark" ? "#374151" : "#e5e7eb",
-            color:
-              mode === "dark"
-                ? "#f9fafb"
-                : "#111827",
-            "&:hover": {
-              background:
-                mode === "dark" ? "#4b5563" : "#d1d5db",
-            },
-          }}
-        >
-          {mode === "dark" ? (
-            <LightModeIcon fontSize="small" />
-          ) : (
-            <DarkModeIcon fontSize="small" />
+                    // Format label for KPI cards
+                    let formattedLabel = "VS PREV. PERIOD";
+                    if (label) {
+                      const up = label.toUpperCase();
+                      if (up === "TODAY") formattedLabel = "VS YESTERDAY"; // Usually compares to yesterday
+                      else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
+                      else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
+                      else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
+                      else formattedLabel = `VS ${up}`;
+                    }
+                    setComparisonLabel(formattedLabel);
+
+                    if (compareOn) {
+                      setCompareStart(cStart);
+                      setCompareEnd(cEnd);
+                    } else {
+                      // Optionally reset comparison if needed, but keeping existing for now
+                      setCompareStart(null);
+                      setCompareEnd(null);
+                    }
+                  }}
+                />
+
+              </Box>
+              {/* MSL TOGGLE */}
+              <Box sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                minWidth: { xs: "calc(50% - 3px)", sm: 100 },
+                flexShrink: 0
+              }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    mb: 0.1,
+                    opacity: 0.7,
+                  }}
+                >
+                  MSL
+                </Typography>
+                <Box sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  height: 32,
+                  bgcolor: "#f1f5f9",
+                  borderRadius: "8px",
+                  px: 1,
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <Switch
+                    checked={mslEnabled}
+                    onChange={(e) => setMslEnabled(e.target.checked)}
+                    size="small"
+                    sx={{
+                      "& .MuiSwitch-switchBase.Mui-checked": {
+                        color: "#7c3aed",
+                      },
+                      "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                        backgroundColor: "#7c3aed",
+                      },
+                    }}
+                  />
+                  <Typography sx={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: mslEnabled ? "#1e293b" : "#64748b",
+                    ml: 0.5
+                  }}>
+                    {mslEnabled ? "ON" : "OFF"}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
           )}
-        </IconButton> */}
+        </AnimatePresence>
       </Box>
+
+      {/* ---------------- SECOND ROW ---------------- */}
+      <AnimatePresence>
+        {isExpanded && (
+          <Box
+            component={motion.div}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            sx={{
+              display: "flex",
+              gap: 2,
+              justifyContent: "flex-end",
+              flexWrap: "wrap",
+              mt: { xs: 0.5, sm: 2 },
+              alignItems: "center",
+              overflow: "visible",
+            }}
+          >
+            {/* DATE INFO
+            <Button
+              variant="outlined"
+              sx={{
+                borderColor: "#d1d5db",
+                textTransform: "none",
+                fontSize: "0.75rem",
+              }}
+            >
+              Data till {timeEnd.format("DD MMM YY")}
+            </Button> */}
+
+            {/* PRICE MODE SWITCH */}
+            {/* <Box sx={{ display: "flex", gap: 1 }}>
+              {["MRP", "SP"].map((label) => (
+                <Button
+                  key={label}
+                  variant={priceMode === label ? "contained" : "outlined"}
+                  onClick={() => setPriceMode(label)}
+                  sx={{
+                    textTransform: "none",
+                    fontSize: "0.75rem",
+                    background:
+                      priceMode === label ? "#059669" : "transparent",
+                    borderColor: "#d1d5db",
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </Box> */}
+          </Box>
+        )}
+      </AnimatePresence>
+
+      {/* 🌗 THEME TOGGLE */}
+      {/* 🌗 THEME TOGGLE REMOVED - Static Light Mode Enforced */}
     </Box>
   );
 };
