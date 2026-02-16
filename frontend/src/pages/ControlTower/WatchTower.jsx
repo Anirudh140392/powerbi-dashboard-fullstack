@@ -167,6 +167,7 @@ export default function WatchTower() {
 
   const {
     selectedBrand,
+    selectedCategory,
     timeStart,
     timeEnd,
     compareStart,
@@ -177,7 +178,7 @@ export default function WatchTower() {
     selectedChannel,
   } = React.useContext(FilterContext);
 
-  const context = { selectedChannel, platform, selectedBrand, selectedLocation, timeStart, timeEnd };
+  const context = { selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
 
   const COMPARISON_KPIS = useMemo(() => [
     {
@@ -260,7 +261,7 @@ export default function WatchTower() {
       gradient: ['#eab308', '#facc15'],
       trend: getLogicalKpiTrend('roas', context)
     },
-  ], [selectedChannel, platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  ], [selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
   const FORMAT_ROWS = useMemo(() => {
     const row = (name, key) => {
@@ -283,7 +284,7 @@ export default function WatchTower() {
       row("Exotics", "exotics"),
       row("Others", "others"),
     ];
-  }, [selectedChannel, platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
 
   // Update filters when context changes
@@ -291,7 +292,7 @@ export default function WatchTower() {
     setFilters((prev) => ({
       ...prev,
       platform: platform,
-      brand: selectedBrand,
+      brand: selectedCategory,
       keyword: selectedKeyword,
       location: selectedLocation,
       startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
@@ -349,23 +350,20 @@ export default function WatchTower() {
           />
         )} */}
 
-        {loading ? (
-          <Loader message="Fetching Watch Tower Insights..." />
-        ) : (
-          <SnapshotOverview
-            title="Watchtower Overview"
-            icon={LayoutGrid}
-            chip="All Platforms"
-            headerRight={
-              <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-                vs Previous Month
-              </span>
-            }
-            kpis={COMPARISON_KPIS}
-            variant="watchtower"
-            seed={platform}
-          />
-        )}
+        <SnapshotOverview
+          title="Watchtower Overview"
+          icon={LayoutGrid}
+          chip="All Platforms"
+          headerRight={
+            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+              vs Previous Month
+            </span>
+          }
+          kpis={COMPARISON_KPIS}
+          variant="watchtower"
+          seed={`${platform}-${selectedCategory}-${selectedBrand}`}
+          loading={loading}
+        />
 
         {/* Top Cards */}
         {/* <Box

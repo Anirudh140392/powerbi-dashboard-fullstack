@@ -55,6 +55,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     compareEnd,
     setCompareEnd,
     setComparisonLabel,
+    categories,
+    selectedCategory,
+    setSelectedCategory,
   } = React.useContext(FilterContext);
 
   const location = useLocation();
@@ -214,10 +217,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               />
 
               <CustomHeaderDropdown
-                label="BRAND"
-                options={brands}
-                value={selectedBrand}
-                onChange={(newValue) => setSelectedBrand(newValue)}
+                label="CATEGORY"
+                options={categories}
+                value={selectedCategory}
+                onChange={(newValue) => setSelectedCategory(newValue)}
                 width={115}
               />
 

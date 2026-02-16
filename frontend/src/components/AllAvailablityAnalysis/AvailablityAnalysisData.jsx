@@ -1233,7 +1233,12 @@ export const AvailablityAnalysisData = () => {
           }
           kpis={availabilityKpis}
         />
-        {/* <SignalLabVisibility type="availability" /> */}
+
+        {/* Signal Lab Availability Segment */}
+        <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
+          <SignalLabVisibility type="availability" />
+        </div>
+
         <TabbedHeatmapTable olaMode={availability} />
         <OsaHeatmapTable olaMode={availability} />
 

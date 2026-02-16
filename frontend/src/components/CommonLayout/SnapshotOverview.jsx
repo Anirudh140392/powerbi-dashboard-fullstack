@@ -770,10 +770,10 @@ const SnapshotOverview = ({
                             ) : (
                                 topKpis.map((kpi, idx) => (
                                     <motion.div
-                                        key={kpi.id}
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: idx * 0.05 }}
+                                        key={kpi.id + seed}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.05, duration: 0.3 }}
                                     >
                                         <ComparisonCard kpi={kpi} />
                                     </motion.div>
@@ -796,10 +796,10 @@ const SnapshotOverview = ({
                                     ) : (
                                         bottomKpis.map((kpi, idx) => (
                                             <motion.div
-                                                key={kpi.id}
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ delay: 0.2 + idx * 0.05 }}
+                                                key={kpi.id + seed}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: (idx + 5) * 0.05, duration: 0.3 }}
                                             >
                                                 <ActionableMetricCard kpi={kpi} />
                                             </motion.div>
