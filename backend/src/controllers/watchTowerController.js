@@ -300,13 +300,14 @@ export const getCompetition = async (req, res) => {
  */
 export const getCompetitionFilterOptions = async (req, res) => {
     try {
-        const { platform, location, category, brand } = req.query;
-        console.log('[getCompetitionFilterOptions] API call with:', { platform, location, category, brand });
+        const { platform, location, category, brand, context } = req.query;
+        console.log('[getCompetitionFilterOptions] API call with:', { platform, location, category, brand, context });
         const data = await watchTowerService.getCompetitionFilterOptions({
             platform: platform || 'All',
             location: location || 'All',
             category: category || 'All',
-            brand: brand || 'All'
+            brand: brand || 'All',
+            context: context || undefined
         });
 
         res.json(data);
