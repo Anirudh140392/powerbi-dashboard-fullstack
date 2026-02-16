@@ -408,6 +408,7 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                     fontWeight: 700,
                     lineHeight: 1.4,
                     fontFamily: "Roboto, sans-serif",
+                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
                   }}
                 >
                   {activeTab === "Split by Category" ? "Category" : "SKU"}
@@ -443,6 +444,7 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                     position: "sticky",
                     left: 0,
                     zIndex: 9,
+                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
                   }}
                 ></TableCell>
 
@@ -476,6 +478,8 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                         left: 0,
                         background: theme.palette.background.paper,
                         textAlign: "center",
+                        boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)',
+                        zIndex: 1
                       }}
                     >
                       <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
@@ -506,6 +510,8 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                         lineHeight: 1.4,
                         fontFamily: "Roboto, sans-serif",
                         textAlign: "center",
+                        boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)',
+                        zIndex: 1
                       }}
                     >
                       <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>

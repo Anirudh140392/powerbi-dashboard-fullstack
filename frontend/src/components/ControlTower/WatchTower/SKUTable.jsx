@@ -143,7 +143,12 @@ export default function SKUTable({ data }) {
                     fontWeight: 700,
                     color: theme.palette.text.primary,
                     borderRight: `1px solid ${theme.palette.divider}`,
-                    minWidth: '300px'
+                    minWidth: '300px',
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 10,
+                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
+                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
                   }}>
                     SKU
                   </th>
@@ -192,7 +197,15 @@ export default function SKUTable({ data }) {
                   </th>
                 </tr>
                 <tr style={{ backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb', borderTop: `1px solid ${theme.palette.divider}`, position: 'sticky', top: 49, zIndex: 2 }}>
-                  <th style={{ padding: '8px 12px', borderRight: `1px solid ${theme.palette.divider}` }}></th>
+                  <th style={{
+                    padding: '8px 12px',
+                    borderRight: `1px solid ${theme.palette.divider}`,
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 10,
+                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
+                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
+                  }}></th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
@@ -216,7 +229,12 @@ export default function SKUTable({ data }) {
                   >
                     <td style={{
                       padding: '12px',
-                      borderRight: `1px solid ${theme.palette.divider}`
+                      borderRight: `1px solid ${theme.palette.divider}`,
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 1,
+                      backgroundColor: theme.palette.background.paper,
+                      boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <SKUImage

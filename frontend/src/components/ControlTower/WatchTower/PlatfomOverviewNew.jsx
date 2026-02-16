@@ -74,8 +74,8 @@ const PlatformOverviewNew = ({
         brands: [],
         categories: [],
         platforms: [],
-        skuName: '',
-        skuCode: '',
+        skuName: [],
+        skuCode: [],
         dateFrom: '',
         dateTo: '',
         kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
@@ -372,11 +372,11 @@ const PlatformOverviewNew = ({
 
             {/* Table Content */}
             <div className="overflow-x-auto">
-                <table className="w-full min-w-max">
+                <table className="w-full min-w-max" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                     {/* Table Header */}
-                    <thead>
+                    <thead className="sticky top-0 z-30">
                         <tr className="border-b border-slate-100">
-                            <th className="text-left py-3 px-5 w-52">
+                            <th className="text-left py-3 px-5 w-52 sticky left-0 z-40 bg-white border-b border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ENTITY</span>
                             </th>
                             {selectedKpis.map(kpi => (
@@ -396,7 +396,7 @@ const PlatformOverviewNew = ({
                             <>
                                 {[1, 2, 3, 4, 5].map((rowIdx) => (
                                     <tr key={`skeleton-${rowIdx}`} className="border-b border-slate-50">
-                                        <td className="py-4 px-5">
+                                        <td className="py-4 px-5 sticky left-0 z-10 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-8 w-8 rounded-lg bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
                                                 <div className="h-4 w-24 rounded bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
@@ -424,7 +424,7 @@ const PlatformOverviewNew = ({
                                 transition={{ delay: entityIdx * 0.05 }}
                             >
                                 {/* Entity Cell */}
-                                <td className="py-3 px-5">
+                                <td className="py-3 px-5 sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                     <div className="flex items-center gap-3">
                                         {e.logoSrc ? (
                                             <div className="h-8 w-8 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -457,11 +457,12 @@ const PlatformOverviewNew = ({
                                                             wordBreak: 'break-word',
                                                             fontSize: '12px',
                                                             lineHeight: 1.4,
+                                                            zIndex: 2000
                                                         }
                                                     }
                                                 }}
                                             >
-                                                <span className="text-[12px] font-semibold text-slate-700 truncate max-w-[250px] inline-block">
+                                                <span className="text-[12px] font-semibold text-slate-700 whitespace-normal line-clamp-1 max-w-[250px] inline-block align-middle leading-tight">
                                                     {e.name}
                                                 </span>
                                             </Tooltip>

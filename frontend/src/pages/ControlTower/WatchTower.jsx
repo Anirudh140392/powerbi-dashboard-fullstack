@@ -306,8 +306,8 @@ function WatchTower() {
     brands: [],
     categories: [],
     platforms: [],
-    skuName: '',
-    skuCode: '',
+    skuName: [],
+    skuCode: [],
     dateFrom: '',
     dateTo: '',
     kpis: ['offtakes', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
@@ -470,7 +470,8 @@ function WatchTower() {
         ...filters,
         category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : filters.category,
         brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
-        // Override dates if period is set in advanced filters (if we were to support custom date range in modal)
+        skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+        skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
         startDate: performanceMatrixFilters.dateFrom || filters.startDate,
         endDate: performanceMatrixFilters.dateTo || filters.endDate,
       };
@@ -645,7 +646,8 @@ function WatchTower() {
           ...filters,
           category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : filters.category,
           brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
-          // Override dates if period is set in advanced filters
+          skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+          skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
           startDate: performanceMatrixFilters.dateFrom || filters.startDate,
           endDate: performanceMatrixFilters.dateTo || filters.endDate,
         };
@@ -694,6 +696,8 @@ function WatchTower() {
           ...filters,
           category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : filters.category,
           brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
+          skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+          skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
           startDate: performanceMatrixFilters.dateFrom || filters.startDate,
           endDate: performanceMatrixFilters.dateTo || filters.endDate,
         };
@@ -742,6 +746,9 @@ function WatchTower() {
         const categoryFilters = {
           ...filters,
           brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
+          category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : filters.category,
+          skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+          skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
           startDate: performanceMatrixFilters.dateFrom || filters.startDate,
           endDate: performanceMatrixFilters.dateTo || filters.endDate,
         };
@@ -789,6 +796,8 @@ function WatchTower() {
         // Exclude global platform - use section-specific platform & category only
         const brandFilters = {
           ...filters,
+          skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+          skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
           startDate: performanceMatrixFilters.dateFrom || filters.startDate,
           endDate: performanceMatrixFilters.dateTo || filters.endDate,
         };
@@ -836,8 +845,9 @@ function WatchTower() {
         const advancedParams = {
           ...filters,
           skuOverviewPlatform: filters.platform,
-          skuName: performanceMatrixFilters.skuName || '',
-          skuCode: performanceMatrixFilters.skuCode || '',
+          skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+          skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
+          brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
           category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : 'All',
           dateFrom: performanceMatrixFilters.dateFrom || '',
           dateTo: performanceMatrixFilters.dateTo || '',
@@ -874,6 +884,9 @@ function WatchTower() {
         const advancedParams = {
           ...filters,
           cityOverviewPlatform: filters.platform,
+          skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '',
+          skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '',
+          brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand,
           category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : 'All',
           dateFrom: performanceMatrixFilters.dateFrom || '',
           dateTo: performanceMatrixFilters.dateTo || '',
