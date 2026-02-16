@@ -19,15 +19,34 @@ import { cn } from '../../../lib/utils'
 // MOCK DATA (replace with API/DB later)
 // ========================================
 const mockBrands = [
-    { id: 'brand1', name: 'Prestige' },
-    { id: 'brand2', name: 'Pigeon' },
-    { id: 'brand3', name: 'Bajaj' },
-    { id: 'brand4', name: 'Havells' },
-    { id: 'brand5', name: 'Philips' },
-    { id: 'brand6', name: 'Crompton' },
+    { id: 'amul', name: 'Amul' },
+    { id: 'mother-dairy', name: 'Mother Dairy' },
+    { id: 'vadilal', name: 'Vadilal' },
+    { id: 'havmor', name: 'Havmor' },
+    { id: 'baskin-robbins', name: 'Baskin Robbins' },
+    { id: 'london-dairy', name: 'London Dairy' },
+    { id: 'kwality-walls', name: 'Kwality Walls' },
 ]
 
 const mockCategories = [
+    { id: 'cone', name: 'Cone' },
+    { id: 'cup', name: 'Cup' },
+    { id: 'stick', name: 'Stick' },
+    { id: 'tub', name: 'Tub' },
+    { id: 'bar', name: 'Bar' },
+    { id: 'family-pack', name: 'Family Pack' },
+]
+
+const mockSkus = [
+    { id: 'amul-tricone', name: 'Amul Tricone 120ml' },
+    { id: 'md-cup', name: 'Mother Dairy Vanilla Cup' },
+    { id: 'vadilal-bombay', name: 'Vadilal Bombay Kulfi' },
+    { id: 'havmor-block', name: 'Havmor Choco Block' },
+    { id: 'br-scoop', name: 'BR Gold Medal Ribbon' },
+    { id: 'london-tub', name: 'London Dairy Tiramisu' },
+]
+
+const mockCategoriesAlt = [
     { id: 'cat1', name: 'Cookware' },
     { id: 'cat2', name: 'Kitchen Appliances' },
     { id: 'cat3', name: 'Home Appliances' },
@@ -51,7 +70,9 @@ const kpiOptions = [
     { key: 'dspSales', label: 'DSP Sales' },
     { key: 'conversion', label: 'Conversion' },
     { key: 'availability', label: 'Availability' },
-    { key: 'shareOfShelf', label: 'Share of Shelf' },
+    { key: 'shareOfVolume', label: 'Share of Volume' },
+    { key: 'ad_sov', label: 'Ad SOV' },
+    { key: 'organic_sov', label: 'Organic SOV' },
     { key: 'marketShare', label: 'Market share' },
     { key: 'promoMy', label: 'Promo (My)' },
     { key: 'promoComp', label: 'Promo (Comp)' },
@@ -62,7 +83,7 @@ const kpiOptions = [
 // ========================================
 // MULTI-SELECT DROPDOWN COMPONENT
 // ========================================
-function MultiSelectDropdown({ label, icon: Icon, options, selected, onChange, placeholder }) {
+function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
     const [isOpen, setIsOpen] = useState(false)
     const [search, setSearch] = useState('')
     const dropdownRef = useRef(null)
@@ -78,7 +99,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected, onChange, p
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const filteredOptions = options.filter(opt =>
+    const filteredOptions = (options || []).filter(opt =>
         opt.name.toLowerCase().includes(search.toLowerCase())
     )
 
@@ -207,12 +228,13 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected, onChange, p
 // ========================================
 // MAIN ADVANCED FILTER MODAL
 // ========================================
-export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform' }) {
+export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null }) {
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({
         brands: [],
         categories: [],
         platforms: [],
+        skus: [],
         skuName: '',
         skuCode: '',
         dateFrom: '',
@@ -224,7 +246,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     // Sync with parent filters when modal opens
     useEffect(() => {
         if (isOpen && filters) {
-            setLocalFilters(filters)
+            setLocalFilters(prev => ({ ...prev, ...filters }))
         }
     }, [isOpen, filters])
 
@@ -248,6 +270,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: [],
             categories: [],
             platforms: [],
+            skus: [],
             skuName: '',
             skuCode: '',
             kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
@@ -264,13 +287,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     const showPlatformFilter = currentDimension !== 'platform'
     const showBrandFilter = currentDimension !== 'brand'
     const showCategoryFilter = currentDimension !== 'category'
-    const showSkuFilter = currentDimension === 'sku' || currentDimension === 'platform' || currentDimension === 'brand' || currentDimension === 'category'
+    const showSkuFilter = currentDimension !== 'sku'
 
     const activeFilterCount = [
         showBrandFilter && localFilters.brands.length > 0,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
-        showSkuFilter && localFilters.skuName.length > 0,
+        showSkuFilter && localFilters.skus.length > 0,
         showSkuFilter && localFilters.skuCode.length > 0,
     ].filter(Boolean).length
 
@@ -345,7 +368,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Brand"
                                                 icon={Tag}
-                                                options={mockBrands}
+                                                options={brands && brands.length ? brands : mockBrands}
                                                 selected={localFilters.brands}
                                                 onChange={(val) => updateFilter('brands', val)}
                                                 placeholder="All Brands"
@@ -355,7 +378,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Category"
                                                 icon={Package}
-                                                options={mockCategories}
+                                                options={categories && categories.length ? categories : mockCategories}
                                                 selected={localFilters.categories}
                                                 onChange={(val) => updateFilter('categories', val)}
                                                 placeholder="All Categories"
@@ -365,7 +388,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Platform"
                                                 icon={Monitor}
-                                                options={mockPlatforms}
+                                                options={platforms && platforms.length ? platforms : mockPlatforms}
                                                 selected={localFilters.platforms}
                                                 onChange={(val) => updateFilter('platforms', val)}
                                                 placeholder="All Platforms"
@@ -374,36 +397,25 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                     </div>
                                 </div>
 
-                                {/* SKU Search */}
-                                <div>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                            SKU Search
-                                        </span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="relative">
-                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                            <input
-                                                type="text"
-                                                value={localFilters.skuName}
-                                                onChange={(e) => updateFilter('skuName', e.target.value)}
-                                                placeholder="SKU Name..."
-                                                className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
-                                            />
+                                {/* SKU Filter */}
+                                {showSkuFilter && (
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Package size={14} className="text-slate-400" />
+                                            <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
+                                                SKU Filter
+                                            </span>
                                         </div>
-                                        <div className="relative">
-                                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                            <input
-                                                type="text"
-                                                value={localFilters.skuCode}
-                                                onChange={(e) => updateFilter('skuCode', e.target.value)}
-                                                placeholder="SKU Code..."
-                                                className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
-                                            />
-                                        </div>
+                                        <MultiSelectDropdown
+                                            label="SKU"
+                                            icon={Package}
+                                            options={skus && skus.length ? skus : mockSkus}
+                                            selected={localFilters.skus}
+                                            onChange={(val) => updateFilter('skus', val)}
+                                            placeholder="All SKUs"
+                                        />
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Date Range Filter */}
                                 <div>
