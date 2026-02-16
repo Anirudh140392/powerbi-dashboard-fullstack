@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, ChevronRight, ChevronDown } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 
 // Single-file React component (JSX)
@@ -40,6 +40,11 @@ function makeRow(seed, name, sku, base) {
 }
 
 const SAMPLE_ROWS = [
+    makeRow(90001, "Amul Tricone 120ml", "90001", 78),
+    makeRow(90002, "Mother Dairy Vanilla Cup", "90002", 85),
+    makeRow(90003, "Vadilal Bombay Kulfi", "90003", 72),
+    makeRow(90004, "Havmor Choco Block", "90004", 88),
+    makeRow(90005, "BR Gold Medal Ribbon", "90005", 81),
     makeRow(85045, "KW CORNETTO - DOUBLE CHOC...", "85045", 80),
     makeRow(85047, "KW CORNETTO - BUTTERSCOTCH", "85047", 84),
     makeRow(85123, "KW Cassatta", "85123", 72),
@@ -98,6 +103,33 @@ export default function OsaDetailTableLight() {
 
 
     const [visibleDays, setVisibleDays] = useState(31); // 7/14/31 toggle
+    const [expandedRows, setExpandedRows] = useState(new Set());
+
+    const toggleRow = (sku) => {
+        setExpandedRows((prev) => {
+            const next = new Set(prev);
+            if (next.has(sku)) {
+                next.delete(sku);
+            } else {
+                next.add(sku);
+            }
+            return next;
+        });
+    };
+
+    const METRO_CITIES = ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad"];
+
+    const getCityData = (sku, cityName, baseVal) => {
+        const seed = sku.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + cityName.length;
+        const rnd = seededRandom(seed);
+        const values = DAYS.map((d) => {
+            const drift = (rnd() - 0.5) * 8;
+            const v = clamp(Math.round(baseVal + drift), 50, 98);
+            return v;
+        });
+        const avg31 = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+        return { name: cityName, values, avg31 };
+    };
 
     const [statusFilter, setStatusFilter] = useState([]);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -290,55 +322,109 @@ export default function OsaDetailTableLight() {
                                                     : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
 
                                             return (
-                                                <tr key={r.sku} className={"group " + st.rowAccent}>
-                                                    <td
-                                                        className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
-                                                        style={{ minWidth: 280 }}
-                                                    >
-                                                        <div>
-                                                            <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
-                                                            <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
-                                                        </div>
-                                                    </td>
-
-
-
-                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
-                                                        {avgND}%
-                                                    </td>
-
-                                                    <td className="px-3 py-2 border-b border-slate-100">
-                                                        <span
-                                                            className={
-                                                                "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
-                                                                st.chip
-                                                            }
+                                                <React.Fragment key={r.sku}>
+                                                    <tr className={"group " + st.rowAccent}>
+                                                        <td
+                                                            className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
+                                                            style={{ minWidth: 280 }}
                                                         >
-                                                            <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
-                                                            {r.status}
-                                                        </span>
-                                                    </td>
-
-                                                    {dayCols.map((d) => {
-                                                        const v = r.values[d - 1];
-                                                        return (
-                                                            <td
-                                                                key={d}
-                                                                className="px-2 py-2 border-b border-slate-100 text-center"
-                                                                title={`${r.name} • Day ${d}: ${v}%`}
-                                                            >
-                                                                <span
-                                                                    className={
-                                                                        "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
-                                                                        cellTone(v)
-                                                                    }
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => toggleRow(r.sku)}
+                                                                    className="p-1 hover:bg-slate-100 rounded-md transition-colors text-slate-400 hover:text-slate-600"
                                                                 >
-                                                                    {v}%
-                                                                </span>
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
+                                                                    {expandedRows.has(r.sku) ? (
+                                                                        <ChevronDown className="h-4 w-4" />
+                                                                    ) : (
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    )}
+                                                                </button>
+                                                                <div>
+                                                                    <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
+                                                                    <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+
+
+                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
+                                                            {avgND}%
+                                                        </td>
+
+                                                        <td className="px-3 py-2 border-b border-slate-100">
+                                                            <span
+                                                                className={
+                                                                    "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
+                                                                    st.chip
+                                                                }
+                                                            >
+                                                                <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
+                                                                {r.status}
+                                                            </span>
+                                                        </td>
+
+                                                        {dayCols.map((d) => {
+                                                            const v = r.values[d - 1];
+                                                            return (
+                                                                <td
+                                                                    key={d}
+                                                                    className="px-2 py-2 border-b border-slate-100 text-center"
+                                                                    title={`${r.name} • Day ${d}: ${v}%`}
+                                                                >
+                                                                    <span
+                                                                        className={
+                                                                            "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
+                                                                            cellTone(v)
+                                                                        }
+                                                                    >
+                                                                        {v}%
+                                                                    </span>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    {expandedRows.has(r.sku) &&
+                                                        METRO_CITIES.map((city) => {
+                                                            const cityData = getCityData(r.sku, city, r.avg31);
+                                                            const cityAvgND =
+                                                                visibleDays === 31
+                                                                    ? cityData.avg31
+                                                                    : Math.round(cityData.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+
+                                                            return (
+                                                                <tr key={`${r.sku}-${city}`} className="bg-slate-50/50">
+                                                                    <td
+                                                                        className="sticky left-0 z-10 bg-slate-50/50 px-3 py-1.5 border-b border-slate-100 pl-10"
+                                                                        style={{ minWidth: 280 }}
+                                                                    >
+                                                                        <div className="text-[11px] font-medium text-slate-600">
+                                                                            {city}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-3 py-1.5 border-b border-slate-100 text-[10px] text-slate-500 text-center">
+                                                                        {cityAvgND}%
+                                                                    </td>
+                                                                    <td className="px-3 py-1.5 border-b border-slate-100 text-center">
+                                                                        <span className="text-[10px] text-slate-400">-</span>
+                                                                    </td>
+                                                                    {dayCols.map((d) => {
+                                                                        const v = cityData.values[d - 1];
+                                                                        return (
+                                                                            <td
+                                                                                key={d}
+                                                                                className="px-2 py-1.5 border-b border-slate-100 text-center"
+                                                                            >
+                                                                                <span className="text-[10px] text-slate-500 font-medium">
+                                                                                    {v}%
+                                                                                </span>
+                                                                            </td>
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                </React.Fragment>
                                             );
                                         })}
 

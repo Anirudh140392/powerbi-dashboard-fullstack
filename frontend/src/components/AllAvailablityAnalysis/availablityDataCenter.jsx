@@ -112,6 +112,8 @@ function getLogicalKpiValue(kpi, filters = {}) {
   const rawKey = kpi.toLowerCase().replace(/[^a-z0-9]/g, '');
   const rowIdx = filters.entityIdx ?? 0;
   const platform = safeStr(filters.entityKey || filters.col || filters.platform || 'all');
+  const category = safeStr(filters.selectedCategory || filters.category || '');
+  const brand = safeStr(filters.selectedBrand || filters.brand || '');
 
   // 1. Handle deltas/dir with unique row-based hashing
   const isDelta = rawKey.endsWith('delta');
@@ -119,7 +121,7 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
   if (isDelta || isDir) {
     const baseKpi = rawKey.replace(/delta$|dir$/, '');
-    const seedStr = `d_${platform}_${baseKpi}_${rowIdx}`;
+    const seedStr = `d_${platform}_${category}_${brand}_${baseKpi}_${rowIdx}`;
     const hash = seedStr.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
     const absHash = Math.abs(hash);
 
@@ -133,10 +135,18 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
   // 2. Lookup Entity Data
   let entityData = ENTITY_DATA[platform] || BASELINE;
+
+  // If platform is 'all' but category exists, use category baseline for more realism
+  if ((platform === 'all' || platform === '') && category && ENTITY_DATA[category]) {
+    entityData = ENTITY_DATA[category];
+  } else if ((platform === 'all' || platform === '') && brand && ENTITY_DATA[brand]) {
+    entityData = ENTITY_DATA[brand];
+  }
+
   let value = entityData[kpiKey] ?? BASELINE[kpiKey] ?? 50;
 
-  // 3. Mandatory Variance per Row/Index
-  const varianceSeed = `v_${platform}_${rawKey}_${rowIdx}`;
+  // 3. Mandatory Variance per Row/Index/Category/Brand
+  const varianceSeed = `v_${platform}_${category}_${brand}_${rawKey}_${rowIdx}`;
   const h = varianceSeed.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
   const vFactor = Math.abs(h % 100) / 100; // 0.00 to 0.99
 

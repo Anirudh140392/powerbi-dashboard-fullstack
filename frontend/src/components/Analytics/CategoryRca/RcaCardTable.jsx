@@ -31,7 +31,7 @@ const mkKpis = () => {
   const offtake = rand(2_50_000, 55_00_000);
   const spend = rand(40_000, 9_20_000);
   const roas = Math.max(0.7, Math.round((offtake / Math.max(1, spend)) * 10) / 10);
-  const osa = rand(58, 97);
+  const osa = rand(15, 51);
   const sos = rand(6, 42);
   const cvr = Math.round((Math.random() * 5 + 1.8) * 10) / 10;
 

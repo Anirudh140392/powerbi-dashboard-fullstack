@@ -109,6 +109,10 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState(["vanilla", "chocolate", "strawberry", "butterscotch", "mango"]);
     const [selectedKeyword, setSelectedKeyword] = useState("vanilla");
 
+    // Category state
+    const [categories] = useState(["Cassata", "Core Tub", "Cup", "Sandwich"]);
+    const [selectedCategory, setSelectedCategory] = useState("Cassata");
+
     // Date Ranges
     const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
     const [timeEnd, setTimeEnd] = useState(dayjs("2025-10-06"));
@@ -190,7 +194,10 @@ export const FilterProvider = ({ children }) => {
             compareEnd,
             setCompareEnd,
             comparisonLabel,
-            setComparisonLabel
+            setComparisonLabel,
+            categories,
+            selectedCategory,
+            setSelectedCategory
         }}>
             {children}
         </FilterContext.Provider>
