@@ -20,6 +20,8 @@ import PiyConcept from "./pages/PiyConcept/PiyConcept";
 import { FilterProvider } from "./utils/FilterContext";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 import ScheduledReports from "./pages/Reports/ScheduledReports";
+import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
+import Insights from "./pages/Insights/Insights";
 
 export default function App() {
   return (
@@ -29,6 +31,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
             <Route path="/watch-tower" element={<WatchTower />} />
+            <Route path="/insights" element={<Insights />} />
             <Route path="/category-rca" element={<CategoryRca />} />
             <Route path="/volume-cohort" element={<VolumeCohort />} />
             <Route path="/price-per-pack" element={<PricePerPack />} />
@@ -52,6 +55,7 @@ export default function App() {
             <Route path="/piy" element={<PiyConcept />} />
             <Route path="/inventory" element={<InventeryConceptMains />} />
             <Route path="/scheduled-reports" element={<ScheduledReports />} />
+            <Route path="/geo-intelligence" element={<GeoIntelligenceMap />} />
           </Routes>
         </BrowserRouter>
       </FilterProvider>
