@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Dialog,
     DialogContent,
@@ -67,7 +67,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [showFilters, setShowFilters] = useState(false);
 
     // Sample Options
-    const platforms = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket', 'Amazon'];
+    const platforms = ['Blinkit', 'Instamart', 'Zepto', 'Flipkart', 'Amazon'];
     const categories = ['Chocolate', 'Energy Drinks', 'Snacking', 'Soft Drinks'];
     const brands = ['All Brands', "Hershey's", 'Ferrero', 'Mondelez'];
     const skus = ['All SKUs', 'SKU-772: Milk Chocolate 40g', 'SKU-819: Dark Almond 80g', 'SKU-902: Hazelnut Crunch 50g'];
@@ -78,6 +78,19 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [brand, setBrand] = useState(initialData.brand || brands[0]);
     const [sku, setSku] = useState(skus[0]);
     const [month, setMonth] = useState(months[0]);
+
+    // Update platform when initialData changes (e.g., when opening RCA for a different platform)
+    useEffect(() => {
+        if (initialData.platform && platforms.includes(initialData.platform)) {
+            setPlatform(initialData.platform);
+        }
+        if (initialData.category && categories.includes(initialData.category)) {
+            setCategory(initialData.category);
+        }
+        if (initialData.brand && brands.includes(initialData.brand)) {
+            setBrand(initialData.brand);
+        }
+    }, [initialData, open]);
 
     const context = { platform, category, brand, sku, month };
 
