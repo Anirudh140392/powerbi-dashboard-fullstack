@@ -20,19 +20,19 @@ export default function MainPerformanceMarketings() {
   // Default to the mock data for initial render
   const [kpiCards, setKpiCards] = useState([
     {
-      title: "Impressions", value: "91", change: "▲ 10.4%", changeColor: "#28a745", sparklineData: null,
+      title: "Impressions", value: "9.1k", change: "▲ 12.4%", changeColor: "#28a745", sparklineData: null,
       prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
     },
     {
-      title: "Conversion", value: "1%", change: "▲ 0.1%", changeColor: "#28a745", sparklineData: null,
+      title: "Conversion", value: "1.8%", change: "▲ 0.4%", changeColor: "#28a745", sparklineData: null,
       prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
     },
     {
-      title: "Spend", value: "65", change: "▼ 18.0%", changeColor: "#dc3545", sparklineData: null,
+      title: "Spend", value: "6500", change: "▼ 5.0%", changeColor: "#dc3545", sparklineData: null,
       prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
     },
     {
-      title: "ROAS", value: "3", change: "▼ 0.0", changeColor: "#dc3545", sparklineData: null,
+      title: "ROAS", value: "3.12", change: "▲ 2.1%", changeColor: "#28a745", sparklineData: null,
       prevTextStyle: { fontSize: 10, fontWeight: "bold", fontStyle: "italic", textTransform: "uppercase", color: "#94a3b8", ml: 1 }
     },
   ]);

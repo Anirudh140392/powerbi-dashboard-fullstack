@@ -1273,6 +1273,7 @@ const CHART_COLORS = [
 const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
   const [activeMetric, setActiveMetric] = useState("osa");
   const isBrandMode = mode === "brand";
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
   const allPossibleIds = useMemo(() => {
     if (isBrandMode) {
@@ -1347,40 +1348,107 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
             Select {isBrandMode ? "Brands" : "SKUs"} to Plot ({city})
           </div>
           <Box display="flex" gap={1} flexWrap="wrap">
-            {allPossibleIds.map((id, idx) => {
-              const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
-              const active = visibleIds.includes(id);
-              const color = CHART_COLORS[idx % CHART_COLORS.length];
+            {(() => {
+              const maxInline = 5;
+              const inlineIds = allPossibleIds.slice(0, maxInline);
+              const overflowIds = allPossibleIds.slice(maxInline);
+
               return (
-                <Box
-                  key={id}
-                  onClick={() => setVisibleIds(prev =>
-                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                <>
+                  {inlineIds.map((id, idx) => {
+                    const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
+                    const active = visibleIds.includes(id);
+                    const color = CHART_COLORS[idx % CHART_COLORS.length];
+                    return (
+                      <Box
+                        key={id}
+                        onClick={() => setVisibleIds(prev =>
+                          prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                        )}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          border: "1px solid",
+                          borderColor: active ? color : "#E2E8F0",
+                          backgroundColor: active ? `${color}10` : "transparent",
+                          color: active ? color : "#64748B",
+                          transition: "all 0.2s",
+                          maxWidth: "200px"
+                        }}
+                      >
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+                        {active && <span style={{ fontSize: "10px" }}>✓</span>}
+                      </Box>
+                    )
+                  })}
+
+                  {overflowIds.length > 0 && (
+                    <>
+                      <Box
+                        onClick={() => setOverflowOpen(true)}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          border: "1px dashed #E2E8F0",
+                          backgroundColor: "#F8FAFC",
+                          color: "#475569",
+                        }}
+                      >
+                        +{overflowIds.length} more
+                      </Box>
+
+                      <Dialog open={overflowOpen} onOpenChange={(v) => !v && setOverflowOpen(false)}>
+                        <DialogContent className="max-w-md p-4">
+                          <DialogHeader className="mb-2">
+                            <DialogTitle>Select more {isBrandMode ? 'Brands' : 'SKUs'}</DialogTitle>
+                          </DialogHeader>
+                          <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                            {overflowIds.map((id, idx) => {
+                              const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
+                              const active = visibleIds.includes(id);
+                              const color = CHART_COLORS[(idx + maxInline) % CHART_COLORS.length];
+                              return (
+                                <div
+                                  key={id}
+                                  onClick={() => {
+                                    setVisibleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+                                  }}
+                                  className="p-2 rounded-md mb-2 cursor-pointer"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6EEF8', background: active ? `${color}10` : 'white' }}
+                                >
+                                  <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                                  <div style={{ flex: 1 }}>{name}</div>
+                                  {active && <div style={{ fontSize: 12 }}>✓</div>}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          <DialogFooter className="mt-4">
+                            <Button variant="outline" onClick={() => setOverflowOpen(false)}>Close</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
                   )}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    px: 1.5,
-                    py: 0.5,
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    border: "1px solid",
-                    borderColor: active ? color : "#E2E8F0",
-                    backgroundColor: active ? `${color}10` : "transparent",
-                    color: active ? color : "#64748B",
-                    transition: "all 0.2s",
-                    maxWidth: "200px"
-                  }}
-                >
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
-                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
-                  {active && <span style={{ fontSize: "10px" }}>✓</span>}
-                </Box>
+                </>
               )
-            })}
+            })()}
           </Box>
         </div>
       </CardHeader>
