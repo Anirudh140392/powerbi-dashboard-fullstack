@@ -13,5 +13,8 @@ export default defineConfig({
   server: {
     port: 9000,
     host: true,
+    hmr: {
+      clientPort: 9000,
+    },
   },
 });

@@ -983,11 +983,6 @@ export default function KwalityWallsSignalHub() {
                                         >
                                             Dismiss
                                         </Button>
-                                        <Button
-                                            className="rounded-xl font-bold px-8 bg-slate-900"
-                                        >
-                                            Take Action
-                                        </Button>
                                     </div>
                                 </div>
                             )}
