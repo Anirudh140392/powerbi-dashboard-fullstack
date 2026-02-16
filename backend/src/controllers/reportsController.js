@@ -110,70 +110,43 @@ export const downloadReport = async (req, res) => {
 
         if (reportType === "Availability Analysis") {
             query = `
-                WITH sos_stats AS (
-                    SELECT 
-                        toDate(kw_crawl_date) as DATE, platform_name as Platform, brand_name as Brand, keyword_category as Category,
-                        count() as brand_kw_count
-                    FROM rb_kw
-                    GROUP BY DATE, Platform, Brand, Category
-                ),
-                total_kw_stats AS (
-                    SELECT 
-                        toDate(kw_crawl_date) as DATE, platform_name as Platform, keyword_category as Category,
-                        count() as total_kw_count
-                    FROM rb_kw
-                    GROUP BY DATE, Platform, Category
-                )
-                SELECT 
-                    t.DATE, t.Platform, t.Brand, t.Location as City, t.Category as Format, t.Product,
-                    -- Core Availability Metrics
-                    round(SUM(toFloat64(t.neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100, 2) as OSA_Percentage,
-                    round(100 - (SUM(toFloat64(t.neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100), 2) as Stock_Out_Percentage,
-                    round(avg(toFloat64(t.DIH)), 2) as DOI,
-                    round(SUM(toFloat64(t.buy_box_neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100, 2) as Fillrate_Percentage,
-                    
-                    -- SOS % (Share of Search)
-                    round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,
-                    
-                    -- PSL Calculation (Latest Inventory / MSL proxy)
-                    round(SUM(toFloat64(t.Inventory)) / nullIf(SUM(toFloat64(t.MSL)), 0) * 100, 2) as PSL,
-                    
-                    -- Assortment (Distinct Count of Web_Pid)
-                    COUNT(DISTINCT t.Web_Pid) as Assortment,
-                    
-                    -- Metro City Stock Availability
-                    round(SUM(if(m.is_metro = 1, toFloat64(t.neno_osa), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.deno_osa), 0)), 0) * 100, 2) as Metro_City_Stock_Availability
+                SELECT
+            t.DATE as Date, t.Platform, t.Brand, t.Location as City, t.Category as Format, t.Product,
+                --Core Availability Metrics
+            round(SUM(toFloat64(t.neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100, 2) as OSA_Percentage,
+                round(100 - (SUM(toFloat64(t.neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100), 2) as Stock_Out_Percentage,
+                round(avg(toFloat64(t.DIH)), 2) as DOI,
+                round(SUM(toFloat64(t.buy_box_neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100, 2) as Fillrate_Percentage,
+
+                --PSL Calculation(Latest Inventory / MSL proxy)
+            round(SUM(toFloat64(t.Inventory)) / nullIf(SUM(toFloat64(t.MSL)), 0) * 100, 2) as PSL,
+
+                --Listing Percentage
+            round(avg(toFloat64OrZero(t.listing_percent)), 2) as Listing_Percentage
                 FROM rb_pdp_olap t
-                LEFT JOIN sos_stats s ON toDate(t.DATE) = s.DATE AND t.Platform = s.Platform AND t.Brand = s.Brand AND t.Category = s.Category
-                LEFT JOIN total_kw_stats tot ON toDate(t.DATE) = tot.DATE AND t.Platform = tot.Platform AND t.Category = tot.Category
-                LEFT JOIN (
-                    SELECT DISTINCT location, 1 as is_metro
-                    FROM rb_location_darkstore
-                    WHERE tier = 'Tier 1'
-                ) m ON t.Location = m.location
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, 't.$1')}
                 GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.Category, t.Product
                 ORDER BY t.DATE DESC
-            `;
+                `;
         } else if (reportType === "Visibility Analysis") {
             query = `
-                WITH category_stats AS (
+                WITH category_stats AS(
                     SELECT 
                         toDate(kw_crawl_date) as JoinDate, platform_name as Platform, keyword_category as Category,
-                        count() as Total_Category_Keywords
+                    count() as Total_Category_Keywords
                     FROM rb_kw
                     WHERE toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
                     AND keyword_search_rank < 11
                     ${platform && platform !== 'All' ? `AND platform_name = '${platform.replace(/'/g, "''")}'` : ''}
                     GROUP BY JoinDate, Platform, Category
                 )
-                SELECT 
-                    toDate(t.kw_crawl_date) as DATE, t.platform_name as Platform, t.brand_name as Brand, t.keyword_category as Keyword_Category, t.keyword_type as Keyword_Type,
-                    round(countIf(toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Overall_SOS_Percentage,
-                    round(countIf(toString(t.spons_flag) = '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Sponsored_SOS_Percentage,
-                    round(countIf(toString(t.spons_flag) != '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Organic_SOS_Percentage,
-                    round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) = '1'), 2) as Ad_POS,
-                    round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) != '1'), 2) as Org_Pos
+SELECT
+toDate(t.kw_crawl_date) as Date, t.platform_name as Platform, t.brand_name as Brand, t.keyword_category as Keyword_Category, t.keyword_type as Keyword_Type,
+    round(countIf(toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Overall_SOS_Percentage,
+    round(countIf(toString(t.spons_flag) = '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Sponsored_SOS_Percentage,
+    round(countIf(toString(t.spons_flag) != '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Organic_SOS_Percentage,
+    round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) = '1'), 2) as Ad_POS,
+    round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) != '1'), 2) as Org_Pos
                 FROM rb_kw t
                 LEFT JOIN category_stats c ON toDate(t.kw_crawl_date) = c.JoinDate AND t.platform_name = c.Platform AND t.keyword_category = c.Category
                 WHERE toDate(t.kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
@@ -182,211 +155,210 @@ export const downloadReport = async (req, res) => {
                 ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND t.brand_name = '${brand.replace(/'/g, "''")}'` : ''}
                 GROUP BY DATE, Platform, Brand, t.keyword_category, t.keyword_type
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Market Share") {
             query = `
-                SELECT 
-                    toDate(created_on) as DATE, brand as Brand, category as Category, Location as City,
-                    SUM(sales) as Sales_Value,
-                    ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER (PARTITION BY DATE, category, Location), 0) * 100, 2) as Market_Share_Percentage
+SELECT
+toDate(created_on) as Date, brand as Brand, category as Category, sub_category as Sub_Category, Location as City,
+    ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER(PARTITION BY DATE, category, Location), 0) * 100, 2) as Market_Share_Percentage
                 FROM test_brand_MS
                 WHERE toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'
                 ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND brand = '${brand.replace(/'/g, "''")}'` : ''}
                 ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
-                GROUP BY DATE, brand, category, Location
+                GROUP BY DATE, brand, category, sub_category, Location
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Sales Data") {
             // To calculate historical comparisons, we fetch a wider range (up to 13 months back)
             const widerStartDate = dayjs(startDate).subtract(13, 'month').format('YYYY-MM-DD');
             query = `
-                WITH daily_agg AS (
-                    SELECT 
+                WITH daily_agg AS(
+        SELECT 
                         toDate(DATE) as DATE, Platform, Brand, Location as City, Category as Format, Product,
-                        SUM(toFloat64OrZero(Sales)) as daily_sales,
-                        SUM(assumeNotNull(Qty_Sold)) as daily_orders
+        SUM(toFloat64OrZero(Sales)) as daily_sales,
+        SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
                     WHERE toDate(DATE) BETWEEN '${widerStartDate}' AND '${endDate}'
                     ${platform && platform !== 'All' ? `AND Platform = '${platform.replace(/'/g, "''")}'` : ''}
-                    ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND Brand = '${brand.replace(/'/g, "''")}'` : ''}
-                    ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
-                    ${format && format !== 'All' && !format.startsWith('All ') ? `AND Category = '${format.replace(/'/g, "''")}'` : ''}
-                    GROUP BY DATE, Platform, Brand, City, Format, Product
-                ),
-                running_metrics AS (
-                    SELECT 
-                        *,
-                        SUM(daily_sales) OVER (PARTITION BY Platform, Brand, City, Format, Product, toStartOfMonth(DATE) ORDER BY DATE) as MTD_Sales,
-                        SUM(daily_sales) OVER (PARTITION BY Platform, Brand, City, Format, Product, toStartOfYear(DATE) ORDER BY DATE) as YTD_Sales
+        ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND Brand = '${brand.replace(/'/g, "''")}'` : ''}
+        ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
+        ${format && format !== 'All' && !format.startsWith('All ') ? `AND Category = '${format.replace(/'/g, "''")}'` : ''}
+        GROUP BY DATE, Platform, Brand, City, Format, Product
+    ),
+    running_metrics AS(
+        SELECT
+        *,
+        toDate(date_add(year, -1, DATE)) as PrevYearDate,
+        SUM(daily_sales) OVER(PARTITION BY Platform, Brand, City, Format, Product, toStartOfMonth(DATE) ORDER BY DATE) as MTD_Sales,
+        SUM(daily_sales) OVER(PARTITION BY Platform, Brand, City, Format, Product, toStartOfYear(DATE) ORDER BY DATE) as YTD_Sales
                     FROM daily_agg
-                )
-                SELECT 
-                    t.DATE as DATE, t.Platform as Platform, t.Brand as Brand, t.City as City, t.Format as Format, t.Product as Product,
-                    round(t.daily_sales, 2) as Overall_Sales,
-                    t.daily_orders as Orders,
-                    round(t.daily_sales / nullIf(t.daily_orders, 0), 2) as ASP,
-                    round(t.MTD_Sales, 2) as MTD_Sales,
-                    round(pm.MTD_Sales, 2) as PREV_MONTH_MTD,
-                    round(t.YTD_Sales, 2) as YTD_Sales,
-                    round(ly.daily_sales, 2) as LAST_YEAR_SALES,
-                    
-                    round(t.MTD_Sales / nullIf(toDayOfMonth(t.DATE), 0), 2) as Current_DRR,
-                    -- Projected Sales: DRR * Total days in month
-                    round(Current_DRR * toDayOfMonth(date_add(month, 1, toStartOfMonth(t.DATE)) - 1), 2) as Projected_Sales,
-                    
-                    round(t.daily_sales / nullIf(SUM(t.daily_sales) OVER (PARTITION BY t.DATE, t.Platform, t.City), 0) * 100, 2) as Revenue_Share
+    )
+SELECT
+t.DATE as Date, t.Platform as Platform, t.Brand as Brand, t.City as City, t.Format as Format, t.Product as Product,
+    round(t.daily_sales, 2) as Overall_Sales,
+    t.daily_orders as Orders,
+    round(t.daily_sales / nullIf(t.daily_orders, 0), 2) as ASP,
+    round(t.MTD_Sales, 2) as MTD_Sales,
+    round(pm.MTD_Sales, 2) as PREV_MONTH_MTD,
+    round(t.YTD_Sales, 2) as YTD_Sales,
+    -- LYMTD: Use ASOF match. If the match is from a previous month (or year), reset to 0.
+    round(if(toStartOfMonth(ly.DATE) = toStartOfMonth(t.PrevYearDate), ly.MTD_Sales, 0), 2) as LYMTD,
+
+    round(t.MTD_Sales / nullIf(toDayOfMonth(t.DATE), 0), 2) as Current_DRR,
+    --Projected Sales: DRR * Total days in month
+round(Current_DRR * toDayOfMonth(date_add(month, 1, toStartOfMonth(t.DATE)) - 1), 2) as Projected_Sales,
+
+    round(t.daily_sales / nullIf(SUM(t.daily_sales) OVER(PARTITION BY t.DATE, t.Platform, t.City), 0) * 100, 2) as Revenue_Share
                 FROM running_metrics t
-                LEFT JOIN daily_agg ly ON 
-                    t.Platform = ly.Platform AND t.Brand = ly.Brand AND t.City = ly.City AND t.Format = ly.Format AND t.Product = ly.Product
-                    AND t.DATE = date_add(year, 1, ly.DATE)
-                LEFT JOIN running_metrics pm ON 
-                    t.Platform = pm.Platform AND t.Brand = pm.Brand AND t.City = pm.City AND t.Format = pm.Format AND t.Product = pm.Product
+                LEFT ASOF JOIN running_metrics ly ON
+t.Platform = ly.Platform AND t.Brand = ly.Brand AND t.City = ly.City AND t.Format = ly.Format AND t.Product = ly.Product
+                    AND t.PrevYearDate >= ly.DATE
+                LEFT JOIN running_metrics pm ON
+t.Platform = pm.Platform AND t.Brand = pm.Brand AND t.City = pm.City AND t.Format = pm.Format AND t.Product = pm.Product
                     AND t.DATE = date_add(month, 1, pm.DATE)
                 WHERE t.DATE BETWEEN '${startDate}' AND '${endDate}'
                 ORDER BY t.DATE DESC
-            `;
+    `;
         } else if (reportType === "Pricing Analysis") {
             query = `
-                WITH category_stats AS (
-                    SELECT 
+                WITH category_stats AS(
+        SELECT 
                         toDate(DATE) as JoinDate, Location, Category,
-                        avg(toFloat64OrZero(Selling_Price)) as Cat_Avg_Price
+        avg(toFloat64OrZero(Selling_Price)) as Cat_Avg_Price
                     FROM rb_pdp_olap
                     ${whereClause}
                     GROUP BY JoinDate, Location, Category
-                )
-                SELECT 
-                    toDate(t.DATE) as DATE, t.Platform, t.Brand, t.Location as City, t.Category as Format, t.Product,
-                    round(avg(toFloat64OrZero(t.Selling_Price)), 2) as ECP,
-                    round(avg(toFloat64OrZero(t.MRP)), 2) as MRP,
-                    round((1 - (SUM(toFloat64OrZero(t.Sales)) / nullIf(SUM(toFloat64OrZero(t.MRP) * assumeNotNull(t.Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
-                    round(avg(toFloat64OrZero(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
+    )
+SELECT
+toDate(t.DATE) as Date, t.Platform, t.Brand, t.Location as City, t.Category as Format, t.Product,
+    round(avg(toFloat64OrZero(t.Selling_Price)), 2) as ECP,
+    round(avg(toFloat64OrZero(t.MRP)), 2) as MRP,
+    round((1 - (SUM(toFloat64OrZero(t.Sales)) / nullIf(SUM(toFloat64OrZero(t.MRP) * assumeNotNull(t.Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
+    round(avg(toFloat64OrZero(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
                 FROM rb_pdp_olap t
                 LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.Location = c.Location AND t.Category = c.Category
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, 't.$1')}
                 GROUP BY DATE, t.Platform, t.Brand, t.Location, t.Category, t.Product
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Performance Marketing") {
             query = `
-                SELECT 
-                    DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    SUM(toFloat64OrZero(Ad_Impressions)) as Impressions,
-                    SUM(toFloat64OrZero(Ad_Clicks)) as Clicks,
-                    SUM(toFloat64OrZero(Ad_Spend)) as Spend,
-                    round(SUM(toFloat64OrZero(Ad_sales)) / nullIf(SUM(toFloat64OrZero(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64OrZero(Ad_Quanity_sold)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
-                    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Impressions)), 0)) * 1000, 2) as CPM,
-                    round(SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0), 2) as CPC
+SELECT
+DATE as Date, Platform, Brand, Location as City, Category as Format, Product,
+    SUM(toFloat64OrZero(Ad_Impressions)) as Impressions,
+    SUM(toFloat64OrZero(Ad_Clicks)) as Clicks,
+    SUM(toFloat64OrZero(Ad_Spend)) as Spend,
+    round(SUM(toFloat64OrZero(Ad_sales)) / nullIf(SUM(toFloat64OrZero(Ad_Spend)), 0), 2) as ROAS,
+    round((SUM(toFloat64OrZero(Ad_Quanity_sold)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
+    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Impressions)), 0)) * 1000, 2) as CPM,
+    round(SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0), 2) as CPC
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Content Analysis") {
             query = `
-                SELECT 
-                    toDate(extraction_timestamp) as DATE, brand_name as Brand, title as Product, url as URL,
-                    product_platform_total as Overall_Content_Score,
-                    title_length_score as Title_Score,
-                    thumbnail_media_score as Image_Score,
-                    prod_desc_score as Description_Score,
-                    title_char_count as Title_Length,
-                    description_char_count as Word_Count
+SELECT
+toDate(extraction_timestamp) as Date, brand_name as Brand, title as Product, url as URL,
+    product_platform_total as Overall_Content_Score,
+    title_length_score as Title_Score,
+    thumbnail_media_score as Image_Score,
+    prod_desc_score as Description_Score,
+    title_char_count as Title_Length,
+    description_char_count as Word_Count
                 FROM gcpl.tb_content_score_data
                 WHERE toDate(extraction_timestamp) BETWEEN '${startDate}' AND '${endDate}'
                 ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(brand_name) = lower('${brand.replace(/'/g, "''")}')` : ''}
                 ORDER BY DATE DESC
                 LIMIT 5000
-            `;
+    `;
         } else if (reportType === "Inventory Analysis") {
             query = `
-                SELECT 
-                    DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    round(argMax(toFloat64OrZero(Inventory), DATE), 2) as Current_Inventory,
-                    round(SUM(ifNull(Qty_Sold, 0)) / 30, 2) as DRR,
-                    round(if(DRR > 0, Current_Inventory / DRR, 0), 2) as DOH,
-                    round(if(8 > DOH, (8 - DOH) * DRR, 0), 2) as Req_PO_Quantity,
-                    round(Req_PO_Quantity / 24, 2) as Req_Boxes
+SELECT
+DATE as Date, Platform, Brand, Location as City, Category as Format, Product,
+    round(argMax(toFloat64OrZero(Inventory), DATE), 2) as Current_Inventory,
+    round(SUM(ifNull(Qty_Sold, 0)) / 30, 2) as DRR,
+    round(if (DRR > 0, Current_Inventory / DRR, 0), 2) as DOH
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Category RCA") {
             query = `
-                SELECT 
-                    DATE, Platform, Category as Format, Location as City,
-                    SUM(toFloat64OrZero(Sales)) as Offtake_Sales,
-                    SUM(assumeNotNull(Qty_Sold)) as Units,
-                    round(SUM(toFloat64OrZero(Sales)) / nullIf(SUM(SUM(toFloat64OrZero(Sales))) OVER (PARTITION BY DATE, Platform, Location), 0) * 100, 2) as Category_Share,
-                    SUM(SUM(toFloat64OrZero(Sales))) OVER (PARTITION BY DATE, Platform, Location) as Cat_Size
+SELECT
+DATE as Date, Platform, Category as Format, Location as City,
+    SUM(toFloat64OrZero(Sales)) as Offtake_Sales,
+    SUM(assumeNotNull(Qty_Sold)) as Units,
+    round(SUM(toFloat64OrZero(Sales)) / nullIf(SUM(SUM(toFloat64OrZero(Sales))) OVER(PARTITION BY DATE, Platform, Location), 0) * 100, 2) as Category_Share,
+    SUM(SUM(toFloat64OrZero(Sales))) OVER(PARTITION BY DATE, Platform, Location) as Cat_Size
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Category, Location
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Portfolio Analysis") {
             query = `
-                SELECT 
-                    DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    round(SUM(toFloat64OrZero(Sales)) / nullIf(SUM(assumeNotNull(Qty_Sold)), 0), 2) as ASP,
-                    round((1 - (SUM(toFloat64OrZero(Sales)) / nullIf(SUM(toFloat64OrZero(MRP) * assumeNotNull(Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
-                    SUM(assumeNotNull(Qty_Sold)) as Volume,
-                    SUM(if(toFloat64OrZero(Discount) > 0, assumeNotNull(Qty_Sold), 0)) as Promo_Volume,
-                    round(Promo_Volume / nullIf(Volume, 0) * 100, 2) as Promo_Volume_Percentage
+SELECT
+DATE as Date, Platform, Brand, Location as City, Category as Format, Product,
+    round(SUM(toFloat64OrZero(Sales)) / nullIf(SUM(assumeNotNull(Qty_Sold)), 0), 2) as ASP,
+    round((1 - (SUM(toFloat64OrZero(Sales)) / nullIf(SUM(toFloat64OrZero(MRP) * assumeNotNull(Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
+    SUM(assumeNotNull(Qty_Sold)) as Volume,
+    SUM(if (toFloat64OrZero(Discount) > 0, assumeNotNull(Qty_Sold), 0)) as Promo_Volume,
+        round(Promo_Volume / nullIf(Volume, 0) * 100, 2) as Promo_Volume_Percentage
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
                 ORDER BY DATE DESC
-            `;
+    `;
         } else if (reportType === "Watch Tower") {
             query = `
-                SELECT 
-                    DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    -- Core Metrics
-                    SUM(toFloat64OrZero(Sales)) as Offtake,
-                    SUM(assumeNotNull(Qty_Sold)) as Units_Sold,
-                    round(SUM(toFloat64OrZero(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as Stock_Availability,
-                    round(avg(toFloat64OrZero(DIH)), 2) as DOI,
-                    
-                    -- Performance Marketing Metrics
-                    SUM(toFloat64OrZero(Ad_sales)) as Inorganic_Sales,
-                    SUM(toFloat64OrZero(Ad_Spend)) as Spend,
-                    round(SUM(toFloat64OrZero(Ad_sales)) / nullIf(SUM(toFloat64OrZero(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64OrZero(Ad_Quanity_sold)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0)) * 100, 2) as Conversion,
-                    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Impressions)), 0)) * 1000, 2) as CPM,
-                    round(SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0), 2) as CPC,
-                    
-                    -- Ad Spend over Sales
-                    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Sales)), 0)) * 100, 2) as BMI_Sales_Ratio,
-                    
-                    -- Promo Metrics
-                    round(avg(toFloat64OrZero(Discount)), 2) as Promo_Percentage
+SELECT
+DATE as Date, Platform, Brand, Location as City, Category as Format, Product,
+    --Core Metrics
+SUM(toFloat64OrZero(Sales)) as Offtake,
+    SUM(assumeNotNull(Qty_Sold)) as Units_Sold,
+    round(SUM(toFloat64OrZero(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as Stock_Availability,
+    round(avg(toFloat64OrZero(DIH)), 2) as DOI,
+
+    --Performance Marketing Metrics
+SUM(toFloat64OrZero(Ad_sales)) as Inorganic_Sales,
+    SUM(toFloat64OrZero(Ad_Spend)) as Spend,
+    round(SUM(toFloat64OrZero(Ad_sales)) / nullIf(SUM(toFloat64OrZero(Ad_Spend)), 0), 2) as ROAS,
+    round((SUM(toFloat64OrZero(Ad_Quanity_sold)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0)) * 100, 2) as Conversion,
+    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Impressions)), 0)) * 1000, 2) as CPM,
+    round(SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0), 2) as CPC,
+
+    --Ad Spend over Sales
+round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Sales)), 0)) * 100, 2) as BMI_Sales_Ratio,
+
+    --Promo Metrics
+round(avg(toFloat64OrZero(Discount)), 2) as Promo_Percentage
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
                 ORDER BY DATE DESC
-            `;
+    `;
         } else {
             // Default generic query for other report types (Category RCA, Portfolio, Play it You)
             query = `
-                SELECT 
-                    DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    SUM(toFloat64OrZero(Sales)) as Sales,
-                    SUM(assumeNotNull(Qty_Sold)) as Qty,
-                    round(SUM(toFloat64OrZero(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as OSA,
-                    round(avg(toFloat64OrZero(DIH)), 2) as DOI
+SELECT
+DATE as Date, Platform, Brand, Location as City, Category as Format, Product,
+    SUM(toFloat64OrZero(Sales)) as Sales,
+    SUM(assumeNotNull(Qty_Sold)) as Qty,
+    round(SUM(toFloat64OrZero(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as OSA,
+    round(avg(toFloat64OrZero(DIH)), 2) as DOI
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
                 ORDER BY DATE DESC
                 LIMIT 10000
-            `;
+    `;
         }
 
         // 3. Execute Query
-        console.log(`[downloadReport] Executing query for ${reportType}:`, query);
+        console.log(`[downloadReport] Executing query for ${reportType}: `, query);
         const rawData = await queryClickHouse(query);
         console.log(`[downloadReport] Fetched ${rawData?.length || 0} rows`);
 
@@ -414,7 +386,7 @@ export const downloadReport = async (req, res) => {
 
         const fileName = `${reportType.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
 
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', `attachment; filename = "${fileName}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.send(buffer);
 

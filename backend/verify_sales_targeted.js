@@ -1,0 +1,70 @@
+
+import { createClient } from '@clickhouse/client';
+import dayjs from 'dayjs';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const clickhouse = createClient({
+    url: process.env.CLICKHOUSE_URL || 'http://13.200.55.131:8123',
+    username: process.env.CLICKHOUSE_USER || 'readonly_user',
+    password: process.env.CLICKHOUSE_PASSWORD || 'Readonly@123',
+    database: process.env.CLICKHOUSE_DB || 'colpal',
+    request_timeout: 60000,
+});
+
+async function verifySalesQuery() {
+    console.log('Starting Sales Data verification (Targeted)...');
+    try {
+        const endDate = dayjs().format('YYYY-MM-DD');
+        const startDate = dayjs().subtract(7, 'day').format('YYYY-MM-DD');
+        const widerStartDate = dayjs(startDate).subtract(13, 'month').format('YYYY-MM-DD');
+
+        const query = `
+            WITH daily_agg AS(
+                SELECT 
+                    toDate(DATE) as DATE, Platform, Brand, Location as City, Category as Format, Product,
+                    SUM(toFloat64OrZero(Sales)) as daily_sales
+                FROM rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '${widerStartDate}' AND '${endDate}'
+                GROUP BY DATE, Platform, Brand, City, Format, Product
+            ),
+            running_metrics AS(
+                SELECT
+                    *,
+                    SUM(daily_sales) OVER(PARTITION BY Platform, Brand, City, Format, Product, toStartOfMonth(DATE) ORDER BY DATE) as MTD_Sales
+                FROM daily_agg
+            )
+            SELECT
+                t.DATE as DATE, t.Platform, t.Product,
+                round(t.daily_sales, 2) as Overall_Sales,
+                round(ly.daily_sales, 2) as LAST_YEAR_SALES,
+                round(ly.MTD_Sales, 2) as LYMTD
+            FROM running_metrics t
+            INNER JOIN running_metrics ly ON
+                t.Platform = ly.Platform AND t.Brand = ly.Brand AND t.City = ly.City AND t.Format = ly.Format AND t.Product = ly.Product
+                AND t.DATE = date_add(year, 1, ly.DATE)
+            WHERE t.DATE BETWEEN '${startDate}' AND '${endDate}'
+            LIMIT 5
+        `;
+
+        console.log('Sending query...');
+        const result = await clickhouse.query({
+            query: query,
+            format: 'JSONEachRow',
+        });
+        const data = await result.json();
+        console.log('--- SUCCESS ---');
+        console.log('Returned ' + data.length + ' rows.');
+        if (data.length > 0) {
+            console.log(JSON.stringify(data[0], null, 2));
+        } else {
+            console.log('No rows with matching historical data found in this range.');
+        }
+
+    } catch (err) {
+        console.error('--- FAILURE ---');
+        console.error(err.message);
+    }
+}
+
+verifySalesQuery().then(() => console.log('Done')).catch(e => console.error(e));
