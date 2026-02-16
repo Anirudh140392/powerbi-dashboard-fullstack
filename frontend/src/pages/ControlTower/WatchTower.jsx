@@ -72,6 +72,7 @@ import {
 } from "lucide-react";
 import PerformanceMatrixNew from "@/components/ControlTower/WatchTower/PerformanceMatrixNew";
 import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOverviewNew";
+import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
 
 export default function WatchTower() {
   const [showTrends, setShowTrends] = useState(false);
@@ -519,6 +520,21 @@ export default function WatchTower() {
               <SKUTable data={dashboardData.skuTable} />
             </Box>
           )} */}
+        </Box>
+
+        {/* Performance Breakdown Section */}
+        <Box sx={{ mb: 4 }}>
+          <PerformanceBreakdownProvider
+            darkMode={false}
+            filters={{
+              companyId: localStorage.getItem('selectedCompanyId') || '',
+              platform: filters.platform ? [filters.platform].flat() : [],
+              dateStart: filters.startDate || undefined,
+              dateEnd: filters.endDate || undefined,
+            }}
+          >
+            <AggregatedViewTable />
+          </PerformanceBreakdownProvider>
         </Box>
       </CommonContainer>
 
