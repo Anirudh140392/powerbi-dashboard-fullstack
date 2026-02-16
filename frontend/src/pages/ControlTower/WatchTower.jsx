@@ -80,6 +80,7 @@ export default function WatchTower() {
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
   const [rcaModalOpen, setRcaModalOpen] = useState(false);
   const [rcaModalTitle, setRcaModalTitle] = useState("");
+  const [rcaModalData, setRcaModalData] = useState({});
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = React.useState(0);
 
@@ -393,7 +394,8 @@ export default function WatchTower() {
           <PlatformOverviewNew
             onViewTrends={handleViewTrends}
             onViewRca={(label) => {
-              setRcaModalTitle(`${label} x ${filters.platform}`);
+              setRcaModalTitle(`${label}`);
+              setRcaModalData({ platform: label });
               setRcaModalOpen(true);
             }}
           />
@@ -558,6 +560,7 @@ export default function WatchTower() {
         open={rcaModalOpen}
         onClose={() => setRcaModalOpen(false)}
         title={rcaModalTitle}
+        initialData={rcaModalData}
       />
     </>
   );

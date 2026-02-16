@@ -45,7 +45,9 @@ const kpiLabels = {
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
-    sos: 'SOS',
+    shareOfVolume: 'Share of Volume',
+    ad_sov: 'Ad SOV',
+    organic_sov: 'Organic SOV',
     inorgSales: 'Inorganic Sales',
     dspSales: 'DSP Sales',
     promoMyBrand: 'Promo - My Brand',
@@ -75,7 +77,9 @@ const PlatformOverviewNew = ({
         { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
-        { key: 'sos', label: 'SOS' },
+        { key: 'shareOfVolume', label: 'Share of Volume' },
+        { key: 'ad_sov', label: 'Ad SOV' },
+        { key: 'organic_sov', label: 'Organic SOV' },
         { key: 'marketShare', label: 'Market share' },
         { key: 'promoMyBrand', label: 'Promo - My Brand' },
         { key: 'promoCompete', label: 'Promo - Compete' },
@@ -178,7 +182,7 @@ const PlatformOverviewNew = ({
     }
     // Generate mock data for each entity (same as App.jsx)
     // Note: context is now defined in useMemo to ensure it updates with filter changes
-    function generateEntityData(entityKey, entityIdx, context) {
+    function generateEntityData(entityKey, entityIdx, context, currentDimensionKey) {
         const data = {}
 
         kpis.forEach((kpi, kpiIdx) => {
@@ -197,7 +201,7 @@ const PlatformOverviewNew = ({
                     deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
                     break
                 case 'roas':
-                    value = `${val.toFixed(1)}`
+                    value = `${val.toFixed(1)} Cr`
                     deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
                     break
                 case 'availability':
@@ -229,6 +233,40 @@ const PlatformOverviewNew = ({
                 delta: { value: deltaVal, dir: isUp ? 'up' : 'down' }
             }
         })
+
+        // Compute Share of Volume (SOV) and split into Ad SOV and Organic SOV
+        // Deterministic pseudo-random based on entityKey to keep values stable across renders
+        const deterministic = (str, salt = '') => {
+            let h = 2166136261 >>> 0
+            const s = `${str}-${salt}`
+            for (let i = 0; i < s.length; i++) {
+                h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0
+            }
+            return (h % 1000) / 1000
+        }
+
+        // Ranges by dimension
+        let min = 11, max = 21
+        if (currentDimensionKey === 'brand') { min = 11; max = 30 }
+        else if (currentDimensionKey === 'sku') { min = 11; max = 20 }
+        else if (currentDimensionKey === 'platform') { min = 11; max = 21 }
+
+        const frac = deterministic(entityKey, 'sov')
+        const sov = min + frac * (max - min)
+
+        // Ad share fraction between 20% - 60% of SOV
+        const adFrac = 0.2 + deterministic(entityKey, 'ad') * 0.4
+        const adVal = sov * adFrac
+        const organicVal = sov - adVal
+
+        const sovDelta = `${deterministic(entityKey, 'sov-delta') > 0.5 ? '+' : '-'}${(deterministic(entityKey, 'sov-delta') * 3).toFixed(1)}%`
+        const adDelta = `${deterministic(entityKey, 'ad-delta') > 0.5 ? '+' : '-'}${(deterministic(entityKey, 'ad-delta') * 3).toFixed(1)}%`
+        const orgDelta = `${deterministic(entityKey, 'org-delta') > 0.5 ? '+' : '-'}${(deterministic(entityKey, 'org-delta') * 3).toFixed(1)}%`
+
+        data['shareOfVolume'] = { value: `${sov.toFixed(1)}%`, delta: { value: sovDelta, dir: sovDelta.startsWith('+') ? 'up' : 'down' } }
+        data['ad_sov'] = { value: `${adVal.toFixed(1)}%`, delta: { value: adDelta, dir: adDelta.startsWith('+') ? 'up' : 'down' } }
+        data['organic_sov'] = { value: `${organicVal.toFixed(1)}%`, delta: { value: orgDelta, dir: orgDelta.startsWith('+') ? 'up' : 'down' } }
+
         return data
     }
     // Handle filter apply from modal
@@ -253,12 +291,28 @@ const PlatformOverviewNew = ({
     const entities = useMemo(() => {
         // Define context here so it updates when filter values change
         const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+        // start from all entities for the current dimension
+        let list = currentDimension.entities.slice()
 
-        return currentDimension.entities.map((e, idx) => ({
+        // Apply active advanced filters for the same dimension (if any)
+        if (dimension === 'brand' && advancedFilters.brands && advancedFilters.brands.length > 0) {
+            list = list.filter(e => advancedFilters.brands.includes(e.key))
+        }
+        if (dimension === 'category' && advancedFilters.categories && advancedFilters.categories.length > 0) {
+            list = list.filter(e => advancedFilters.categories.includes(e.key))
+        }
+        if (dimension === 'platform' && advancedFilters.platforms && advancedFilters.platforms.length > 0) {
+            list = list.filter(e => advancedFilters.platforms.includes(e.key))
+        }
+        if (dimension === 'sku' && advancedFilters.skus && advancedFilters.skus.length > 0) {
+            list = list.filter(e => advancedFilters.skus.includes(e.key))
+        }
+
+        return list.map((e, idx) => ({
             ...e,
-            data: generateEntityData(e.key, idx, context)
+            data: generateEntityData(e.key, idx, context, dimension)
         }))
-    }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd])
+    }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, advancedFilters, dimension])
 
     const SectionWrapper = ({
         title,
@@ -518,13 +572,27 @@ const PlatformOverviewNew = ({
                     </div>
                 </SectionWrapper>
             </div>
-            <AdvancedFilterModal
-                isOpen={isFilterModalOpen}
-                onClose={() => setIsFilterModalOpen(false)}
-                filters={advancedFilters}
-                onApply={handleApplyFilters}
-                currentDimension={dimension}
-            />
+            {/* Prepare options for advanced filter dropdowns */}
+            {(() => {
+                const brandOptions = (dimensionData.brand?.entities || []).map(e => ({ id: e.key, name: e.name }))
+                const categoryOptions = (dimensionData.category?.entities || []).map(e => ({ id: e.key, name: e.name }))
+                const platformOptions = (dimensionData.platform?.entities || []).map(e => ({ id: e.key, name: e.name }))
+                const skuOptions = (dimensionData.sku?.entities || []).map(e => ({ id: e.key, name: e.name }))
+
+                return (
+                    <AdvancedFilterModal
+                        isOpen={isFilterModalOpen}
+                        onClose={() => setIsFilterModalOpen(false)}
+                        filters={advancedFilters}
+                        onApply={handleApplyFilters}
+                        currentDimension={dimension}
+                        brands={brandOptions}
+                        categories={categoryOptions}
+                        platforms={platformOptions}
+                        skus={skuOptions}
+                    />
+                )
+            })()}
         </>
     )
 }
