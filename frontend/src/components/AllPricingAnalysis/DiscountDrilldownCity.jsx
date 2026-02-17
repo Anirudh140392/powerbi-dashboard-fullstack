@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, X, SlidersHorizontal, Search } from 'lucide-react'
+import { ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, X, SlidersHorizontal, Search } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { KpiFilterPanel } from "@/components/KpiFilterPanel"
 import axiosInstance from "@/api/axiosInstance"
@@ -16,8 +16,73 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [searchQuery, setSearchQuery] = useState('')
 
-    // Derived platforms from data
-    const dynamicPlatforms = useMemo(() => {
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1)
+    const [itemsPerPage, setItemsPerPage] = useState(5)
+
+
+
+    // ========================================
+    // FILTER STATE & LOGIC
+    // ========================================
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+    const [tentativeFilters, setTentativeFilters] = useState({});
+    const [appliedFilters, setAppliedFilters] = useState({});
+    const [dynamicFilterData, setDynamicFilterData] = useState({
+        platforms: [],
+        formats: [],
+        cities: [],
+        months: [],
+        brands: [],
+        loading: true
+    });
+
+    // Helper: Fetch filter options
+    const fetchFilterType = async (filterType) => {
+        try {
+            const apiBase = '/availability-analysis/filter-options';
+            const res = await axiosInstance.get(`${apiBase}?filterType=${filterType}`);
+            return res.data?.options || [];
+        } catch (error) {
+            console.error(`Error fetching ${filterType}:`, error);
+            return [];
+        }
+    };
+
+    useEffect(() => {
+        const fetchAll = async () => {
+            const [p, f, c, m, b] = await Promise.all([
+                fetchFilterType('platforms'),
+                fetchFilterType('formats'),
+                fetchFilterType('cities'),
+                fetchFilterType('months'),
+                fetchFilterType('brands')
+            ]);
+            setDynamicFilterData({
+                platforms: p,
+                formats: f,
+                cities: c,
+                months: m,
+                brands: b,
+                loading: false
+            });
+        };
+        fetchAll();
+    }, []);
+
+    const filterOptions = useMemo(() => {
+        const toOptions = (arr) => (arr || []).map(item => ({ id: item, label: item }));
+        return [
+            { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
+            { id: "brand", label: "Brand", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.brands)] },
+            { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
+        ];
+    }, [dynamicFilterData]);
+
+    // Derived platforms from data, possibly filtered
+    const visiblePlatforms = useMemo(() => {
+        // First get all available platforms from data
+        let available = [];
         const platformSet = new Set();
         data.forEach(city => {
             if (city.totals) {
@@ -27,33 +92,30 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
             }
         });
 
-        // If data is empty or no platforms found, use defaults as fallback
         if (platformSet.size === 0) {
-            return [
+            available = [
                 { key: 'blinkit', label: 'Blinkit' },
                 { key: 'instamart', label: 'Instamart' },
                 { key: 'zepto', label: 'Zepto' },
             ];
+        } else {
+            available = Array.from(platformSet).map(key => ({
+                key,
+                label: key.charAt(0).toUpperCase() + key.slice(1)
+            }));
         }
 
-        return Array.from(platformSet).map(key => ({
-            key,
-            label: key.charAt(0).toUpperCase() + key.slice(1)
-        }));
-    }, [data]);
+        // Apply Platform Filter
+        if (appliedFilters?.platform?.length > 0 && !appliedFilters.platform.includes('all')) {
+            // Filter available platforms to only those selected (case-insensitive check)
+            const selected = appliedFilters.platform.map(p => p.toLowerCase());
+            return available.filter(p => selected.includes(p.key.toLowerCase()));
+        }
 
-    // ========================================
-    // FILTER STATE & LOGIC
-    // ========================================
-    const [showFilterPanel, setShowFilterPanel] = useState(false);
+        return available;
+    }, [data, appliedFilters]);
 
-    // Applied filters (simulated for now, can be connected to global context)
-    const [appliedFilters, setAppliedFilters] = useState({
-        platform: [],
-        format: [],
-        city: [],
-        brand: [],
-    });
+
 
     const METRIC_OPTIONS = [
         { key: 'ecp', label: 'ECP', suffix: '₹' },
@@ -70,13 +132,53 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const closeAll = () => setExpandedCities([])
 
     const filteredData = useMemo(() => {
-        if (!searchQuery) return data
-        const q = searchQuery.toLowerCase()
-        return data.filter(item =>
-            item.city.toLowerCase().includes(q) ||
-            item.brands.some(b => b.name.toLowerCase().includes(q))
-        )
-    }, [data, searchQuery])
+        let res = data;
+
+        // 1. Search Query
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            res = res.filter(item =>
+                item.city.toLowerCase().includes(q) ||
+                item.brands.some(b => b.name.toLowerCase().includes(q))
+            );
+        }
+
+        // 2. City Filter
+        if (appliedFilters?.city?.length > 0 && !appliedFilters.city.includes('all')) {
+            const selectedCities = appliedFilters.city.map(c => c.toLowerCase());
+            res = res.filter(item => selectedCities.includes(item.city.toLowerCase()));
+        }
+
+        // 3. Brand Filter
+        if (appliedFilters?.brand?.length > 0 && !appliedFilters.brand.includes('all')) {
+            const selectedBrands = appliedFilters.brand.map(b => b.toLowerCase());
+
+            // Filter top-level cities: Keep city if it has at least one of the selected brands
+            res = res.filter(item =>
+                item.brands.some(b => selectedBrands.includes(b.name.toLowerCase()))
+            );
+
+            // Clone and filter the nested brands array so we only show the relevant brands
+            res = res.map(item => ({
+                ...item,
+                brands: item.brands.filter(b => selectedBrands.includes(b.name.toLowerCase()))
+            }));
+        }
+
+        return res;
+    }, [data, searchQuery, appliedFilters]);
+
+    // Reset to page 1 when search or data changes
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [searchQuery, data])
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage)
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage
+        return filteredData.slice(start, start + itemsPerPage)
+    }, [filteredData, currentPage, itemsPerPage])
 
     const getMetricValue = (platformData) => {
         if (!platformData) return null
@@ -165,6 +267,14 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                             className="block w-full pl-9 pr-3 py-1.5 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
                         />
                     </div>
+
+                    <button
+                        onClick={() => setShowFilterPanel(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all"
+                    >
+                        <SlidersHorizontal size={14} /> Filters
+                    </button>
+
                     {expandedCities.length > 0 && (
                         <button
                             onClick={closeAll}
@@ -181,15 +291,15 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-900">
                             <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider w-72">City / Brand</th>
-                            <th className="text-center px-4 py-3 text-xs font-bold uppercase tracking-wider w-24">ML</th>
-                            {dynamicPlatforms.map(p => (
+                            <th className="text-center px-4 py-3 text-xs font-bold uppercase tracking-wider w-24">Grammage</th>
+                            {visiblePlatforms.map(p => (
                                 <th key={p.key} className="text-center px-3 py-3 text-xs font-bold uppercase tracking-wider">{p.label}</th>
                             ))}
                             <th className="text-center px-3 py-3 text-xs font-bold uppercase tracking-wider">Total</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredData.map((item) => {
+                        {paginatedData.map((item) => {
                             const isExpanded = expandedCities.includes(item.city)
                             return (
                                 <React.Fragment key={item.city}>
@@ -204,7 +314,7 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-center text-sm text-slate-400">—</td>
-                                        {dynamicPlatforms.map(p => (
+                                        {visiblePlatforms.map(p => (
                                             <MetricCell key={p.key} platformData={item.totals?.[p.key]} />
                                         ))}
                                         <MetricCell platformData={item.totals?.total} />
@@ -225,7 +335,7 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                                                 <td className="px-4 py-2 text-center">
                                                     <span className="text-[10px] font-medium text-slate-500 bg-white border border-slate-100 px-1.5 py-0.5 rounded">{brand.ml}</span>
                                                 </td>
-                                                {dynamicPlatforms.map(p => (
+                                                {visiblePlatforms.map(p => (
                                                     <MetricCell key={p.key} platformData={brand[p.key]} />
                                                 ))}
                                                 <MetricCell platformData={brand.total} />
@@ -238,6 +348,112 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                        <span>Show</span>
+                        <select
+                            value={itemsPerPage}
+                            onChange={(e) => {
+                                setItemsPerPage(Number(e.target.value))
+                                setCurrentPage(1)
+                            }}
+                            className="bg-white border border-slate-200 text-slate-700 text-xs rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        >
+                            {[5, 10, 15, 20].map(size => (
+                                <option key={size} value={size}>{size}</option>
+                            ))}
+                        </select>
+                        <span>entries</span>
+                        <span className="ml-2">
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setCurrentPage(1)}
+                            disabled={currentPage === 1}
+                            className="p-1 rounded hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-transparent"
+                        >
+                            <ChevronsLeft size={16} className="text-slate-500" />
+                        </button>
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="p-1 rounded hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-transparent"
+                        >
+                            <ChevronLeft size={16} className="text-slate-500" />
+                        </button>
+
+                        <span className="text-xs font-semibold text-slate-600 px-2">
+                            Page {currentPage} of {totalPages}
+                        </span>
+
+                        <button
+                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="p-1 rounded hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-transparent"
+                        >
+                            <ChevronRight size={16} className="text-slate-500" />
+                        </button>
+                        <button
+                            onClick={() => setCurrentPage(totalPages)}
+                            disabled={currentPage === totalPages}
+                            className="p-1 rounded hover:bg-slate-200 disabled:opacity-50 disabled:hover:bg-transparent"
+                        >
+                            <ChevronsRight size={16} className="text-slate-500" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Filter Modal */}
+            {showFilterPanel && (
+                <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-900/40 p-4 pt-36 transition-all backdrop-blur-sm">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">Drilldown Filters</h2>
+                                <p className="text-sm text-slate-500">Filter cities and brands</p>
+                            </div>
+                            <button onClick={() => setShowFilterPanel(false)} className="rounded-full p-2 hover:bg-slate-100 transition">
+                                <X className="h-5 w-5 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-6 bg-slate-50/30 overflow-y-auto max-h-[60vh]">
+                            <KpiFilterPanel
+                                sectionConfig={filterOptions}
+                                keywords={[]}
+                                sectionValues={tentativeFilters}
+                                onSectionChange={(id, val) => setTentativeFilters(prev => ({ ...prev, [id]: val }))}
+                            />
+                        </div>
+                        <div className="flex justify-between border-t border-slate-100 bg-white px-6 py-4">
+                            <button
+                                onClick={() => setTentativeFilters({})}
+                                className="px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-lg"
+                            >
+                                Reset
+                            </button>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowFilterPanel(false)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
+                                <button
+                                    onClick={() => {
+                                        setAppliedFilters(tentativeFilters);
+                                        setShowFilterPanel(false);
+                                    }}
+                                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-md"
+                                >
+                                    Apply
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

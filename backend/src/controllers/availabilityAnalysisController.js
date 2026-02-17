@@ -450,6 +450,8 @@ export const getSignalLabData = async (req, res) => {
                 platform,
                 brand,
                 location,
+                category,
+                format,
                 startDate,
                 endDate,
                 compareStartDate,
@@ -479,8 +481,11 @@ export const getSignalLabData = async (req, res) => {
 
             const processFilter = (val) => {
                 if (!val || val === 'All') return null;
-                if (typeof val === 'string' && val.includes(',')) {
-                    return val.split(',').map(v => v.trim());
+                if (typeof val === 'string') {
+                    if (val.includes(',')) {
+                        return val.split(',').map(v => v.trim());
+                    }
+                    return val.trim();
                 }
                 return val;
             };
@@ -488,6 +493,7 @@ export const getSignalLabData = async (req, res) => {
             const platformFilter = processFilter(platform);
             const locationFilter = processFilter(location);
             const brandFilter = processFilter(brand);
+            const categoryFilter = processFilter(category || format);
 
             // Build WHERE clause for ClickHouse
             const buildWhereClause = (includeCompDates = false) => {
@@ -525,8 +531,22 @@ export const getSignalLabData = async (req, res) => {
                     conditions.push(`toString(Comp_flag) = '0'`);
                 }
 
-                return conditions.join(' AND ');
+                if (categoryFilter) {
+                    if (Array.isArray(categoryFilter)) {
+                        conditions.push(`Category IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Category = '${escapeStr(categoryFilter)}'`);
+                    }
+                }
+
+                const whereClause = conditions.join(' AND ');
+                console.log('[getSignalLabData] Generated WHERE clause:', whereClause);
+                return whereClause;
             };
+
+            console.log('[getSignalLabData] req.query:', req.query);
+            console.log('[getSignalLabData] categoryFilter:', categoryFilter);
+            console.log('[getSignalLabData] format(query):', format);
 
             /* ================= 2. DEFINE METRIC & SORTING LOGIC ================= */
             const direction = signalType === 'gainer' ? 'DESC' : 'ASC';

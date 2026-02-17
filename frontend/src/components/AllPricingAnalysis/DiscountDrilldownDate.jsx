@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import dayjs from 'dayjs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, X, SlidersHorizontal, Search } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -21,8 +22,90 @@ export const DiscountDrilldownDate = ({
     const [loading, setLoading] = useState(false)
     const [gridData, setGridData] = useState([])
 
-    // Generate dates based on range
-    const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
+    // ========================================
+    // FILTER STATE & LOGIC
+    // ========================================
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+    // Tentative filters
+    const [tentativeFilters, setTentativeFilters] = useState({
+        platform: [],
+        format: [],
+        city: [],
+        brand: [],
+        date: [],
+        month: [],
+        zone: [],
+        pincode: [],
+        metroFlag: []
+    });
+
+    // Applied filters
+    const [appliedFilters, setAppliedFilters] = useState({
+        platform: [],
+        format: [],
+        city: [],
+        brand: [],
+        date: [],
+        month: [],
+        zone: [],
+        pincode: [],
+        metroFlag: []
+    });
+
+    // Dynamic Options
+    const [dynamicFilterData, setDynamicFilterData] = useState({
+        platforms: [],
+        formats: [],
+        cities: [],
+        months: [],
+        dates: [],
+        pincodes: [],
+        zones: [],
+        metroFlags: [],
+        brands: [],
+        loading: true
+    });
+
+    // Generate dates based on range or filters
+    const dates = useMemo(() => {
+        // 1. Specific dates selected
+        if (appliedFilters?.date?.length > 0 && !appliedFilters.date.includes('all')) {
+            return appliedFilters.date
+                .map(dStr => {
+                    const d = dayjs(dStr)
+                    return {
+                        key: dStr,
+                        label: d.isValid() ? d.format('DD MMM YYYY') : dStr,
+                        shortLabel: d.isValid() ? d.format('DD MMM') : dStr
+                    }
+                })
+                .sort((a, b) => b.key.localeCompare(a.key))
+        }
+
+        // 2. Month selected -> show all days in that month
+        if (appliedFilters?.month?.length > 0 && !appliedFilters.month.includes('all')) {
+            let allDates = []
+            appliedFilters.month.forEach(mStr => {
+                const m = dayjs(mStr) // Expects "YYYY-MM"
+                if (m.isValid()) {
+                    const daysInMonth = m.daysInMonth()
+                    for (let i = 1; i <= daysInMonth; i++) {
+                        const d = m.date(i)
+                        allDates.push({
+                            key: d.format('YYYY-MM-DD'),
+                            label: d.format('DD MMM YYYY'),
+                            shortLabel: d.format('DD MMM')
+                        })
+                    }
+                }
+            })
+            // Sort desc
+            return allDates.sort((a, b) => b.key.localeCompare(a.key))
+        }
+
+        return generateDateOptions(dayRange)
+    }, [dayRange, appliedFilters.date, appliedFilters.month])
 
     // Fetch real data from API
     useEffect(() => {
@@ -90,50 +173,7 @@ export const DiscountDrilldownDate = ({
         fetchData()
     }, [dayRange, metricType, dates, filters, selectedBrand, globalPlatform, selectedLocation])
 
-    // ========================================
-    // FILTER STATE & LOGIC
-    // ========================================
-    const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-    // Tentative filters
-    const [tentativeFilters, setTentativeFilters] = useState({
-        platform: [],
-        format: [],
-        city: [],
-        brand: [],
-        date: [],
-        month: [],
-        zone: [],
-        pincode: [],
-        metroFlag: []
-    });
-
-    // Applied filters
-    const [appliedFilters, setAppliedFilters] = useState({
-        platform: [],
-        format: [],
-        city: [],
-        brand: [],
-        date: [],
-        month: [],
-        zone: [],
-        pincode: [],
-        metroFlag: []
-    });
-
-    // Dynamic Options
-    const [dynamicFilterData, setDynamicFilterData] = useState({
-        platforms: [],
-        formats: [],
-        cities: [],
-        months: [],
-        dates: [],
-        pincodes: [],
-        zones: [],
-        metroFlags: [],
-        brands: [],
-        loading: true
-    });
 
     const mockKeywords = [{ id: "kw_generic", label: "generic" }];
 
@@ -192,6 +232,17 @@ export const DiscountDrilldownDate = ({
         };
         fetchAll();
     }, []);
+
+    // Fetch dynamic dates when Month changes
+    useEffect(() => {
+        const updateDates = async () => {
+            const newDates = await fetchFilterType('dates', tentativeFilters);
+            setDynamicFilterData(prev => ({ ...prev, dates: newDates }));
+        };
+        if (tentativeFilters.month?.length > 0) {
+            updateDates();
+        }
+    }, [tentativeFilters.month]);
 
     // Filter Configuration
     const filterOptions = useMemo(() => {
@@ -252,15 +303,15 @@ export const DiscountDrilldownDate = ({
         if (searchQuery) {
             const q = searchQuery.toLowerCase()
             currentData = currentData.filter(item =>
-                item.brand.toLowerCase().includes(q) ||
-                item.skus.some(s => s.name.toLowerCase().includes(q))
+                (item.brand && item.brand.toLowerCase().includes(q)) ||
+                (item.skus && item.skus.some(s => s.name && s.name.toLowerCase().includes(q)))
             )
         }
 
         // 2. Filter by Applied Filters (Brand)
         if (appliedFilters.brand?.length > 0 && !appliedFilters.brand.includes('all') && !appliedFilters.brand.includes('All')) {
-            const selectedBrands = appliedFilters.brand.map(b => b.toLowerCase());
-            currentData = currentData.filter(item => selectedBrands.includes(item.brand.toLowerCase()));
+            const selectedBrands = appliedFilters.brand.map(b => b ? b.toLowerCase() : '');
+            currentData = currentData.filter(item => item.brand && selectedBrands.includes(item.brand.toLowerCase()));
         }
 
         return currentData
@@ -391,7 +442,7 @@ export const DiscountDrilldownDate = ({
 
             {/* Filter Modal */}
             {showFilterPanel && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
+                <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-900/40 p-4 pt-36 transition-all backdrop-blur-sm">
                     <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
@@ -466,7 +517,7 @@ export const DiscountDrilldownDate = ({
                                 Brand / SKU
                             </th>
                             <th className="text-center px-4 py-3 text-xs font-semibold uppercase tracking-wider">
-                                ML
+                                Grammage
                             </th>
                             {dates.map(d => (
                                 <th key={d.key} className="text-center px-3 py-3 text-xs font-semibold uppercase tracking-wider">

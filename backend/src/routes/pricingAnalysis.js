@@ -1,4 +1,4 @@
-import { PriceAndDiscountIntelligence, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity } from '../controllers/pricingAnalysisController.js';
+import { PriceAndDiscountIntelligence, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity, getPricingTrends } from '../controllers/pricingAnalysisController.js';
 import { getOneViewPriceGrid } from '../controllers/oneViewPriceGridController.js';
 
 export default (app) => {
@@ -372,4 +372,39 @@ export default (app) => {
      *         description: Successful response with ECP by city data
      */
     app.get('/api/pricing-analysis/ecp-by-city', getEcpByCity);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/trends:
+     *   get:
+     *     summary: Get Overall Pricing Trends (ECP, RPI, Discount)
+     *     description: Returns historical trend data for ECP, RPI, and Discount
+     *     parameters:
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: brand
+     *         schema:
+     *           type: string
+     *     responses:
+     *       200:
+     *         description: Successful response with pricing trends
+     */
+    app.get('/api/pricing-analysis/trends', getPricingTrends);
 };

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
  * KpiFilterPanel.jsx
@@ -95,7 +96,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 overflow-y-auto md:overflow-hidden rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
+      <div className="flex-1 overflow-y-auto md:overflow-auto rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -343,7 +344,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
   const pageBadge = `${selected.size} selected`;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <header className="mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
@@ -457,9 +458,27 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
             />
             <span>Select all on page</span>
           </label>
-          <span className="text-slate-400">
-            Page {page} of {totalPages}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="text-slate-400">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       )}
 

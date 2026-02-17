@@ -2,6 +2,39 @@ import React, { useState, useContext, useEffect } from "react";
 import CityDetailedTable from "./CityDetailedTable";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import { Skeleton } from "@mui/material";
+
+function VisibilityCardSkeleton() {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm px-6 py-5 min-w-[280px] w-full h-[300px] flex flex-col justify-between">
+      <div>
+        <div className="flex justify-between mb-4">
+          <div className="space-y-2">
+            <Skeleton variant="text" width={100} height={20} />
+            <Skeleton variant="text" width={140} height={16} />
+          </div>
+          <Skeleton variant="rounded" width={60} height={16} />
+        </div>
+        <div className="flex justify-between items-center mb-6">
+          <Skeleton variant="text" width={80} height={32} />
+          <Skeleton variant="rounded" width={50} height={20} />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Skeleton variant="rounded" width={60} height={24} />
+          <Skeleton variant="rounded" width={60} height={24} />
+          <Skeleton variant="rounded" width={60} height={24} />
+        </div>
+      </div>
+      <div>
+        <Skeleton variant="text" width={120} height={16} sx={{ mb: 2 }} />
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton variant="rounded" width="100%" height={60} />
+          <Skeleton variant="rounded" width="100%" height={60} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /* -------------------------------------------------------------------------- */
 /*                               KPI DEFINITIONS                              */
@@ -779,13 +812,15 @@ const MOCK_SIGNALS = {
   }
 };
 
-export function VisibilityLayoutOne({ data, isPricing = false }) {
+export function VisibilityLayoutOne({ data, isPricing = false, loading: parentLoading = false }) {
   const [signalType, setSignalType] = useState("drainer");
   const [level, setLevel] = useState("keyword");
   const [selectedItemForDetails, setSelectedItemForDetails] = useState(null);
   const [signals, setSignals] = useState([]);
-  const [loading, setLoading] = useState(!data);
+  const [internalLoading, setInternalLoading] = useState(!data);
   const [error, setError] = useState(null);
+
+  const loading = parentLoading || internalLoading;
 
   // If data is passed, use it directly
   useEffect(() => {
@@ -795,7 +830,7 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
       // Or if data is just the array for the current view. 
       // Let's assume data is the full object { drainer: { keyword: [], sku: [] }, ... } like MOCK_SIGNALS
       setSignals(data?.[signalType]?.[level] || []);
-      setLoading(false);
+      setInternalLoading(false);
     }
   }, [data, signalType, level]);
 
@@ -812,7 +847,7 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
   // Fetch visibility signals from API
   React.useEffect(() => {
     const fetchSignals = async () => {
-      setLoading(true);
+      setInternalLoading(true);
       setError(null);
       try {
         // Build query parameters with all global filters
@@ -847,7 +882,7 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
         // Fallback to mock data on error
         setSignals(MOCK_SIGNALS[signalType]?.[level] || []);
       } finally {
-        setLoading(false);
+        setInternalLoading(false);
       }
     };
 
@@ -875,9 +910,12 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
 
       <div className="mt-2 pb-1">
         {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
-            <span className="ml-3 text-slate-500 text-sm">Loading signals...</span>
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map(i => <VisibilityCardSkeleton key={i} />)}
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-48 text-rose-500 text-sm">
+            {error}
           </div>
         ) : signals.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
@@ -897,14 +935,16 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
       </div>
 
       {/* Detailed Table Overlay */}
-      {selectedItemForDetails && (
-        <CityDetailedTable
-          sku={selectedItemForDetails}
-          onClose={() => setSelectedItemForDetails(null)}
-          isPricing={isPricing}
-        />
-      )}
-    </div>
+      {
+        selectedItemForDetails && (
+          <CityDetailedTable
+            sku={selectedItemForDetails}
+            onClose={() => setSelectedItemForDetails(null)}
+            isPricing={isPricing}
+          />
+        )
+      }
+    </div >
   );
 }
 

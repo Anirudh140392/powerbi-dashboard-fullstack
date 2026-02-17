@@ -1183,6 +1183,10 @@ export default function PricingAnalysisData() {
   const [ecpByCityData, setEcpByCityData] = useState([]);
   const [ecpByCityLoading, setEcpByCityLoading] = useState(true);
 
+  // Pricing Trends state (Sparklines)
+  const [pricingTrendsData, setPricingTrendsData] = useState({ ecp: [], rpi: [], discount: [], labels: [] });
+  const [pricingTrendsLoading, setPricingTrendsLoading] = useState(true);
+
   // Fetch ECP comparison data when filters change
   useEffect(() => {
     if (!datesInitialized) return;
@@ -1222,7 +1226,47 @@ export default function PricingAnalysisData() {
     };
 
     fetchEcpComparison();
+    fetchEcpComparison();
   }, [globalPlatform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized]);
+
+  // Fetch Pricing Trends when filters change
+  useEffect(() => {
+    if (!datesInitialized) return;
+
+    const fetchPricingTrends = async () => {
+      setPricingTrendsLoading(true);
+      try {
+        const params = {
+          startDate: timeStart?.format('YYYY-MM-DD'),
+          endDate: timeEnd?.format('YYYY-MM-DD'),
+        };
+
+        if (globalPlatform && globalPlatform !== 'All') {
+          params.platform = globalPlatform;
+        }
+        if (selectedLocation && selectedLocation !== 'All') {
+          params.location = selectedLocation;
+        }
+
+        console.log("[PricingAnalysisData] Fetching Pricing Trends with params:", params);
+        const response = await axiosInstance.get('/pricing-analysis/trends', { params });
+
+        if (response.data?.success && response.data?.data) {
+          console.log("[PricingAnalysisData] Pricing Trends received:", response.data.data.labels.length, "points");
+          setPricingTrendsData(response.data.data);
+        } else {
+          setPricingTrendsData({ ecp: [], rpi: [], discount: [], labels: [] });
+        }
+      } catch (error) {
+        console.error("Error fetching Pricing Trends:", error);
+        setPricingTrendsData({ ecp: [], rpi: [], discount: [], labels: [] });
+      } finally {
+        setPricingTrendsLoading(false);
+      }
+    };
+
+    fetchPricingTrends();
+  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized]);
 
   // Fetch ECP by Brand data when filters change
   useEffect(() => {
@@ -2506,6 +2550,7 @@ export default function PricingAnalysisData() {
       <SnapshotOverview
         title="Pricing Overview"
         chip="Live Metrics"
+        loading={ecpLoading || pricingTrendsLoading}
         kpis={[
           {
             id: 'avg-ecp',
@@ -2518,7 +2563,7 @@ export default function PricingAnalysisData() {
             deltaLabel: 'vs prev period',
             icon: MonetizationOn,
             gradient: ['#10b981', '#059669'],
-            trend: ecpData.slice(0, 8).map(d => d.ecp_curr),
+            trend: pricingTrendsData.ecp || [],
           },
           {
             id: 'rpi',
@@ -2527,11 +2572,11 @@ export default function PricingAnalysisData() {
               ? (ecpByBrandData.reduce((sum, row) => sum + (row.rpi || 0), 0) / ecpByBrandData.length).toFixed(2)
               : '1.08',
             subtitle: 'INDEX',
-            delta: 3.1,
+            delta: 3.1, // Placeholder
             deltaLabel: 'vs benchmark',
             icon: TrendingUp,
             gradient: ['#3b82f6', '#2563eb'],
-            trend: [1.0, 1.05, 1.02, 1.08, 1.12, 1.15, 1.18, 1.20],
+            trend: pricingTrendsData.rpi || [],
           },
           {
             id: 'avg-discount',
@@ -2543,11 +2588,11 @@ export default function PricingAnalysisData() {
               }, 0) / ecpByBrandData.length).toFixed(1)}%`
               : '0.0%',
             subtitle: 'MTD',
-            delta: -2.3,
+            delta: -2.3, // Placeholder
             deltaLabel: 'vs last month',
             icon: Discount,
             gradient: ['#f59e0b', '#d97706'],
-            trend: [15, 18, 16, 19, 17, 14, 16, 12],
+            trend: pricingTrendsData.discount || [],
           },
         ]}
       />
@@ -2556,6 +2601,7 @@ export default function PricingAnalysisData() {
         data={pricingGainerDrainerData}
         defaultTab="ecp"
         isPricing={true}
+        loading={ecpLoading}
       />
       <Box sx={{ pt: 2 }}>
         <DiscountEcpPricing

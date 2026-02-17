@@ -45,9 +45,39 @@ async function getDiscountByCategory(filters = {}) {
 
         const replacements = { startDate, endDate };
 
-        // First, get available platforms
-        const platforms = await getAvailablePlatforms(replacements);
-        console.log('[DiscountTrendService] Available platforms:', platforms);
+        // First, get available platforms (will be overridden if platform filter is present)
+        // const platforms = await getAvailablePlatforms(replacements);
+        // console.log('[DiscountTrendService] Available platforms:', platforms);
+
+        let brandCondition = '';
+        if (filters.brand) {
+            const brands = filters.brand.split(',').map(b => `'${b.trim()}'`).join(',');
+            brandCondition = `AND p.Brand IN (${brands})`;
+        }
+
+        let categoryCondition = '';
+        if (filters.format) { // format maps to Category in DB
+            const categories = filters.format.split(',').map(c => `'${c.trim()}'`).join(',');
+            categoryCondition = `AND p.Category IN (${categories})`;
+        }
+
+        let platformCondition = '';
+        let platformArray = [];
+        if (filters.platform) {
+            platformArray = filters.platform.split(',').map(p => p.trim());
+            const platformsStr = platformArray.map(p => `'${p}'`).join(',');
+            platformCondition = `AND p.Platform IN (${platformsStr})`;
+        }
+
+        let cityCondition = '';
+        if (filters.city) {
+            const cities = filters.city.split(',').map(c => `'${c.trim()}'`).join(',');
+            cityCondition = `AND p.Location IN (${cities})`;
+        }
+
+        // Use filtered platforms if provided, otherwise fetch all available
+        const platforms = platformArray.length > 0 ? platformArray : await getAvailablePlatforms(replacements);
+        console.log('[DiscountTrendService] Platforms:', platforms);
 
         const query = `
         SELECT
@@ -66,6 +96,10 @@ async function getDiscountByCategory(filters = {}) {
           AND p.Category IS NOT NULL
           AND p.Category != ''
           AND p.Platform IS NOT NULL
+          ${brandCondition}
+          ${categoryCondition}
+          ${platformCondition}
+          ${cityCondition}
         GROUP BY p.Category, p.Platform
         ORDER BY p.Category, p.Platform
         `;
@@ -127,13 +161,39 @@ async function getDiscountByBrand(filters = {}) {
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
-        const platformQuery = `
-            SELECT DISTINCT Platform FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND Category = '${category}' AND Platform IS NOT NULL
-            ORDER BY Platform
-        `;
-        const platformResults = await queryClickHouse(platformQuery);
-        const platforms = platformResults.map(r => r.Platform);
+        let platformCondition = '';
+        let platformArray = [];
+        if (filters.platform) {
+            platformArray = filters.platform.split(',').map(p => p.trim());
+            const platformsStr = platformArray.map(p => `'${p}'`).join(',');
+            platformCondition = `AND Platform IN (${platformsStr})`;
+        }
+
+        // Use filtered platforms if provided, otherwise fetch all for category
+        let platforms = [];
+        if (platformArray.length > 0) {
+            platforms = platformArray;
+        } else {
+            const platformQuery = `
+                SELECT DISTINCT Platform FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND Category = '${category}' AND Platform IS NOT NULL
+                ORDER BY Platform
+            `;
+            const platformResults = await queryClickHouse(platformQuery);
+            platforms = platformResults.map(r => r.Platform);
+        }
+
+        let brandCondition = '';
+        if (filters.brand) {
+            const brands = filters.brand.split(',').map(b => `'${b.trim()}'`).join(',');
+            brandCondition = `AND Brand IN (${brands})`;
+        }
+
+        let cityCondition = '';
+        if (filters.city) {
+            const cities = filters.city.split(',').map(c => `'${c.trim()}'`).join(',');
+            cityCondition = `AND Location IN (${cities})`;
+        }
 
         const query = `
         SELECT
@@ -142,7 +202,13 @@ async function getDiscountByBrand(filters = {}) {
             ROUND(AVG(toFloat64OrZero(Selling_Price)), 1) AS avgEcp,
             ROUND(AVG(toFloat64OrZero(Selling_Price)) / NULLIF(AVG(toFloat64OrZero(MRP)), 0), 2) AS avgRpi
         FROM rb_pdp_olap
-        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND Category = '${category}' AND Brand IS NOT NULL AND Platform IS NOT NULL
+        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' 
+          AND Category = '${category}' 
+          AND Brand IS NOT NULL 
+          AND Platform IS NOT NULL
+          ${platformCondition}
+          ${brandCondition}
+          ${cityCondition}
         GROUP BY Brand, Platform
         ORDER BY Brand, Platform
         `;

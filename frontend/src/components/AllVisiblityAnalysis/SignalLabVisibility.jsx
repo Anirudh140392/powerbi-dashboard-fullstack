@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useContext } from "react";
+import dayjs from "dayjs";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import { FilterContext } from "../../utils/FilterContext";
@@ -13,10 +14,47 @@ import {
     RefreshCw,
     AlertCircle
 } from "lucide-react";
+import { Skeleton } from "@mui/material";
 
 /* ------------------------------------------------------
-   Error Component
+   Skeleton Component
 -------------------------------------------------------*/
+function SignalCardSkeleton() {
+    return (
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-3 w-full h-[180px]">
+            <div>
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        <Skeleton variant="text" width={60} height={20} />
+                        <Skeleton variant="rounded" width={40} height={16} />
+                    </div>
+                    <Skeleton variant="rounded" width={50} height={16} />
+                </div>
+
+                <div className="mb-3">
+                    <Skeleton variant="text" width="90%" height={24} />
+                    <Skeleton variant="text" width="40%" height={16} />
+                </div>
+
+                <div className="flex justify-between items-end">
+                    <div>
+                        <Skeleton variant="text" width={50} height={14} />
+                        <Skeleton variant="text" width={80} height={32} />
+                    </div>
+                    <Skeleton variant="rounded" width={40} height={20} />
+                </div>
+            </div>
+
+            <div className="mt-auto pt-3 border-t flex flex-col gap-2">
+                <Skeleton variant="text" width={100} height={16} />
+                <div className="grid grid-cols-2 gap-2">
+                    <Skeleton variant="rounded" width="100%" height={40} />
+                    <Skeleton variant="rounded" width="100%" height={40} />
+                </div>
+            </div>
+        </div>
+    );
+}
 const ErrorWithRefresh = ({ onRetry, message }) => (
     <div className="flex flex-col items-center justify-center py-12 px-3 text-center">
         <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mb-4">
@@ -1015,7 +1053,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                             {config.label}
                         </div>
                         <div className="text-lg font-bold text-slate-900 leading-none">
-                            {mainValue}
+                            {mainValue}{config.key === 'discountValue' ? '%' : ''}
                         </div>
                     </div>
                     <ImpactPill value={sku.impact} />
@@ -1041,7 +1079,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                                 <span className="text-slate-500">{KPI_LABELS[key]}:</span>
                                 <span className="font-semibold text-slate-800 text-[11px]">
                                     {sku.kpis[key]?.toString().replace("%", "")}
-                                    {key.toLowerCase().includes("sos") || key.toLowerCase().includes("share") ? "%" : ""}
+                                    {key.toLowerCase().includes("sos") || key.toLowerCase().includes("share") || key.toLowerCase().includes("discount") ? "%" : ""}
                                 </span>
                             </div>
                         ) : null
@@ -1078,8 +1116,8 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
--------------------------------------------------------*/
-function SignalLabBase({ metricType, usePagination = true, data, isPricing = false }) {
+s-------------------------------------------------------*/
+function SignalLabBase({ metricType, usePagination = true, data, isPricing = false, loading: parentLoading = false }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
     const [rowsPerPage, setRowsPerPage] = useState(4);
@@ -1089,8 +1127,26 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
     // API data - initially empty to show loader
     const [skusData, setSkusData] = useState([]);
     const [isUsingApiData, setIsUsingApiData] = useState(false);
-    const [loading, setLoading] = useState(!data);
+    const [internalLoading, setInternalLoading] = useState(!data);
     const [apiError, setApiError] = useState(null);
+
+    // ========================================
+    // FILTER STATE & LOGIC
+    // ========================================
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+    const [tentativeFilters, setTentativeFilters] = useState({});
+    const [appliedFilters, setAppliedFilters] = useState({});
+    const [dynamicFilterData, setDynamicFilterData] = useState({
+        platforms: [],
+        formats: [],
+        cities: [],
+        months: [],
+        dates: [],
+        brands: [],
+        loading: true
+    });
+
+    const loading = parentLoading || internalLoading;
 
     // Initial load from props if available
     useEffect(() => {
@@ -1103,7 +1159,7 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                 setSkusData(data[signalType]);
                 setTotalCount(data[signalType].length);
             }
-            setLoading(false);
+            setInternalLoading(false);
         }
     }, [data, signalType]);
 
@@ -1129,6 +1185,52 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
         // The useEffect will trigger automatically due to filters/dates dependency
     };
 
+    // ========================================
+    // FILTER OPTIONS FETCHING
+    // ========================================
+    const fetchFilterType = async (filterType) => {
+        try {
+            const apiBase = '/availability-analysis/filter-options';
+            const res = await axiosInstance.get(`${apiBase}?filterType=${filterType}`);
+            return res.data?.options || [];
+        } catch (error) {
+            console.error(`Error fetching ${filterType}:`, error);
+            return [];
+        }
+    };
+
+    useEffect(() => {
+        const fetchAll = async () => {
+            const [p, f, c, m, b] = await Promise.all([
+                fetchFilterType('platforms'),
+                fetchFilterType('formats'),
+                fetchFilterType('cities'),
+                fetchFilterType('months'),
+                fetchFilterType('brands')
+            ]);
+            setDynamicFilterData({
+                platforms: p,
+                formats: f,
+                cities: c,
+                months: m,
+                brands: b,
+                loading: false
+            });
+        };
+        fetchAll();
+    }, []);
+
+    const filterOptions = useMemo(() => {
+        const toOptions = (arr) => (arr || []).map(item => ({ id: item, label: item }));
+        return [
+            { id: "date", label: "Month", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.months)] },
+            { id: "brand", label: "Brand", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.brands)] },
+            { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
+            { id: "format", label: "Category", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
+            { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
+        ];
+    }, [dynamicFilterData]);
+
     // Fetch data from API - use API data if successful, otherwise keep sample data
     useEffect(() => {
         if (data) return; // Skip fetch if data is provided
@@ -1139,11 +1241,11 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
 
         const fetchSignalLabData = async () => {
             try {
-                setLoading(true);
+                setInternalLoading(true);
                 setApiError(null);
 
                 // Build query parameters from FilterContext
-                const queryParams = new URLSearchParams({
+                const params = {
                     platform: platform || 'All',
                     brand: selectedBrand || 'All',
                     location: selectedLocation || 'All',
@@ -1155,9 +1257,46 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                     signalType: signalType,
                     page: 1, // Reset page for Top N view
                     limit: 50 // Fetch a larger sample to ensure representation of top 8
-                });
+                };
+
+                // Apply local filters (overrides)
+                if (appliedFilters?.platform?.length > 0 && !appliedFilters.platform.includes('all')) {
+                    params.platform = appliedFilters.platform.map(p => p.trim()).join(',');
+                }
+                if (appliedFilters?.brand?.length > 0 && !appliedFilters.brand.includes('all')) {
+                    params.brand = appliedFilters.brand.map(b => b.trim()).join(',');
+                }
+                if (appliedFilters?.format?.length > 0 && !appliedFilters.format.includes('all')) {
+                    // Send as both category and format to ensure backend picks it up
+                    const cleanFormats = appliedFilters.format.map(f => f.trim()).join(',');
+                    params.category = cleanFormats;
+                    params.format = cleanFormats;
+                }
+                if (appliedFilters?.city?.length > 0 && !appliedFilters.city.includes('all')) {
+                    params.location = appliedFilters.city.map(c => c.trim()).join(','); // Override location
+                }
+                if (appliedFilters?.date?.length > 0 && !appliedFilters.date.includes('all')) {
+                    let minDate = null;
+                    let maxDate = null;
+                    appliedFilters.date.forEach(mStr => {
+                        const d = dayjs(new Date(mStr));
+                        if (d.isValid()) {
+                            const start = d.startOf('month');
+                            const end = d.endOf('month');
+                            if (!minDate || start.isBefore(minDate)) minDate = start;
+                            if (!maxDate || end.isAfter(maxDate)) maxDate = end;
+                        }
+                    });
+                    if (minDate && maxDate) {
+                        params.startDate = minDate.format('YYYY-MM-DD');
+                        params.endDate = maxDate.format('YYYY-MM-DD');
+                    }
+                }
+
+                const queryParams = new URLSearchParams(params);
 
                 console.log(`[SignalLabVisibility] Fetching Top ${signalType}s for ${metricType} (Limit 50)`);
+                console.log('[SignalLabVisibility] Request Params:', params);
 
                 const response = await axiosInstance.get(
                     `/availability-analysis/signal-lab?${queryParams}`,
@@ -1218,7 +1357,7 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                 }
             } finally {
                 if (isMounted) {
-                    setLoading(false);
+                    setInternalLoading(false);
                 }
             }
         };
@@ -1229,7 +1368,7 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
             isMounted = false;
             controller.abort();
         };
-    }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd, page, rowsPerPage, signalType]);
+    }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd, page, rowsPerPage, signalType, appliedFilters]);
 
     // Implement client-side pagination for the Top 8 items
     const filtered = skusData;
@@ -1250,7 +1389,14 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                     </span>
                 </h2>
 
-                <div className="relative">
+                <div className="relative flex items-center gap-2">
+                    <button
+                        onClick={() => setShowFilterPanel(true)}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+                    >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <span>Filters</span>
+                    </button>
                     <SegmentedSwitch
                         value={signalType}
                         onChange={setSignalType}
@@ -1272,12 +1418,13 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                 </div>
             </div>
 
-            {/* Loading State (Overlay style if data exists, otherwise full spinner) */}
-            {loading && skusData.length === 0 && (
-                <div className="mt-5 flex items-center justify-center py-12">
-                    <div className="text-center">
-                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sky-600 border-r-transparent"></div>
-                        <p className="mt-3 text-sm text-slate-600">Loading signal lab data...</p>
+            {/* Loading State (Skeleton Grid) */}
+            {loading && (
+                <div className="mt-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                            <SignalCardSkeleton key={i} />
+                        ))}
                     </div>
                 </div>
             )}
@@ -1369,12 +1516,56 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                     isPricing={isPricing}
                 />
             )}
+
+            {showFilterPanel && (
+                <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-900/40 p-4 pt-36 transition-all backdrop-blur-sm">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-slate-900">Component Filters</h2>
+                                <p className="text-sm text-slate-500">Local refinements for this segment</p>
+                            </div>
+                            <button onClick={() => setShowFilterPanel(false)} className="rounded-full p-2 hover:bg-slate-100 transition">
+                                <X className="h-5 w-5 text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-6 bg-slate-50/30 overflow-y-auto max-h-[60vh]">
+                            <KpiFilterPanel
+                                sectionConfig={filterOptions}
+                                keywords={[]}
+                                sectionValues={tentativeFilters}
+                                onSectionChange={(id, val) => setTentativeFilters(prev => ({ ...prev, [id]: val }))}
+                            />
+                        </div>
+                        <div className="flex justify-between border-t border-slate-100 bg-white px-6 py-4">
+                            <button
+                                onClick={() => setTentativeFilters({})}
+                                className="px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-lg"
+                            >
+                                Reset
+                            </button>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowFilterPanel(false)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
+                                <button
+                                    onClick={() => {
+                                        setAppliedFilters(tentativeFilters);
+                                        setShowFilterPanel(false);
+                                    }}
+                                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-md"
+                                >
+                                    Apply
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
 
 
-export function SignalLabVisibility({ type, usePagination = true, data, isPricing = false }) {
-    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} data={data} isPricing={isPricing} />;
+export function SignalLabVisibility({ type, usePagination = true, data, isPricing = false, loading = false }) {
+    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} data={data} isPricing={isPricing} loading={loading} />;
 }
 

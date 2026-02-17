@@ -3,6 +3,7 @@ import ecpByBrandService from '../services/ecpByBrandService.js';
 import discountTrendService from '../services/discountTrendService.js';
 import brandPriceOverviewService from '../services/brandPriceOverviewService.js';
 import brandDiscountTrendService from '../services/brandDiscountTrendService.js';
+import pricingTrendService from '../services/pricingTrendService.js';
 import ecpByCityService from '../services/ecpByCityService.js';
 
 
@@ -265,6 +266,36 @@ export const getBrandDiscountTrend = async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('[PricingAnalysisController] Error in getBrandDiscountTrend:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Get Overall Pricing Trends (ECP, RPI, Discount)
+ * Endpoint: GET /api/pricing-analysis/trends
+ * Query params: startDate, endDate, platform, location, brand
+ */
+export const getPricingTrends = async (req, res) => {
+    try {
+        const filters = {
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand
+        };
+
+        console.log("[PricingAnalysisController] getPricingTrends called with filters:", filters);
+
+        const result = await pricingTrendService.getPricingTrends(filters);
+
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getPricingTrends:', error);
         res.status(500).json({
             success: false,
             error: 'Internal Server Error',

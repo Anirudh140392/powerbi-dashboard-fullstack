@@ -355,7 +355,7 @@ const SnapshotOverview = ({
                             : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
                     )}>
                         {loading ? (
-                            [1, 2, 3, 4].map((i) => (
+                            Array.from({ length: kpis.length || 4 }).map((_, i) => (
                                 <ComparisonCard key={i} loading={true} />
                             ))
                         ) : (

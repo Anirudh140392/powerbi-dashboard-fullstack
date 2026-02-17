@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import dayjs from 'dayjs'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, X, SlidersHorizontal, Search } from 'lucide-react'
 import { CircularProgress } from '@mui/material'
@@ -24,6 +25,24 @@ const DiscountEcpPricing = ({
     const [platforms, setPlatforms] = useState(['Blinkit', 'Instamart', 'Zepto']) // Default, updated from API
 
     // ========================================
+    // FILTER STATE & LOGIC
+    // ========================================
+    const [showFilterPanel, setShowFilterPanel] = useState(false);
+
+    // Local filters (separate from global props for internal fine-tuning if needed)
+    const [tentativeFilters, setTentativeFilters] = useState({});
+    const [appliedFilters, setAppliedFilters] = useState({});
+    const [dynamicFilterData, setDynamicFilterData] = useState({
+        platforms: [],
+        formats: [],
+        cities: [],
+        months: [],
+        dates: [],
+        brands: [],
+        loading: true
+    });
+
+    // ========================================
     // DATA FETCHING
     // ========================================
 
@@ -43,7 +62,40 @@ const DiscountEcpPricing = ({
             if (selectedLocation && selectedLocation !== 'All') params.city = selectedLocation;
             if (filters?.format && filters.format !== 'All') params.format = filters.format;
 
+            // Apply local filters (overrides)
+            if (appliedFilters?.platform?.length > 0 && !appliedFilters.platform.includes('all')) {
+                params.platform = appliedFilters.platform.map(p => p.trim()).join(',');
+            }
+            if (appliedFilters?.brand?.length > 0 && !appliedFilters.brand.includes('all')) {
+                params.brand = appliedFilters.brand.map(b => b.trim()).join(',');
+            }
+            if (appliedFilters?.format?.length > 0 && !appliedFilters.format.includes('all')) {
+                params.format = appliedFilters.format.map(f => f.trim()).join(',');
+            }
+            if (appliedFilters?.city?.length > 0 && !appliedFilters.city.includes('all')) {
+                params.city = appliedFilters.city.map(c => c.trim()).join(',');
+            }
+            if (appliedFilters?.date?.length > 0 && !appliedFilters.date.includes('all')) {
+                let minDate = null;
+                let maxDate = null;
+                appliedFilters.date.forEach(mStr => {
+                    const d = dayjs(new Date(mStr));
+                    if (d.isValid()) {
+                        const start = d.startOf('month');
+                        const end = d.endOf('month');
+                        if (!minDate || start.isBefore(minDate)) minDate = start;
+                        if (!maxDate || end.isAfter(maxDate)) maxDate = end;
+                    }
+                });
+                if (minDate && maxDate) {
+                    params.startDate = minDate.format('YYYY-MM-DD');
+                    params.endDate = maxDate.format('YYYY-MM-DD');
+                }
+            }
+
             console.log("[DiscountEcpPricing] Fetching categories with params:", params);
+            console.log("[DiscountEcpPricing] appliedFilters:", appliedFilters);
+
             const res = await axiosInstance.get('/pricing-analysis/discount-by-category', { params })
             if (res.data?.success) {
                 setApiData(res.data.data || [])
@@ -77,6 +129,37 @@ const DiscountEcpPricing = ({
             if (selectedLocation && selectedLocation !== 'All') params.city = selectedLocation;
             if (filters?.format && filters.format !== 'All') params.format = filters.format;
 
+            // Apply local filters (overrides)
+            if (appliedFilters?.platform?.length > 0 && !appliedFilters.platform.includes('all')) {
+                params.platform = appliedFilters.platform.join(',');
+            }
+            if (appliedFilters?.brand?.length > 0 && !appliedFilters.brand.includes('all')) {
+                params.brand = appliedFilters.brand.join(',');
+            }
+            if (appliedFilters?.format?.length > 0 && !appliedFilters.format.includes('all')) {
+                params.format = appliedFilters.format.join(',');
+            }
+            if (appliedFilters?.city?.length > 0 && !appliedFilters.city.includes('all')) {
+                params.city = appliedFilters.city.join(',');
+            }
+            if (appliedFilters?.date?.length > 0 && !appliedFilters.date.includes('all')) {
+                let minDate = null;
+                let maxDate = null;
+                appliedFilters.date.forEach(mStr => {
+                    const d = dayjs(new Date(mStr));
+                    if (d.isValid()) {
+                        const start = d.startOf('month');
+                        const end = d.endOf('month');
+                        if (!minDate || start.isBefore(minDate)) minDate = start;
+                        if (!maxDate || end.isAfter(maxDate)) maxDate = end;
+                    }
+                });
+                if (minDate && maxDate) {
+                    params.startDate = minDate.format('YYYY-MM-DD');
+                    params.endDate = maxDate.format('YYYY-MM-DD');
+                }
+            }
+
             const res = await axiosInstance.get('/pricing-analysis/discount-by-brand', { params })
             if (res.data?.success) {
                 setBrandDataMap(prev => ({ ...prev, [category]: res.data.data || [] }))
@@ -94,25 +177,9 @@ const DiscountEcpPricing = ({
         // Reset brand data when filters or metric changes significantly
         setBrandDataMap({})
         setExpandedRows([])
-    }, [metricType, timeStart, timeEnd, globalPlatform, selectedBrand, selectedLocation, filters?.format])
+    }, [metricType, timeStart, timeEnd, globalPlatform, selectedBrand, selectedLocation, filters?.format, appliedFilters])
 
-    // ========================================
-    // FILTER STATE & LOGIC
-    // ========================================
-    const [showFilterPanel, setShowFilterPanel] = useState(false);
 
-    // Local filters (separate from global props for internal fine-tuning if needed)
-    const [tentativeFilters, setTentativeFilters] = useState({});
-    const [appliedFilters, setAppliedFilters] = useState({});
-    const [dynamicFilterData, setDynamicFilterData] = useState({
-        platforms: [],
-        formats: [],
-        cities: [],
-        months: [],
-        dates: [],
-        brands: [],
-        loading: true
-    });
 
     const fetchFilterType = async (filterType) => {
         try {
@@ -149,6 +216,7 @@ const DiscountEcpPricing = ({
     const filterOptions = useMemo(() => {
         const toOptions = (arr) => (arr || []).map(item => ({ id: item, label: item }));
         return [
+            { id: "date", label: "Month", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.months)] }, // Changed id to 'date' to match filter popup defaults if needed, but 'month' is better. Let's use 'month' to match dynamicFilterData
             { id: "brand", label: "Brand", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.brands)] },
             { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
             { id: "format", label: "Category", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
@@ -286,8 +354,8 @@ const DiscountEcpPricing = ({
             </div>
 
             {showFilterPanel && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 transition-all backdrop-blur-sm">
-                    <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 z-[100] flex items-start justify-center bg-slate-900/40 p-4 pt-36 transition-all backdrop-blur-sm">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
                                 <h2 className="text-lg font-semibold text-slate-900">Component Filters</h2>
@@ -339,7 +407,7 @@ const DiscountEcpPricing = ({
                     <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200">
                             <th className="text-left px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-[350px]">Category / Brand</th>
-                            <th className="text-center px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-20">ML</th>
+                            <th className="text-center px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider w-20">Grammage</th>
                             {platforms.map(p => (
                                 <th key={p} className="text-center px-4 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider">{p}</th>
                             ))}
@@ -415,7 +483,7 @@ const DiscountEcpPricing = ({
                                                                                         </div>
                                                                                     </td>
                                                                                     <td className="px-4 py-2.5 text-center">
-                                                                                        <span className="text-[9px] font-bold text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded tracking-tighter uppercase whitespace-nowrap">ClickHouse</span>
+
                                                                                     </td>
                                                                                     {platforms.map(p => (
                                                                                         <MetricCell key={p} item={brand} platform={p} />
@@ -442,10 +510,9 @@ const DiscountEcpPricing = ({
 
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1.5">
+                    {/* <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Live API Sync</span>
-                    </div>
+                    </div> */}
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-medium text-slate-400 italic">Showing {filteredData.length} unique categories across {platforms.length} platforms</span>
