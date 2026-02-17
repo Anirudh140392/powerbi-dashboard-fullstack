@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion'
-import { useMemo } from 'react'
 import {
     ArrowUpRight,
     ArrowDownRight,
@@ -19,7 +18,7 @@ import {
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
 import { Skeleton, Box, Card, Typography } from '@mui/material'
-import React, { useRef, useState, useEffect, useMemo as useReactMemo } from 'react'
+import React, { useRef, useState, useEffect, useMemo } from 'react'
 
 // ---------- Helpers ----------
 
@@ -67,7 +66,7 @@ function Sparkline({ values, width = 240, height = 80, color = "#6366f1" }) {
     const w = width;
     const h = height;
 
-    const pts = useReactMemo(() => {
+    const pts = useMemo(() => {
         const n = values.length;
         if (!n) return [];
         return values.map((v, i) => {
@@ -77,14 +76,14 @@ function Sparkline({ values, width = 240, height = 80, color = "#6366f1" }) {
         });
     }, [values, w, h]);
 
-    const d = useReactMemo(() => {
+    const d = useMemo(() => {
         if (pts.length < 2) return "";
         return pts
             .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
             .join(" ");
     }, [pts]);
 
-    const areaD = useReactMemo(() => {
+    const areaD = useMemo(() => {
         if (pts.length < 2) return "";
         const first = pts[0];
         const last = pts[pts.length - 1];
@@ -194,12 +193,12 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
     // Trend Logic
     const trendSeries = kpi.trendSeries || [];
-    const sliceSeries = useReactMemo(() => {
+    const sliceSeries = useMemo(() => {
         const n = trendSeries.length;
         return trendSeries.slice(Math.max(0, n - period));
     }, [trendSeries, period]);
 
-    const deltaVal = useReactMemo(() => {
+    const deltaVal = useMemo(() => {
         if (sliceSeries.length < 6) return 0;
         const last = sliceSeries[sliceSeries.length - 1];
         const prev = (sliceSeries[0] + sliceSeries[1] + sliceSeries[2]) / 3;
@@ -362,12 +361,12 @@ const ComparisonCard = ({ kpi, loading = false }) => {
 
     // Trend Logic
     const trendSeries = kpi.trendSeries || [];
-    const sliceSeries = useReactMemo(() => {
+    const sliceSeries = useMemo(() => {
         const n = trendSeries.length;
         return trendSeries.slice(Math.max(0, n - period));
     }, [trendSeries, period]);
 
-    const deltaVal = useReactMemo(() => {
+    const deltaVal = useMemo(() => {
         if (sliceSeries.length < 6) return 0;
         const last = sliceSeries[sliceSeries.length - 1];
         const prev = (sliceSeries[0] + sliceSeries[1] + sliceSeries[2]) / 3;
@@ -655,9 +654,7 @@ const SnapshotOverview = ({
             }
         }
 
-        // Ensure strictly 5 items if possible, or leave as is.
-        // The user wants: Offtake, Availability, Promo, Share of Search, Market Share.
-        // Use sort if needed, but the inflow usually comes in order.
+        // Ensuring strictly 5 items if possible.
 
         // --- Bottom Row Logic ---
 
@@ -817,38 +814,51 @@ const SnapshotOverview = ({
     // Default: Detailed View (Visibility/Availability style)
     return (
         <div style={{ marginBottom: '1.5rem', fontFamily: 'Roboto, sans-serif' }}>
-            {/* Simple Header for Detailed View if desired, or assume container handles it. 
-                 But based on image, it has a title "Visibility Overview". 
-             */}
-            <div className="flex items-center mb-4 gap-3">
-                {Icon && (
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
-                        <Icon size={18} className="text-white" />
+            <motion.div
+                className={cn("bg-white rounded-[2rem] shadow-sm border border-slate-100/60 overflow-hidden", className)}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+            >
+                <div className="px-8 py-5 flex items-center justify-between border-b border-slate-50">
+                    <div className="flex items-center gap-5">
+                        {Icon && (
+                            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm shrink-0">
+                                <Icon size={24} className="text-slate-600" />
+                            </div>
+                        )}
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                            {chip && (
+                                <span className="inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase tracking-wider">
+                                    {chip}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                )}
-                <div className="flex items-baseline gap-3">
-                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">{title}</h2>
-                    {chip && <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] uppercase font-bold tracking-wider border border-slate-200">{chip}</span>}
+                    {headerRight}
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                {loading ? (
-                    [1, 2, 3, 4].map(i => <DetailedSparklineCard key={i} loading={true} />)
-                ) : (
-                    detailedKpis.map((kpi, idx) => (
-                        <motion.div
-                            key={kpi.id || idx}
-                            initial={{ opacity: 0, y: 15 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.05 }}
-                            className="h-full"
-                        >
-                            <DetailedSparklineCard kpi={kpi} />
-                        </motion.div>
-                    ))
-                )}
-            </div>
+                <div className="p-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {loading ? (
+                            [1, 2, 3, 4].map((i) => <DetailedSparklineCard key={i} loading={true} />)
+                        ) : (
+                            detailedKpis.map((kpi, idx) => (
+                                <motion.div
+                                    key={kpi.id || idx}
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: idx * 0.05 }}
+                                    className="h-full"
+                                >
+                                    <DetailedSparklineCard kpi={kpi} />
+                                </motion.div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </motion.div>
         </div>
     )
 }

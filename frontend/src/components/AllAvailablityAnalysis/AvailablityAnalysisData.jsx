@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext } from "react";
+import React, { useMemo, useState, useContext, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
@@ -103,7 +103,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false }) => {
   const [activeTab, setActiveTab] = useState("platform");
   const {
     selectedChannel,
@@ -200,7 +200,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute" }) => {
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} />
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} loading={loading} />
     </div>
   );
 };
@@ -1166,6 +1166,7 @@ const getAvailabilityKpis = (type, context = {}) => {
 export const AvailablityAnalysisData = () => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     selectedBrand,
@@ -1174,7 +1175,17 @@ export const AvailablityAnalysisData = () => {
     platform: globalPlatform,
     selectedLocation,
     selectedChannel,
+    selectedCategory
   } = useContext(FilterContext);
+
+  // Simulated loading delay on filter change
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedChannel, selectedCategory, timeStart, timeEnd, availability]);
 
   // User request: restrict Availability Overview cards to ONLY change on Platform
   const platformContext = { platform: globalPlatform };
@@ -1226,6 +1237,7 @@ export const AvailablityAnalysisData = () => {
           title="Availability Overview"
           icon={LayoutGrid}
           chip={availability === "absolute" ? "Absolute Basis" : "Weighted Basis"}
+          loading={isLoading}
           headerRight={
             <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
               vs Previous Period
@@ -1239,8 +1251,8 @@ export const AvailablityAnalysisData = () => {
           <SignalLabVisibility type="availability" />
         </div>
 
-        <TabbedHeatmapTable olaMode={availability} />
-        <OsaHeatmapTable olaMode={availability} />
+        <TabbedHeatmapTable olaMode={availability} loading={isLoading} />
+        <OsaHeatmapTable olaMode={availability} loading={isLoading} />
 
       </div>
     </div>
