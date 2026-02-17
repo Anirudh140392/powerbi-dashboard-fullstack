@@ -38,32 +38,39 @@ export default function CityDetailedTable({ sku, onClose }) {
             "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra",
             "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan-Dombivli", "Vasai-Virar", "Varanasi"
         ];
-        return cities.map((city, idx) => ({
-            id: idx,
-            city,
-            estOfftake: `₹ ${(Math.random() * 5 + 0.5).toFixed(1)} K`,
-            offtakeChange: Math.random() > 0.5 ? `+${(Math.random() * 10).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%`,
-            catShare: `${(Math.random() * 5).toFixed(1)}%`,
-            shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
-            wtOsa: `${(70 + Math.random() * 30).toFixed(1)}%`,
-            osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
-            overallSos: `${(Math.random() * 5).toFixed(1)}%`,
-            adSos: `${(Math.random() * 15).toFixed(1)}%`,
-            wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
-            discChange: `+${(Math.random() * 2).toFixed(1)}%`,
-        }));
+        return cities.map((city, idx) => {
+            const wtOsaVal = 70 + Math.random() * 30;
+            // Ensure listing percent is logically less than OSA %
+            const listingPctVal = wtOsaVal - (Math.random() * 10 + 5);
+
+            return {
+                id: idx,
+                city,
+                estOfftake: `₹ ${(Math.random() * 5 + 0.5).toFixed(1)} K`,
+                offtakeChange: Math.random() > 0.5 ? `+${(Math.random() * 10).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%`,
+                catShare: `${(Math.random() * 5).toFixed(1)}%`,
+                shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
+                wtOsa: `${wtOsaVal.toFixed(1)}%`,
+                osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
+                listingPct: `${listingPctVal.toFixed(1)}%`,
+                overallSos: `${(Math.random() * 5).toFixed(1)}%`,
+                adSos: `${(Math.random() * 15).toFixed(1)}%`,
+                wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
+                discChange: `+${(Math.random() * 2).toFixed(1)}%`,
+            };
+        });
     }, [sku]);
 
     const totalPages = Math.ceil(allCities.length / rowsPerPage);
     const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-slate-900/5 items-start">
                 {/* Header */}
                 <div className="w-full flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shadow-sm z-10 shrink-0">
                     <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 flex items-center justify-center text-2xl shadow-sm">
+                        <div className="h-12 w-12 rounded-xl  from-orange-50 to-amber-50 border border-orange-100 flex items-center justify-center text-2xl shadow-sm">
                             {displaySkuName.toLowerCase().includes("cone") ? "🍦" :
                                 displaySkuName.toLowerCase().includes("cup") ? "🍨" : "🧊"}
                         </div>
@@ -98,63 +105,79 @@ export default function CityDetailedTable({ sku, onClose }) {
                 {/* Content */}
                 <div className="w-full flex-1 overflow-auto bg-slate-50/50 p-6">
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-center border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider sticky top-0 z-10 shadow-sm">
-                                    <th className="px-4 py-3 font-semibold bg-slate-50">City</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Offtakes</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Cat Share</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. OSA %</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Overall Sos</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Ad Sos</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. Disc %</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">City</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Listing %</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Offtake</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Cat Share</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. OSA %</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. Disc %</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
                                 {displayedData.map((row) => (
                                     <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
-                                        <td className="px-4 py-3 font-medium text-slate-900">{row.city}</td>
+                                        <td className="px-4 py-3 font-bold text-slate-900 text-center">
+                                            <div className="flex justify-center w-full">{row.city}</div>
+                                        </td>
+
+                                        {/* Listing % */}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full">{row.listingPct}</div>
+                                        </td>
 
                                         {/* Est Offtake */}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="font-semibold text-slate-700">{row.estOfftake}</div>
-                                            <div className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {row.offtakeChange}
+                                        <td className="px-4 py-3text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className="font-semibold text-slate-700">{row.estOfftake}</span>
+                                                <span className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.offtakeChange}
+                                                </span>
                                             </div>
                                         </td>
 
                                         {/* Cat Share */}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="font-semibold">{row.catShare}</div>
-                                            <div className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {row.shareChange}
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className="font-semibold text-slate-700">{row.catShare}</span>
+                                                <span className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.shareChange}
+                                                </span>
                                             </div>
                                         </td>
 
                                         {/* OSA - Heatmap */}
-                                        <td className="px-4 py-3 text-right">
-                                            <span className={`inline-block px-2 py-0.5 rounded ${getHeatmapClass(row.wtOsa)}`}>
-                                                {row.wtOsa}
-                                            </span>
-                                            <div className={`text-[10px] mt-0.5 ${row.osaChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {row.osaChange}
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className={`inline-block px-2 py-0.5 rounded ${getHeatmapClass(row.wtOsa)}`}>
+                                                    {row.wtOsa}
+                                                </span>
+                                                <span className={`text-[10px] ${row.osaChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.osaChange}
+                                                </span>
                                             </div>
                                         </td>
 
                                         {/* Overall Sos */}
-                                        <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.overallSos}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full">{row.overallSos}</div>
                                         </td>
 
                                         {/* Ad Sos */}
-                                        <td className="px-4 py-3 text-right font-medium text-slate-600">
-                                            {row.adSos}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full">{row.adSos}</div>
                                         </td>
 
                                         {/* Disc % */}
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="font-semibold text-slate-700">{row.wtDisc}</div>
-                                            <div className="text-[10px] text-emerald-600">{row.discChange}</div>
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className="font-semibold text-slate-700">{row.wtDisc}</span>
+                                                <span className="text-[10px] text-emerald-600 font-medium">{row.discChange}</span>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
