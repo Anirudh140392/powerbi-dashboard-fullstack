@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-// import eyLogo from "../../assets/ey.png";
+import eyLogo from "../../assets/sidebar_logo.png";
 const trailyticsLogo = "/Trailytics.jpg";
 import {
   Box,
