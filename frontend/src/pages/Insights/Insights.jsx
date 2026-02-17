@@ -529,21 +529,21 @@ const sampleInsights = [
             {
                 category: "Ice Cream",
                 city: "Delhi NCR",
-                skuOrBrand: "Other brand",
+                skuOrBrand: "Amul",
                 otherBrandOsa: 66,
                 kwOsa: 93,
             },
             {
                 category: "Ice Cream",
                 city: "Pune",
-                skuOrBrand: "Other brand",
+                skuOrBrand: "Mother Dairy",
                 otherBrandOsa: 49,
                 kwOsa: 92,
             },
             {
                 category: "Ice Cream",
                 city: "Kolkata",
-                skuOrBrand: "Other brand",
+                skuOrBrand: "Havmor",
                 otherBrandOsa: 57,
                 kwOsa: 91,
             },
@@ -982,11 +982,6 @@ export default function KwalityWallsSignalHub() {
                                             className="rounded-xl font-bold px-6 border-slate-200"
                                         >
                                             Dismiss
-                                        </Button>
-                                        <Button
-                                            className="rounded-xl font-bold px-8 bg-slate-900"
-                                        >
-                                            Take Action
                                         </Button>
                                     </div>
                                 </div>

@@ -710,6 +710,11 @@ const RAW_DATA = {
     { id: "havmor-block", name: "Havmor Choco Block", brandId: "havmor", category: "Block" },
     { id: "br-scoop", name: "BR Gold Medal Ribbon", brandId: "baskin-robbins", category: "Scoop" },
     { id: "london-tub", name: "London Dairy Tiramisu", brandId: "london-dairy", category: "Tub" },
+    // Added Kwality Walls SKUs shown in the competition modal
+    { id: "kw-cornetto-disc-110ml", name: "KW Cornetto Disc 110ml", brandId: "kwality-walls", category: "Cone" },
+    { id: "kw-magnum-almond-90ml", name: "KW Magnum Almond 90ml", brandId: "kwality-walls", category: "Stick" },
+    { id: "kw-feast-jaljeera-65ml", name: "KW Feast Jaljeera 65ml", brandId: "kwality-walls", category: "Stick" },
+    { id: "kw-cup-vanilla-100ml", name: "KW Cup Vanilla 100ml", brandId: "kwality-walls", category: "Cup" },
   ],
 };
 
@@ -822,6 +827,9 @@ const buildDataModel = () => {
     offtakes: (base * 0.5 + idxFactor * 0.2 + (cityIdx % 3) * 0.5), // Cr
     spend: (base * 0.1 + idxFactor * 0.05 + cityIdx * 0.1), // L
     roas: 5 + (idxFactor % 3) * 0.5 + (cityIdx % 2) * 0.3, // Category Size
+    ppu: 45 + (idxFactor % 5) * 2 + (cityIdx % 3), // PPU
+    wtDisc: 12 + (idxFactor % 4) * 1.5 + (cityIdx % 2), // Wt Disc %
+    dsListing: 88 + (idxFactor % 3) * 2 + (cityIdx % 4), // Ds Listing %
     inorgSales: base * 0.9 + idxFactor * 0.2 + cityIdx * 1.2,
     dspSales: base * 0.7 + idxFactor * 0.15 + cityIdx * 0.8,
     conversion: 15 + (idxFactor % 4) * 0.8 + cityIdx * 0.5,
@@ -836,6 +844,9 @@ const buildDataModel = () => {
     cpc: 9 + idxFactor * 0.4 + cityIdx * 0.5,
     // Deltas
     offtakesDelta: (Math.sin(base * 1.5) * 10),
+    ppuDelta: (Math.cos(base * 1.2) * 4),
+    wtDiscDelta: (Math.sin(base * 1.4) * 2),
+    dsListingDelta: (Math.cos(base * 1.6) * 3),
     osaDelta: (Math.cos(base * 1.8) * 5),
     sosDelta: (Math.sin(base * 2.2) * 3),
     priceDelta: (Math.cos(base * 2.5) * 15),
@@ -1273,6 +1284,7 @@ const CHART_COLORS = [
 const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
   const [activeMetric, setActiveMetric] = useState("osa");
   const isBrandMode = mode === "brand";
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
   const allPossibleIds = useMemo(() => {
     if (isBrandMode) {
@@ -1347,40 +1359,107 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
             Select {isBrandMode ? "Brands" : "SKUs"} to Plot ({city})
           </div>
           <Box display="flex" gap={1} flexWrap="wrap">
-            {allPossibleIds.map((id, idx) => {
-              const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
-              const active = visibleIds.includes(id);
-              const color = CHART_COLORS[idx % CHART_COLORS.length];
+            {(() => {
+              const maxInline = 5;
+              const inlineIds = allPossibleIds.slice(0, maxInline);
+              const overflowIds = allPossibleIds.slice(maxInline);
+
               return (
-                <Box
-                  key={id}
-                  onClick={() => setVisibleIds(prev =>
-                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                <>
+                  {inlineIds.map((id, idx) => {
+                    const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
+                    const active = visibleIds.includes(id);
+                    const color = CHART_COLORS[idx % CHART_COLORS.length];
+                    return (
+                      <Box
+                        key={id}
+                        onClick={() => setVisibleIds(prev =>
+                          prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                        )}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          border: "1px solid",
+                          borderColor: active ? color : "#E2E8F0",
+                          backgroundColor: active ? `${color}10` : "transparent",
+                          color: active ? color : "#64748B",
+                          transition: "all 0.2s",
+                          maxWidth: "200px"
+                        }}
+                      >
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+                        {active && <span style={{ fontSize: "10px" }}>✓</span>}
+                      </Box>
+                    )
+                  })}
+
+                  {overflowIds.length > 0 && (
+                    <>
+                      <Box
+                        onClick={() => setOverflowOpen(true)}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          border: "1px dashed #E2E8F0",
+                          backgroundColor: "#F8FAFC",
+                          color: "#475569",
+                        }}
+                      >
+                        +{overflowIds.length} more
+                      </Box>
+
+                      <Dialog open={overflowOpen} onOpenChange={(v) => !v && setOverflowOpen(false)}>
+                        <DialogContent className="max-w-md p-4">
+                          <DialogHeader className="mb-2">
+                            <DialogTitle>Select more {isBrandMode ? 'Brands' : 'SKUs'}</DialogTitle>
+                          </DialogHeader>
+                          <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                            {overflowIds.map((id, idx) => {
+                              const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
+                              const active = visibleIds.includes(id);
+                              const color = CHART_COLORS[(idx + maxInline) % CHART_COLORS.length];
+                              return (
+                                <div
+                                  key={id}
+                                  onClick={() => {
+                                    setVisibleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+                                  }}
+                                  className="p-2 rounded-md mb-2 cursor-pointer"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6EEF8', background: active ? `${color}10` : 'white' }}
+                                >
+                                  <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                                  <div style={{ flex: 1 }}>{name}</div>
+                                  {active && <div style={{ fontSize: 12 }}>✓</div>}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          <DialogFooter className="mt-4">
+                            <Button variant="outline" onClick={() => setOverflowOpen(false)}>Close</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
                   )}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    px: 1.5,
-                    py: 0.5,
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    border: "1px solid",
-                    borderColor: active ? color : "#E2E8F0",
-                    backgroundColor: active ? `${color}10` : "transparent",
-                    color: active ? color : "#64748B",
-                    transition: "all 0.2s",
-                    maxWidth: "200px"
-                  }}
-                >
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
-                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
-                  {active && <span style={{ fontSize: "10px" }}>✓</span>}
-                </Box>
+                </>
               )
-            })}
+            })()}
           </Box>
         </div>
       </CardHeader>
@@ -1646,12 +1725,15 @@ const BrandTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[18%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[14%]">Offtake</th>
-                <th className="px-3 py-2 text-right w-[14%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[14%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[14%]">Price</th>
-                <th className="px-3 py-2 text-right w-[14%]">Market Share</th>
+                <th className="px-3 py-2 text-center w-[15%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[10%]">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[10%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[10%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[10%]">Price</th>
+                <th className="px-3 py-2 text-center w-[10%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[10%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[12%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[15%]">Ds Listing</th>
               </tr>
             </thead>
 
@@ -1699,11 +1781,35 @@ const BrandTable = ({ rows }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
+                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
                     <div className="flex items-center justify-end gap-2">
                       <span>{row.marketShare.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.marketShareDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>₹{row.ppu.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>{row.wtDisc.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>{row.dsListing.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -1713,7 +1819,7 @@ const BrandTable = ({ rows }) => {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={9}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1762,13 +1868,16 @@ const SkuTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[16%]">SKU</th>
-                <th className="px-3 py-2 text-left w-[14%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[12%]">Offtake</th>
-                <th className="px-3 py-2 text-right w-[12%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[12%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[12%]">Price</th>
-                <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[12%]">SKU</th>
+                <th className="px-3 py-2 text-center w-[10%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[9%]">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[9%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[9%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[9%]">Price</th>
+                <th className="px-3 py-2 text-center w-[9%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[11%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[11%]">Ds Listing</th>
               </tr>
             </thead>
 
@@ -1819,11 +1928,35 @@ const SkuTable = ({ rows }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
+                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
                     <div className="flex items-center justify-end gap-2">
                       <span>{row.marketShare.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.marketShareDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>₹{row.ppu.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>{row.wtDisc.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>{row.dsListing.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -1833,7 +1966,7 @@ const SkuTable = ({ rows }) => {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={10}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters

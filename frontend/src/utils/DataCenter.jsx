@@ -1347,7 +1347,7 @@ export const defaultPlatforms = [
     key: "flipkart",
     label: "Flipkart",
     type: "Marketplace",
-    logo: "https://logos-world.net/wp-content/uploads/2020/11/Flipkart-Logo.png",
+    logo: "https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flipkart_logo.svg/1024px-Flipkart_logo.svg.png",
     columns: [
       {
         title: "Offtakes",

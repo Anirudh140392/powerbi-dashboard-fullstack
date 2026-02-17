@@ -98,8 +98,8 @@ export default function GeoIntelligenceMap() {
                     }
                 ]
             },
-            bounds: INDIA_BOUNDS,
-            fitBoundsOptions: { padding: 40 },
+            center: [79.5, 22.0],
+            zoom: 4.6,
             attributionControl: false,
         });
 
@@ -311,17 +311,17 @@ export default function GeoIntelligenceMap() {
                         </div>
                     </div>
 
-                {/* Map Area */}
-                <div style={{ 
-                    position: "relative", 
-                    height: "calc(100vh - 180px)", 
-                    width: "100%", 
-                    overflow: "hidden",
-                    borderRadius: "32px",
-                    background: "white",
-                    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)",
-                    border: "1px solid #e2e8f0"
-                }}>
+                    {/* Map Area */}
+                    <div style={{
+                        position: "relative",
+                        height: "calc(100vh - 180px)",
+                        width: "100%",
+                        overflow: "hidden",
+                        borderRadius: "32px",
+                        background: "white",
+                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)",
+                        border: "1px solid #e2e8f0"
+                    }}>
                         <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
 
                         {/* Floating Control: Focus Area */}

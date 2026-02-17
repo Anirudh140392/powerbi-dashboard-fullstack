@@ -58,9 +58,9 @@ const categoryData = [
 ];
 
 const Change = ({ value, positive }) => (
-  <span style={{ 
-    color: positive ? '#16a34a' : '#dc2626', 
-    fontSize: '11px', 
+  <span style={{
+    color: positive ? '#16a34a' : '#dc2626',
+    fontSize: '11px',
     fontWeight: 600,
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   }}>
@@ -85,12 +85,12 @@ const MetricLabel = ({ label }) => (
   </div>
 );
 
-const OfftakeCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
+const OfftakesCard = ({ data }) => (
+  <div style={{
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px 16px',
     height: '88px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   }}>
@@ -106,11 +106,11 @@ const OfftakeCard = ({ data }) => (
 );
 
 const ShareCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
+  <div style={{
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px 16px',
     height: '72px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   }}>
@@ -122,11 +122,11 @@ const ShareCard = ({ data }) => (
 );
 
 const ImpressionsCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
+  <div style={{
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px 16px',
     height: '124px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   }}>
@@ -150,11 +150,11 @@ const ImpressionsCard = ({ data }) => (
 );
 
 const ConversionCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
+  <div style={{
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px 16px',
     height: '95px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   }}>
@@ -172,11 +172,11 @@ const ConversionCard = ({ data }) => (
 );
 
 const AspCard = ({ data }) => (
-  <div style={{ 
-    backgroundColor: '#fff', 
-    border: '1px solid #e5e7eb', 
-    borderRadius: '8px', 
-    padding: '12px 16px', 
+  <div style={{
+    backgroundColor: '#fff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px 16px',
     height: '75px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   }}>
@@ -191,12 +191,12 @@ const ActionButtons = () => ({ catLabel, onViewTrends }) => (
   <div style={{ marginTop: '12px' }}>
     <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
       <button style={{
-        fontSize: '11px', 
-        fontWeight: 600, 
-        color: '#2563eb', 
+        fontSize: '11px',
+        fontWeight: 600,
+        color: '#2563eb',
         backgroundColor: '#eff6ff',
-        border: '1px solid #bfdbfe', 
-        borderRadius: '16px', 
+        border: '1px solid #bfdbfe',
+        borderRadius: '16px',
         padding: '6px 14px',
         cursor: 'pointer',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -204,12 +204,12 @@ const ActionButtons = () => ({ catLabel, onViewTrends }) => (
         📊 Impact SKUs
       </button>
       <button style={{
-        fontSize: '11px', 
-        fontWeight: 600, 
-        color: '#6b7280', 
+        fontSize: '11px',
+        fontWeight: 600,
+        color: '#6b7280',
         backgroundColor: '#f9fafb',
-        border: '1px solid #e5e7eb', 
-        borderRadius: '16px', 
+        border: '1px solid #e5e7eb',
+        borderRadius: '16px',
         padding: '6px 14px',
         cursor: 'pointer',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -218,8 +218,8 @@ const ActionButtons = () => ({ catLabel, onViewTrends }) => (
       </button>
     </div>
     <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
-    
-     <button
+
+      <button
         onClick={(e) => {
           e.stopPropagation();
           onViewTrends(catLabel);   // ✔️ correct
@@ -239,9 +239,9 @@ const ActionButtons = () => ({ catLabel, onViewTrends }) => (
         View Trends <ChevronRight size={12} />
       </button>
 
-      <button style={{ 
-        fontSize: '11px', 
-        color: '#2563eb', 
+      <button style={{
+        fontSize: '11px',
+        color: '#2563eb',
         background: 'none',
         border: 'none',
         padding: 0,
@@ -254,9 +254,9 @@ const ActionButtons = () => ({ catLabel, onViewTrends }) => (
         Competition <ChevronRight size={12} />
       </button>
     </div>
-    <button style={{ 
-      fontSize: '11px', 
-      color: '#2563eb', 
+    <button style={{
+      fontSize: '11px',
+      color: '#2563eb',
       background: 'none',
       border: 'none',
       padding: 0,
@@ -267,13 +267,13 @@ const ActionButtons = () => ({ catLabel, onViewTrends }) => (
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
       Cross Platform
-      <span style={{ 
-        width: '18px', 
-        height: '18px', 
-        borderRadius: '50%', 
-        backgroundColor: '#f3e8ff', 
-        display: 'inline-flex', 
-        alignItems: 'center', 
+      <span style={{
+        width: '18px',
+        height: '18px',
+        borderRadius: '50%',
+        backgroundColor: '#f3e8ff',
+        display: 'inline-flex',
+        alignItems: 'center',
         justifyContent: 'center',
         fontSize: '10px',
         color: '#7c3aed'
@@ -291,7 +291,7 @@ export default function CategoryPlatformOverview({ data = categoryData, onViewTr
     <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
       <div style={{ backgroundColor: '#fff', minHeight: '100vh', padding: '24px 12px' }}>
         {/* Header */}
-         <Box
+        <Box
           display="flex"
           justifyContent="space-between"
           alignItems="center"
@@ -368,33 +368,33 @@ export default function CategoryPlatformOverview({ data = categoryData, onViewTr
         </Box>
 
         {/* Time Period */}
-       
+
         {/* Main Content */}
-        <div style={{ padding: '20px'}}>
-          <div style={{ display: 'flex', gap: '16px', minWidth: 'max-content',  backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', borderColor: '#e5e7eb', borderWidth: '1px', borderStyle: 'solid' }}>
+        <div style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', gap: '16px', minWidth: 'max-content', backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', borderColor: '#e5e7eb', borderWidth: '1px', borderStyle: 'solid' }}>
             {/* Left Labels */}
             <div style={{ width: '180px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ 
-                  width: '40px', 
-                  height: '40px', 
-                  backgroundColor: '#f3f4f6', 
-                  borderRadius: '50%', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
                   <Grid3X3 size={18} color="#6b7280" />
                 </div>
               </div>
-              <MetricLabel label="Estimated Offtake" />
+              <MetricLabel label="Estimated Offtakes" />
               <MetricLabel label="Est. Category Share" />
-              <div style={{ 
-                backgroundColor: '#f3f4f6', 
-                borderRadius: '6px', 
-                padding: '21px 24px', 
-                fontSize: '11px', 
-                fontWeight: 600, 
+              <div style={{
+                backgroundColor: '#f3f4f6',
+                borderRadius: '6px',
+                padding: '21px 24px',
+                fontSize: '11px',
+                fontWeight: 600,
                 color: '#6b7280',
                 fontStyle: 'italic'
               }}>
@@ -406,7 +406,7 @@ export default function CategoryPlatformOverview({ data = categoryData, onViewTr
             </div>
 
             {/* Category Columns */}
-      
+
             {categoryData.map((cat) => (
               <div key={cat.key} style={{ width: '240px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <button
@@ -427,46 +427,46 @@ export default function CategoryPlatformOverview({ data = categoryData, onViewTr
                   {cat.label}
                 </button>
 
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '12px',
-                  width: '250px', 
-                  height: '200px', 
-                  backgroundColor: '#f3f4f6', 
-                  borderRadius: 4, 
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  width: '250px',
+                  height: '200px',
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: 4,
                   padding: 8,
-                 py:4,
-                 
+                  py: 4,
+
                 }}>
-                <OfftakeCard data={cat.metrics.estimatedOfftake} />
-                <ShareCard data={cat.metrics.estCategoryShare} />
+                  <OfftakesCard data={cat.metrics.estimatedOfftake} />
+                  <ShareCard data={cat.metrics.estCategoryShare} />
                 </div>
                 <div style={{ height: '34px' }} />
-                <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '12px',
-                  width: '250px', 
-                  height: '450px', 
-                
-                  backgroundColor: '#f3f4f6', 
-                  borderRadius: 4, 
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  width: '250px',
+                  height: '450px',
+
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: 4,
                   padding: 8,
-                 py:4,
-                 
+                  py: 4,
+
                 }}>
-                <ImpressionsCard data={cat.metrics.indexedImpressions} />
-                <ConversionCard data={cat.metrics.indexedConversion} />
-                <AspCard data={cat.metrics.asp} />
-                <ActionButtons  catLabel={cat.label}
-  onViewTrends={onViewTrends} />
+                  <ImpressionsCard data={cat.metrics.indexedImpressions} />
+                  <ConversionCard data={cat.metrics.indexedConversion} />
+                  <AspCard data={cat.metrics.asp} />
+                  <ActionButtons catLabel={cat.label}
+                    onViewTrends={onViewTrends} />
                 </div>
-              
+
               </div>
             ))}
           </div>
-        
+
         </div>
       </div>
     </div>
