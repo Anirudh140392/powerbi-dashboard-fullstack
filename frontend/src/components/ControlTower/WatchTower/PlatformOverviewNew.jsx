@@ -72,7 +72,8 @@ const kpiLabels = {
     promoMyBrand: 'Promo - My Brand',
     promoCompete: 'Promo - Compete',
     cpm: 'CPM',
-    cpc: 'CPC'
+    cpc: 'CPC',
+    asp: 'ASP'
 };
 
 const PlatformOverviewNew = ({
@@ -105,6 +106,7 @@ const PlatformOverviewNew = ({
         { key: 'promoCompete', label: 'Promo - Compete' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
+        { key: 'asp', label: 'ASP' },
     ]
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
@@ -242,6 +244,10 @@ const PlatformOverviewNew = ({
                 case 'cpc':
                     value = `₹${val}`
                     deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}`
+                    break
+                case 'asp':
+                    value = `₹${Math.round(val)}`
+                    deltaVal = `${isUp ? '+' : '-'}${getLogicalKpiValue(kpi.key + 'delta', seed).toFixed(1)}%`
                     break
                 default:
                     value = `${val}%`

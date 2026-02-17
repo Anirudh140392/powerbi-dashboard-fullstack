@@ -99,6 +99,7 @@ const KPI_ALIASES = {
   cpm: 'cpm', cpc: 'cpc',
   doi: 'doi', fillrate: 'fillrate',
   assortment: 'assortment', psl: 'psl',
+  asp: 'asp',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -144,6 +145,11 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
     if (isDir) return (absHash % 2 === 0) ? 70 : 30;
 
+    if (baseKpi === 'asp') {
+      // ASP delta in range 5-10%
+      return 5 + (absHash % 51) * 0.1;
+    }
+
     // Varied deltas: 1.5% to 6.5%
     return 1.5 + (absHash % 50) * 0.1;
   }
@@ -169,6 +175,7 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
   const isPercentage = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(rawKey);
   const isTotalizing = ['offtaking', 'offtake', 'offtakes', 'spend', 'inorgsales', 'dspsales', 'categorysize', 'psl', 'assortment'].includes(rawKey);
+  const isAsp = rawKey === 'asp';
 
   // Variance range: 0.80 to 1.20
   let jitter = 0.80 + vFactor * 0.40;
@@ -178,12 +185,30 @@ function getLogicalKpiValue(kpi, filters = {}) {
     jitter = 0.92 + vFactor * 0.16;
   }
 
+  if (isAsp) {
+    // ASP range 100-320
+    return 100 + vFactor * 220;
+  }
+
+  const sku = safeStr(filters.sku || filters.product || '');
+  const isSkuLevel = sku !== '' && sku !== 'all' && sku !== 'all skus';
+
   if (typeof value === 'number') {
     // Apply Multi-Category Aggregation for totalizing KPIs
     if (isTotalizing) {
       // Use logical scaling: sum of N categories is roughly N * avg_category_value
-      // We use base value * catCount * slight dampening to be realistic
       value = value * catCount * (1 - (catCount - 1) * 0.05);
+
+      // HIGH IQ: If it's a SKU level request, scale down to representing a single unit/day/city value
+      if (isSkuLevel) {
+        if (kpiKey === 'offtakes') {
+          value = 4.0 + (vFactor * 2.0); // Standardized 4-6 Lakh range
+        } else if (kpiKey === 'spend') {
+          value = 2.0 + (vFactor * 1.0); // Standardized 2-3 Lakh range
+        } else {
+          value = value / 850; // Reduction factor for other SKU per Day per City metrics
+        }
+      }
     }
 
     value = value * jitter;

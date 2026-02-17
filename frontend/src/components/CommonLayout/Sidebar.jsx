@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import eyLogo from "../../assets/ey.png";
+// Use public asset for Trailytics logo instead of EY import
 import {
   Box,
   Typography,
@@ -152,12 +152,12 @@ const Sidebar = ({
             }}
           >
             <img
-              src={eyLogo}
-              alt="EY Logo"
+              src="/trailytics_new_logo.png"
+              alt="Trailytics Logo"
               style={{
-                height: '85%', // Scaled slightly for breathing room
+                height: '95%',
                 width: 'auto',
-                maxWidth: isCollapsed ? '42px' : '110px',
+                maxWidth: isCollapsed ? '48px' : '150px',
                 objectFit: 'contain',
                 display: 'block'
               }}

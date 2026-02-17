@@ -115,6 +115,7 @@ const DASHBOARD_DATA = {
       },
       { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
       { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
+      { id: "ASP", label: "ASP", color: "#E11D48", axis: "right" },
     ],
 
     points: [
@@ -133,6 +134,7 @@ const DASHBOARD_DATA = {
         PromoCompete: 9.8,
         CPM: 146,
         CPC: 9.6,
+        ASP: 185,
       },
       {
         date: "08 Sep'25",
@@ -149,6 +151,7 @@ const DASHBOARD_DATA = {
         PromoCompete: 11.2,
         CPM: 162,
         CPC: 10.8,
+        ASP: 210,
       },
       {
         date: "10 Sep'25",
@@ -165,6 +168,7 @@ const DASHBOARD_DATA = {
         PromoCompete: 9.3,
         CPM: 142,
         CPC: 9.2,
+        ASP: 195,
       },
       {
         date: "13 Sep'25",
@@ -181,6 +185,7 @@ const DASHBOARD_DATA = {
         PromoCompete: 12.9,
         CPM: 171,
         CPC: 11.6,
+        ASP: 240,
       },
       {
         date: "16 Sep'25",
@@ -197,6 +202,7 @@ const DASHBOARD_DATA = {
         PromoCompete: 8.6,
         CPM: 138,
         CPC: 8.9,
+        ASP: 175,
       },
       {
         date: "18 Sep'25",
@@ -842,6 +848,7 @@ const buildDataModel = () => {
     promoCompete: 5 + idxFactor * 0.25 + cityIdx * 0.3,
     cpm: 140 + idxFactor * 4 + cityIdx * 8,
     cpc: 9 + idxFactor * 0.4 + cityIdx * 0.5,
+    asp: 100 + (idxFactor * 10 + cityIdx * 5) % 220,
     // Deltas
     offtakesDelta: (Math.sin(base * 1.5) * 10),
     ppuDelta: (Math.cos(base * 1.2) * 4),
@@ -851,6 +858,7 @@ const buildDataModel = () => {
     sosDelta: (Math.sin(base * 2.2) * 3),
     priceDelta: (Math.cos(base * 2.5) * 15),
     marketShareDelta: (Math.sin(base * 2.8) * 2),
+    aspDelta: 5 + (Math.abs(Math.sin(base * 2.0)) * 5),
   });
 
   RAW_DATA.cities.forEach((city, cityIdx) => {
@@ -975,6 +983,7 @@ const buildDataModel = () => {
           promoCompete: 5 + Math.cos(idx / 6 + phase) * 1.2,
           cpm: 145 + Math.sin(idx / 4 + phase) * 12,
           cpc: 9.2 + Math.cos(idx / 5 + phase) * 0.8,
+          asp: 180 + Math.sin(idx / 4 + phase) * 40,
         };
       });
     });
@@ -1010,6 +1019,7 @@ const buildDataModel = () => {
           promoCompete: 4.8 + Math.cos(idx / 6 + phase) * 1,
           cpm: 142 + Math.sin(idx / 4 + phase) * 10,
           cpc: 8.8 + Math.cos(idx / 5 + phase) * 0.7,
+          asp: 160 + Math.sin(idx / 4 + phase) * 30,
         };
       });
     });
