@@ -513,7 +513,7 @@ const SAMPLE_SKUS = [
         impact: "-4.8%",
         kpis: { orders: "8.1k", asp: "₹ 76", revenueShare: "4.9%" },
         topCities: [
-            { city: "Mumbai", metric: "Offtake ₹ 2.1 lac", change: "-2.1%" },
+            { city: "Mumbai", metric: "Offtakes ₹ 2.1 lac", change: "-2.1%" },
             { city: "Pune", metric: "Orders 2.4k", change: "-1.4%" },
         ],
     },
@@ -530,7 +530,7 @@ const SAMPLE_SKUS = [
         impact: "-3.2%",
         kpis: { orders: "6.6k", asp: "₹ 71", revenueShare: "3.8%" },
         topCities: [
-            { city: "Delhi", metric: "Offtake ₹ 1.9 lac", change: "-1.8%" },
+            { city: "Delhi", metric: "Offtakes ₹ 1.9 lac", change: "-1.8%" },
             { city: "Gurgaon", metric: "Orders 1.6k", change: "-1.1%" },
         ],
     },
@@ -547,7 +547,7 @@ const SAMPLE_SKUS = [
         impact: "-5.6%",
         kpis: { orders: "4.2k", asp: "₹ 91", revenueShare: "2.6%" },
         topCities: [
-            { city: "Chennai", metric: "Offtake ₹ 1.2 lac", change: "-2.0%" },
+            { city: "Chennai", metric: "Offtakes ₹ 1.2 lac", change: "-2.0%" },
             { city: "Coimbatore", metric: "Orders 1.1k", change: "-1.3%" },
         ],
     },
@@ -564,7 +564,7 @@ const SAMPLE_SKUS = [
         impact: "-4.2%",
         kpis: { orders: "3.8k", asp: "₹ 85", revenueShare: "2.1%" },
         topCities: [
-            { city: "Bangalore", metric: "Offtake ₹ 1.1 lac", change: "-1.7%" },
+            { city: "Bangalore", metric: "Offtakes ₹ 1.1 lac", change: "-1.7%" },
             { city: "Mysore", metric: "Orders 1.0k", change: "-0.9%" },
         ],
     },
@@ -582,7 +582,7 @@ const SAMPLE_SKUS = [
         impact: "+6.0%",
         kpis: { orders: "12.4k", asp: "₹ 72", revenueShare: "6.1%" },
         topCities: [
-            { city: "Hyderabad", metric: "Offtake ₹ 2.6 lac", change: "+2.9%" },
+            { city: "Hyderabad", metric: "Offtakes ₹ 2.6 lac", change: "+2.9%" },
             { city: "Bangalore", metric: "Orders 3.1k", change: "+2.1%" },
         ],
     },
@@ -599,7 +599,7 @@ const SAMPLE_SKUS = [
         impact: "+4.2%",
         kpis: { orders: "9.6k", asp: "₹ 74", revenueShare: "5.4%" },
         topCities: [
-            { city: "Delhi", metric: "Offtake ₹ 2.2 lac", change: "+1.7%" },
+            { city: "Delhi", metric: "Offtakes ₹ 2.2 lac", change: "+1.7%" },
             { city: "Gurgaon", metric: "Orders 2.3k", change: "+1.2%" },
         ],
     },
@@ -616,7 +616,7 @@ const SAMPLE_SKUS = [
         impact: "+5.1%",
         kpis: { orders: "10.2k", asp: "₹ 64", revenueShare: "4.8%" },
         topCities: [
-            { city: "Mumbai", metric: "Offtake ₹ 1.8 lac", change: "+2.4%" },
+            { city: "Mumbai", metric: "Offtakes ₹ 1.8 lac", change: "+2.4%" },
             { city: "Thane", metric: "Orders 2.1k", change: "+1.9%" },
         ],
     },
@@ -633,7 +633,7 @@ const SAMPLE_SKUS = [
         impact: "+4.5%",
         kpis: { orders: "7.8k", asp: "₹ 75", revenueShare: "4.1%" },
         topCities: [
-            { city: "Pune", metric: "Offtake ₹ 1.5 lac", change: "+2.0%" },
+            { city: "Pune", metric: "Offtakes ₹ 1.5 lac", change: "+2.0%" },
             { city: "Nashik", metric: "Orders 1.4k", change: "+1.5%" },
         ],
     },
@@ -938,7 +938,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
         availability: { label: "Overall OSA", key: "weightedOsa" }
     };
 
-    const primary = PRIMARY_METRICS[metricType] || { label: "Offtake", key: "offtakeValue" };
+    const primary = PRIMARY_METRICS[metricType] || { label: "Offtakes", key: "offtakeValue" };
     // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
     const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
@@ -965,7 +965,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                 <div className="mt-3 flex justify-between text-xs">
                     <div>
                         <div className="text-slate-400">
-                            {metricType === "inventory" ? "DOI" : "Offtake"}
+                            {metricType === "inventory" ? "DOI" : "Offtakes"}
                         </div>
                         <div className="text-base font-semibold">
                             {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}

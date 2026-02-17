@@ -102,7 +102,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                                     <th className="px-4 py-3 font-semibold bg-slate-50">City</th>
-                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Offtake</th>
+                                    <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Offtakes</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Est. Cat Share</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Wt. OSA %</th>
                                     <th className="px-4 py-3 font-semibold text-right bg-slate-50">Overall Sos</th>

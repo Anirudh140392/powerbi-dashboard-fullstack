@@ -4,7 +4,7 @@ import { useState } from "react";
 const CardMetric = ({ data, onViewTrends }) => {
   const defaultCards = [
     {
-      title: "Offtake",
+      title: "Offtakes",
       value: "₹14.8 Cr",
       sub: "MTD (Month-to-Date)",
       change: "▲6.4% (₹89.3 lac)",

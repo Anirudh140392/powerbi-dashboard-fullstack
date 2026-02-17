@@ -827,6 +827,9 @@ const buildDataModel = () => {
     offtakes: (base * 0.5 + idxFactor * 0.2 + (cityIdx % 3) * 0.5), // Cr
     spend: (base * 0.1 + idxFactor * 0.05 + cityIdx * 0.1), // L
     roas: 5 + (idxFactor % 3) * 0.5 + (cityIdx % 2) * 0.3, // Category Size
+    ppu: 45 + (idxFactor % 5) * 2 + (cityIdx % 3), // PPU
+    wtDisc: 12 + (idxFactor % 4) * 1.5 + (cityIdx % 2), // Wt Disc %
+    dsListing: 88 + (idxFactor % 3) * 2 + (cityIdx % 4), // Ds Listing %
     inorgSales: base * 0.9 + idxFactor * 0.2 + cityIdx * 1.2,
     dspSales: base * 0.7 + idxFactor * 0.15 + cityIdx * 0.8,
     conversion: 15 + (idxFactor % 4) * 0.8 + cityIdx * 0.5,
@@ -841,6 +844,9 @@ const buildDataModel = () => {
     cpc: 9 + idxFactor * 0.4 + cityIdx * 0.5,
     // Deltas
     offtakesDelta: (Math.sin(base * 1.5) * 10),
+    ppuDelta: (Math.cos(base * 1.2) * 4),
+    wtDiscDelta: (Math.sin(base * 1.4) * 2),
+    dsListingDelta: (Math.cos(base * 1.6) * 3),
     osaDelta: (Math.cos(base * 1.8) * 5),
     sosDelta: (Math.sin(base * 2.2) * 3),
     priceDelta: (Math.cos(base * 2.5) * 15),
@@ -1719,12 +1725,15 @@ const BrandTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[18%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[14%]">Offtake</th>
-                <th className="px-3 py-2 text-right w-[14%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[14%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[14%]">Price</th>
-                <th className="px-3 py-2 text-right w-[14%]">Market Share</th>
+                <th className="px-3 py-2 text-left w-[15%]">Brand</th>
+                <th className="px-3 py-2 text-right w-[10%]">Offtakes</th>
+                <th className="px-3 py-2 text-right w-[10%]">OSA</th>
+                <th className="px-3 py-2 text-right w-[10%]">SOS</th>
+                <th className="px-3 py-2 text-right w-[10%]">Price</th>
+                <th className="px-3 py-2 text-right w-[10%]">Mkt Share</th>
+                <th className="px-3 py-2 text-right w-[10%]">PPU</th>
+                <th className="px-3 py-2 text-right w-[12%]">Wt Disc</th>
+                <th className="px-3 py-2 text-right w-[13%]">Ds List</th>
               </tr>
             </thead>
 
@@ -1772,11 +1781,35 @@ const BrandTable = ({ rows }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
+                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
                     <div className="flex items-center justify-end gap-2">
                       <span>{row.marketShare.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.marketShareDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    <div className="flex items-center justify-end gap-2">
+                      <span>₹{row.ppu.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-end gap-2">
+                      <span>{row.wtDisc.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    <div className="flex items-center justify-end gap-2">
+                      <span>{row.dsListing.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -1786,7 +1819,7 @@ const BrandTable = ({ rows }) => {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={9}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1835,13 +1868,16 @@ const SkuTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[16%]">SKU</th>
-                <th className="px-3 py-2 text-left w-[14%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[12%]">Offtake</th>
-                <th className="px-3 py-2 text-right w-[12%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[12%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[12%]">Price</th>
-                <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
+                <th className="px-3 py-2 text-left w-[12%]">SKU</th>
+                <th className="px-3 py-2 text-left w-[10%]">Brand</th>
+                <th className="px-3 py-2 text-right w-[9%]">Offtakes</th>
+                <th className="px-3 py-2 text-right w-[9%]">OSA</th>
+                <th className="px-3 py-2 text-right w-[9%]">SOS</th>
+                <th className="px-3 py-2 text-right w-[9%]">Price</th>
+                <th className="px-3 py-2 text-right w-[9%]">Mkt Share</th>
+                <th className="px-3 py-2 text-right w-[9%]">PPU</th>
+                <th className="px-3 py-2 text-right w-[11%]">Wt Disc</th>
+                <th className="px-3 py-2 text-right w-[11%]">Ds List</th>
               </tr>
             </thead>
 
@@ -1892,11 +1928,35 @@ const SkuTable = ({ rows }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
+                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
                     <div className="flex items-center justify-end gap-2">
                       <span>{row.marketShare.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.marketShareDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    <div className="flex items-center justify-end gap-2">
+                      <span>₹{row.ppu.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-end gap-2">
+                      <span>{row.wtDisc.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    <div className="flex items-center justify-end gap-2">
+                      <span>{row.dsListing.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                        {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -1906,7 +1966,7 @@ const SkuTable = ({ rows }) => {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={10}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters

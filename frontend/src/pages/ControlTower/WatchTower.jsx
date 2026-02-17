@@ -207,7 +207,7 @@ export default function WatchTower() {
   const COMPARISON_KPIS = useMemo(() => [
     {
       id: 'offtake',
-      title: 'Offtake',
+      title: 'Offtakes',
       value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
       delta: getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta'),
       deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)}L`,

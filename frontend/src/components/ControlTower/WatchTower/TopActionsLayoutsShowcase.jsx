@@ -28,7 +28,7 @@ const issues = [
     },
     {
         id: 5,
-        label: "Offtake – Consumption Momentum",
+        label: "Offtakes – Consumption Momentum",
         subtitle: "Consumer pull vs dispatch trend",
         leak: "₹0.19 Cr slowdown",
         tag: "Demand",
@@ -252,7 +252,7 @@ const DetailPanel = ({ selected }) => {
     ];
 
     const offtakeKpis = [
-        { name: "Offtake MTD", value: "₹18.4 Cr", delta: "+6.8%" },
+        { name: "Offtakes MTD", value: "₹18.4 Cr", delta: "+6.8%" },
         { name: "Fill Rate", value: "88.2%", delta: "-2.4%" },
     ];
 
@@ -305,8 +305,8 @@ const DetailPanel = ({ selected }) => {
             )
         },
         5: {
-            title: "SKU-wise Offtake Performance",
-            headers: ["SKU Name", "Offtake (Value)", "Volume (Units)", "Fill Rate %", "Contribution %"],
+            title: "SKU-wise Offtakes Performance",
+            headers: ["SKU Name", "Offtakes (Value)", "Volume (Units)", "Fill Rate %", "Contribution %"],
             rows: offtakeSkuRows,
             renderRow: (row) => (
                 <tr key={row.sku} className="border-b border-slate-50">
@@ -413,7 +413,7 @@ const DetailPanel = ({ selected }) => {
             unit: "%"
         },
         5: {
-            title: "Daily Offtake Value (₹ Cr) vs Last Period",
+            title: "Daily Offtakes Value (₹ Cr) vs Last Period",
             week: offtakeTrendWeek,
             month: offtakeTrendWeek, // Reuse or add month later
             domain: [12, 20],

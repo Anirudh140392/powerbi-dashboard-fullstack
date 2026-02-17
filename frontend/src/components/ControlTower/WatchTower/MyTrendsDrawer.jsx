@@ -86,7 +86,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: theme.palette.error.main }}></Box>
-                <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>Offtake</Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>Offtakes</Typography>
               </Box>
               <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
                 ₹ {payload[0].payload.offtake.toFixed(2)} Cr
@@ -112,7 +112,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
   };
 
   const metricsList = [
-    { key: 'offtake', label: 'Offtake', color: theme.palette.error.main },
+    { key: 'offtake', label: 'Offtakes', color: theme.palette.error.main },
     { key: 'estCategoryShare', label: 'Est. Category Share', color: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7' },
     { key: 'osa', label: 'OSA%', color: theme.palette.success.main },
     { key: 'discount', label: 'Wt. Discount%', color: theme.palette.primary.main },
