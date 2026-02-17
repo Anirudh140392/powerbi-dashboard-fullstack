@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import eyLogo from "../../assets/ey.png";
 import {
   Box,
   Typography,
@@ -13,13 +15,11 @@ import {
   ListItemText,
   Collapse,
   IconButton,
-  InputBase,
   Tooltip,
 } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-  Search as SearchIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Dashboard as DashboardIcon,
@@ -57,7 +57,6 @@ const Sidebar = ({
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
 
   const currentPath = location.pathname;
@@ -76,27 +75,18 @@ const Sidebar = ({
       { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
-      { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+
       { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Ad Auto", path: "https://demo.adauto.in/", icon: <CampaignIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Rating", path: "https://prestige-lac.vercel.app/", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Supply", path: "https://sku360.up.railway.app", icon: <LocalShippingIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Content", path: "https://content-pied-psi.vercel.app/", icon: <DescriptionIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
     ],
   };
 
-  const filteredSections = useMemo(() => {
-    if (!searchQuery) return menuSections;
-    const result = {};
-    Object.entries(menuSections).forEach(([section, items]) => {
-      const filteredItems = items.filter(item =>
-        item.label.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      if (filteredItems.length > 0) result[section] = filteredItems;
-    });
-    return result;
-  }, [searchQuery]);
+
 
   const toggleSidebar = () => setIsCollapsed(!isCollapsed);
 
@@ -133,69 +123,65 @@ const Sidebar = ({
 
       {/* Header / Logo */}
       <Box sx={{
-        px: isCollapsed ? 0 : 2,
-        py: 2,
-        height: 60,
+        px: isCollapsed ? 1 : 2.5,
+        py: 2.5,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'space-between',
+        justifyContent: 'center',
         borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
-        position: 'relative',
-        overflow: 'hidden'
+        position: 'relative'
       }}>
         <Box
           sx={{
-            height: 48,
-            py: 2,
             display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: isCollapsed ? 'center' : 'flex-start',
-            px: isCollapsed ? 0 : 2.5,
+            alignItems: 'center',
+            justifyContent: 'center', // Center logo horizontally
             transition: 'all 0.3s ease',
-            overflow: 'hidden',
-            width: isCollapsed ? '100%' : 'auto'
+            width: '100%',
+            height: 48,
           }}
         >
           {/* EY Logo Container */}
           <Box
             sx={{
-              height: 40,
-              width: isCollapsed ? 40 : 140,
-              minWidth: isCollapsed ? 0 : 140,
+              height: '100%',
+              width: isCollapsed ? '100%' : 'auto',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              pb: '0px',
-              mr: 0,
-              transition: 'all 0.3s ease'
+              justifyContent: 'center',
+              transition: 'all 0.3s ease',
+              overflow: 'visible'
             }}
           >
             <img
-              src="/trailytics_new_logo.png"
-              alt="Logo"
+              src={eyLogo}
+              alt="EY Logo"
               style={{
-                height: '100%',
-                width: '100%',
-                objectFit: 'contain'
+                height: '85%', // Scaled slightly for breathing room
+                width: 'auto',
+                maxWidth: isCollapsed ? '42px' : '110px',
+                objectFit: 'contain',
+                display: 'block'
               }}
             />
           </Box>
+        </Box>
 
-          {/* "-mozart" Text */}
-          <Box
-            sx={{
-              opacity: isCollapsed ? 0 : 1,
-              width: isCollapsed ? 0 : 'auto',
-              transform: isCollapsed ? 'translateX(-10px)' : 'translateX(0)',
-              transition: 'all 0.3s ease',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'flex-end',
-              pb: '3px'
-            }}
-          >
-            {/* <span style={{
+        {/* "-mozart" Text */}
+        <Box
+          sx={{
+            opacity: isCollapsed ? 0 : 1,
+            width: isCollapsed ? 0 : 'auto',
+            transform: isCollapsed ? 'translateX(-10px)' : 'translateX(0)',
+            transition: 'all 0.3s ease',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'flex-end',
+            pb: '3px'
+          }}
+        >
+          {/* <span style={{
               color: '#000000',
               fontSize: '1.2rem',
               fontWeight: 700,
@@ -205,7 +191,6 @@ const Sidebar = ({
             }}>
               -mozart
             </span> */}
-          </Box>
         </Box>
         {!isMobile && (
           <IconButton
@@ -214,13 +199,11 @@ const Sidebar = ({
               color: 'rgba(0, 0, 0, 0.4)',
               p: 0.5,
               '&:hover': { color: '#000' },
-              ...(isCollapsed ? {
-                position: 'absolute',
-                right: 4,
-                bgcolor: 'rgba(0, 0, 0, 0.03)'
-              } : {
-                ml: 'auto'
-              })
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              bgcolor: 'rgba(0, 0, 0, 0.03)'
             }}
           >
             {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
@@ -229,29 +212,7 @@ const Sidebar = ({
       </Box>
 
       {/* Search Bar */}
-      {
-        !isCollapsed && (
-          <Box sx={{ px: 2, py: 1.5 }}>
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              bgcolor: 'rgba(0, 0, 0, 0.03)',
-              borderRadius: '10px',
-              px: 1.2, py: 0.4,
-              border: '1px solid rgba(0, 0, 0, 0.06)',
-              '&:focus-within': { borderColor: '#2563eb', bgcolor: '#fff' }
-            }}>
-              <SearchIcon sx={{ color: 'rgba(0, 0, 0, 0.3)', fontSize: '1rem' }} />
-              <InputBase
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                sx={{ ml: 0.8, color: '#000', fontSize: '0.8rem', flex: 1 }}
-              />
-            </Box>
-          </Box>
-        )
-      }
+
 
       {/* Menu scroll area */}
       <Box sx={{
@@ -261,7 +222,7 @@ const Sidebar = ({
         '&::-webkit-scrollbar': { width: '4px' },
         '&::-webkit-scrollbar-thumb': { bgcolor: 'rgba(0,0,0,0.05)', borderRadius: '4px' }
       }}>
-        {Object.entries(filteredSections).map(([sectionName, items]) => (
+        {Object.entries(menuSections).map(([sectionName, items]) => (
           <Box key={sectionName} sx={{ mb: 2 }}>
             {!isCollapsed && (
               <Typography
@@ -355,8 +316,54 @@ const Sidebar = ({
         ))}
       </Box>
 
-
-    </Box>
+      {/* Footer / Powered By */}
+      <Box sx={{
+        px: 3,
+        py: 2.5,
+        mt: 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: isCollapsed ? 'center' : 'flex-start',
+        borderTop: "1px solid rgba(0, 0, 0, 0.04)",
+        bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.5)"
+      }}>
+        {isCollapsed ? (
+          <Typography
+            sx={{
+              fontSize: '9px',
+              fontWeight: 700,
+              color: 'rgba(0, 0, 0, 0.15)',
+              letterSpacing: '1px'
+            }}
+          >
+            TR
+          </Typography>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography
+              sx={{
+                fontSize: '0.65rem',
+                color: 'rgba(0, 0, 0, 0.3)',
+                fontWeight: 500,
+                letterSpacing: '0.01em',
+              }}
+            >
+              Powered by
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                color: 'rgba(30, 41, 59, 0.6)',
+                letterSpacing: '0.02em',
+              }}
+            >
+              trailytics
+            </Typography>
+          </Box>
+        )}
+      </Box>
+    </Box >
   );
 
   if (isMobile) {
