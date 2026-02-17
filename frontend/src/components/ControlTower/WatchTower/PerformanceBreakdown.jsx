@@ -76,11 +76,9 @@ const PRESET_PERIODS = [
     { key: "last_3_months", label: "Last 3M", type: "preset" },
     { key: "ytd", label: "YTD", type: "preset" },
 ];
+// For now only show Campaign Type slicer — hide Category, Subcategory and Intent Type
 const SLICERS = [
-    { key: "categories", label: "Category", icon: Layers, dimension: "category" },
-    { key: "subcategories", label: "Subcategory", icon: FolderTree, dimension: "subcategory" },
     { key: "campaignTypes", label: "Campaign Type", icon: Target, dimension: "campaign_type" },
-    { key: "intentTypes", label: "Intent Type", icon: Sparkles, dimension: "intent_type" },
 ];
 const PAGE_SIZES = [5, 10, 20, 50];
 
@@ -88,9 +86,10 @@ const PAGE_SIZES = [5, 10, 20, 50];
 function MultiSlicerBar({ onFiltersChange, className = "" }) {
     const { darkMode } = useTheme();
     const { filters: globalFilters } = useFilters();
-    const [filters, setFilters] = useState({ categories: [], subcategories: [], campaignTypes: [], intentTypes: [] });
+    // Only campaignTypes is active for now
+    const [filters, setFilters] = useState({ campaignTypes: [] });
     const [activeDropdown, setActiveDropdown] = useState(null);
-    const [filterOptions, setFilterOptions] = useState({ categories: [], subcategories: [], campaignTypes: [], intentTypes: [] });
+    const [filterOptions, setFilterOptions] = useState({ campaignTypes: [] });
     const [loadingOptions, setLoadingOptions] = useState(null);
 
     const fetchOptions = useCallback(async (dimension) => {
@@ -122,8 +121,8 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
             return { ...prev, [filterKey]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value] };
         });
     };
-    const clearAllFilters = () => setFilters({ categories: [], subcategories: [], campaignTypes: [], intentTypes: [] });
-    const activeFilterCount = filters.categories.length + filters.subcategories.length + filters.campaignTypes.length + filters.intentTypes.length;
+    const clearAllFilters = () => setFilters({ campaignTypes: [] });
+    const activeFilterCount = (filters.campaignTypes || []).length;
 
     const btnBase = `flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${darkMode ? "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"}`;
     const btnActive = darkMode ? "bg-violet-500/20 border-violet-500/50 text-violet-400" : "bg-violet-50 border-violet-300 text-violet-700";
@@ -177,16 +176,14 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
                         </>
                     )}
                 </div>
-                {activeFilterCount > 0 && (
+                    {activeFilterCount > 0 && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className={`flex flex-wrap gap-2 mt-3 pt-3 border-t ${darkMode ? "border-slate-700" : "border-slate-200"}`}>
-                        {["categories", "subcategories", "campaignTypes", "intentTypes"].map((key) =>
-                            filters[key].map((value) => (
-                                <span key={`${key}-${value}`} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-700"}`}>
-                                    {value}
-                                    <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => toggleSelection(key, value)} />
-                                </span>
-                            ))
-                        )}
+                        {(filters.campaignTypes || []).map((value) => (
+                            <span key={`campaignTypes-${value}`} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-700"}`}>
+                                {value}
+                                <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => toggleSelection('campaignTypes', value)} />
+                            </span>
+                        ))}
                     </motion.div>
                 )}
             </div>
@@ -349,7 +346,7 @@ export function AggregatedViewTable() {
         { key: "mtd", label: "MTD", type: "preset" },
         { key: "last_3_months", label: "Last 3M", type: "preset" },
     ]);
-    const [slicerFilters, setSlicerFilters] = useState({ categories: [], subcategories: [], campaignTypes: [], intentTypes: [] });
+    // slicerFilters removed — filter panel hidden
 
     useEffect(() => { if (selectedPeriods.length > 0 && !comparePeriods) setComparePeriods(true); else if (selectedPeriods.length === 0 && comparePeriods) setComparePeriods(false); }, [selectedPeriods.length]);
 
@@ -382,10 +379,7 @@ export function AggregatedViewTable() {
                 if (filters.dateEnd) params.set("end_date", filters.dateEnd);
                 params.set("group_by", groupBy);
                 if (comparePeriods) params.set("compare_periods", "true");
-                if (slicerFilters.categories.length > 0) params.set("categories", slicerFilters.categories.join(","));
-                if (slicerFilters.subcategories.length > 0) params.set("subcategories", slicerFilters.subcategories.join(","));
-                if (slicerFilters.campaignTypes.length > 0) params.set("campaign_types", slicerFilters.campaignTypes.join(","));
-                if (slicerFilters.intentTypes.length > 0) params.set("intent_types", slicerFilters.intentTypes.join(","));
+                // slicerFilters removed — no additional slicer params
                 const res = await authGet(`/api/aggregated-view?${params.toString()}`);
                 const result = res.data;
                 if (res.success && result?.success && result.data?.length > 0) {
@@ -399,7 +393,7 @@ export function AggregatedViewTable() {
             setLoading(false);
         };
         fetchData();
-    }, [groupBy, filters, comparePeriods, slicerFilters]);
+    }, [groupBy, filters, comparePeriods]);
 
     const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)}Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)}L`; if (num >= 1000) return `${(num / 1000).toFixed(1)}K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
@@ -408,7 +402,7 @@ export function AggregatedViewTable() {
 
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border overflow-hidden ${darkMode ? "bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 border-slate-700" : "bg-white border-slate-200 shadow-xl shadow-slate-200/50"}`}>
-            <MultiSlicerBar onFiltersChange={setSlicerFilters} className="p-4 border-b border-slate-100 dark:border-slate-700" />
+            {/* MultiSlicerBar removed per request — filters hidden */}
             {/* Header */}
             <div className={`p-5 border-b ${darkMode ? "border-slate-700" : "border-slate-100"}`}>
                 <div className="flex items-center justify-between flex-wrap gap-3">
