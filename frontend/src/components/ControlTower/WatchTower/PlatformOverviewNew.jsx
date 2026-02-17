@@ -16,11 +16,30 @@ import {
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { cn } from '../../../lib/utils'
+import FlipkartLogo from '@/lib/Flipkart logo.png'
 
 /* --- HELPER COMPONENTS & UTILS --- */
-const BrandLogo = ({ name, src, className, imgClassName }) => (
-    <img src={src} alt={name} className={cn(className, "object-contain")} />
-);
+const BrandLogo = ({ name, src, className, imgClassName }) => {
+    const [error, setError] = useState(false);
+
+    if (error || !src) {
+        return (
+            <div className={cn("flex items-center justify-center font-bold text-white uppercase", className)}
+                style={{ fontSize: '10px' }}>
+                {name?.slice(0, 1) || '?'}
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={src}
+            alt={name}
+            className={cn(className, "object-contain")}
+            onError={() => setError(true)}
+        />
+    );
+};
 
 const getStatusText = (delta) => {
     if (!delta) return "text-slate-500";
@@ -129,7 +148,7 @@ const PlatformOverviewNew = ({
                 {
                     key: 'flipkart',
                     name: 'Flipkart',
-                    logoSrc: 'https://logos-world.net/wp-content/uploads/2020/11/Flipkart-Logo.png',
+                    logoSrc: FlipkartLogo,
                     color: '#2874f0'
                 },
                 {
