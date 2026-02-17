@@ -710,6 +710,11 @@ const RAW_DATA = {
     { id: "havmor-block", name: "Havmor Choco Block", brandId: "havmor", category: "Block" },
     { id: "br-scoop", name: "BR Gold Medal Ribbon", brandId: "baskin-robbins", category: "Scoop" },
     { id: "london-tub", name: "London Dairy Tiramisu", brandId: "london-dairy", category: "Tub" },
+    // Added Kwality Walls SKUs shown in the competition modal
+    { id: "kw-cornetto-disc-110ml", name: "KW Cornetto Disc 110ml", brandId: "kwality-walls", category: "Cone" },
+    { id: "kw-magnum-almond-90ml", name: "KW Magnum Almond 90ml", brandId: "kwality-walls", category: "Stick" },
+    { id: "kw-feast-jaljeera-65ml", name: "KW Feast Jaljeera 65ml", brandId: "kwality-walls", category: "Stick" },
+    { id: "kw-cup-vanilla-100ml", name: "KW Cup Vanilla 100ml", brandId: "kwality-walls", category: "Cup" },
   ],
 };
 
