@@ -677,7 +677,7 @@ const SelectItem = ({ value, children }) => {
 /* -------------------------------------------------------------------------- */
 
 /** Base days for trend charts */
-const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
+const DAYS = Array.from({ length: 20 }).map((_, i) => `${(i + 6).toString().padStart(2, '0')} Nov'25`);
 
 /** Raw config – you can change this and UI will adapt */
 const RAW_DATA = {
@@ -701,7 +701,6 @@ const RAW_DATA = {
     { id: "go-zero", name: "Go-Zero", category: "Tub" },
     { id: "hocco", name: "Hocco", category: "Cone" },
     { id: "dairy-day", name: "Dairy Day", category: "Cup" },
-    { id: "others", name: "Others", category: "All" },
     { id: "nic", name: "Nic", category: "Tub" },
     { id: "minus-30", name: "Minus 30", category: "Tub" },
     { id: "infino", name: "Infino", category: "Bar" },
@@ -763,7 +762,6 @@ const BRAND_MARKET_SHARES = {
   "Go-Zero": 4,
   "Hocco": 4,
   "Dairy Day": 3,
-  "Others": 2,
   "Vadilal": 1,
   "Nic": 1,
   "Minus 30": 1,
@@ -1735,15 +1733,15 @@ const BrandTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[15%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[10%]">Offtakes</th>
-                <th className="px-3 py-2 text-center w-[10%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[10%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[10%]">Price</th>
-                <th className="px-3 py-2 text-center w-[10%]">Mkt Share</th>
-                <th className="px-3 py-2 text-center w-[10%]">Wt PPU</th>
-                <th className="px-3 py-2 text-center w-[12%]">Wt Disc</th>
-                <th className="px-3 py-2 text-center w-[15%]">Ds Listing</th>
+                <th className="px-3 py-2 text-center w-[17%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[14%] whitespace-nowrap">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[9%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[9%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[9%]">Price</th>
+                <th className="px-3 py-2 text-center w-[9%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[11%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[13%]">Ds Listing</th>
               </tr>
             </thead>
 
@@ -1760,57 +1758,57 @@ const BrandTable = ({ rows }) => {
                     {row.name}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>₹{row.offtakes.toFixed(2)} Cr</span>
-                      <span className={cn("text-[10px] font-normal", row.offtakesDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.offtakesDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.offtakesDelta >= 0 ? '↑' : '↓'} {Math.abs(row.offtakesDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{row.osa.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.osaDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.osaDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.osaDelta >= 0 ? '↑' : '↓'} {Math.abs(row.osaDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{row.sos.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.sosDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.sosDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.sosDelta >= 0 ? '↑' : '↓'} {Math.abs(row.sosDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>₹{row.price.toFixed(1)}</span>
-                      <span className={cn("text-[10px] font-normal", row.priceDelta >= 0 ? "text-green-600" : "text-red-600")}>
-                        {row.priceDelta >= 0 ? '↑' : '↓'} ₹{Math.abs(row.priceDelta).toFixed(1)}
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.priceDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.priceDelta >= 0 ? '↑' : '↓'} {Math.abs(row.priceDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{row.marketShare.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.marketShareDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.marketShareDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <span>₹{row.ppu.toFixed(1)}</span>
-                      <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
-                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.ppuDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <span>{row.wtDisc.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.wtDiscDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
                       </span>
                     </div>
@@ -1818,7 +1816,7 @@ const BrandTable = ({ rows }) => {
                   <td className="px-3 py-2 text-center text-slate-900 font-medium">
                     <div className="flex items-center justify-center gap-2">
                       <span>{row.dsListing.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-normal px-1 py-0.5 rounded-sm whitespace-nowrap", row.dsListingDelta >= 0 ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50")}>
                         {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
                       </span>
                     </div>
@@ -1878,16 +1876,16 @@ const SkuTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[12%]">SKU</th>
+                <th className="px-3 py-2 text-center w-[13%]">SKU</th>
                 <th className="px-3 py-2 text-center w-[10%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[9%]">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[14%] whitespace-nowrap">Offtakes</th>
                 <th className="px-3 py-2 text-center w-[9%]">OSA</th>
                 <th className="px-3 py-2 text-center w-[9%]">SOS</th>
                 <th className="px-3 py-2 text-center w-[9%]">Price</th>
                 <th className="px-3 py-2 text-center w-[9%]">Mkt Share</th>
                 <th className="px-3 py-2 text-center w-[9%]">Wt PPU</th>
-                <th className="px-3 py-2 text-center w-[11%]">Wt Disc</th>
-                <th className="px-3 py-2 text-center w-[11%]">Ds Listing</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[9%]">Ds Listing</th>
               </tr>
             </thead>
 
@@ -1907,65 +1905,65 @@ const SkuTable = ({ rows }) => {
                     {row.brandName}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>₹{row.offtakes.toFixed(2)} Cr</span>
-                      <span className={cn("text-[10px] font-normal", row.offtakesDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.offtakesDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.offtakesDelta >= 0 ? '↑' : '↓'} {Math.abs(row.offtakesDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{row.osa.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.osaDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.osaDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.osaDelta >= 0 ? '↑' : '↓'} {Math.abs(row.osaDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{row.sos.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.sosDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.sosDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.sosDelta >= 0 ? '↑' : '↓'} {Math.abs(row.sosDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>₹{row.price.toFixed(1)}</span>
-                      <span className={cn("text-[10px] font-normal", row.priceDelta >= 0 ? "text-green-600" : "text-red-600")}>
-                        {row.priceDelta >= 0 ? '↑' : '↓'} ₹{Math.abs(row.priceDelta).toFixed(1)}
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.priceDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.priceDelta >= 0 ? '↑' : '↓'} {Math.abs(row.priceDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{row.marketShare.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.marketShareDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.marketShareDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <span>₹{row.ppu.toFixed(1)}</span>
-                      <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
-                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.ppuDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <span>{row.wtDisc.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.wtDiscDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <span>{row.dsListing.toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.dsListingDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
                       </span>
                     </div>
