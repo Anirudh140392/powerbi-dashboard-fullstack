@@ -1735,15 +1735,15 @@ const BrandTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[15%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[10%]">Offtakes</th>
-                <th className="px-3 py-2 text-right w-[10%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[10%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[10%]">Price</th>
-                <th className="px-3 py-2 text-right w-[10%]">Mkt Share</th>
-                <th className="px-3 py-2 text-right w-[10%]">PPU</th>
-                <th className="px-3 py-2 text-right w-[12%]">Wt Disc</th>
-                <th className="px-3 py-2 text-right w-[13%]">Ds List</th>
+                <th className="px-3 py-2 text-center w-[15%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[10%]">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[10%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[10%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[10%]">Price</th>
+                <th className="px-3 py-2 text-center w-[10%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[10%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[12%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[15%]">Ds Listing</th>
               </tr>
             </thead>
 
@@ -1799,24 +1799,24 @@ const BrandTable = ({ rows }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
                       <span>₹{row.ppu.toFixed(1)}</span>
                       <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-2">
                       <span>{row.wtDisc.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
                       <span>{row.dsListing.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
@@ -1878,16 +1878,16 @@ const SkuTable = ({ rows }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[12%]">SKU</th>
-                <th className="px-3 py-2 text-left w-[10%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[9%]">Offtakes</th>
-                <th className="px-3 py-2 text-right w-[9%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[9%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[9%]">Price</th>
-                <th className="px-3 py-2 text-right w-[9%]">Mkt Share</th>
-                <th className="px-3 py-2 text-right w-[9%]">PPU</th>
-                <th className="px-3 py-2 text-right w-[11%]">Wt Disc</th>
-                <th className="px-3 py-2 text-right w-[11%]">Ds List</th>
+                <th className="px-3 py-2 text-center w-[12%]">SKU</th>
+                <th className="px-3 py-2 text-center w-[10%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[9%]">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[9%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[9%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[9%]">Price</th>
+                <th className="px-3 py-2 text-center w-[9%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[11%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[11%]">Ds Listing</th>
               </tr>
             </thead>
 
@@ -1946,24 +1946,24 @@ const SkuTable = ({ rows }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
                       <span>₹{row.ppu.toFixed(1)}</span>
                       <span className={cn("text-[10px] font-normal", row.ppuDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-2">
                       <span>{row.wtDisc.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.wtDiscDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
                       <span>{row.dsListing.toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-normal", row.dsListingDelta >= 0 ? "text-green-600" : "text-red-600")}>
                         {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
