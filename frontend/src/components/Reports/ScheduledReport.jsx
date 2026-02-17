@@ -59,6 +59,8 @@ export const ScheduledReport = ({
   setShowSuccess,
   platformOptions,
   getBrandOptions,
+  getCategoryOptions,
+  getSkuOptions,
   getLocationOptions,
   timePeriodOptions,
   reportTypeOptions,
@@ -269,7 +271,7 @@ export const ScheduledReport = ({
             </Typography>
           </Box>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={3} lg={1.7}>
               <FilterCard
                 title="Platform"
                 icon={CategoryIcon}
@@ -313,7 +315,7 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={3} lg={1.7}>
               <FilterCard
                 title="Brand"
                 icon={StoreIcon}
@@ -357,7 +359,95 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={3} lg={1.7}>
+              <FilterCard
+                title="Category"
+                icon={CategoryIcon}
+                color="#8B5CF6" // Violet
+              >
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedFilters.category}
+                    onChange={(e) =>
+                      handleFilterChange("category", e.target.value)
+                    }
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 200,
+                          borderRadius: "12px",
+                        },
+                      },
+                    }}
+                    sx={{
+                      borderRadius: "8px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#E2E8F0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#8B5CF6",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#8B5CF6",
+                      },
+                    }}
+                  >
+                    {getCategoryOptions().map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </FilterCard>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3} lg={1.7}>
+              <FilterCard
+                title="SKU"
+                icon={AssessmentIcon}
+                color="#F59E0B" // Amber
+              >
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedFilters.sku}
+                    onChange={(e) =>
+                      handleFilterChange("sku", e.target.value)
+                    }
+                    displayEmpty
+                    MenuProps={{
+                      PaperProps: {
+                        style: {
+                          maxHeight: 200,
+                          borderRadius: "12px",
+                        },
+                      },
+                    }}
+                    sx={{
+                      borderRadius: "8px",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#E2E8F0",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#F59E0B",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#F59E0B",
+                      },
+                    }}
+                  >
+                    {getSkuOptions().map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </FilterCard>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={4} lg={1.7}>
               <FilterCard
                 title="Location"
                 icon={PlaceIcon}
@@ -401,7 +491,7 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={4} lg={1.7}>
               <FilterCard
                 title="Time Period"
                 icon={CalendarIcon}
@@ -496,7 +586,7 @@ export const ScheduledReport = ({
               </FilterCard>
             </Grid>
 
-            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+            <Grid item xs={12} sm={6} md={4} lg={1.7}>
               <FilterCard
                 title="Report Type"
                 icon={AssessmentIcon}

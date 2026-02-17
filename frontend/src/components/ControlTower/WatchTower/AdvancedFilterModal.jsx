@@ -78,6 +78,7 @@ const kpiOptions = [
     { key: 'promoComp', label: 'Promo (Comp)' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
+    { key: 'asp', label: 'ASP' },
 ]
 
 // ========================================
