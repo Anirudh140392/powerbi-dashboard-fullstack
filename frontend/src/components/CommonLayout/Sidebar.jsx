@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import eyLogo from "../../assets/ey.png";
+import eyLogo from "../../assets/sidebar_logo.png";
 import {
   Box,
   Typography,
@@ -143,6 +143,7 @@ const Sidebar = ({
         >
           {/* EY Logo Container */}
           <Box
+            onClick={() => navigate("/watch-tower")}
             sx={{
               height: '100%',
               width: isCollapsed ? '100%' : 'auto',
@@ -150,16 +151,17 @@ const Sidebar = ({
               alignItems: 'center',
               justifyContent: 'center',
               transition: 'all 0.3s ease',
-              overflow: 'visible'
+              overflow: 'visible',
+              cursor: 'pointer'
             }}
           >
             <img
               src={eyLogo}
-              alt="EY Logo"
+              alt="Trailytics Logo"
               style={{
-                height: '85%', // Scaled slightly for breathing room
+                height: '110%', // Increased size
                 width: 'auto',
-                maxWidth: isCollapsed ? '42px' : '110px',
+                maxWidth: isCollapsed ? '50px' : '150px', // Increased size
                 objectFit: 'contain',
                 display: 'block'
               }}
