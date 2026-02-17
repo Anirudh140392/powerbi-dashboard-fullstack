@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 // MUI Date Picker Providers
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import SalesMainPage from "./pages/Sales/SalesMainPage";
@@ -27,7 +27,7 @@ export default function App() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <FilterProvider>
-        <BrowserRouter>
+        <HashRouter>
           <Routes>
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
             <Route path="/watch-tower" element={<WatchTower />} />
@@ -57,7 +57,7 @@ export default function App() {
             <Route path="/scheduled-reports" element={<ScheduledReports />} />
             <Route path="/geo-intelligence" element={<GeoIntelligenceMap />} />
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
       </FilterProvider>
     </LocalizationProvider>
   );

@@ -129,7 +129,7 @@ const PlatformOverviewNew = ({
                 {
                     key: 'flipkart',
                     name: 'Flipkart',
-                    logoSrc: 'https://logos-world.net/wp-content/uploads/2020/11/Flipkart-Logo.png',
+                    logoSrc: 'https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flipkart_logo.svg/1024px-Flipkart_logo.svg.png',
                     color: '#2874f0'
                 },
                 {
