@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import eyLogo from "../../assets/ey.png";
+// import eyLogo from "../../assets/ey.png";
+const trailyticsLogo = "/Trailytics.jpg";
 import {
   Box,
   Typography,
@@ -152,12 +153,12 @@ const Sidebar = ({
             }}
           >
             <img
-              src={eyLogo}
-              alt="EY Logo"
+              src={trailyticsLogo}
+              alt="Trailytics Logo"
               style={{
-                height: '85%', // Scaled slightly for breathing room
-                width: 'auto',
-                maxWidth: isCollapsed ? '42px' : '110px',
+                height: 'auto',
+                width: '100%',
+                maxWidth: isCollapsed ? '42px' : '160px',
                 objectFit: 'contain',
                 display: 'block'
               }}

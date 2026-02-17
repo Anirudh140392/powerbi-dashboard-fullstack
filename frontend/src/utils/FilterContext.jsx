@@ -110,8 +110,8 @@ export const FilterProvider = ({ children }) => {
     const [selectedKeyword, setSelectedKeyword] = useState("vanilla");
 
     // Category state
-    const [categories] = useState(["Cassata", "Core Tub", "Cup", "Sandwich"]);
-    const [selectedCategory, setSelectedCategory] = useState("Cassata");
+    const [categories] = useState(["All", "Cassata", "Core Tub", "Cup", "Sandwich"]);
+    const [selectedCategory, setSelectedCategory] = useState("All");
 
     // Date Ranges
     const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
@@ -155,15 +155,14 @@ export const FilterProvider = ({ children }) => {
         if (platform && selectedBrand && platformData[platform]) {
             const brandLocations = platformData[platform].locations[selectedBrand];
             if (brandLocations) {
-                setLocations(brandLocations);
+                const updatedLocations = ["All", ...brandLocations];
+                setLocations(updatedLocations);
 
-                // Auto-select first location
-                if (brandLocations.length > 0) {
-                    setSelectedLocation(brandLocations[0]);
-                }
+                // Auto-select 'All'
+                setSelectedLocation("All");
             } else {
-                setLocations([]);
-                setSelectedLocation(null);
+                setLocations(["All"]);
+                setSelectedLocation("All");
             }
         }
     }, [platform, selectedBrand]);

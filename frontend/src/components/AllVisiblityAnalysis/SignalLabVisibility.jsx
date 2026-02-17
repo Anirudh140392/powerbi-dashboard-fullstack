@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useContext, useEffect } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import {
@@ -7,7 +8,11 @@ import {
     ChevronLeft,
     ChevronRight,
     ArrowUpDown,
-    Download
+    Download,
+    Zap,
+    TrendingUp,
+    Package,
+    MapPin
 } from "lucide-react";
 
 /* ------------------------------------------------------
@@ -139,7 +144,7 @@ const SAMPLE_SKUS = [
         skuName: "Cornetto Double Choco",
         packSize: "120 ml",
         platform: "Blinkit",
-        categoryTag: "Cone",
+        categoryTag: "Tub",
         offtakeValue: "₹ 3.4 lac",
         impact: "-6.2%",
         kpis: {
@@ -324,6 +329,102 @@ const SAMPLE_SKUS = [
             { city: "Bangalore", metric: "Organic Sos 8.5%", change: "+2.5%" },
         ],
     },
+    {
+        id: "VIS-D05",
+        type: "drainer",
+        metricType: "visibility",
+        skuCode: "KW V05",
+        skuName: "Choco Crunch Cone",
+        packSize: "110 ml",
+        platform: "Zepto",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 2.1 lac",
+        impact: "-4.2%",
+        kpis: {
+            adPosition: "5",
+            adSos: "6.8%",
+            organicPosition: "30",
+            overallSos: "5.2%",
+            volumeShare: "3.9%",
+            organicSos: "2.8%",
+        },
+        topCities: [
+            { city: "Mumbai", metric: "Ad Sos 5.1%", change: "-2.4%" },
+            { city: "Pune", metric: "Overall Sos 4.8%", change: "-1.9%" },
+        ],
+    },
+    {
+        id: "VIS-D10",
+        type: "drainer",
+        metricType: "visibility",
+        skuCode: "KW V10",
+        skuName: "Vanilla Tub 1L",
+        packSize: "1 L",
+        platform: "Instamart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 1.8 lac",
+        impact: "-3.5%",
+        kpis: {
+            adPosition: "7",
+            adSos: "5.1%",
+            organicPosition: "35",
+            overallSos: "4.8%",
+            volumeShare: "3.2%",
+            organicSos: "2.1%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "Overall Sos 4.2%", change: "-2.1%" },
+            { city: "Lucknow", metric: "Ad Sos 3.8%", change: "-1.5%" },
+        ],
+    },
+    {
+        id: "VIS-G05",
+        type: "gainer",
+        metricType: "visibility",
+        skuCode: "KW V11",
+        skuName: "Premium Dark Choco",
+        packSize: "90 ml",
+        platform: "Zepto",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 4.5 lac",
+        impact: "+5.5%",
+        kpis: {
+            adPosition: "1",
+            adSos: "25.2%",
+            organicPosition: "5",
+            overallSos: "15.8%",
+            volumeShare: "12.4%",
+            organicSos: "10.2%",
+        },
+        topCities: [
+            { city: "Mumbai", metric: "Ad Sos 28.4%", change: "+6.2%" },
+            { city: "Pune", metric: "Volume Share 14.1%", change: "+3.8%" },
+        ],
+    },
+    {
+        id: "VIS-G06",
+        type: "gainer",
+        metricType: "visibility",
+        skuCode: "KW V12",
+        skuName: "Cotton Candy Cup",
+        packSize: "80 ml",
+        platform: "Instamart",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 3.2 lac",
+        impact: "+4.1%",
+        kpis: {
+            adPosition: "2",
+            adSos: "19.8%",
+            organicPosition: "12",
+            overallSos: "11.5%",
+            volumeShare: "9.2%",
+            organicSos: "7.5%",
+        },
+        topCities: [
+            { city: "Bangalore", metric: "Overall Sos 13.2%", change: "+4.2%" },
+            { city: "Chennai", metric: "Ad Sos 21.5%", change: "+3.1%" },
+        ],
+    },
 
     /* --- AVAILABILITY --- */
     {
@@ -496,6 +597,132 @@ const SAMPLE_SKUS = [
         topCities: [
             { city: "Chennai", metric: "Assortment 98%", change: "+2.2%" },
             { city: "Coimbatore", metric: "OSA 96.1%", change: "+1.5%" },
+        ],
+    },
+    {
+        id: "AVL-G-DEF",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG01-DEF",
+        skuName: "Magnum Truffle (Gainer)",
+        packSize: "80 ml",
+        platform: "Blinkit",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 5.2 lac",
+        impact: "+6.8%",
+        kpis: {
+            soh: "5.2 days",
+            doi: "18.5",
+            weightedOsa: "98.2%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 98.1%", change: "+4.2%" },
+            { city: "Mumbai", metric: "Fillrate 98.5%", change: "+3.1%" },
+        ],
+    },
+    {
+        id: "AVL-G-DEF2",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG02-DEF",
+        skuName: "Cornetto Oreo (Gainer)",
+        packSize: "110 ml",
+        platform: "Blinkit",
+        categoryTag: "Cassata",
+        offtakeValue: "₹ 4.8 lac",
+        impact: "+5.1%",
+        kpis: {
+            soh: "4.8 days",
+            doi: "16.2",
+            weightedOsa: "96.5%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 97.4%", change: "+3.8%" },
+            { city: "Bangalore", metric: "Assortment 98%", change: "+2.5%" },
+        ],
+    },
+    {
+        id: "AVL-D05",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A05",
+        skuName: "Pineapple Cup",
+        packSize: "100 ml",
+        platform: "Zepto",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 2.4 lac",
+        impact: "-3.1%",
+        kpis: {
+            soh: "1.5 days",
+            doi: "6.8",
+            weightedOsa: "74.2%",
+        },
+        topCities: [
+            { city: "Ahmedabad", metric: "OSA 70.2%", change: "-4.1%" },
+            { city: "Surat", metric: "Stock out 2.8 d", change: "-2.5%" },
+        ],
+    },
+    {
+        id: "AVL-D06",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A06",
+        skuName: "Coffee Stick",
+        packSize: "60 ml",
+        platform: "Instamart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 1.9 lac",
+        impact: "-2.5%",
+        kpis: {
+            soh: "2.2 days",
+            doi: "8.1",
+            weightedOsa: "81.5%",
+        },
+        topCities: [
+            { city: "Kolkata", metric: "OSA 78.4%", change: "-3.2%" },
+            { city: "Patna", metric: "Fillrate 80.1%", change: "-2.1%" },
+        ],
+    },
+    {
+        id: "AVL-G05",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG05",
+        skuName: "Rocky Road Tub",
+        packSize: "750 ml",
+        platform: "Zepto",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 5.1 lac",
+        impact: "+6.2%",
+        kpis: {
+            soh: "5.5 days",
+            doi: "18.2",
+            weightedOsa: "98.9%",
+        },
+        topCities: [
+            { city: "Ahmedabad", metric: "OSA 99.5%", change: "+4.2%" },
+            { city: "Baroda", metric: "Fillrate 99.8%", change: "+3.5%" },
+        ],
+    },
+    {
+        id: "AVL-G06",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG06",
+        skuName: "Fruit Pop Stick",
+        packSize: "45 ml",
+        platform: "Instamart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 3.8 lac",
+        impact: "+4.7%",
+        kpis: {
+            soh: "4.9 days",
+            doi: "16.4",
+            weightedOsa: "97.1%",
+        },
+        topCities: [
+            { city: "Hyderabad", metric: "Assortment 98%", change: "+3.1%" },
+            { city: "Vizag", metric: "OSA 98.2%", change: "+2.4%" },
         ],
     },
 
@@ -920,6 +1147,30 @@ const SAMPLE_SKUS = [
 /* ------------------------------------------------------
    SIGNAL CARD UI
 -------------------------------------------------------*/
+// Skeleton card for loading state
+const SkeletonCard = () => (
+    <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white shadow-sm px-4 py-3 w-full animate-pulse">
+        <div className="flex justify-between items-start">
+            <div className="w-full">
+                <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+            </div>
+            <div className="h-8 w-8 bg-slate-200 rounded-lg"></div>
+        </div>
+        <div className="mt-4 flex gap-4">
+            <div className="flex-1 h-8 bg-slate-100 rounded-xl"></div>
+            <div className="flex-1 h-8 bg-slate-100 rounded-xl"></div>
+        </div>
+        <div className="mt-4 pt-3 border-t border-slate-50">
+            <div className="h-4 bg-slate-200 rounded w-1/2 mb-2"></div>
+            <div className="flex justify-between">
+                <div className="h-3 bg-slate-100 rounded w-1/4"></div>
+                <div className="h-3 bg-slate-100 rounded w-1/4"></div>
+            </div>
+        </div>
+    </div>
+);
+
 function SignalCard({ sku, metricType, onShowDetails }) {
     const [showAllCities, setShowAllCities] = useState(false);
     const citiesToShow = showAllCities ? sku.topCities : sku.topCities.slice(0, 2);
@@ -1024,13 +1275,60 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const {
+        platform: globalPlatform,
+        selectedCategory,
+        selectedLocation
+    } = useContext(FilterContext);
 
     const [rowsPerPage, setRowsPerPage] = useState(4);
     const [page, setPage] = useState(1);
 
-    const filtered = SAMPLE_SKUS.filter(
-        (sku) => sku.metricType === metricType && sku.type === signalType
-    );
+    // Simulated loading delay on filter change
+    useEffect(() => {
+        setIsLoading(true);
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [globalPlatform, selectedCategory, selectedLocation, signalType]);
+
+    const filtered = useMemo(() => {
+        return SAMPLE_SKUS.filter((sku) => {
+            const matchesMetric = sku.metricType === metricType;
+            const matchesSignal = sku.type === signalType;
+
+            // Platform Filter
+            const matchesPlatform = !globalPlatform || (
+                Array.isArray(globalPlatform)
+                    ? globalPlatform.some(p => sku.platform.toLowerCase() === String(p).toLowerCase())
+                    : sku.platform.toLowerCase() === String(globalPlatform).toLowerCase()
+            );
+
+            // Category Filter (with mapping)
+            const catMap = { "Core Tub": "Tub" };
+            const matchesCategory = !selectedCategory || selectedCategory === "All" || (
+                Array.isArray(selectedCategory)
+                    ? selectedCategory.some(cat => (catMap[cat] || String(cat)).toLowerCase() === sku.categoryTag.toLowerCase())
+                    : (catMap[selectedCategory] || String(selectedCategory)).toLowerCase() === sku.categoryTag.toLowerCase()
+            );
+
+            // Location Filter: Only filter if selectedLocation is NOT "All" and NOT null/undefined
+            const matchesLocation = !selectedLocation || selectedLocation === "All" || (
+                Array.isArray(selectedLocation)
+                    ? selectedLocation.some(loc => sku.topCities.some(c => c.city.toLowerCase() === String(loc).toLowerCase()))
+                    : sku.topCities.some(c => c.city.toLowerCase() === String(selectedLocation).toLowerCase())
+            );
+
+            // Platform and Category filters are already safe. 
+            // We want to make sure if no category matches, we are not empty if the user didn't explicitly select something other than default.
+            // But actually fixing the data is better.
+
+            return matchesMetric && matchesSignal && matchesPlatform && matchesCategory && matchesLocation;
+        });
+    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
@@ -1060,17 +1358,31 @@ function SignalLabBase({ metricType, usePagination = true }) {
                 />
             </div>
 
-            <div className="mt-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
-                    {pageRows.map((s) => (
-                        <SignalCard
-                            key={s.id}
-                            sku={s}
-                            metricType={metricType}
-                            onShowDetails={() => setSelectedSkuForDetails(s)}
-                        />
-                    ))}
-                </div>
+            <div className="mt-5 min-h-[400px]">
+                {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                        {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+                    </div>
+                ) : filtered.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                        {pageRows.map((s) => (
+                            <SignalCard
+                                key={s.id}
+                                sku={s}
+                                metricType={metricType}
+                                onShowDetails={() => setSelectedSkuForDetails(s)}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-300">
+                        <div className="p-4 bg-white rounded-2xl shadow-sm mb-4">
+                            <Zap className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <p className="text-slate-500 font-medium">No results found for current filters</p>
+                        <p className="text-slate-400 text-xs mt-1">Try adjusting your global or signal selections</p>
+                    </div>
+                )}
             </div>
 
             {usePagination && (
