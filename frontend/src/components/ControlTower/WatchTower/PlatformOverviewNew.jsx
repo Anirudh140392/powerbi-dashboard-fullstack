@@ -64,6 +64,7 @@ const PlatformOverviewNew = ({
         selectedChannel,
         platform: globalPlatform,
         selectedBrand,
+        selectedCategory,
         selectedLocation,
         timeStart,
         timeEnd
@@ -290,7 +291,7 @@ const PlatformOverviewNew = ({
 
     const entities = useMemo(() => {
         // Define context here so it updates when filter values change
-        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
         // start from all entities for the current dimension
         let list = currentDimension.entities.slice()
 
@@ -312,7 +313,7 @@ const PlatformOverviewNew = ({
             ...e,
             data: generateEntityData(e.key, idx, context, dimension)
         }))
-    }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, advancedFilters, dimension])
+    }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters, dimension])
 
     const SectionWrapper = ({
         title,
