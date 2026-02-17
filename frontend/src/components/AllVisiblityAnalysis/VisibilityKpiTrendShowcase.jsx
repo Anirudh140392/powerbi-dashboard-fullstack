@@ -308,7 +308,7 @@ const SelectItem = ({ value, children }) => {
 /* -------------------------------------------------------------------------- */
 
 /** Base days for trend charts */
-const DAYS = Array.from({ length: 20 }).map((_, i) => `0${i + 6} Nov'25`);
+const DAYS = Array.from({ length: 20 }).map((_, i) => `${(i + 6).toString().padStart(2, '0')} Nov'25`);
 
 /** Raw config – you can change this and UI will adapt */
 const RAW_DATA = {
