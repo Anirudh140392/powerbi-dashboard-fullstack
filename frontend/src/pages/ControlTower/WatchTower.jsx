@@ -180,15 +180,32 @@ export default function WatchTower() {
     selectedChannel,
   } = React.useContext(FilterContext);
 
+  // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
+  const getJitter = (baseVal, kpiKey) => {
+    if (typeof baseVal !== "number") return baseVal;
+
+    const seedStr = `${selectedCategory}-${selectedBrand}-${platform}-${kpiKey}`;
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+      hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+      hash |= 0;
+    }
+    const noise = (Math.abs(hash) % 20) - 10; // -10% to +10%
+    const multiplier = 1 + noise / 100;
+    const result = baseVal * multiplier;
+
+    return parseFloat(result.toFixed(kpiKey === "roas" || kpiKey === "offtake" ? 2 : 1));
+  };
+
   const context = { selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
 
   const COMPARISON_KPIS = useMemo(() => [
     {
       id: 'offtake',
       title: 'Offtake',
-      value: `₹${getLogicalKpiValue('offtake', context)}Cr`,
-      delta: getLogicalKpiValue('offtakedelta', context),
-      deltaLabel: `+₹${(getLogicalKpiValue('offtakedelta', context) * 5.8).toFixed(1)}L`,
+      value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
+      delta: getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta'),
+      deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)}L`,
       icon: ShoppingCart,
       gradient: ['#6366f1', '#8b5cf6'],
       trend: getLogicalKpiTrend('offtake', context)
@@ -196,9 +213,9 @@ export default function WatchTower() {
     {
       id: 'availability',
       title: 'Availability',
-      value: `${getLogicalKpiValue('osa', context)}%`,
-      delta: getLogicalKpiValue('osadelta', context),
-      deltaLabel: `+${(getLogicalKpiValue('osadelta', context) / 4).toFixed(1)}%`,
+      value: `${getJitter(getLogicalKpiValue('osa', context), 'osa')}%`,
+      delta: getJitter(getLogicalKpiValue('osadelta', context), 'osadelta'),
+      deltaLabel: `+${(getJitter(getLogicalKpiValue('osadelta', context), 'osadelta') / 4).toFixed(1)}%`,
       icon: Layers,
       gradient: ['#14b8a6', '#06b6d4'],
       trend: getLogicalKpiTrend('availability', context)
@@ -206,9 +223,9 @@ export default function WatchTower() {
     {
       id: 'promo',
       title: 'Promo',
-      value: `${getLogicalKpiValue('promo', context)}%`,
-      delta: -getLogicalKpiValue('promodelta', context) / 5,
-      deltaLabel: `-${(getLogicalKpiValue('promodelta', context) / 100).toFixed(2)}%`,
+      value: `${getJitter(getLogicalKpiValue('promo', context), 'promo')}%`,
+      delta: -getJitter(getLogicalKpiValue('promodelta', context), 'promodelta') / 5,
+      deltaLabel: `-${(getJitter(getLogicalKpiValue('promodelta', context), 'promodelta') / 100).toFixed(2)}%`,
       icon: Percent,
       gradient: ['#f43f5e', '#ec4899'],
       trend: getLogicalKpiTrend('promo', context)
@@ -216,9 +233,9 @@ export default function WatchTower() {
     {
       id: 'market',
       title: 'Market Share',
-      value: `${getLogicalKpiValue('market', context)}%`,
-      delta: getLogicalKpiValue('marketdelta', context),
-      deltaLabel: `+${(getLogicalKpiValue('marketdelta', context) / 8).toFixed(2)}%`,
+      value: `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
+      delta: getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
+      deltaLabel: `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
       icon: PieChart,
       gradient: ['#8b5cf6', '#a855f7'],
       trend: getLogicalKpiTrend('market', context)
@@ -226,9 +243,9 @@ export default function WatchTower() {
     {
       id: 'sos',
       title: 'Share of Search',
-      value: `${getLogicalKpiValue('sos', context)}%`,
-      delta: -getLogicalKpiValue('sosdelta', context) / 6,
-      deltaLabel: `-${(getLogicalKpiValue('sosdelta', context) / 10).toFixed(1)}%`,
+      value: `${getJitter(getLogicalKpiValue('sos', context), 'sos')}%`,
+      delta: -getJitter(getLogicalKpiValue('sosdelta', context), 'sosdelta') / 6,
+      deltaLabel: `-${(getJitter(getLogicalKpiValue('sosdelta', context), 'sosdelta') / 10).toFixed(1)}%`,
       icon: Eye,
       gradient: ['#f97316', '#fb923c'],
       trend: getLogicalKpiTrend('sos', context)
@@ -236,9 +253,9 @@ export default function WatchTower() {
     {
       id: 'inorg',
       title: 'Inorganic Sales',
-      value: `${getLogicalKpiValue('inorg', context)}%`,
-      delta: getLogicalKpiValue('inorgdelta', context),
-      deltaLabel: `+${(getLogicalKpiValue('inorgdelta', context) / 5).toFixed(1)}%`,
+      value: `₹${getJitter(getLogicalKpiValue('inorg', context), 'inorg')}Cr`,
+      delta: getJitter(getLogicalKpiValue('inorgdelta', context), 'inorgdelta'),
+      deltaLabel: `+${(getJitter(getLogicalKpiValue('inorgdelta', context), 'inorgdelta') / 5).toFixed(1)}%`,
       icon: TrendingUp,
       gradient: ['#22c55e', '#4ade80'],
       trend: getLogicalKpiTrend('inorg', context)
@@ -246,9 +263,9 @@ export default function WatchTower() {
     {
       id: 'conversion',
       title: 'Conversion',
-      value: `${getLogicalKpiValue('conversion', context)}%`,
-      delta: getLogicalKpiValue('convdelta', context) * 2,
-      deltaLabel: `+${(getLogicalKpiValue('convdelta', context) / 30).toFixed(1)}%`,
+      value: `${getJitter(getLogicalKpiValue('conversion', context), 'conversion')}%`,
+      delta: getJitter(getLogicalKpiValue('convdelta', context), 'convdelta') * 2,
+      deltaLabel: `+${(getJitter(getLogicalKpiValue('convdelta', context), 'convdelta') / 30).toFixed(1)}%`,
       icon: Target,
       gradient: ['#06b6d4', '#22d3ee'],
       trend: getLogicalKpiTrend('conversion', context)
@@ -256,9 +273,9 @@ export default function WatchTower() {
     {
       id: 'roas',
       title: 'ROAS',
-      value: `${getLogicalKpiValue('roas', context)}`,
-      delta: getLogicalKpiValue('roasdelta', context) * 1.5,
-      deltaLabel: `+${(getLogicalKpiValue('roasdelta', context) / 20).toFixed(1)}x`,
+      value: `${getJitter(getLogicalKpiValue('roas', context), 'roas')}`,
+      delta: getJitter(getLogicalKpiValue('roasdelta', context), 'roasdelta') * 1.5,
+      deltaLabel: `+${(getJitter(getLogicalKpiValue('roasdelta', context), 'roasdelta') / 20).toFixed(1)}x`,
       icon: DollarSign,
       gradient: ['#eab308', '#facc15'],
       trend: getLogicalKpiTrend('roas', context)
@@ -294,7 +311,8 @@ export default function WatchTower() {
     setFilters((prev) => ({
       ...prev,
       platform: platform,
-      brand: selectedCategory,
+      brand: selectedBrand,
+      category: selectedCategory,
       keyword: selectedKeyword,
       location: selectedLocation,
       startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
@@ -304,6 +322,7 @@ export default function WatchTower() {
     }));
   }, [
     selectedBrand,
+    selectedCategory,
     timeStart,
     timeEnd,
     compareStart,

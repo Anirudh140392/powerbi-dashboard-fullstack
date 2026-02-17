@@ -729,7 +729,7 @@ const SnapshotOverview = ({
         bottomItems.push(finalOrders);
 
         return { topKpis: topRowItems, bottomKpis: bottomItems };
-    }, [kpis, performanceData, variant]);
+    }, [kpis, performanceData, variant, seed]);
 
     // PREPARE DATA FOR DETAILED VIEW
     const detailedKpis = useMemo(() => {
