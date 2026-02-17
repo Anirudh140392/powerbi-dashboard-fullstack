@@ -110,11 +110,27 @@ function getLogicalKpiValue(kpi, filters = {}) {
     return String(val || '').toLowerCase().trim();
   };
 
+  const getCategoryList = (val) => {
+    const allCats = ["cassata", "core tub", "cup", "sandwich"];
+    if (!val || val === "All" || val === "None" || (Array.isArray(val) && val.length === 0)) {
+      return allCats;
+    }
+    if (Array.isArray(val)) {
+      const filtered = val.filter(v => v && v !== "All" && v !== "None").map(v => String(v).toLowerCase().trim());
+      return filtered.length > 0 ? filtered : allCats;
+    }
+    const s = String(val).toLowerCase().trim();
+    if (s === "all" || s === "none" || s === "") return allCats;
+    return [s];
+  };
+
   const rawKey = kpi.toLowerCase().replace(/[^a-z0-9]/g, '');
   const rowIdx = filters.entityIdx ?? 0;
   const platform = safeStr(filters.entityKey || filters.col || filters.platform || 'all');
-  const category = safeStr(filters.selectedCategory || filters.category || '');
+  const categories = getCategoryList(filters.selectedCategory || filters.category || '');
   const brand = safeStr(filters.selectedBrand || filters.brand || '');
+
+  const catCount = categories.length || 1;
 
   // 1. Handle deltas/dir with unique row-based hashing
   const isDelta = rawKey.endsWith('delta');
@@ -122,7 +138,7 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
   if (isDelta || isDir) {
     const baseKpi = rawKey.replace(/delta$|dir$/, '');
-    const seedStr = `d_${platform}_${category}_${brand}_${baseKpi}_${rowIdx}`;
+    const seedStr = `d_${platform}_${categories.join('_')}_${brand}_${baseKpi}_${rowIdx}`;
     const hash = seedStr.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
     const absHash = Math.abs(hash);
 
@@ -134,12 +150,12 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
   const kpiKey = KPI_ALIASES[rawKey] || rawKey;
 
-  // 2. Lookup Entity Data
+  // 2. Lookup Entity Data (Base value for one category)
   let entityData = ENTITY_DATA[platform] || BASELINE;
 
   // If platform is 'all' but category exists, use category baseline for more realism
-  if ((platform === 'all' || platform === '') && category && ENTITY_DATA[category]) {
-    entityData = ENTITY_DATA[category];
+  if ((platform === 'all' || platform === '') && categories.length > 0 && ENTITY_DATA[categories[0]]) {
+    entityData = ENTITY_DATA[categories[0]];
   } else if ((platform === 'all' || platform === '') && brand && ENTITY_DATA[brand]) {
     entityData = ENTITY_DATA[brand];
   }
@@ -147,11 +163,12 @@ function getLogicalKpiValue(kpi, filters = {}) {
   let value = entityData[kpiKey] ?? BASELINE[kpiKey] ?? 50;
 
   // 3. Mandatory Variance per Row/Index/Category/Brand
-  const varianceSeed = `v_${platform}_${category}_${brand}_${rawKey}_${rowIdx}`;
+  const varianceSeed = `v_${platform}_${categories.join('_')}_${brand}_${rawKey}_${rowIdx}`;
   const h = varianceSeed.split('').reduce((a, c) => ((a << 5) - a) + c.charCodeAt(0), 0);
   const vFactor = Math.abs(h % 100) / 100; // 0.00 to 0.99
 
   const isPercentage = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(rawKey);
+  const isTotalizing = ['offtaking', 'offtake', 'offtakes', 'spend', 'inorgsales', 'dspsales', 'categorysize', 'psl', 'assortment'].includes(rawKey);
 
   // Variance range: 0.80 to 1.20
   let jitter = 0.80 + vFactor * 0.40;
@@ -162,6 +179,13 @@ function getLogicalKpiValue(kpi, filters = {}) {
   }
 
   if (typeof value === 'number') {
+    // Apply Multi-Category Aggregation for totalizing KPIs
+    if (isTotalizing) {
+      // Use logical scaling: sum of N categories is roughly N * avg_category_value
+      // We use base value * catCount * slight dampening to be realistic
+      value = value * catCount * (1 - (catCount - 1) * 0.05);
+    }
+
     value = value * jitter;
 
     // Extra micro-offset per row index to break any ties
@@ -174,7 +198,7 @@ function getLogicalKpiValue(kpi, filters = {}) {
 
   // 4. Formatting
   if (typeof value === 'number') {
-    if (value > 1500) return Math.round(value);
+    if (value > 1500 && !isPercentage) return Math.round(value);
     return parseFloat(value.toFixed(2));
   }
   return value;

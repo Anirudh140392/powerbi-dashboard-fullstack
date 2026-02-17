@@ -184,7 +184,12 @@ export default function WatchTower() {
   const getJitter = (baseVal, kpiKey) => {
     if (typeof baseVal !== "number") return baseVal;
 
-    const seedStr = `${selectedCategory}-${selectedBrand}-${platform}-${kpiKey}`;
+    // Standardize category for seed consistency
+    const catSeed = (!selectedCategory || selectedCategory === "All" || (Array.isArray(selectedCategory) && selectedCategory.length === 0))
+      ? "all"
+      : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory);
+
+    const seedStr = `${catSeed}-${selectedBrand}-${platform}-${kpiKey}`;
     let hash = 0;
     for (let i = 0; i < seedStr.length; i++) {
       hash = (hash << 5) - hash + seedStr.charCodeAt(i);
