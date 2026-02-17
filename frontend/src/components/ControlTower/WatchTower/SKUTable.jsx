@@ -41,7 +41,7 @@ export default function SKUTable({ data }) {
             value="offtake"
             sx={{ minWidth: 120 }}
           >
-            <MenuItem value="offtake">Offtake</MenuItem>
+            <MenuItem value="offtake">Offtakes</MenuItem>
             <MenuItem value="growth">Growth</MenuItem>
           </Select>
         </Box>
@@ -158,13 +158,13 @@ export default function SKUTable({ data }) {
                 </tr>
                 <tr style={{ backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb', borderTop: `1px solid ${theme.palette.divider}`, position: 'sticky', top: 49, zIndex: 2 }}>
                   <th style={{ padding: '8px 12px', borderRight: `1px solid ${theme.palette.divider}` }}></th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600 }}>Growth %</th>
                 </tr>
               </thead>
