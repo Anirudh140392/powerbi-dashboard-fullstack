@@ -170,6 +170,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const [drillDimension, setDrillDimension] = useState("region");
     const [expandedRows, setExpandedRows] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [breakdownLoading, setBreakdownLoading] = useState(false);
     const [error, setError] = useState(null);
     const [apiData, setApiData] = useState(null);
 
@@ -240,7 +241,13 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     // ========================================
     useEffect(() => {
         const fetchData = async () => {
-            setLoading(true);
+            // If we already have data and are just fetching breakdown, use breakdownLoading
+            const isBreakdownRefetch = apiData && expandedRows.length > 0;
+            if (isBreakdownRefetch) {
+                setBreakdownLoading(true);
+            } else {
+                setLoading(true);
+            }
             setError(null);
             try {
                 const params = new URLSearchParams();
@@ -284,6 +291,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                 setError(err.message);
             } finally {
                 setLoading(false);
+                setBreakdownLoading(false);
             }
         };
 
@@ -355,7 +363,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         return { value: val !== undefined ? val : 0, delta: 0 };
     };
 
-    if (isLoading) {
+    if (isLoading && !apiData) {
         return <PlatformKpiMatrixSkeleton />;
     }
 
@@ -644,30 +652,40 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                         </div>
 
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                                                            {entities.map((entity) => (
-                                                                <div key={entity} className="bg-white rounded-lg p-3 border border-slate-100">
-                                                                    <div className="text-xs font-medium text-slate-700 mb-2">{entity}</div>
-                                                                    <div className="grid grid-cols-2 gap-2">
-                                                                        {(() => {
-                                                                            const row = apiData?.rows?.find(r => r.kpi.toLowerCase() === kpi.key.toLowerCase());
-                                                                            const breakdownData = row?.breakdown?.[entity];
-                                                                            const keys = breakdownData ? Object.keys(breakdownData) : drillItems;
+                                                            {entities.map((entity) => {
+                                                                const row = apiData?.rows?.find(r => r.kpi.toLowerCase() === kpi.key.toLowerCase());
+                                                                const breakdownData = row?.breakdown?.[entity];
+                                                                const isBreakdownLoading2 = breakdownLoading || loading || !breakdownData;
 
-                                                                            return keys.map((item) => {
-                                                                                const drillData = getDrillData(entity, kpi.key, item);
-                                                                                return (
-                                                                                    <div key={item} className="text-xs">
-                                                                                        <span className="text-slate-400" title={item}>
-                                                                                            {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
-                                                                                        </span>
-                                                                                        <span className="ml-1 font-medium text-slate-700">{drillData.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                                return (
+                                                                    <div key={entity} className="bg-white rounded-lg p-3 border border-slate-100">
+                                                                        <div className="text-xs font-medium text-slate-700 mb-2">{entity}</div>
+                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                            {isBreakdownLoading2 ? (
+                                                                                // Skeleton loaders while drill-down data loads
+                                                                                [1, 2, 3, 4].map((i) => (
+                                                                                    <div key={`skel-${i}`} className="flex items-center gap-1.5">
+                                                                                        <div className="h-3 w-12 rounded bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
+                                                                                        <div className="h-3 w-8 rounded bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />
                                                                                     </div>
-                                                                                );
-                                                                            });
-                                                                        })()}
+                                                                                ))
+                                                                            ) : (
+                                                                                Object.keys(breakdownData).map((item) => {
+                                                                                    const drillData = getDrillData(entity, kpi.key, item);
+                                                                                    return (
+                                                                                        <div key={item} className="text-xs">
+                                                                                            <span className="text-slate-400" title={item}>
+                                                                                                {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
+                                                                                            </span>
+                                                                                            <span className="ml-1 font-medium text-slate-700">{drillData.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                })
+                                                                            )}
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            ))}
+                                                                );
+                                                            })}
                                                         </div>
                                                     </td>
                                                 </motion.tr>
