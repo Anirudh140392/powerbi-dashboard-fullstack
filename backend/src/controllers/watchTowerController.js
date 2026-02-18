@@ -26,7 +26,9 @@ export const getTrendData = async (req, res) => {
             period: req.query.period,
             timeStep: req.query.timeStep,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            skuName: req.query.skuName,
+            skuCode: req.query.skuCode
         };
         console.log("trend data api call received", filters);
         const data = await watchTowerService.getTrendData(filters);
@@ -242,7 +244,9 @@ export const getKpiTrends = async (req, res) => {
             period: req.query.period,
             timeStep: req.query.timeStep,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            skuName: req.query.skuName,
+            skuCode: req.query.skuCode
         };
         console.log('[getKpiTrends] API call received with filters:', filters);
         const data = await watchTowerService.getKpiTrends(filters);
