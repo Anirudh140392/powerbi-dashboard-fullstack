@@ -422,7 +422,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
     try {
         console.log("Processing Watch Tower request with filters:", filters);
 
-        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category, channel } = filters;
+        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category, channel, skuName, skuCode } = filters;
 
         // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
         const rawBrand = filters['brand[]'] || filters.brand;
@@ -542,7 +542,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         // 3. Availability Calculation Helper (Unified for all platforms using RbPdpOlap)
         // Supports multi-value filters - NOW USES CLICKHOUSE
-        const getAvailability = async (start, end, brandFilter, platformFilter, locationFilter, categoryFilter) => {
+        const getAvailability = async (start, end, brandFilter, platformFilter, locationFilter, categoryFilter, skuNameFilter, skuCodeFilter) => {
             // Helper to escape strings for ClickHouse
             const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -600,6 +600,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 } else {
                     conditions.push(`Category IN (${categoryFilterArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
+            }
+
+            // Advanced SKU Search Filters
+            const skuArr = normalizeFilterArray(skuNameFilter);
+            if (skuArr && skuArr.length > 0) {
+                const skuConds = skuArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conditions.push(`(${skuConds})`);
+            }
+            const skuCodeArr = normalizeFilterArray(skuCodeFilter);
+            if (skuCodeArr && skuCodeArr.length > 0) {
+                const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conditions.push(`(${skuCodeConds})`);
             }
 
             const query = `
@@ -1051,6 +1063,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             if (category && category !== 'All') {
                 conditions.push(`Category = '${escapeStrMain(category)}'`);
             }
+
+            // Advanced SKU Search Filters
+            const skuArr = normalizeFilterArray(skuName);
+            if (skuArr && skuArr.length > 0) {
+                const skuConds = skuArr.map(s => `Product LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
+                conditions.push(`(${skuConds})`);
+            }
+            const skuCodeArr = normalizeFilterArray(skuCode);
+            if (skuCodeArr && skuCodeArr.length > 0) {
+                const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
+                conditions.push(`(${skuCodeConds})`);
+            }
             return conditions.join(' AND ');
         };
 
@@ -1227,10 +1251,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 }
             })(),
             // 5. Current Availability (already uses ClickHouse)
-            getAvailability(startDate, endDate, brand, platform, location, category),
+            getAvailability(startDate, endDate, brand, platform, location, category, skuName, skuCode),
             // 6. Previous Availability
             (filters.compareStartDate && filters.compareEndDate)
-                ? getAvailability(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, platform, location, category)
+                ? getAvailability(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, platform, location, category, skuName, skuCode)
                 : Promise.resolve(0),
             // 7. Current Share of Search (already uses ClickHouse)
             getShareOfSearch(startDate, endDate, brand, platform, location, category),
@@ -1345,6 +1369,17 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
                     if (category && category !== 'All') {
                         prevConditions.push(`Category = '${escapeStrMain(category)}'`);
+                    }
+                    // Advanced SKU Search Filters
+                    const skuArr = normalizeFilterArray(skuName);
+                    if (skuArr && skuArr.length > 0) {
+                        const skuConds = skuArr.map(s => `Product LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
+                        prevConditions.push(`(${skuConds})`);
+                    }
+                    const skuCodeArr = normalizeFilterArray(skuCode);
+                    if (skuCodeArr && skuCodeArr.length > 0) {
+                        const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
+                        prevConditions.push(`(${skuCodeConds})`);
                     }
                     const result = await queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total FROM rb_pdp_olap WHERE ${prevConditions.join(' AND ')}`);
                     return parseFloat(result[0]?.total || 0);
@@ -4044,7 +4079,7 @@ const getPerformanceMetrics = async (filters) => {
 const getPlatformOverview = async (filters) => {
     console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel, skuName, skuCode } = filters;
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -4171,6 +4206,18 @@ const getPlatformOverview = async (filters) => {
         const platformCond = buildPlatformChannelCond(null, channel);
         if (platformCond) {
             conds.push(platformCond);
+        }
+
+        // Advanced SKU Search Filters
+        const skuArrArr = normalizeFilterArray(skuName);
+        if (skuArrArr && skuArrArr.length > 0) {
+            const skuConds = skuArrArr.map(s => `lower(Product) LIKE '%${escapeStr(s.toLowerCase())}%'`).join(' OR ');
+            conds.push(`(${skuConds})`);
+        }
+        const skuCodeArrArr = normalizeFilterArray(skuCode);
+        if (skuCodeArrArr && skuCodeArrArr.length > 0) {
+            const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conds.push(`(${skuCodeConds})`);
         }
 
         return conds.join(' AND ');
@@ -4678,7 +4725,7 @@ const getPlatformOverview = async (filters) => {
 const getMonthOverview = async (filters) => {
     console.log('[getMonthOverview] Computing OPTIMIZED month overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, category, monthOverviewPlatform, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, category, monthOverviewPlatform, channel, skuName, skuCode } = filters;
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -4734,6 +4781,17 @@ const getMonthOverview = async (filters) => {
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        }
+        // Advanced SKU Search Filters
+        const skuArr = normalizeFilterArray(skuName);
+        if (skuArr && skuArr.length > 0) {
+            const skuConds = skuArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conds.push(`(${skuConds})`);
+        }
+        const skuCodeArr = normalizeFilterArray(skuCode);
+        if (skuCodeArr && skuCodeArr.length > 0) {
+            const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conds.push(`(${skuCodeConds})`);
         }
         return conds.join(' AND ');
     };
@@ -4911,11 +4969,11 @@ const getMonthOverview = async (filters) => {
         const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
-        const promoMyBrand = parseFloat(currData.my_mrp_val || 0) > 0
-            ? ((parseFloat(currData.my_mrp_val) - parseFloat(currData.my_actual_sales)) / parseFloat(currData.my_mrp_val)) * 100
+        const promoMyBrand = parseFloat(data.my_mrp_val || 0) > 0
+            ? ((parseFloat(data.my_mrp_val) - parseFloat(data.my_actual_sales)) / parseFloat(data.my_mrp_val)) * 100
             : 0;
-        const promoCompete = parseFloat(currData.comp_mrp_val || 0) > 0
-            ? ((parseFloat(currData.comp_mrp_val) - parseFloat(currData.comp_actual_sales)) / parseFloat(currData.comp_mrp_val)) * 100
+        const promoCompete = parseFloat(data.comp_mrp_val || 0) > 0
+            ? ((parseFloat(data.comp_mrp_val) - parseFloat(data.comp_actual_sales)) / parseFloat(data.comp_mrp_val)) * 100
             : 0;
         const prevPromoMyBrand = parseFloat(prevData.my_mrp_val || 0) > 0
             ? ((parseFloat(prevData.my_mrp_val) - parseFloat(prevData.my_actual_sales)) / parseFloat(prevData.my_mrp_val)) * 100
@@ -4958,7 +5016,7 @@ const getMonthOverview = async (filters) => {
 const getCategoryOverview = async (filters) => {
     console.log('[getCategoryOverview] Computing OPTIMIZED category overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform, channel, skuName, skuCode } = filters;
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -5007,6 +5065,19 @@ const getCategoryOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`LOWER(Category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
+
+        // Advanced SKU Search Filters
+        const skuArrArr = normalizeFilterArray(skuName);
+        if (skuArrArr && skuArrArr.length > 0) {
+            const skuConds = skuArrArr.map(s => `lower(Product) LIKE '%${escapeStr(s.toLowerCase())}%'`).join(' OR ');
+            conds.push(`(${skuConds})`);
+        }
+        const skuCodeArrArr = normalizeFilterArray(skuCode);
+        if (skuCodeArrArr && skuCodeArrArr.length > 0) {
+            const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conds.push(`(${skuCodeConds})`);
+        }
+
         return conds.join(' AND ');
     };
 
@@ -5198,6 +5269,19 @@ const getCategoryOverview = async (filters) => {
         const prevMsNum = parseFloat(prevMsNumMap.get(catKey) || 0);
         const prevMsDenom = parseFloat(prevMsDenomMap.get(catKey) || 0);
         const prevMarketShare = prevMsDenom > 0 ? (prevMsNum / prevMsDenom) * 100 : 0;
+
+        const promoMyBrand = parseFloat(curr.my_mrp_val || 0) > 0
+            ? ((parseFloat(curr.my_mrp_val) - parseFloat(curr.my_actual_sales)) / parseFloat(curr.my_mrp_val)) * 100
+            : 0;
+        const promoCompete = parseFloat(curr.comp_mrp_val || 0) > 0
+            ? ((parseFloat(curr.comp_mrp_val) - parseFloat(curr.comp_actual_sales)) / parseFloat(curr.comp_mrp_val)) * 100
+            : 0;
+        const prevPromoMyBrand = parseFloat(prev.my_mrp_val || 0) > 0
+            ? ((parseFloat(prev.my_mrp_val) - parseFloat(prev.my_actual_sales)) / parseFloat(prev.my_mrp_val)) * 100
+            : 0;
+        const prevPromoCompete = parseFloat(prev.comp_mrp_val || 0) > 0
+            ? ((parseFloat(prev.comp_mrp_val) - parseFloat(prev.comp_actual_sales)) / parseFloat(prev.comp_mrp_val)) * 100
+            : 0;
         return {
             key: catName,
             label: catName,
@@ -7510,7 +7594,7 @@ const getSkuOverview = async (filters) => {
     const prevSkuMap = new Map(prevSkuMetrics.map(d => [d.Product, d]));
 
     const skuOverview = currSkuMetrics.map((data, idx) => {
-        const skuName = data.Product || 'Unknown';
+        const skuName = (data.Product || 'Unknown').trim().replace(/\s+/g, ' ');
         const prevData = prevSkuMap.get(skuName) || {};
 
         // Current Metrics

@@ -440,7 +440,7 @@ const PlatformOverviewNew = ({
                                         )}
                                         {dimension === 'platform' ? (
                                             <Tooltip title={e.name} arrow placement="top">
-                                                <span className="text-[12px] font-semibold text-slate-700 overflow-x-auto whitespace-nowrap scrollbar-hide max-w-[150px] inline-block align-middle">
+                                                <span className="text-[12px] font-semibold text-slate-700 truncate max-w-[150px] inline-block align-middle">
                                                     {e.name}
                                                 </span>
                                             </Tooltip>
@@ -455,14 +455,18 @@ const PlatformOverviewNew = ({
                                                             maxWidth: 400,
                                                             whiteSpace: 'normal',
                                                             wordBreak: 'break-word',
-                                                            fontSize: '12px',
+                                                            fontSize: '11px',
                                                             lineHeight: 1.4,
-                                                            zIndex: 2000
+                                                            zIndex: 2000,
+                                                            bgcolor: 'rgba(15, 23, 42, 0.95)',
+                                                            padding: '8px 12px',
+                                                            borderRadius: '8px',
+                                                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                                                         }
                                                     }
                                                 }}
                                             >
-                                                <span className="text-[12px] font-semibold text-slate-700 whitespace-normal line-clamp-1 max-w-[250px] inline-block align-middle leading-tight">
+                                                <span className="text-[12px] font-semibold text-slate-700 truncate max-w-[250px] inline-block align-middle leading-tight">
                                                     {e.name}
                                                 </span>
                                             </Tooltip>
