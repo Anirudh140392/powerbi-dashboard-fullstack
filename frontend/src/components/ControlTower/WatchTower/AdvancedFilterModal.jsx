@@ -390,7 +390,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                         brands: brands.length,
                         categories: categories.length,
                         platforms: platformList.length,
-                        skus: skus.length,
+                        skuNames: skuNames.length,
+                        skuCodes: skuCodes.length,
                     })
                 }
             } catch (error) {

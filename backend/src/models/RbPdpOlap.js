@@ -59,7 +59,7 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
     type: DataTypes.STRING,
   },
   Sales: {
-    type: DataTypes.DECIMAL,
+    type: DataTypes.STRING,
   },
   Selling_Price: {
     type: DataTypes.STRING,

@@ -3791,7 +3791,7 @@ const generateTimeBuckets = (startDate, endDate, timeStep) => {
 // Internal implementation with all the compute logic - MIGRATED TO CLICKHOUSE
 const computeTrendData = async (filters) => {
     try {
-        const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd, channel } = filters;
+        const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd, channel, skuName, skuCode } = filters;
 
         // 1. Determine Date Range
         let endDate = await getCachedMaxDate();
@@ -3844,6 +3844,18 @@ const computeTrendData = async (filters) => {
             // Channel-based platform filtering
             const platformCond = buildPlatformChannelCond(platform, channel);
             if (platformCond) conds.push(platformCond);
+
+            // Advanced SKU Search Filters
+            const skuArrArr = normalizeFilterArray(skuName);
+            if (skuArrArr && skuArrArr.length > 0) {
+                const skuConds = skuArrArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conds.push(`(${skuConds})`);
+            }
+            const skuCodeArrArr = normalizeFilterArray(skuCode);
+            if (skuCodeArrArr && skuCodeArrArr.length > 0) {
+                const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conds.push(`(${skuCodeConds})`);
+            }
 
             return conds.join(' AND ');
         };
@@ -4084,7 +4096,8 @@ const getPlatformOverview = async (filters) => {
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
-    const rawCategory = filters['category[]'] || filters.category; // Added category handling
+    const rawCategory = filters['category[]'] || filters.category;
+    const rawPlatform = filters['platform[]'] || filters.platform;
 
     // Helper to split comma-separated strings
     const splitIfString = (val) => (typeof val === 'string' && val.includes(',')) ? val.split(',') : val;
@@ -4092,11 +4105,13 @@ const getPlatformOverview = async (filters) => {
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(splitIfString(rawBrand))?.map(b => b.trim());
     const locationArr = normalizeFilterArray(splitIfString(rawLocation))?.map(l => l.trim());
-    const categoryArr = normalizeFilterArray(splitIfString(rawCategory))?.map(c => c.trim()); // Normalize category
+    const categoryArr = normalizeFilterArray(splitIfString(rawCategory))?.map(c => c.trim());
+    const platformArr = normalizeFilterArray(splitIfString(rawPlatform))?.map(p => p.trim());
 
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
-    const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null; // Normalize category variable
+    const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null;
+    const platform = platformArr ? (platformArr.length === 1 ? platformArr[0] : platformArr) : null;
 
     const monthsBack = parseInt(months, 10) || 1;
 
@@ -4203,7 +4218,9 @@ const getPlatformOverview = async (filters) => {
         }
 
         // Channel-based platform filtering
-        const platformCond = buildPlatformChannelCond(null, channel);
+        // FIX: Previously passed null, causing buildPlatformChannelCond to skip platform logic if platform was null
+        // Now it uses the platform from filters if available
+        const platformCond = buildPlatformChannelCond(platformArr?.[0] || 'All', channel);
         if (platformCond) {
             conds.push(platformCond);
         }
@@ -5608,7 +5625,7 @@ const getBrandsOverview = async (filters) => {
 const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
-    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel } = filters;
+    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel, skuName, skuCode } = filters;
 
     // 1. Determine Date Range
     let endDate = await getCachedMaxDate();
@@ -5670,6 +5687,18 @@ const getKpiTrends = async (filters) => {
         // Channel-based platform filtering
         const platformCond = buildPlatformChannelCond(platform, channel);
         if (platformCond) conds.push(platformCond);
+
+        // Advanced SKU Search Filters
+        const skuArrArr = normalizeFilterArray(skuName);
+        if (skuArrArr && skuArrArr.length > 0) {
+            const skuConds = skuArrArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conds.push(`(${skuConds})`);
+        }
+        const skuCodeArrArr = normalizeFilterArray(skuCode);
+        if (skuCodeArrArr && skuCodeArrArr.length > 0) {
+            const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conds.push(`(${skuCodeConds})`);
+        }
 
         return conds.join(' AND ');
     };
@@ -6483,7 +6512,8 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             locations: ['All India'],
             categories: ['All'],
             brands: ['All'],
-            skus: ['All']
+            skuNames: ['All'],
+            skuCodes: ['All']
         };
     }
 };
