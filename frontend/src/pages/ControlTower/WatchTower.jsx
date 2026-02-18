@@ -625,6 +625,77 @@ function WatchTower() {
           setPlatformOverviewLoading(false);
         }
         break;
+      case 'categoryOverview':
+        setCategoryOverviewLoading(true);
+        setApiErrors(prev => ({ ...prev, categoryOverview: null }));
+        try {
+          const catFilters = { ...filters };
+          delete catFilters.platform;
+          const res = await axiosInstance.get("/watchtower/category-overview", { params: { ...catFilters, platform: categoryOverviewPlatform } });
+          setCategoryOverviewData(res.data);
+          setDashboardData(prev => ({ ...prev, categoryOverview: res.data }));
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, categoryOverview: err.message || 'Failed to load' }));
+        } finally {
+          setCategoryOverviewLoading(false);
+        }
+        break;
+      case 'monthOverview':
+        setMonthOverviewLoading(true);
+        setApiErrors(prev => ({ ...prev, monthOverview: null }));
+        try {
+          const moFilters = { ...filters };
+          delete moFilters.platform;
+          const res = await axiosInstance.get("/watchtower/month-overview", { params: { ...moFilters, platform: monthOverviewPlatform } });
+          setMonthOverviewData(res.data);
+          setDashboardData(prev => ({ ...prev, monthOverview: res.data }));
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, monthOverview: err.message || 'Failed to load' }));
+        } finally {
+          setMonthOverviewLoading(false);
+        }
+        break;
+      case 'brandsOverview':
+        setBrandsOverviewLoading(true);
+        setApiErrors(prev => ({ ...prev, brandsOverview: null }));
+        try {
+          const brFilters = { ...filters };
+          delete brFilters.platform;
+          const res = await axiosInstance.get("/watchtower/brands-overview", { params: { ...brFilters, platform: brandsOverviewPlatform, category: brandsOverviewCategory } });
+          setBrandsOverviewData(res.data);
+          setDashboardData(prev => ({ ...prev, brandsOverview: res.data }));
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, brandsOverview: err.message || 'Failed to load' }));
+        } finally {
+          setBrandsOverviewLoading(false);
+        }
+        break;
+      case 'skuOverview':
+        setSkuOverviewLoading(true);
+        setApiErrors(prev => ({ ...prev, skuOverview: null }));
+        try {
+          const advParams = { ...filters, skuOverviewPlatform: filters.platform, skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '', skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '', brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand, category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : 'All' };
+          const res = await axiosInstance.get("/watchtower/sku-overview", { params: advParams });
+          setSkuOverviewData(res.data);
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, skuOverview: err.message || 'Failed to load' }));
+        } finally {
+          setSkuOverviewLoading(false);
+        }
+        break;
+      case 'cityOverview':
+        setCityOverviewLoading(true);
+        setApiErrors(prev => ({ ...prev, cityOverview: null }));
+        try {
+          const advParams = { ...filters, cityOverviewPlatform: filters.platform, skuName: performanceMatrixFilters.skuName?.length > 0 ? performanceMatrixFilters.skuName.join(',') : '', skuCode: performanceMatrixFilters.skuCode?.length > 0 ? performanceMatrixFilters.skuCode.join(',') : '', brand: performanceMatrixFilters.brands?.length > 0 ? performanceMatrixFilters.brands.join(',') : filters.brand, category: performanceMatrixFilters.categories?.length > 0 ? performanceMatrixFilters.categories.join(',') : 'All' };
+          const res = await axiosInstance.get("/watchtower/city-overview", { params: advParams });
+          setCityOverviewData(res.data);
+        } catch (err) {
+          setApiErrors(prev => ({ ...prev, cityOverview: err.message || 'Failed to load' }));
+        } finally {
+          setCityOverviewLoading(false);
+        }
+        break;
       default:
         return false;
     }
@@ -667,6 +738,7 @@ function WatchTower() {
       } catch (error) {
         if (!ignore) {
           console.error("❌ Error updating Platform Overview:", error);
+          setApiErrors(prev => ({ ...prev, platformOverview: error.message || 'Failed to load' }));
           setPlatformOverviewLoading(false);
         }
       }
@@ -718,6 +790,7 @@ function WatchTower() {
       } catch (error) {
         if (!ignore) {
           console.error("❌ Error updating Month Overview:", error);
+          setApiErrors(prev => ({ ...prev, monthOverview: error.message || 'Failed to load' }));
           setMonthOverviewLoading(false);
         }
       }
@@ -769,6 +842,7 @@ function WatchTower() {
       } catch (error) {
         if (!ignore) {
           console.error("❌ Error updating Category Overview:", error);
+          setApiErrors(prev => ({ ...prev, categoryOverview: error.message || 'Failed to load' }));
           setCategoryOverviewLoading(false);
         }
       }
@@ -822,6 +896,7 @@ function WatchTower() {
       } catch (error) {
         if (!ignore) {
           console.error("❌ Error updating Brands Overview:", error);
+          setApiErrors(prev => ({ ...prev, brandsOverview: error.message || 'Failed to load' }));
           setBrandsOverviewLoading(false);
         }
       }
@@ -863,6 +938,7 @@ function WatchTower() {
       } catch (error) {
         if (!ignore) {
           console.error("❌ Error updating SKU Overview:", error);
+          setApiErrors(prev => ({ ...prev, skuOverview: error.message || 'Failed to load' }));
           setSkuOverviewLoading(false);
         }
       }
@@ -902,6 +978,7 @@ function WatchTower() {
       } catch (error) {
         if (!ignore) {
           console.error("❌ Error updating City Overview:", error);
+          setApiErrors(prev => ({ ...prev, cityOverview: error.message || 'Failed to load' }));
           setCityOverviewLoading(false);
         }
       }
@@ -962,20 +1039,30 @@ function WatchTower() {
           />
         )} */}
 
-        <SnapshotOverview
-          title="Watchtower Overview"
-          icon={LayoutGrid}
-          chip="All Platforms"
-          headerRight={
-            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-              vs Previous Month
-            </span>
-          }
-          kpis={mappedTopMetrics}
-          performanceData={dashboardData.performanceMetricsKpis}
-          performanceLoading={performanceLoading}
-          loading={loading}
-        />
+        {apiErrors.overview ? (
+          <ErrorWithRefresh
+            segmentName="Watch Overview"
+            errorMessage={apiErrors.overview}
+            onRetry={() => retrySegment('overview')}
+          />
+        ) : (
+          <SnapshotOverview
+            title="Watchtower Overview"
+            icon={LayoutGrid}
+            chip="All Platforms"
+            headerRight={
+              <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+                vs Previous Month
+              </span>
+            }
+            kpis={mappedTopMetrics}
+            performanceData={dashboardData.performanceMetricsKpis}
+            performanceLoading={performanceLoading}
+            performanceError={apiErrors.performance}
+            onPerformanceRetry={() => retrySegment('performance')}
+            loading={loading}
+          />
+        )}
 
         {/* Performance Marketing - with error handling */}
         {/* {apiErrors.performance ? (
@@ -1037,6 +1124,25 @@ function WatchTower() {
                       performanceMatrixDimension === 'sku' ? (skuOverviewData || []) :
                         performanceMatrixDimension === 'city' ? (cityOverviewData || []) : []
             }
+            error={
+              performanceMatrixDimension === 'platform' ? apiErrors.platformOverview :
+                performanceMatrixDimension === 'brand' ? apiErrors.brandsOverview :
+                  performanceMatrixDimension === 'month' ? apiErrors.monthOverview :
+                    performanceMatrixDimension === 'category' ? apiErrors.categoryOverview :
+                      performanceMatrixDimension === 'sku' ? apiErrors.skuOverview :
+                        performanceMatrixDimension === 'city' ? apiErrors.cityOverview : null
+            }
+            onRetry={() => {
+              const segmentMap = {
+                platform: 'platformOverview',
+                brand: 'brandsOverview',
+                month: 'monthOverview',
+                category: 'categoryOverview',
+                sku: 'skuOverview',
+                city: 'cityOverview'
+              };
+              retrySegment(segmentMap[performanceMatrixDimension]);
+            }}
           />
 
         </Box>
@@ -1201,6 +1307,8 @@ function WatchTower() {
             categoryOverviewData={categoryOverviewData}
             categoryOverviewPlatform={categoryOverviewPlatform}
             setCategoryOverviewPlatform={setCategoryOverviewPlatform}
+            categoryOverviewError={apiErrors.categoryOverview}
+            onCategoryRetry={() => retrySegment('categoryOverview')}
           />
 
           {/* {activeTab === "sku" && (
@@ -1418,7 +1526,7 @@ const FORMAT_ROWS = [
 ];
 
 
-const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatform, setCategoryOverviewPlatform }) => {
+const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatform, setCategoryOverviewPlatform, categoryOverviewError = null, onCategoryRetry = () => { } }) => {
   // Check if data is loading - MOVED AFTER HOOKS
   const isLoading = !categoryOverviewData || categoryOverviewData.length === 0;
 
@@ -1614,6 +1722,40 @@ const FormatPerformanceStudio = ({ categoryOverviewData, categoryOverviewPlatfor
       format: (v) => active.cpc, // Use formatted string from backend
     },
   ];
+
+  // Error state - show before loading/data
+  if (categoryOverviewError) {
+    return (
+      <motion.div
+        className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-8 lg:p-10"
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        style={{ fontFamily: "Roboto, sans-serif" }}
+      >
+        <div className="flex flex-col items-center justify-center gap-4 min-h-[200px]">
+          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+            <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load Format Performance Studio</h3>
+            <p className="text-sm text-slate-500 mb-4">{categoryOverviewError}</p>
+          </div>
+          <button
+            onClick={onCategoryRetry}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-600 text-white text-sm font-medium hover:bg-slate-700 shadow-md hover:shadow-lg transition-all"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   // Skeleton loading state - AFTER all hooks have been called
   if (isLoading) {
