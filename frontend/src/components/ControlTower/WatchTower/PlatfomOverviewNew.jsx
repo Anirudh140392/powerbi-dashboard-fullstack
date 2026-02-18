@@ -300,11 +300,8 @@ const PlatformOverviewNew = ({
                 };
             });
         }
-        // Fallback to dummy data from dimensionData only if not loading
-        return currentDimension.entities.map((e, idx) => ({
-            ...e,
-            data: generateEntityData(e.key, idx)
-        }));
+        // Return empty array when no data found instead of falling back to dummy data
+        return [];
     }, [data, currentDimension, loading])
 
     return (
@@ -522,6 +519,49 @@ const PlatformOverviewNew = ({
                                 })}
                             </motion.tr>
                         ))}
+
+                        {/* No results found state */}
+                        {!loading && entities.length === 0 && (
+                            <tr>
+                                <td colSpan={selectedKpis.length + 1} className="py-24 px-5 text-center">
+                                    <motion.div
+                                        className="flex flex-col items-center justify-center gap-4"
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                    >
+                                        <div className="h-20 w-20 rounded-3xl bg-slate-50 flex items-center justify-center text-slate-200 mb-2">
+                                            <SlidersHorizontal size={40} strokeWidth={1} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-slate-800 font-bold text-xl">No Results Found</h3>
+                                            <p className="text-slate-500 text-[13px] mt-2 max-w-[320px] mx-auto leading-relaxed">
+                                                We couldn't find any matching data for the selected filters.
+                                                Try adjusting your criteria or clearing all filters.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const resetFilters = {
+                                                    brands: [],
+                                                    categories: [],
+                                                    platforms: [],
+                                                    skuName: [],
+                                                    skuCode: [],
+                                                    dateFrom: '',
+                                                    dateTo: '',
+                                                    kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
+                                                    filterLogic: 'OR',
+                                                };
+                                                handleApplyFilters(resetFilters);
+                                            }}
+                                            className="mt-4 px-6 py-2.5 rounded-xl bg-slate-900 text-white text-[12px] font-bold hover:bg-slate-800 transition-all shadow-sm active:scale-95"
+                                        >
+                                            Clear All Filters
+                                        </button>
+                                    </motion.div>
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
