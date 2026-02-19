@@ -14,32 +14,21 @@ function cn(...classes) {
 // CONFIG - Replace with DB/API data
 // ========================================
 const reportTypes = [
-    {
-        key: "platform",
-        label: "Platform",
-        entities: ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
-    },
-    {
-        key: "format",
-        label: "Format",
-        entities: ["CASSATA", "CORE TUB", "CORNETTO", "MAGNUM", "PREMIUM TUB"],
-    },
-    {
-        key: "city",
-        label: "City",
-        entities: ["AJMER", "AMRITSAR", "BATHINDA", "BHOPAL", "CHANDIGARH"],
-    },
+    { key: "platform", label: "Platform" },
+    { key: "format", label: "Format" },
+    { key: "city", label: "City" },
 ];
 
 const drillDownOptions = [
-    { key: "region", label: "Region", items: ["North Zone", "South Zone", "East Zone", "West Zone"] },
-    { key: "period", label: "Period", items: ["Yesterday", "Last Week", "MTD", "L3M"] },
-    { key: "competitors", label: "Competitors", items: ["Amul", "Mother Dairy", "Havmor", "Vadilal"] },
+    { key: "region", label: "Region" },
+    { key: "period", label: "Period" },
+    { key: "competitors", label: "Competitors" },
 ];
 
 const kpis = [
     { key: "osa", label: "OSA" },
-    { key: "fillRate", label: "FILLRATE" },
+    { key: "fillrate", label: "FILLRATE" },
+    { key: "doi", label: "DOI" },
     { key: "assortment", label: "ASSORTMENT" },
     { key: "psl", label: "PSL" },
 ];
@@ -218,9 +207,23 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     { id: 'city', apiType: 'cities', label: 'City' },
                     { id: 'format', apiType: 'formats', label: 'Format' },
                 ];
+
+                // Build query params from global filters to narrow down options
+                const filterQueryParams = new URLSearchParams();
+                if (globalFilters) {
+                    Object.entries(globalFilters).forEach(([key, value]) => {
+                        if (value && value !== 'All') {
+                            if (Array.isArray(value)) value.forEach(v => filterQueryParams.append(key, v));
+                            else filterQueryParams.append(key, value);
+                        }
+                    });
+                }
+
                 const results = await Promise.all(
                     filterTypes.map(async (ft) => {
-                        const res = await fetch(`/api/availability-analysis/filter-options?filterType=${ft.apiType}`);
+                        const qp = new URLSearchParams(filterQueryParams);
+                        qp.set('filterType', ft.apiType);
+                        const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`);
                         if (!res.ok) return { id: ft.id, label: ft.label, options: [] };
                         const data = await res.json();
                         const opts = (data.options || []).map(v => ({ id: v, label: v }));
@@ -234,7 +237,41 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             }
         };
         fetchFilterOptions();
-    }, [showFilterPanel, filterOptionsLoaded]);
+    }, [showFilterPanel, filterOptionsLoaded, globalFilters]);
+
+    // Helper to merge global and segment-level filters
+    const getCombinedFilters = () => {
+        const combined = { ...globalFilters };
+
+        // Segment-level overrides
+        // If segment-level filters are applied, they should OVERRIDE global ones.
+        // We also remove the global keys (location, category) to prevent additive filtering
+        // in backend services that might handle both keys.
+
+        if (appliedFilters.platform?.length > 0) {
+            combined.platform = appliedFilters.platform;
+        }
+
+        if (appliedFilters.city?.length > 0) {
+            combined.cities = appliedFilters.city;
+            // Remove global location to ensure cities override it
+            delete combined.location;
+        } else if (globalFilters.location) {
+            // Fallback to global location mapped to 'cities' for consistency
+            combined.cities = globalFilters.location;
+        }
+
+        if (appliedFilters.format?.length > 0) {
+            combined.formats = appliedFilters.format;
+            // Remove global category to ensure formats override it
+            delete combined.category;
+        } else if (globalFilters.category) {
+            // Fallback to global category mapped to 'formats' for consistency
+            combined.formats = globalFilters.category;
+        }
+
+        return combined;
+    };
 
     // ========================================
     // DATA FETCHING
@@ -261,26 +298,17 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     params.append('includeBreakdown', 'true');
                 }
 
-                // Add global filters
-                if (globalFilters) {
-                    Object.entries(globalFilters).forEach(([key, value]) => {
-                        if (value && value !== 'All') {
-                            if (Array.isArray(value)) value.forEach(v => params.append(key, v));
-                            else params.append(key, value);
+                // Add combined filters
+                const combined = getCombinedFilters();
+                Object.entries(combined).forEach(([key, value]) => {
+                    if (value && value !== 'All') {
+                        if (Array.isArray(value)) {
+                            if (value.length > 0) value.forEach(v => params.append(key, v));
+                        } else {
+                            params.append(key, value);
                         }
-                    });
-                }
-
-                // Add segment-level applied filters
-                if (appliedFilters.platform?.length > 0) {
-                    appliedFilters.platform.forEach(v => params.append('platform', v));
-                }
-                if (appliedFilters.city?.length > 0) {
-                    appliedFilters.city.forEach(v => params.append('cities', v));
-                }
-                if (appliedFilters.format?.length > 0) {
-                    appliedFilters.format.forEach(v => params.append('categories', v));
-                }
+                    }
+                });
 
                 const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -306,9 +334,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const [showTrendsDrawer, setShowTrendsDrawer] = useState(false);
     const [selectedCellForTrend, setSelectedCellForTrend] = useState({ entity: null, kpi: null });
 
-    // Use API columns if available, otherwise fallback to config
-    const entities = apiData?.columns?.filter(c => c !== 'KPI') || reportTypes.find((r) => r.key === reportType)?.entities || [];
-    const drillItems = drillDownOptions.find((d) => d.key === drillDimension)?.items || [];
+    // Use API columns if available, otherwise empty array
+    const entities = apiData?.columns?.filter(c => c !== 'KPI') || [];
+    const drillItems = apiData?.applicableDrillItems || [];
     const drillLabel = drillDownOptions.find((d) => d.key === drillDimension)?.label;
 
     // Drill-down enabled logic: only OSA for competitors, all KPIs for other options
@@ -519,9 +547,8 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
                         <tbody>
                             {kpis.map((kpi, kIdx) => {
-                                const isComingSoon = kpi.key === 'fillRate';
-                                const drillEnabled = isComingSoon ? false : isDrillEnabled(kpi.key);
-                                const isRowExpanded = isComingSoon ? false : expandedRows.includes(kpi.key);
+                                const drillEnabled = isDrillEnabled(kpi.key);
+                                const isRowExpanded = expandedRows.includes(kpi.key);
 
                                 return (
                                     <Fragment key={kpi.key}>
@@ -557,18 +584,8 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                             {/* KPI Label */}
                                             <td className="py-3 px-4 text-sm font-medium text-slate-700 select-none">
                                                 <div className="flex items-center gap-2">
-                                                    <span className={isComingSoon ? 'text-slate-400' : ''}>{kpi.label}</span>
-                                                    {isComingSoon && (
-                                                        <motion.span
-                                                            initial={{ opacity: 0.8 }}
-                                                            animate={{ opacity: [0.8, 1, 0.8] }}
-                                                            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-sm uppercase tracking-widest ring-1 ring-inset ring-white/20"
-                                                        >
-                                                            Coming Soon
-                                                        </motion.span>
-                                                    )}
-                                                    {!isComingSoon && drillEnabled && (
+                                                    <span>{kpi.label}</span>
+                                                    {drillEnabled && (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] border border-blue-100">
                                                             Drill
                                                         </span>
@@ -578,26 +595,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
                                             {/* Values */}
                                             {entities.map((entity) => {
-                                                if (isComingSoon) {
-                                                    return (
-                                                        <td key={entity} className="text-center py-3 px-2">
-                                                            <div className="flex justify-center">
-                                                                <motion.div
-                                                                    className="inline-flex flex-col items-center justify-center p-2 rounded-xl bg-slate-50/50 border border-slate-100/50 min-w-[60px] cursor-default overflow-hidden relative"
-                                                                    whileHover={{ scale: 1.02, backgroundColor: "rgba(248, 250, 252, 0.8)" }}
-                                                                >
-                                                                    <div className="text-[10px] font-bold text-slate-300 tracking-tighter">—</div>
-                                                                    <motion.div
-                                                                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full"
-                                                                        animate={{ translateX: ["100%", "-100%"] }}
-                                                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                                                    />
-                                                                </motion.div>
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                }
-
                                                 const cell = getCellData(entity, kpi.label);
                                                 const isPercentage = kpi.label !== 'Assortment';
 
@@ -706,7 +703,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                 onClose={() => setShowTrendsDrawer(false)}
                 selectedColumn={selectedCellForTrend.entity}
                 selectedLevel={reportType}
-                filters={appliedFilters}
+                filters={getCombinedFilters()}
             />
         </div>
     );

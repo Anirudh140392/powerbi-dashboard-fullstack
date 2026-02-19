@@ -92,17 +92,29 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     // City/Location filter
     const lArr = [];
     if (location && location !== 'All') {
-        if (Array.isArray(location)) lArr.push(...location);
-        else lArr.push(location);
+        if (Array.isArray(location)) {
+            const filtered = location.filter(v => v !== 'All' && v !== 'all');
+            lArr.push(...filtered);
+        } else {
+            lArr.push(location);
+        }
     }
     if (cities && cities !== 'All') {
-        if (Array.isArray(cities)) lArr.push(...cities);
-        else lArr.push(cities);
+        if (Array.isArray(cities)) {
+            const filtered = cities.filter(v => v !== 'All' && v !== 'all');
+            lArr.push(...filtered);
+        } else {
+            lArr.push(cities);
+        }
     }
     // Backward compatibility for 'city' key
     if (filters.city && filters.city !== 'All') {
-        if (Array.isArray(filters.city)) lArr.push(...filters.city);
-        else lArr.push(filters.city);
+        if (Array.isArray(filters.city)) {
+            const filtered = filters.city.filter(v => v !== 'All' && v !== 'all');
+            lArr.push(...filtered);
+        } else {
+            lArr.push(filters.city);
+        }
     }
 
     if (lArr.length > 0) {
@@ -113,21 +125,37 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     // Category/Format filter
     const cArr = [];
     if (categories && categories !== 'All') {
-        if (Array.isArray(categories)) cArr.push(...categories);
-        else cArr.push(categories);
+        if (Array.isArray(categories)) {
+            const filtered = categories.filter(v => v !== 'All' && v !== 'all');
+            cArr.push(...filtered);
+        } else {
+            cArr.push(categories);
+        }
     }
     if (formats && formats !== 'All') {
-        if (Array.isArray(formats)) cArr.push(...formats);
-        else cArr.push(formats);
+        if (Array.isArray(formats)) {
+            const filtered = formats.filter(v => v !== 'All' && v !== 'all');
+            cArr.push(...filtered);
+        } else {
+            cArr.push(formats);
+        }
     }
     // Backward compatibility for 'category' and 'format' keys
     if (filters.category && filters.category !== 'All') {
-        if (Array.isArray(filters.category)) cArr.push(...filters.category);
-        else cArr.push(filters.category);
+        if (Array.isArray(filters.category)) {
+            const filtered = filters.category.filter(v => v !== 'All' && v !== 'all');
+            cArr.push(...filtered);
+        } else {
+            cArr.push(filters.category);
+        }
     }
     if (filters.format && filters.format !== 'All') {
-        if (Array.isArray(filters.format)) cArr.push(...filters.format);
-        else cArr.push(filters.format);
+        if (Array.isArray(filters.format)) {
+            const filtered = filters.format.filter(v => v !== 'All' && v !== 'all');
+            cArr.push(...filtered);
+        } else {
+            cArr.push(filters.format);
+        }
     }
 
     if (cArr.length > 0) {
@@ -348,13 +376,16 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
 
-            // Exclude common grouping columns from their own viewMode filters to allow showing top N
-            if (viewMode === 'Platform') delete baseFilterParams.platform;
-            if (viewMode === 'City') delete baseFilterParams.location;
-            if (viewMode === 'Format') delete baseFilterParams.category;
+            // NOTE: We intentionally keep the grouping column filters (platform/location/category)
+            // in baseFilterParams so that user-applied segment filters are respected.
+            // If the user filters by specific platforms, only those should appear as columns.
 
             const baseWhereClause = buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
+
+            console.log('[DEBUG KPI MATRIX] baseFilterParams:', JSON.stringify(baseFilterParams));
+            console.log('[DEBUG KPI MATRIX] baseWhereClause:', baseWhereClause);
+            console.log('[DEBUG KPI MATRIX] baseFilter:', baseFilter);
 
             // Get distinct column values
             // For Format viewMode, only show categories with status=1 in rca_sku_dim
@@ -375,7 +406,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 ${baseFilter}
                 ${additionalCategoryFilter}
                 ORDER BY value
-                LIMIT 10
+                LIMIT 50
             `;
 
 
@@ -574,12 +605,16 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
             // Only fetch breakdown when explicitly requested (user expanded a row)
             if (includeBreakdown && drillDimension === 'region') {
+                // Determine prefix for breakdown query - use t1 for rb_pdp_olap
+                const breakdownBaseWhere = buildAvailabilityWhereClause(baseFilterParams, 't1');
+                const breakdownBaseFilter = breakdownBaseWhere !== '1=1' ? ` AND ${breakdownBaseWhere}` : '';
+
                 const regionBreakdownQuery = `
                     WITH location_mapping AS (
-                        SELECT location, any(region) as mapped_region
+                        SELECT lower(location) as l_key, any(region) as mapped_region
                         FROM rb_location_darkstore
                         WHERE region IS NOT NULL AND region != ''
-                        GROUP BY location
+                        GROUP BY l_key
                     )
                     SELECT 
                         t1.${groupColumn} as col_value,
@@ -597,14 +632,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         -- Latest Inventory (across selected period)
                         argMax(toFloat64(t1.Inventory), t1.DATE) as latest_inventory
                     FROM rb_pdp_olap t1
-                    LEFT JOIN location_mapping l ON t1.Location = l.location
+                    LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
                     WHERE t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
-                      ${baseFilter}
+                      ${breakdownBaseFilter}
                     GROUP BY col_value, drill_item
                 `;
 
                 const breakdownResults = await queryClickHouse(regionBreakdownQuery);
+                const drillItemsSet = new Set();
 
                 // Initialize breakdown structure for each row
                 Object.keys(kpiRows).forEach(k => {
@@ -643,7 +679,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         const psl = msl > 0 ? (inv / msl) * 100 : (kpiRows.osa.breakdown[col_value][item] * 0.95);
                         kpiRows.psl.breakdown[col_value][item] = Math.round(psl);
                     }
+                    drillItemsSet.add(item);
                 });
+                kpiRows.applicableDrillItems = [...drillItemsSet].sort();
             } else if (includeBreakdown && drillDimension === 'period') {
                 // Period breakdown (Yesterday, Last Week, MTD, L3M)
                 const latestDate = await getLatestDate();
@@ -689,6 +727,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 `;
 
                 const periodResults = await queryClickHouse(periodQuery);
+                kpiRows.applicableDrillItems = ['Yesterday', 'Last Week', 'MTD', 'L3M'];
 
                 // Initialize breakdown structure
                 Object.keys(kpiRows).forEach(k => {
@@ -780,6 +819,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                             kpiRows.osa.breakdown[r.col_value][r.drill_item] = Math.round(r.osa);
                         }
                     });
+                    kpiRows.applicableDrillItems = compBrands;
+                } else {
+                    kpiRows.applicableDrillItems = [];
                 }
             }
 
@@ -788,6 +830,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 viewMode,
                 columns: ['KPI', ...columnValues],
                 rows: [kpiRows.osa, kpiRows.doi, kpiRows.fillrate, kpiRows.assortment, kpiRows.psl],
+                applicableDrillItems: kpiRows.applicableDrillItems || [],
                 currentPeriod: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') },
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
                 filters,
@@ -1046,7 +1089,7 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city, months, metroFlag }) => {
+const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city, location, months, metroFlag }) => {
     const pKey = Array.isArray(platform) ? platform.join(',') : (platform || 'all');
     const bKey = Array.isArray(brand) ? brand.join(',') : (brand || 'all');
     const cKey = Array.isArray(category) ? category.join(',') : (category || 'all');
@@ -1071,7 +1114,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             const conditions = [];
             if (platform && platform !== 'All') conditions.push(buildInClause('Platform', platform));
             if (category && category !== 'All') conditions.push(buildInClause('Category', category));
-            if (city && city !== 'All') conditions.push(buildInClause('Location', city));
+            const cityFilter = city || location;
+            if (cityFilter && cityFilter !== 'All') conditions.push(buildInClause('Location', cityFilter));
             const baseFilter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
             if (filterType === 'platforms') {
