@@ -33,7 +33,7 @@ export default function AvailablityAnalysis() {
   const [filters, setFilters] = useState({
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
-    location: "All", // Always 'All' as per user request to use category instead
+    location: selectedLocation || "All",
     category: selectedCategory || "All",
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
@@ -82,7 +82,7 @@ export default function AvailablityAnalysis() {
       ...prev,
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
-      location: "All", // Always 'All' as per user request to use category instead
+      location: selectedLocation || prev.location,
       category: selectedCategory || prev.category,
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,

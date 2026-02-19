@@ -63,7 +63,10 @@ export function generateCacheKey(section, filters) {
         categoryOverviewPlatform = '',
         brandsOverviewPlatform = '',
         brandsOverviewCategory = '',
-        // New filters for Visibility Analysis
+        // New filters for Availability/Visibility Analysis
+        cities = '',
+        formats = '',
+        categories = '',
         zone = '',
         zones = '', // Plural match for many APIs
         metroFlag = '',
@@ -83,7 +86,11 @@ export function generateCacheKey(section, filters) {
     if (level) key += `:lv_${normalize(level)}`;
     if (region && region !== 'all') key += `:reg_${normalize(region)}`;
 
-    // Visibility filters
+    // Availability/Visibility filters
+    if (cities && cities !== 'all' && cities !== 'All') key += `:cts_${normalize(cities)}`;
+    if (formats && formats !== 'all' && formats !== 'All') key += `:fmt_${normalize(formats)}`;
+    if (categories && categories !== 'all' && categories !== 'All') key += `:cats_${normalize(categories)}`;
+
     const z = zones || zone;
     if (z && z !== 'all' && z !== 'All') key += `:zn_${normalize(z)}`;
     if (metroFlag && metroFlag !== 'all' && metroFlag !== 'All') key += `:mf_${normalize(metroFlag)}`;

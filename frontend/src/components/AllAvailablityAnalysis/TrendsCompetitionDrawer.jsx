@@ -517,7 +517,18 @@ export default function TrendsCompetitionDrawer({
     };
 
     fetchTrendFilters();
-  }, [open, dynamicKey]);
+
+    // Sync drawer-level filters with passed props when drawer opens
+    if (filters) {
+      setDrawerFilters(prev => ({
+        ...prev,
+        Platform: (Array.isArray(filters.platform) ? filters.platform[0] : filters.platform) || prev.Platform,
+        Format: (Array.isArray(filters.formats) ? filters.formats[0] : filters.formats) || prev.Format,
+        Brand: (Array.isArray(filters.brand) ? filters.brand[0] : filters.brand) || prev.Brand,
+        City: (Array.isArray(filters.cities) ? filters.cities[0] : filters.cities) || prev.City
+      }));
+    }
+  }, [open, dynamicKey, filters]);
 
   let DASHBOARD_DATA = {};
   if (dynamicKey === "performance_dashboard_tower") {
