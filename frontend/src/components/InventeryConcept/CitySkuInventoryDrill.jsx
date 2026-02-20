@@ -83,6 +83,7 @@ export default function CitySkuInventoryDrill() {
         platform: globalPlatform,
         selectedBrand: globalBrand,
         selectedLocation: globalLocation,
+        selectedCategory: globalCategory,
         datesInitialized,
         refreshFilters
     } = useContext(FilterContext);
@@ -109,7 +110,7 @@ export default function CitySkuInventoryDrill() {
                 platform: getFilter(filters.platform, globalPlatform),
                 brand: getFilter(filters.brand, globalBrand),
                 location: getFilter(filters.city, globalLocation),
-                category: filters.category.length > 0 ? filters.category.join(',') : 'All',
+                category: getFilter(filters.category, globalCategory),
                 weekend: filters.weekend.length > 0 ? filters.weekend.join(',') : 'All'
             };
 
@@ -137,7 +138,7 @@ export default function CitySkuInventoryDrill() {
         if (!datesInitialized) return;
 
         fetchData();
-    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation, datesInitialized]);
+    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation, globalCategory, datesInitialized]);
 
     const platformOptions = useMemo(() => {
         return (metadata.platforms || []).map(p => ({ id: p, label: p }));
