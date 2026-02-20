@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useContext, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
@@ -8,31 +8,23 @@ import {
   OLA_Detailed,
   ONE_VIEW_DRILL_DATA,
   PRODUCT_MATRIX,
+  getLogicalKpiValue,
+  getLogicalKpiTrend
 } from "./availablityDataCenter";
-import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import OsaHeatmapTable from "./OsaDetailView";
 import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import {
-  AvailabilityOverviewSkeleton,
-  PlatformKpiMatrixSkeleton,
-  OsaDetailViewSkeleton,
-} from "./AvailabilitySkeletons";
-import SnapshotOverview from "../CommonLayout/SnapShotOverview";
-import {
+  Layers,
   Package,
-  Clock,
-  Truck,
+  Zap,
   MapPin,
-  Activity,
-  BarChart2
+  LayoutGrid
 } from "lucide-react";
-import KPIMatrixTable from "./KpiMatrixTable";
-import SkuCompetitorAnalysis from "./SkuCompetitorAnalysis";
-import PricingAnalysis from "./PricingAnalysis";
-import DateWiseDrilldownTable from "./DateWiseDrilldownTable";
+import { FilterContext } from "../../utils/FilterContext";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -56,66 +48,6 @@ const pct = (value) =>
   Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
-// ---------------------------------------------------------------------------
-// Floating Loader Component - Shows overlay while data is refreshing
-// ---------------------------------------------------------------------------
-const FloatingLoader = ({ loading = false, label = "Loading..." }) => {
-  if (!loading) return null;
-
-  return (
-    <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-20 flex items-center justify-center rounded-3xl transition-opacity duration-200">
-      <div className="flex items-center gap-3 bg-white/90 px-5 py-3 rounded-full shadow-lg border border-slate-200">
-        <div className="relative">
-          <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-200 border-t-slate-700"></div>
-        </div>
-        <span className="text-sm font-medium text-slate-600">{label}</span>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Error State Component - Shows when API fails with refresh button
-// ---------------------------------------------------------------------------
-const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = false }) => {
-  return (
-    <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
-      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
-        <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-      </div>
-      <div className="text-center">
-        <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {segmentName}</h3>
-        <p className="text-sm text-slate-500 mb-4">{errorMessage || "An error occurred while fetching data"}</p>
-      </div>
-      <button
-        onClick={onRetry}
-        disabled={isRetrying}
-        className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
-          ${isRetrying
-            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
-          }`}
-      >
-        {isRetrying ? (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
-            <span>Retrying...</span>
-          </>
-        ) : (
-          <>
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Refresh</span>
-          </>
-        )}
-      </button>
-    </div>
-  );
-};
-
 const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-slate-100 p-4 flex flex-col gap-4">
@@ -137,10 +69,15 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <button
             onClick={() => setOlaMode("absolute")}
-            className="rounded-full px-3 py-1 font-medium shadow-sm bg-slate-900 text-slate-50"
+            className={`rounded-full px-3 py-1 font-medium shadow-sm 
+              ${olaMode === "absolute"
+                ? "bg-slate-900 text-slate-50"
+                : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
           >
             Absolute
           </button>
+
           <button
             onClick={() => setOlaMode("weighted")}
             className={`rounded-full px-3 py-1 font-medium 
@@ -151,6 +88,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
           >
             Weighted
           </button>
+
           <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Last sync: 5 min ago</span>
@@ -165,99 +103,95 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({
-  olaMode = "absolute",
-  apiData,
-  filters = {},
-  onFiltersChange,
-  loading = false,
-}) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false }) => {
   const [activeTab, setActiveTab] = useState("platform");
+  const {
+    selectedChannel,
+    platform: globalPlatform,
+    selectedBrand,
+    selectedLocation,
+    timeStart,
+    timeEnd
+  } = useContext(FilterContext);
 
-  // Check loading state - data is loading if apiData doesn't have the required property yet OR parent is loading
-  const isPlatformLoading = loading || !apiData?.platformKpi;
-  const isFormatLoading = loading || !apiData?.formatKpi;
-  const isCityLoading = loading || !apiData?.cityKpi;
+  // 🔥 Utility to compute unified trend + series for ANY item
+  const buildRows = (dataArray, columnList, context = {}) => {
+    return dataArray.map((item) => {
+      const trendObj = {};
+      const seriesObj = {};
 
-  // Transform API platformKpi data to component's expected format
-  const transformApiData = (kpiData) => {
-    if (!kpiData || !kpiData.columns || !kpiData.rows) return null;
+      // Create a shallow copy of the item and a deep copy of values to avoid mutating the shared constant
+      const newItem = { ...item, values: { ...item.values } };
 
-    const columns = kpiData.columns.filter(c => c !== 'KPI');
+      columnList.forEach((col) => {
+        const seed = { ...context, kpi: item.kpi, col };
+        const randomVal = getLogicalKpiValue(item.kpi, seed);
+        const randomTrendSeries = getLogicalKpiTrend(item.kpi, seed);
+        const validTrend = randomTrendSeries.length >= 2;
 
-    // Helper: generate sparkline series from current value and trend
-    const generateSeries = (value, trend, pointCount = 4) => {
-      if (value === undefined || value === null || value === 'Coming Soon') {
-        return [];
-      }
-      const numValue = typeof value === 'number' ? value : parseFloat(value);
-      const numTrend = typeof trend === 'number' ? trend : 0;
+        const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
 
-      if (isNaN(numValue)) return [];
+        // Use logical delta and direction for consistent 5-7% reporting
+        const logicalDelta = getLogicalKpiValue(item.kpi + 'delta', seed);
+        const logicalDir = getLogicalKpiValue(item.kpi + 'dir', seed);
+        let trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
 
-      // Work backwards from current value to show trend
-      const points = [];
-      const prevValue = numValue - numTrend;
-      for (let i = 0; i < pointCount; i++) {
-        const progress = i / (pointCount - 1);
-        points.push(Math.round(prevValue + (numValue - prevValue) * progress));
-      }
-      return points;
-    };
+        // User request: "Assortment" and "PSL" should have 0 trend
+        if (["Assortment", "PSL"].includes(item.kpi)) {
+          trendDelta = 0;
+        }
 
-    const rows = kpiData.rows.map(row => {
-      // Build series for each column
-      const series = {};
-      columns.forEach(col => {
-        series[col] = generateSeries(row[col], row.trend?.[col]);
+        trendObj[col] = trendDelta;
+        seriesObj[col] = randomTrendSeries;
+
+        // Store the randomized value in the new item's values object
+        newItem.values[col] = randomVal;
       });
 
       return {
-        kpi: row.kpi,
-        ...Object.fromEntries(columns.map(col => [col, row[col]])),
-        trend: row.trend || {},
-        series: series,
+        kpi: newItem.kpi,
+        ...newItem.values,
+        trend: trendObj,
+        series: seriesObj,
       };
     });
-
-    return { columns: ['kpi', ...columns], rows };
   };
 
-  // ---------------- PLATFORM (uses apiData.platformKpi) ----------------
-  const platformData = transformApiData(apiData?.platformKpi);
-
-  // ---------------- FORMAT (uses apiData.formatKpi) ----------------
-  const formatData = transformApiData(apiData?.formatKpi);
-
-  // ---------------- CITY (uses apiData.cityKpi) ----------------
-  const cityData = transformApiData(apiData?.cityKpi);
-
   // ---------------- TABS ----------------
-  const tabs = [
-    { key: "platform", label: "Platform", data: platformData, loading: isPlatformLoading },
-    { key: "format", label: "Format", data: formatData, loading: isFormatLoading },
-    { key: "city", label: "City", data: cityData, loading: isCityLoading },
-  ];
+  const tabs = useMemo(() => {
+    const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+    const platformData = {
+      columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
+      rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns, context),
+    };
+    const formatData = {
+      columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
+      rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns, context),
+    };
+    const cityData = {
+      columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
+      rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns, context),
+    };
+
+    return [
+      { key: "platform", label: "Platform", data: platformData },
+      { key: "format", label: "Format", data: formatData },
+      { key: "city", label: "City", data: cityData },
+    ];
+  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
 
   const active = tabs.find((t) => t.key === activeTab);
 
-  // If loading, show skeleton
-  if (loading || (active.loading && !active.data)) {
-    return <PlatformKpiMatrixSkeleton />;
-  }
-
   return (
-    <div className="relative rounded-3xl bg-white border shadow p-3 sm:p-5 flex flex-col gap-4">
-      {/* Floating loader overlay */}
-      <FloatingLoader loading={active.loading} label={`Loading ${active.label}...`} />
+    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
 
       {/* -------- TABS -------- */}
-      <div className="flex flex-wrap sm:flex-nowrap gap-2 bg-gray-100 border border-slate-300 rounded-2xl sm:rounded-full p-1 w-full sm:w-max">
+      <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key)}
-            className={`px-4 py-1.5 text-sm rounded-full transition-all flex-shrink-0 w-full sm:w-auto
+            className={`px-4 py-1.5 text-sm rounded-full transition-all 
               ${activeTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             {t.label}
@@ -266,7 +200,7 @@ const TabbedHeatmapTable = ({
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} filters={filters} onFiltersChange={onFiltersChange} />
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} loading={loading} />
     </div>
   );
 };
@@ -819,12 +753,12 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
 
   return (
     <motion.div
-      className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-5 gap-4"
+      className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      <div className="lg:col-span-2 space-y-3">
+      <div className="md:col-span-2 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Category performance</h2>
@@ -877,7 +811,7 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
         </div>
       </div>
 
-      <div className="lg:col-span-3 relative">
+      <div className="md:col-span-3 relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={active.name + (compare?.name ?? "")}
@@ -1092,7 +1026,7 @@ const cardsAbsolute = [
     title: "Stock Availability",
     value: "85.2%",
     sub: "MTD on-shelf coverage",
-    change: "▲3.1 pts (from 82.1%)",
+    change: "▲3.1% (from 82.1%)",
     changeColor: "green",
     prevText: "vs Comparison Period",
     extra: "High risk stores: 12",
@@ -1100,26 +1034,36 @@ const cardsAbsolute = [
     extraChangeColor: "green",
   },
   {
+    title: "Days of Inventory (DOI)",
+    value: "62.4",
+    sub: "Network average days of cover",
+    change: "▼5.3% (from 65.9)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Within target range",
+    extraChangeColor: "green",
+  },
+  {
     title: "Fill Rate",
-    value: "Coming Soon...",
+    value: "93.7%",
     sub: "Supplier fulfillment rate",
-    change: "",
-    changeColor: "gray",
-    prevText: "",
-    extra: "",
-    extraChange: "",
-    extraChangeColor: "gray",
-    isComingSoon: true,
+    change: "▲1.8% (from 91.9%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Orders delayed: 6%",
+    extraChange: "▼1.2%",
+    extraChangeColor: "green",
   },
   {
     title: "Metro City Stock Availability",
     value: "78.5%",
     sub: "MTD availability across metro cities",
-    change: "▼2.0 pts (from 80.5%)",
+    change: "▼2.0% (from 80.5%)",
     changeColor: "red",
     prevText: "vs Comparison Period",
     extra: "Top 10 stores: 84.2%",
-    extraChange: "▲0.6 pts",
+    extraChange: "▲0.6%",
     extraChangeColor: "green",
   }
 ];
@@ -1129,7 +1073,7 @@ const cardsWeighted = [
     title: "Stock Availability",
     value: "79.8%",
     sub: "MTD on-shelf coverage",
-    change: "▲2.7 pts (from 77.1%)",
+    change: "▲2.7% (from 77.1%)",
     changeColor: "green",
     prevText: "vs Comparison Period",
     extra: "High risk stores: 16",
@@ -1137,26 +1081,36 @@ const cardsWeighted = [
     extraChangeColor: "green",
   },
   {
+    title: "Days of Inventory (DOI)",
+    value: "58.1",
+    sub: "Network average days of cover",
+    change: "▼6.8% (from 62.3)",
+    changeColor: "red",
+    prevText: "vs Comparison Period",
+    extra: "Target band: 55–65 days",
+    extraChange: "Within target range",
+    extraChangeColor: "green",
+  },
+  {
     title: "Fill Rate",
-    value: "Coming Soon...",
+    value: "88.9%",
     sub: "Supplier fulfillment rate",
-    change: "",
-    changeColor: "gray",
-    prevText: "",
-    extra: "",
-    extraChange: "",
-    extraChangeColor: "gray",
-    isComingSoon: true,
+    change: "▲1.2% (from 87.7%)",
+    changeColor: "green",
+    prevText: "vs Comparison Period",
+    extra: "Orders delayed: 8%",
+    extraChange: "▼0.8%",
+    extraChangeColor: "green",
   },
   {
     title: "Metro City Stock Availability",
     value: "73.1%",
     sub: "MTD availability across metro cities",
-    change: "▼2.8 pts (from 75.9%)",
+    change: "▼2.8% (from 75.9%)",
     changeColor: "red",
     prevText: "vs Comparison Period",
     extra: "Top 10 stores: 79.6%",
-    extraChange: "▲0.4 pts",
+    extraChange: "▲0.4%",
     extraChangeColor: "green",
   }
 ];
@@ -1166,279 +1120,139 @@ const cards = {
   weighted: cardsWeighted
 };
 
+const getAvailabilityKpis = (type, context = {}) => {
+  const source = cards[type];
+  const icons = [Layers, Package, Zap, MapPin];
+  const gradients = [
+    ['#6366f1', '#8b5cf6'],
+    ['#14b8a6', '#06b6d4'],
+    ['#f43f5e', '#ec4899'],
+    ['#8b5cf6', '#a855f7']
+  ];
+
+  // Map readable titles to data center keys
+  const titleToKey = {
+    "Stock Availability": "osa",
+    "Days of Inventory (DOI)": "doi",
+    "Fill Rate": "fillrate",
+    "Metro City Stock Availability": "availability"
+  };
+
+  return source.map((card, idx) => {
+    // RESOLVE KEY: Use the map, or fallback to simple lowercase
+    const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
+
+    const val = getLogicalKpiValue(kpiKey, context);
+    const isUp = getLogicalKpiValue(kpiKey + 'dir', context) > 50;
+    const delta = (getLogicalKpiValue(kpiKey + 'delta', context) / 20).toFixed(1);
+
+    return {
+      id: `avail-${type}-${idx}`,
+      title: card.title,
+      value: card.title.includes('DOI') ? val.toFixed(1) : `${val}%`,
+      subtitle: card.sub,
+      delta: parseFloat(delta),
+      deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
+      icon: icons[idx] || Layers,
+      gradient: gradients[idx % gradients.length],
+      trend: getLogicalKpiTrend(kpiKey, context)
+    };
+  });
+};
 
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = ({
-  apiData,
-  apiErrors = {},
-  onRetry,
-  filters = {},
-  onFiltersChange,
-  loading = false,
-}) => {
+export const AvailablityAnalysisData = () => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Build dynamic cards from API data with proper time period
-  const getDynamicCards = (mode) => {
-    const baseCards = mode === "absolute" ? cardsAbsolute : cardsWeighted;
+  const {
+    selectedBrand,
+    timeStart,
+    timeEnd,
+    platform: globalPlatform,
+    selectedLocation,
+    selectedChannel,
+    selectedCategory
+  } = useContext(FilterContext);
 
-    // Generate sparkline data based on a value and previous value
-    const generateSparklineFromValue = (currentValue, prevValue, pointCount = 7) => {
-      const variance = currentValue * 0.05; // 5% variance for realistic look
-      const points = [];
+  // Simulated loading delay on filter change
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedChannel, selectedCategory, timeStart, timeEnd, availability]);
 
-      for (let i = 0; i < pointCount; i++) {
-        const progress = i / (pointCount - 1);
-        const trendValue = prevValue + (currentValue - prevValue) * progress;
-        const noise = (Math.random() - 0.5) * variance;
-        points.push(Math.max(0, trendValue + noise));
-      }
+  // User request: restrict Availability Overview cards to ONLY change on Platform
+  const platformContext = { platform: globalPlatform };
 
-      // Ensure last point is the actual value
-      points[points.length - 1] = currentValue;
-
-      return points.map(v => Math.round(v * 10) / 10);
-    };
-
-    // Get API values
-    const stockAvail = apiData?.overview?.stockAvailability;
-    const prevStockAvail = apiData?.overview?.prevStockAvailability;
-
-    const fillRate = apiData?.overview?.fillRate;
-    const prevFillRate = apiData?.overview?.prevFillRate;
-
-    const doi = apiData?.doi?.doi;
-    const prevDoi = apiData?.doi?.prevDoi;
-    const doiChangePercent = apiData?.doi?.changePercent;
-
-    // Get Metro City Stock Availability values
-    const metroCity = apiData?.metroCity;
-    const metroStockAvail = metroCity?.stockAvailability;
-    const prevMetroStockAvail = metroCity?.prevStockAvailability;
-    const metroChange = metroCity?.change;
-    const isMetroCity = metroCity?.isMetroCity;
-
-    return baseCards.map(card => {
-      // Stock Availability card
-      if (card.title === "Stock Availability" && stockAvail !== undefined && stockAvail !== null) {
-        const safePrevStockAvail = prevStockAvail ?? stockAvail; // fallback to current if prev is null
-        const change = stockAvail - safePrevStockAvail;
-        const changeArrow = change >= 0 ? "▲" : "▼";
-        const changeColor = change >= 0 ? "green" : "red";
-        const changeText = `${changeArrow}${Math.abs(change).toFixed(1)} pts (from ${safePrevStockAvail.toFixed(1)}%)`;
-
-        return {
-          ...card,
-          value: `${stockAvail}%`,
-          sub: `MTD on-shelf coverage (${apiData.overview.filters?.platform || 'All'})`,
-          change: changeText,
-          changeColor: changeColor,
-          sparklineData: generateSparklineFromValue(stockAvail, safePrevStockAvail),
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-        };
-      }
-
-      // Fill Rate card
-      if (card.title === "Fill Rate") {
-        return {
-          ...card,
-          isComingSoon: true, // Reverted to true as per user request
-          sub: `Supplier fulfillment rate`,
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-        };
-      }
-
-
-      // Metro City Stock Availability card
-      if (card.title === "Metro City Stock Availability") {
-        // If metroCity data is available and the location is a metro city (or All)
-        if (metroCity && isMetroCity !== false && metroStockAvail !== null && metroStockAvail !== undefined) {
-          const safeMetroChange = metroChange ?? 0;
-          const safePrevMetroStockAvail = prevMetroStockAvail ?? metroStockAvail;
-          const changeArrow = safeMetroChange >= 0 ? "▲" : "▼";
-          const changeColor = safeMetroChange >= 0 ? "green" : "red";
-          const changeText = `${changeArrow}${Math.abs(safeMetroChange).toFixed(1)} pts (from ${safePrevMetroStockAvail.toFixed(1)}%)`;
-
-          return {
-            ...card,
-            value: `${metroStockAvail}%`,
-            sub: `MTD availability across metro cities`,
-            change: changeText,
-            changeColor: changeColor,
-            prevText: "vs Comparison Period",
-            extra: metroCity.metroCitiesCount ? `Tier 1 cities tracked: ${metroCity.metroCitiesCount}` : card.extra,
-            extraChange: "",
-            extraChangeColor: "green",
-            sparklineData: generateSparklineFromValue(metroStockAvail, safePrevMetroStockAvail),
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-          };
-        } else if (metroCity && isMetroCity === false) {
-          // User selected a non-metro city location - show Not A Metro City
-          return {
-            ...card,
-            value: "Not A Metro City",
-            sub: "Selected location is not a Tier 1 city",
-            change: "",
-            changeColor: "gray",
-            prevText: "",
-            extra: "Only available for Tier 1 (metro) cities",
-            extraChange: "",
-            extraChangeColor: "gray",
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-          };
-        }
-
-        // Keep default card when no API data yet
-        return {
-          ...card,
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-        };
-      }
-
-      // Pass date range to all other cards for consistent chart months
-      return {
-        ...card,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-      };
-    });
-  };
-
-
-
-  // Filters for segments that ignore platform/brand/location header selections
-  const pblUnfilteredFilters = {
-    ...filters,
-    platform: 'All',
-    brand: 'All',
-    location: 'All',
-  };
-
-  // KPI Matrix strictly ignores EVERYTHING (including Time as per initial request)
-  const matrixUnfilteredFilters = {
-    ...pblUnfilteredFilters,
-    startDate: null,
-    endDate: null
-  };
+  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability, platformContext), [availability, globalPlatform]);
 
   return (
 
-    <div className="sm:px-2">
-      <div className="space-y-2">
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="space-y-4">
         {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
-        {/* AVAILABILITY MODE - Only Absolute (Weighted option removed) */}
+        {/* MARKET SHARE TOGGLE BLOCK */}
+        {/* AVAILABILITY TOGGLE BLOCK */}
+        <div className="flex justify-center">
+          <div className="relative w-full md:w-[420px]">
+            <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
+              <motion.div
+                layout
+                className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
+                initial={false}
+                animate={{ x: availability === "absolute" ? 0 : "100%" }}
+                transition={{ type: "spring", stiffness: 260, damping: 26 }}
+              />
 
-        {/* {loading ? (
-          <AvailabilityOverviewSkeleton />
-        ) : apiErrors.overview ? (
-          <ErrorWithRefresh
-            segmentName="Availability Overview"
-            errorMessage={apiErrors.overview}
-            onRetry={() => onRetry?.('overview')}
-          />
-        ) : (
-          <MetricCardContainer title="Availability Overview" cards={getDynamicCards(availability)} loading={loading} />
-        )} */}
-        {apiErrors.overview ? (
-          <ErrorWithRefresh
-            segmentName="Availability Overview"
-            errorMessage={apiErrors.overview}
-            onRetry={() => onRetry?.('overview')}
-          />
-        ) : (
-          <SnapshotOverview
-            title="Availability Overview"
-            icon={BarChart2}
-            loading={loading}
-            kpis={getDynamicCards(availability).map((card, idx) => {
-              // Extract delta value from string like "▲3.1 pts" or "▼5.3%"
-              const deltaMatch = card.change?.match(/([▲▼])([\d.]+)/);
-              const deltaValue = deltaMatch ? parseFloat(deltaMatch[2]) * (deltaMatch[1] === '▼' ? -1 : 1) : 0;
+              {[
+                { key: "absolute", label: "Absolute" },
+                { key: "weighted", label: "Weighted" },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setAvailability(option.key)}
+                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-              // Map icons and gradients based on card title
-              let Icon = Activity;
-              let gradient = ['#6366f1', '#8b5cf6'];
+        {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
-              if (card.title.includes("Stock")) {
-                Icon = Package;
-                gradient = ['#10b981', '#059669'];
-              } else if (card.title.includes("Fill")) {
-                Icon = Truck;
-                gradient = ['#3b82f6', '#2563eb'];
-              } else if (card.title.includes("Metro")) {
-                Icon = MapPin;
-                gradient = ['#8b5cf6', '#7c3aed'];
-              }
+        <SnapshotOverview
+          title="Availability Overview"
+          icon={LayoutGrid}
+          chip={availability === "absolute" ? "Absolute Basis" : "Weighted Basis"}
+          loading={isLoading}
+          headerRight={
+            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+              vs Previous Period
+            </span>
+          }
+          kpis={availabilityKpis}
+        />
 
-              return {
-                id: idx,
-                title: card.title,
-                value: card.value,
-                delta: deltaValue,
-                icon: Icon,
-                trend: card.sparklineData || [],
-                gradient: gradient,
-                subtitle: card.sub?.includes("MTD") ? "MTD" : "OVERALL",
-                deltaLabel: card.prevText || "vs Comparison Period",
-                isComingSoon: card.isComingSoon
-              };
-            })}
-          />
-        )}
+        {/* Signal Lab Availability Segment */}
+        <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
+          <SignalLabVisibility type="availability" />
+        </div>
 
-        {/* <SignalLabVisibility type="availability" /> */}
-
-        {/* Platform KPI Matrix - show error if any matrix API failed */}
-        {/* {apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi ? (
-          <ErrorWithRefresh
-            segmentName="Platform KPI Matrix"
-            errorMessage={apiErrors.platformKpi || apiErrors.formatKpi || apiErrors.cityKpi}
-            onRetry={() => {
-              if (apiErrors.platformKpi) onRetry?.('platformKpi');
-              if (apiErrors.formatKpi) onRetry?.('formatKpi');
-              if (apiErrors.cityKpi) onRetry?.('cityKpi');
-            }}
-          />
-        ) : (
-          <TabbedHeatmapTable
-            olaMode={availability}
-            apiData={apiData}
-            filters={filters}
-            onFiltersChange={onFiltersChange}
-            loading={loading}
-          />
-        )} */}
-
-        <KPIMatrixTable filters={filters} loading={loading} />
-
-        {/* OSA Detail View - show skeleton if loading, error if failed */}
-        {/* {loading ? (
-          <OsaDetailViewSkeleton />
-        ) : apiErrors.osaDetail ? (
-          <ErrorWithRefresh
-            segmentName="OSA % Detail View"
-            errorMessage={apiErrors.osaDetail}
-            onRetry={() => onRetry?.('osaDetail')}
-          />
-        ) : (
-          <OsaHeatmapTable
-            olaMode={availability}
-            filters={pblUnfilteredFilters}
-            initialLoading={loading}
-          />
-        )} */}
-        <DateWiseDrilldownTable />
-        {/* <PricingAnalysis /> */}
-        {/* <SkuCompetitorAnalysis /> */}
+        <TabbedHeatmapTable olaMode={availability} loading={isLoading} />
+        <OsaHeatmapTable olaMode={availability} loading={isLoading} />
 
       </div>
     </div>

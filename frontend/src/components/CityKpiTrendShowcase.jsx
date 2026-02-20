@@ -1,6 +1,5 @@
 import React from "react";
 import { useState } from "react";
-import dayjs from "dayjs";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,7 +14,6 @@ import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHor
 import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
 import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
 import { KpiFilterPanel } from "./KpiFilterPanel";
-import axiosInstance from "@/api/axiosInstance";
 
 // import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 // import VisibilityCompetitionDrawer from "../AllVisiblityAnalysis/VisibilityCompetitionDrawer";
@@ -34,7 +32,6 @@ import KpiTrendShowcase from "./AllAvailablityAnalysis/KpiTrendShowcase";
 import { Visibility } from "@mui/icons-material";
 import VisibilityTrendsCompetitionDrawer from "./AllVisiblityAnalysis/VisibilityTrendsCompetitionDrawer";
 import SalesTrendsDrawer from "./Sales/SalesTrendsDrawer";
-import { Tooltip as MuiTooltip } from "@mui/material";
 
 // --- Mock data -------------------------------------------------------------
 
@@ -144,6 +141,27 @@ const mockKeywords = [
 ];
 
 // --- Helpers ---------------------------------------------------------------
+
+function formatKpiValue(kpi, value) {
+  if (value === undefined || value === null) return "–";
+  const k = kpi.toLowerCase();
+
+  if (k.includes("osa") || k.includes("fillrate") || k.includes("sos") || k.includes("share")) return `${value}%`;
+
+  // PSL should be in Lakhs (e.g. 1.7L)
+  if (k.includes("psl")) {
+    const num = Number(value);
+    return isNaN(num) ? value : `${num.toFixed(1)}L`;
+  }
+
+  // Assortment should be a whole number
+  if (k.includes("assortment")) {
+    const num = Number(value);
+    return isNaN(num) ? value : Math.round(num).toString();
+  }
+
+  return value.toString();
+}
 
 function getCellClasses(value) {
   if (value >= 90) return "bg-green-100 text-green-900 border-green-200";
@@ -640,7 +658,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI", filters, onFiltersChange }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -657,477 +675,34 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
+  const { columns, rows } = data;
 
   // Filter states
   const [showValue, setShowValue] = useState(true);
   const [selectedKPIs, setSelectedKPIs] = useState([]);
   const [isKPIOptionsOpen, setKPIOptionsOpen] = useState(false);
-  const [hoveredCell, setHoveredCell] = useState(null); // { kpi: string, col: string }
 
   // New KpiFilterPanel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterRules, setFilterRules] = useState(null);
 
-  // Selected filters state for cascading logic (tentative selection)
-  const [tentativeFilters, setTentativeFilters] = useState({
-    platform: [],
-    format: [],
-    city: [],
-    kpi: [],
-    date: [],
-    month: [],
-    zone: [],
-    pincode: [],
-    metroFlag: []
-  });
-
-  // Applied filters (the ones that actually filter the data in the UI)
-  const [appliedFilters, setAppliedFilters] = useState({
-    platform: [],
-    format: [],
-    city: [],
-    kpi: [],
-    date: [],
-    month: [],
-    zone: [],
-    pincode: [],
-    metroFlag: []
-  });
-
-  // Dynamic filter options state
-  const [dynamicFilterData, setDynamicFilterData] = useState({
-    platforms: [],
-    formats: [],      // Categories/keyword_category
-    cities: [],
-    months: [],
-    dates: [],
-    pincodes: [],
-    zones: [],
-    metroFlags: [],
-    kpis: [],
-    loading: true
-  });
-
-  // Local matrix data state (for independent refetching when internal filters change)
-  const [localMatrixData, setLocalMatrixData] = useState(null);
-  const [localLoading, setLocalLoading] = useState(false);
-
-  // Create a stable key for global data to detect actual content changes
-  const globalDataKey = React.useMemo(() => {
-    if (!data) return '';
-    const filterKey = `${filters?.platform || ''}_${filters?.brand || ''}_${filters?.location || ''}_${filters?.startDate || ''}_${filters?.endDate || ''}`;
-    return `${data.columns?.length || 0}_${data.rows?.length || 0}_${data.rows?.[0]?.kpi || ''}_${filterKey}`;
-  }, [data, filters]);
-
-  // Reset local state when switching tabs (title changes) or global filters change (verified by globalDataKey)
-  React.useEffect(() => {
-    console.log('[CityKpiTrendShowcase] Resetting local matrix state due to title or global data change');
-    setLocalMatrixData(null);
-    setAppliedFilters({
-      platform: [],
-      format: [],
-      city: [],
-      kpi: [],
-      date: [],
-      month: [],
-      zone: [],
-      pincode: [],
-      metroFlag: []
-    });
-  }, [title, globalDataKey]);
-
-  // Use local data when available (after internal filter applied), otherwise use prop data
-  const activeData = localMatrixData || data;
-  const { columns, rows } = activeData;
-
-
-  // Refetch matrix data locally when internal filters are applied
-  const refetchLocalMatrixData = async (targetFilters, viewMode = 'Platform') => {
-    try {
-      setLocalLoading(true);
-
-      const params = new URLSearchParams();
-      params.append('viewMode', viewMode);
-
-      // 1. Handle dates from appliedFilters (priority) or global filters
-      let startDate = filters?.startDate;
-      let endDate = filters?.endDate;
-
-      if (targetFilters.date?.length > 0 && !targetFilters.date.includes('all') && !targetFilters.date.includes('All')) {
-        const sortedDates = [...targetFilters.date].sort();
-        startDate = sortedDates[0];
-        endDate = sortedDates[sortedDates.length - 1];
-      } else if (targetFilters.month?.length > 0 && !targetFilters.month.includes('all') && !targetFilters.month.includes('All')) {
-        const sortedMonths = [...targetFilters.month].sort();
-        const startMonth = sortedMonths[0];
-        const endMonth = sortedMonths[sortedMonths.length - 1];
-
-        const [sYear, sMonth] = startMonth.split('-');
-        const [eYear, eMonth] = endMonth.split('-');
-
-        startDate = dayjs(`${sYear}-${sMonth}-01`).format('YYYY-MM-DD');
-        endDate = dayjs(`${eYear}-${eMonth}-01`).endOf('month').format('YYYY-MM-DD');
-      }
-
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
-
-      // 2. Map applied filters to query params
-      const filterMapping = {
-        platform: 'platform',
-        city: 'location',
-        location: 'location',
-        format: 'format',
-        formats: 'format',
-        category: 'category',
-        categories: 'category',
-        zone: 'zones',
-        metroFlag: 'metroFlags',
-        pincode: 'pincodes',
-        brand: 'brand'
-      };
-
-      Object.entries(targetFilters).forEach(([key, values]) => {
-        const queryKey = filterMapping[key];
-        if (queryKey && Array.isArray(values) && values.length > 0) {
-          const hasAll = values.includes('all') || values.includes('All');
-          if (!hasAll) {
-            values.forEach(v => {
-              if (v !== undefined && v !== null && v !== '') params.append(queryKey, v);
-            });
-          }
-        }
-      });
-
-      // 3. Add base global filters if not overridden by applied filters
-      const globalFilterMapping = {
-        platform: 'platform',
-        brand: 'brand',
-        location: 'location',
-        zones: 'zones',
-        metroFlags: 'metroFlags',
-        pincodes: 'pincodes',
-        formats: 'formats',
-        categories: 'categories',
-        dates: 'dates',
-        months: 'months'
-      };
-
-      Object.entries(filters || {}).forEach(([key, value]) => {
-        const queryKey = globalFilterMapping[key] || key;
-        // Only add global filter if it's NOT already in params (meaning local overrode it)
-        if (!params.has(queryKey) && value !== undefined && value !== null && value !== 'All' && value !== '') {
-          if (Array.isArray(value)) {
-            value.forEach(v => {
-              if (v !== 'all' && v !== 'All') params.append(queryKey, v);
-            });
-          } else {
-            params.append(queryKey, value);
-          }
-        }
-      });
-
-      // Fallback defaults
-      if (!params.has('platform')) params.append('platform', 'All');
-      if (!params.has('brand')) params.append('brand', 'All');
-      if (!params.has('location')) params.append('location', 'All');
-
-      const queryParams = params.toString();
-
-      console.log('[LocalMatrixRefetch] Fetching with params:', queryParams, 'dynamicKey:', dynamicKey);
-
-      // Use correct API endpoint based on dynamicKey (availability vs visibility)
-      // Path should be relative to axiosInstance baseURL ('/api')
-      const apiEndpoint = dynamicKey === 'visibility'
-        ? `/visibility-analysis/platform-kpi-matrix`
-        : `/availability-analysis/absolute-osa/platform-kpi-matrix`;
-
-      const response = await axiosInstance.get(`${apiEndpoint}?${queryParams}`);
-      const rawData = response.data;
-
-      console.log('[LocalMatrixRefetch] Raw Response:', rawData);
-
-      // Determine the actual data to use based on API response structure
-      // Availability API returns flat: { columns, rows }
-      // Visibility API returns nested: { platformData, formatData, cityData }
-      let dataToTransform = rawData;
-
-      if (dynamicKey === 'visibility') {
-        // For visibility, extract the correct nested data based on viewMode/title
-        const viewModeKey = viewMode.toLowerCase();  // 'platform', 'format', or 'city'
-        if (viewModeKey === 'platform' && rawData.platformData) {
-          dataToTransform = rawData.platformData;
-        } else if (viewModeKey === 'format' && rawData.formatData) {
-          dataToTransform = rawData.formatData;
-        } else if (viewModeKey === 'city' && rawData.cityData) {
-          dataToTransform = rawData.cityData;
-        }
-        console.log('[LocalMatrixRefetch] Visibility - extracted', viewModeKey, 'data');
-      }
-
-      // Transform API response to match expected component format
-      // (Same transformation as transformApiData in TabbedHeatmapTable)
-      if (dataToTransform && dataToTransform.columns && dataToTransform.rows) {
-        const cols = dataToTransform.columns.filter(c => c !== 'KPI' && c !== 'kpi');
-
-        // Helper: generate sparkline series from current value and trend
-        const generateSeries = (value, trend, pointCount = 4) => {
-          if (value === undefined || value === null || value === 'Coming Soon') {
-            return [];
-          }
-          const numValue = typeof value === 'number' ? value : parseFloat(value);
-          const numTrend = typeof trend === 'number' ? trend : 0;
-
-          if (isNaN(numValue)) return [];
-
-          const points = [];
-          const prevValue = numValue - numTrend;
-          for (let i = 0; i < pointCount; i++) {
-            const progress = i / (pointCount - 1);
-            points.push(Math.round(prevValue + (numValue - prevValue) * progress));
-          }
-          return points;
-        };
-
-        const transformedRows = dataToTransform.rows.map(row => {
-          const series = {};
-          cols.forEach(col => {
-            series[col] = generateSeries(row[col], row.trend?.[col]);
-          });
-
-          return {
-            kpi: row.kpi,
-            ...Object.fromEntries(cols.map(col => [col, row[col]])),
-            trend: row.trend || {},
-            series: row.series || series,
-          };
-        });
-
-        const transformedData = {
-          columns: ['kpi', ...cols],
-          rows: transformedRows,
-          viewMode: dataToTransform.viewMode || viewMode
-        };
-
-        console.log('[LocalMatrixRefetch] Transformed columns:', transformedData.columns);
-        console.log('[LocalMatrixRefetch] Transformed rows:', transformedData.rows.map(r => r.kpi));
-        setLocalMatrixData(transformedData);
-      } else {
-        console.error('[LocalMatrixRefetch] Invalid response structure:', dataToTransform);
-        setLocalMatrixData(null);
-      }
-
-    } catch (error) {
-      console.error('[LocalMatrixRefetch] Error:', error);
-    } finally {
-      setLocalLoading(false);
-    }
-  };
-
-  // Helper to fetch a single filter type with cascade params
-  const fetchFilterType = async (filterType, cascadeParams = {}) => {
-    try {
-      const params = new URLSearchParams({
-        filterType,
-        platform: cascadeParams.platform || 'All',
-        format: cascadeParams.format || 'All',
-        city: cascadeParams.city || 'All',
-        metroFlag: cascadeParams.metroFlag || 'All',
-        months: cascadeParams.month || 'All'
-      }).toString();
-
-      // Use visibility-analysis API for visibility page
-      const apiBase = dynamicKey === 'visibility'
-        ? '/visibility-analysis/filter-options'
-        : '/availability-analysis/filter-options';
-
-      const res = await axiosInstance.get(`${apiBase}?${params}`);
-      return res.data?.options || [];
-    } catch (error) {
-      console.error(`Error fetching ${filterType}:`, error);
-      return [];
-    }
-  };
-
-  // Initial fetch of all filter options
-  React.useEffect(() => {
-    const fetchAllFilterOptions = async () => {
-      setDynamicFilterData(prev => ({ ...prev, loading: true }));
-
-      try {
-        // Fetch all filter types in parallel (from rb_kw and rb_location_darkstore)
-        const [platforms, formats, cities, months, dates, pincodes, zones, metroFlags, kpis] = await Promise.all([
-          fetchFilterType('platforms'),
-          fetchFilterType('formats', tentativeFilters),
-          fetchFilterType('cities', tentativeFilters),
-          fetchFilterType('months', tentativeFilters),
-          fetchFilterType('dates', tentativeFilters),
-          fetchFilterType('pincodes', tentativeFilters),
-          fetchFilterType('zones'),
-          fetchFilterType('metroFlags'),
-          fetchFilterType('kpis')
-        ]);
-
-        setDynamicFilterData({
-          platforms,
-          formats,
-          cities,
-          months,
-          dates,
-          pincodes,
-          zones,
-          metroFlags,
-          kpis,
-          loading: false
-        });
-
-        console.log('[CityKpiTrendShowcase] Filter options loaded:', {
-          platforms: platforms.length,
-          formats: formats.length,
-          cities: cities.length,
-          metroFlags: metroFlags.length
-        });
-      } catch (error) {
-        console.error('Error fetching filter options:', error);
-        setDynamicFilterData(prev => ({ ...prev, loading: false }));
-      }
-    };
-
-    fetchAllFilterOptions();
-  }, []); // Initial load only
-
-  // Re-fetch dependent filters when platform changes (cascading logic)
-  React.useEffect(() => {
-    const selectedPlatform = tentativeFilters.platform?.[0];
-    if (!selectedPlatform || selectedPlatform === 'All') return;
-
-    const refetchDependentFilters = async () => {
-      console.log('[Cascading] Platform changed to:', selectedPlatform, '- refetching dependent filters');
-      const cascadeParams = {
-        platform: selectedPlatform,
-        format: tentativeFilters.format?.[0] || 'All',
-        city: tentativeFilters.city?.[0] || 'All',
-        metroFlag: tentativeFilters.metroFlag?.[0] || 'All'
-      };
-      const [formats, cities, months, pincodes] = await Promise.all([
-        fetchFilterType('formats', cascadeParams),
-        fetchFilterType('cities', cascadeParams),
-        fetchFilterType('months', cascadeParams),
-        fetchFilterType('pincodes', cascadeParams)
-      ]);
-      setDynamicFilterData(prev => ({ ...prev, formats, cities, months, pincodes }));
-    };
-
-    refetchDependentFilters();
-  }, [tentativeFilters.platform]);
-
-  // Re-fetch cities when metroFlag changes
-  React.useEffect(() => {
-    const selectedMetro = tentativeFilters.metroFlag?.[0];
-    if (!selectedMetro || selectedMetro === 'All') return;
-
-    const refetchCities = async () => {
-      console.log('[Cascading] MetroFlag changed to:', selectedMetro, '- refetching cities');
-      const cascadeParams = {
-        platform: tentativeFilters.platform?.[0] || 'All',
-        metroFlag: selectedMetro
-      };
-      const cities = await fetchFilterType('cities', cascadeParams);
-      setDynamicFilterData(prev => ({ ...prev, cities }));
-    };
-
-    refetchCities();
-  }, [tentativeFilters.metroFlag]);
-
-  // Re-fetch pincodes when city changes
-  React.useEffect(() => {
-    const selectedCity = tentativeFilters.city?.[0];
-    if (!selectedCity || selectedCity === 'All') return;
-
-    const refetchPincodes = async () => {
-      console.log('[Cascading] City changed to:', selectedCity, '- refetching pincodes');
-      const cascadeParams = {
-        platform: tentativeFilters.platform?.[0] || 'All',
-        city: selectedCity
-      };
-      const pincodes = await fetchFilterType('pincodes', cascadeParams);
-      setDynamicFilterData(prev => ({ ...prev, pincodes }));
-    };
-
-    refetchPincodes();
-  }, [tentativeFilters.city]);
-
-  // Re-fetch dates when month changes (Cascading Month -> Date)
-  React.useEffect(() => {
-    const selectedMonth = tentativeFilters.month?.[0];
-    if (!selectedMonth || selectedMonth === 'all') {
-      // If 'all' months, we might want to fetch all dates or leave as is.
-      // Usually, selecting a month filters dates.
-      return;
-    }
-
-    const refetchDates = async () => {
-      console.log('[Cascading] Month changed to:', selectedMonth, '- refetching dates');
-      const cascadeParams = {
-        platform: tentativeFilters.platform?.[0] || 'All',
-        city: tentativeFilters.city?.[0] || 'All',
-        month: selectedMonth
-      };
-      const dates = await fetchFilterType('dates', cascadeParams);
-      setDynamicFilterData(prev => ({ ...prev, dates }));
-    };
-
-    refetchDates();
-  }, [tentativeFilters.month]);
-
-  // Build filter options from dynamic data (per user requirements)
   const filterOptions = React.useMemo(() => {
     if (kpiFilterOptions) return kpiFilterOptions;
-
-    // Helper to convert array of strings to filter options format
-    const toOptions = (arr) => arr.map(item => ({ id: item, label: item }));
-
-    // Format months nicely (2025-12 -> December 2025)
-    const formatMonth = (monthStr) => {
-      if (!monthStr) return monthStr;
-      const [year, month] = monthStr.split('-');
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-      return `${monthNames[parseInt(month, 10) - 1]} ${year}`;
-    };
-
-    const monthOptions = dynamicFilterData.months.map(m => ({
-      id: m,
-      label: formatMonth(m)
-    }));
-
-    // Visibility page filter config (per user requirements)
-    if (dynamicKey === 'visibility') {
-      return [
-        { id: "date", label: "Date", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.dates)] },
-        { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
-        { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
-        { id: "kpi", label: "KPI", options: toOptions(dynamicFilterData.kpis.length ? dynamicFilterData.kpis : ['Overall SOS', 'Sponsored SOS', 'Organic SOS', 'Display SOS']) },
-        { id: "format", label: "Format", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
-        { id: "zone", label: "Zone", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.zones)] },
-        { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
-        { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.pincodes)] },
-        { id: "metroFlag", label: "Metro Flag", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.metroFlags)] },
-      ];
-    }
-
-    // Availability page filter config (original)
     return [
-      { id: "date", label: "Date", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.dates)] },
-      { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
-      { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
+      { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+      { id: "keywords", label: "Keyword" },
+      { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
+      { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
       { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
-      { id: "format", label: "Format", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
-      { id: "zone", label: "Zone", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.zones)] },
-      { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
-      { id: "metroFlag", label: "Metro Flag", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.metroFlags)] },
+      { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+      { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+      { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
+      { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
+      { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
+      { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
+      { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
     ];
-  }, [dynamicFilterData, kpiFilterOptions, dynamicKey]);
+  }, [rows, columns, kpiFilterOptions]);
 
   // Value Logic Filter (Legacy - kept for reference or removal)
   const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
@@ -1174,52 +749,22 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     }
   };
 
-  // Calculate Filtered Rows (Local Pagination and KPI filter)
+  // Calculate Pagination
   const filteredRows = React.useMemo(() => {
-    let result = rows;
-
-    // 1. Filter by KPI selection from the Advanced Filters
-    const kpiFilter = appliedFilters.kpi;
-    if (kpiFilter && kpiFilter.length > 0 && !kpiFilter.some(k => k.toLowerCase() === 'all')) {
-      // Logic: KPI names in ClickHouse might be uppercase, match case-insensitively or exactly
-      result = result.filter(row =>
-        kpiFilter.some(kf => kf.toLowerCase() === row.kpi.toLowerCase())
-      );
-    }
-
-    // 2. Original selectedKPIs toggle logic (if any)
-    if (selectedKPIs.length > 0 && selectedKPIs.length !== allKPIs.length) {
-      result = result.filter(row => selectedKPIs.includes(row.kpi));
-    }
-
-    return result;
-  }, [rows, appliedFilters.kpi, selectedKPIs, allKPIs]);
+    return rows.filter(row => selectedKPIs.includes(row.kpi));
+  }, [rows, selectedKPIs]);
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
 
   const paginatedRows = React.useMemo(() => {
-    if (isColumnPagination) return filteredRows; // Show all filtered rows for column pagination mode
+    if (isColumnPagination) return filteredRows; // Show all rows for column pagination mode
     if (!showPagination) return filteredRows;
     const startIndex = (currentPage - 1) * pageSize;
     return filteredRows.slice(startIndex, startIndex + pageSize);
   }, [filteredRows, currentPage, pageSize, showPagination, isColumnPagination]);
 
-  // Column Filtering Logic (Advanced Filters)
-  const filteredAllDataColumns = React.useMemo(() => {
-    const allCols = columns.slice(1);
-    const filterKey = title.toLowerCase(); // 'platform', 'format', or 'city'
-    const currentFilter = appliedFilters[filterKey];
-
-    if (!currentFilter || currentFilter.length === 0 || currentFilter.some(f => f.toLowerCase() === 'all')) {
-      return allCols;
-    }
-
-    return allCols.filter(col =>
-      currentFilter.some(f => f.toLowerCase() === col.toLowerCase())
-    );
-  }, [columns, appliedFilters, title]);
-
-  const allDataColumns = filteredAllDataColumns;
+  // Column Pagination Logic
+  const allDataColumns = React.useMemo(() => columns.slice(1), [columns]);
   const totalColPages = Math.ceil(allDataColumns.length / colPageSize);
 
   const visibleColumns = React.useMemo(() => {
@@ -1267,8 +812,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     <Card className={`border-slate-200 bg-white shadow-sm ${showPagination ? 'pb-0' : ''}`}>
 
       {/* ------------------ HEADER (City Style) ------------------ */}
-      <CardHeader className="p-4 pb-2 md:p-6 md:pb-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base text-slate-900">
               {title} KPI Matrix
@@ -1280,19 +825,16 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           </div>
 
           {/* City-style Heatmap Legend */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto">
+          <div className="flex items-center gap-3 text-xs">
             {/* KpiFilterPanel Integration */}
             <button
-              onClick={() => {
-                setTentativeFilters(appliedFilters);
-                setShowFilterPanel(true);
-              }}
+              onClick={() => setShowFilterPanel(true)}
               className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Filters</span>
             </button>
-            <div className="hidden sm:block h-4 w-px bg-slate-200 mx-1"></div>
+            <div className="h-4 w-px bg-slate-200 mx-1"></div>
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               <span className="ml-2 text-slate-700">Healthy</span>
@@ -1311,8 +853,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {showFilterPanel && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -1333,14 +875,6 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <KpiFilterPanel
                 sectionConfig={filterOptions}
                 keywords={mockKeywords}
-                sectionValues={tentativeFilters}
-                onSectionChange={(sectionId, values) => {
-                  setTentativeFilters(prev => ({
-                    ...prev,
-                    [sectionId]: values || []
-                  }));
-                  console.log(`[Filter Selection] ${sectionId}:`, values);
-                }}
               />
 
             </div>
@@ -1354,13 +888,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  setAppliedFilters(tentativeFilters);
-                  setShowFilterPanel(false);
-
-                  // Use title prop as viewMode since it correctly reflects the current tab (Platform, Format, or City)
-                  refetchLocalMatrixData(tentativeFilters, title);
-                }}
+                onClick={() => setShowFilterPanel(false)}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >
                 Apply Filters
@@ -1371,16 +899,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       )}
 
       {/* ------------------ BODY ------------------ */}
-      <CardContent className="pt-0 relative">
-        {/* Local Loading Overlay */}
-        {localLoading && (
-          <div className="absolute inset-x-6 inset-y-0 z-30 flex items-center justify-center bg-white/60 backdrop-blur-[1px] rounded-xl">
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
-              <span className="text-xs font-medium text-slate-600">Updating matrix...</span>
-            </div>
-          </div>
-        )}
+      <CardContent className="pt-0">
         <ScrollArea className="w-full rounded-xl border border-slate-100 bg-slate-50/60 transition-all hover:bg-slate-50/80">
           <div className="w-max min-w-full">
 
@@ -1403,9 +922,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                    tracking-widest text-slate-900 min-w-[110px]"
                     >
                       <div className="flex items-center justify-center gap-2">
-                        <MuiTooltip title={col} arrow placement="top">
-                          <span className="truncate max-w-[80px]">{col}</span>
-                        </MuiTooltip>
+                        <span>{col}</span>
                         <span
                           className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
                           onClick={() => {
@@ -1424,105 +941,86 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody className="bg-white">
-                {paginatedRows.map((row) => {
-                  const isDisplaySOS = row.kpi?.toLowerCase().includes("display sos");
-                  const isFillRate = row.kpi?.toLowerCase().includes("fill") && row.kpi?.toLowerCase().includes("rate") || row.kpi?.toLowerCase() === "fillrate";
-                  const isComingSoon = isDisplaySOS || isFillRate;
-                  return (
-                    <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
+                {paginatedRows.map((row) => (
+                  <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
 
-                      {/* Sticky KPI Column */}
-                      <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
-                                       text-xs font-bold text-slate-900 border-b border-slate-100 
-                                       shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] truncate max-w-[140px]">
-                        <MuiTooltip title={row.kpi} arrow placement="right">
-                          <span>{row.kpi}</span>
-                        </MuiTooltip>
-                      </td>
+                    {/* Sticky KPI Column */}
+                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
+                                     text-xs font-bold text-slate-900 border-b border-slate-100 
+                                     shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
+                      {row.kpi.toUpperCase()}
+                    </td>
 
-                      {isComingSoon ? (
-                        <td colSpan={visibleColumns.length} className="py-2 px-3 border-b border-slate-50 text-center italic text-slate-400 bg-slate-50/30 font-medium">
-                          Coming Soon...
+                    {visibleColumns.map((col) => {
+                      const value = row[col];
+                      const trend = row.trend?.[col];
+
+                      const cellClasses = getCellClasses(value);
+                      const trendMeta = getTrendMeta(trend);
+                      const Icon = trendMeta.icon;
+
+                      return (
+                        <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
+                          <Popover>
+                            <PopoverTrigger asChild>
+
+                              {/* CITY-STYLE CELL BUTTON */}
+                              <button
+                                className={`flex w-max mx-auto items-center justify-center gap-2 
+                                           rounded-md border border-transparent px-2 py-1.5 
+                                           text-xs font-semibold 
+                                           transition-all duration-200
+                                           hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
+                                           ${cellClasses}`}
+                              >
+                                <span className="font-mono tabular-nums tracking-tight">
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : "–"}
+                                </span>
+
+                                <span
+                                  className={`inline-flex items-center gap-[1px] rounded-full border 
+                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
+                                >
+                                  {Icon && <Icon className="h-2 w-2" />}
+                                  <span className="font-medium text-[9px]">{trendMeta.display}</span>
+                                </span>
+                              </button>
+                            </PopoverTrigger>
+
+                            {/* POPUP CONTENT */}
+                            <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
+                              <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                <span className="font-semibold text-xs text-slate-900">
+                                  {row.kpi} · {col}
+                                </span>
+                                {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
+                              </div>
+
+                              <div className="p-4 space-y-3">
+                                <div className="flex items-baseline justify-between">
+                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{formatKpiValue(row.kpi, value)}</span>
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
+                                    {trendMeta.display}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                                    <span>Last 4 periods</span>
+                                    <span>Trend</span>
+                                  </div>
+                                  <div className="h-12 w-full pt-1">
+                                    <TrendSparkline series={row.series?.[col] || []} />
+                                  </div>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         </td>
-                      ) : (
-                        visibleColumns.map((col) => {
-                          const value = row[col];
-                          const trend = row.trend?.[col];
-
-                          const cellClasses = getCellClasses(value);
-                          const trendMeta = getTrendMeta(trend);
-                          const Icon = trendMeta.icon;
-
-                          return (
-                            <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
-                              <Popover open={hoveredCell?.kpi === row.kpi && hoveredCell?.col === col}>
-                                <PopoverTrigger asChild>
-
-                                  {/* CITY-STYLE CELL BUTTON */}
-                                  <button
-                                    onMouseEnter={() => setHoveredCell({ kpi: row.kpi, col })}
-                                    onMouseLeave={() => setHoveredCell(null)}
-                                    className={`flex w-max mx-auto items-center justify-center gap-2 
-                                               rounded-md border border-transparent px-2 py-1.5 
-                                               text-xs font-semibold 
-                                               transition-all duration-200
-                                               hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
-                                               ${cellClasses}`}
-                                  >
-                                    <span className="font-mono tabular-nums tracking-tight">
-                                      {(showValue && value !== undefined && value !== null && checkValueCondition(value))
-                                        ? ((isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE')
-                                          ? `${value}%`
-                                          : `${value}`)
-                                        : "–"}
-                                    </span>
-
-                                    <span
-                                      className={`inline-flex items-center gap-[1px] rounded-full border 
-                                                    px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
-                                    >
-                                      {Icon && <Icon className="h-2 w-2" />}
-                                      <span className="font-medium text-[9px]">{trend > 0 ? `+${trend}` : `${trend}`}</span>
-                                    </span>
-                                  </button>
-                                </PopoverTrigger>
-
-                                {/* POPUP CONTENT */}
-                                <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
-                                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                                    <span className="font-semibold text-xs text-slate-900">
-                                      {row.kpi} · {col}
-                                    </span>
-                                    {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
-                                  </div>
-
-                                  <div className="p-4 space-y-3">
-                                    <div className="flex items-baseline justify-between">
-                                      <span className="text-2xl font-bold tracking-tight text-slate-900">{(isPercentageBased && row.kpi !== 'DOI' && row.kpi !== 'ASSORTMENT' && row.kpi !== 'FILLRATE') ? `${value}%` : value}</span>
-                                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                        {trend > 0 ? `+${trend}` : `${trend}`}
-                                      </span>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                      <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
-                                        <span>Last 4 periods</span>
-                                        <span>Trend</span>
-                                      </div>
-                                      <div className="h-12 w-full pt-1">
-                                        <TrendSparkline series={row.series?.[col] || []} />
-                                      </div>
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            </td>
-                          );
-                        })
-                      )}
-                    </tr>
-                  );
-                })}
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
 
             </table>
@@ -1550,7 +1048,6 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
-          filters={filters}
         />
       ) : dynamicKey === 'sales_category_table' ? (
         <SalesTrendsDrawer
@@ -1566,7 +1063,6 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
-          initialAudience={title}
         />
       )
       }
@@ -1837,12 +1333,12 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel, filters, onFiltersChange }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} filters={filters} onFiltersChange={onFiltersChange} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
 }
 

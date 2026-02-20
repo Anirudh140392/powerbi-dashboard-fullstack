@@ -1,5 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useMemo } from "react";
 import {
     X,
     ChevronLeft,
@@ -21,11 +20,9 @@ function getHeatmapClass(value) {
     return "text-slate-700";
 }
 
-export default function CityDetailedTable({ sku, onClose, isPricing = false }) {
+export default function CityDetailedTable({ sku, onClose }) {
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [cityData, setCityData] = useState([]);
-    const [loading, setLoading] = useState(true);
 
     // Normalize data fields for display if they vary between visibility types
     const displaySkuName = sku.skuName || sku.keyword || "Unknown";
@@ -33,256 +30,164 @@ export default function CityDetailedTable({ sku, onClose, isPricing = false }) {
     const displayPackSize = sku.packSize || "N/A";
     const displayPlatform = sku.platform || "N/A";
 
-    // Fetch real city data from API
-    useEffect(() => {
-        const fetchCityData = async () => {
-            try {
-                setLoading(true);
-
-                // Determine if this is a visibility signal (has keyword or level property)
-                const isVisibilitySignal = sku.level === 'keyword' || sku.level === 'sku' || sku.keyword || sku.skuName;
-
-                if (isVisibilitySignal) {
-                    // Call visibility city details API with keyword or SKU name
-                    const params = {
-                        level: sku.level || (sku.keyword ? 'keyword' : 'sku'),
-                        keyword: sku.keyword || null,
-                        skuName: sku.skuName || displaySkuName,
-                        platform: sku.platform || 'All',
-                        startDate: sku.startDate || '2025-12-01',
-                        endDate: sku.endDate || '2025-12-31'
-                    };
-
-                    console.log('[CityDetailedTable] Fetching visibility city data with params:', params);
-
-                    const response = await axios.get('/api/visibility-analysis/visibility-signals/city-details', {
-                        params
-                    });
-
-                    console.log('[CityDetailedTable] Visibility API Response:', response.data);
-
-                    if (response.data && response.data.cities) {
-                        console.log('[CityDetailedTable] Found', response.data.cities.length, 'cities');
-                        setCityData(response.data.cities);
-                    }
-                } else {
-                    // Fallback to availability API for non-visibility signals
-                    const params = {
-                        webPid: sku.webPid || sku.id,
-                        startDate: sku.startDate || '2025-12-01',
-                        endDate: sku.endDate || '2025-12-31',
-                        compareStartDate: sku.compareStartDate || '2025-11-01',
-                        compareEndDate: sku.compareEndDate || '2025-11-30',
-                        type: sku.metricType || 'availability'
-                    };
-
-                    console.log('[CityDetailedTable] Fetching availability city data with params:', params);
-
-                    const response = await axios.get('/api/availability-analysis/signal-lab/city-details', {
-                        params
-                    });
-
-                    if (response.data && response.data.cities) {
-                        setCityData(response.data.cities);
-                    }
-                }
-            } catch (error) {
-                console.error('[CityDetailedTable] Error fetching city data:', error);
-                console.error('[CityDetailedTable] Error response:', error.response?.data);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCityData();
-    }, [sku, displaySkuName]);
-
-    // Prepare display data - conditionally include pricing or visibility metrics
+    // Mock large dataset for this SKU
     const allCities = useMemo(() => {
-        return cityData.map((row, idx) => {
-            const baseData = {
-                id: idx,
-                city: row.city,
-            };
+        const cities = [
+            "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata", "Surat",
+            "Pune", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal",
+            "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra",
+            "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan-Dombivli", "Vasai-Virar", "Varanasi"
+        ];
+        return cities.map((city, idx) => {
+            const wtOsaVal = 70 + Math.random() * 30;
+            // Ensure listing percent is logically less than OSA %
+            const listingPctVal = wtOsaVal - (Math.random() * 10 + 5);
 
-            if (isPricing) {
-                // Pricing KPIs: ECP, Discount, RPI
-                return {
-                    ...baseData,
-                    ecp: row.ecp ? `₹ ${row.ecp.toFixed(0)}` : `₹ ${(Math.random() * 100 + 50).toFixed(0)}`,
-                    ecpChange: row.ecpChange ? `${row.ecpChange >= 0 ? '+' : ''}${row.ecpChange.toFixed(1)}%` : `${(Math.random() > 0.5 ? '+' : '-')}${(Math.random() * 5).toFixed(1)}%`,
-                    discount: row.discount ? `${row.discount.toFixed(1)}%` : `${(Math.random() * 20 + 5).toFixed(1)}%`,
-                    discountChange: row.discountChange ? `${row.discountChange >= 0 ? '+' : ''}${row.discountChange.toFixed(1)}%` : `${(Math.random() > 0.5 ? '+' : '-')}${(Math.random() * 3).toFixed(1)}%`,
-                    rpi: row.rpi ? row.rpi.toFixed(2) : (Math.random() * 0.5 + 0.8).toFixed(2),
-                    rpiChange: row.rpiChange ? `${row.rpiChange >= 0 ? '+' : ''}${row.rpiChange.toFixed(2)}` : `${(Math.random() > 0.5 ? '+' : '-')}${(Math.random() * 0.1).toFixed(2)}`,
-                };
-            } else {
-                // Visibility/Sales KPIs: Est. Offtake, Cat Share, OSA, SOS, etc.
-                return {
-                    ...baseData,
-                    estOfftake: row.estOfftake ? `₹ ${row.estOfftake.toFixed(1)} K` : `₹ ${(Math.random() * 500 + 100).toFixed(1)} K`,
-                    offtakeChange: row.estOfftakeChange ? `${row.estOfftakeChange >= 0 ? '+' : ''}${row.estOfftakeChange.toFixed(1)}%` : `${(Math.random() > 0.5 ? '+' : '-')}${(Math.random() * 10).toFixed(1)}%`,
-                    catShare: row.estCatShare ? `${row.estCatShare.toFixed(1)}%` : `${(Math.random() * 30 + 5).toFixed(1)}%`,
-                    shareChange: row.estCatShareChange ? `${row.estCatShareChange >= 0 ? '+' : ''}${row.estCatShareChange.toFixed(1)}%` : `${(Math.random() > 0.5 ? '+' : '-')}${(Math.random() * 5).toFixed(1)}%`,
-                    wtOsa: row.wtOsa ? `${row.wtOsa.toFixed(1)}%` : `${(Math.random() * 30 + 60).toFixed(1)}%`,
-                    osaChange: row.wtOsaChange ? `${row.wtOsaChange >= 0 ? '+' : ''}${row.wtOsaChange.toFixed(1)}%` : `${(Math.random() > 0.5 ? '+' : '-')}${(Math.random() * 5).toFixed(1)}%`,
-                    overallSos: row.overallSos ? `${row.overallSos.toFixed(1)}%` : `${(Math.random() * 20 + 10).toFixed(1)}%`,
-                    adSos: row.adSos ? `${row.adSos.toFixed(1)}%` : `${(Math.random() * 15 + 5).toFixed(1)}%`,
-                    wtDisc: row.wtDisc ? `${row.wtDisc.toFixed(1)}%` : `${(Math.random() * 20 + 5).toFixed(1)}%`,
-                    discChange: `+${(Math.random() * 2).toFixed(1)}%`,
-                };
-            }
+            return {
+                id: idx,
+                city,
+                estOfftake: `₹ ${(Math.random() * 5 + 0.5).toFixed(1)} K`,
+                offtakeChange: Math.random() > 0.5 ? `+${(Math.random() * 10).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%`,
+                catShare: `${(Math.random() * 5).toFixed(1)}%`,
+                shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
+                wtOsa: `${wtOsaVal.toFixed(1)}%`,
+                osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
+                listingPct: `${listingPctVal.toFixed(1)}%`,
+                overallSos: `${(Math.random() * 5).toFixed(1)}%`,
+                adSos: `${(Math.random() * 15).toFixed(1)}%`,
+                wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
+                discChange: `+${(Math.random() * 2).toFixed(1)}%`,
+            };
         });
-    }, [cityData, isPricing]);
+    }, [sku]);
 
     const totalPages = Math.ceil(allCities.length / rowsPerPage);
     const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-2 sm:p-4 animate-in fade-in duration-200">
-            <div className="relative w-full max-w-5xl max-h-[95vh] sm:max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-slate-900/5 items-start">
-                {/* Header - Responsive Layout */}
-                <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 bg-white shadow-sm z-10 shrink-0 gap-4">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-100 flex items-center justify-center text-xl sm:text-2xl shadow-sm">
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-slate-900/5 items-start">
+                {/* Header */}
+                <div className="w-full flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white shadow-sm z-10 shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-xl  from-orange-50 to-amber-50 border border-orange-100 flex items-center justify-center text-2xl shadow-sm">
                             {displaySkuName.toLowerCase().includes("cone") ? "🍦" :
                                 displaySkuName.toLowerCase().includes("cup") ? "🍨" : "🧊"}
                         </div>
                         <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <h2 className="text-base sm:text-lg font-bold text-slate-800 capitalize leading-tight">{displaySkuName}</h2>
-                                <span className="text-[10px] sm:text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-slate-900 capitalize">{displaySkuName}</h2>
+                                <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                                     {displaySkuCode}
                                 </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] sm:text-xs text-slate-500 mt-1">
-                                <span className={`px-2 py-0.5 rounded-full font-semibold border ${sku.type === "gainer" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${sku.type === "gainer" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
                                     {sku.type === "drainer" ? "Top Drainer" : "Top Gainer"}
                                 </span>
-                                <span className="hidden sm:inline text-slate-300">•</span>
-                                <span className="font-bold bg-slate-50 px-2 py-0.5 rounded text-slate-700 border border-slate-100">{displayPackSize}</span>
-                                <span className="hidden sm:inline text-slate-300">•</span>
-                                <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">{displayPlatform}</span>
+                                <span>•</span>
+                                <span className="font-medium bg-slate-50 px-2 py-0.5 rounded text-slate-600 border border-slate-100">{displayPackSize}</span>
+                                <span>•</span>
+                                <span className="font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">{displayPlatform}</span>
                             </div>
                         </div>
                     </div>
-                    <div className="absolute top-4 right-4 sm:static flex items-center">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all active:scale-95"
+                            className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
-                {/* Content - Horizontal Scrollable Table */}
-                <div className="w-full flex-1 overflow-hidden flex flex-col bg-slate-50/50">
-                    <div className="flex-1 overflow-auto p-4 sm:p-6 custom-scrollbar">
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-w-[700px] sm:min-w-full">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[10px] sm:text-xs text-slate-500 uppercase tracking-widest sticky top-0 z-20 backdrop-blur-sm">
-                                        <th className={`${isPricing ? 'w-[25%]' : ''} px-3 sm:px-4 py-3 sm:py-4 font-bold bg-slate-50/80 sticky left-0 z-30 border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]`}>City</th>
-                                        {isPricing ? (
-                                            <>
-                                                <th className="w-[25%] px-3 sm:px-4 py-3 sm:py-4 font-bold text-center">ECP</th>
-                                                <th className="w-[25%] px-3 sm:px-4 py-3 sm:py-4 font-bold text-center">Discount</th>
-                                                <th className="w-[25%] px-3 sm:px-4 py-3 sm:py-4 font-bold text-center">RPI</th>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <th className="px-3 sm:px-4 py-3 sm:py-4 font-bold text-right">Est. Offtake</th>
-                                                <th className="px-3 sm:px-4 py-3 sm:py-4 font-bold text-right">Est. Cat Share</th>
-                                                <th className="px-3 sm:px-4 py-3 sm:py-4 font-bold text-right">Wt. OSA %</th>
-                                                <th className="px-3 sm:px-4 py-3 sm:py-4 font-bold text-right">Overall Sos</th>
-                                                <th className="px-3 sm:px-4 py-3 sm:py-4 font-bold text-right">Ad Sos</th>
-                                                <th className="px-3 sm:px-4 py-3 sm:py-4 font-bold text-right pr-6">Wt. Disc %</th>
-                                            </>
-                                        )}
+                {/* Content */}
+                <div className="w-full flex-1 overflow-auto bg-slate-50/50 p-6">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <table className="w-full text-center border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider sticky top-0 z-10 shadow-sm">
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">City</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Listing %</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Offtake</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Cat Share</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. OSA %</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. Disc %</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-sm">
+                                {displayedData.map((row) => (
+                                    <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
+                                        <td className="px-4 py-3 font-bold text-slate-900 text-center">
+                                            <div className="flex justify-center w-full">{row.city}</div>
+                                        </td>
+
+                                        {/* Listing % */}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full">{row.listingPct}</div>
+                                        </td>
+
+                                        {/* Est Offtake */}
+                                        <td className="px-4 py-3text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className="font-semibold text-slate-700">{row.estOfftake}</span>
+                                                <span className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.offtakeChange}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Cat Share */}
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className="font-semibold text-slate-700">{row.catShare}</span>
+                                                <span className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.shareChange}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* OSA - Heatmap */}
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className={`inline-block px-2 py-0.5 rounded ${getHeatmapClass(row.wtOsa)}`}>
+                                                    {row.wtOsa}
+                                                </span>
+                                                <span className={`text-[10px] ${row.osaChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                    {row.osaChange}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Overall Sos */}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full">{row.overallSos}</div>
+                                        </td>
+
+                                        {/* Ad Sos */}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full">{row.adSos}</div>
+                                        </td>
+
+                                        {/* Disc % */}
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                                <span className="font-semibold text-slate-700">{row.wtDisc}</span>
+                                                <span className="text-[10px] text-emerald-600 font-medium">{row.discChange}</span>
+                                            </div>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-[12px] sm:text-sm">
-                                    {loading ? (
-                                        <tr>
-                                            <td colSpan={isPricing ? 4 : 7} className="px-4 py-16 text-center bg-white">
-                                                <div className="flex flex-col items-center gap-4">
-                                                    <div className="w-10 h-10 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading cities...</div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ) : allCities.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={isPricing ? 4 : 7} className="px-4 py-16 text-center text-slate-400 bg-white font-medium">
-                                                No city data found for this period.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        displayedData.map((row) => (
-                                            <tr key={row.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                <td className={`${isPricing ? 'w-[25%]' : ''} px-3 sm:px-4 py-3 font-bold text-slate-800 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.02)]`}>{row.city}</td>
-                                                {isPricing ? (
-                                                    <>
-                                                        <td className="w-[25%] px-3 sm:px-4 py-3 text-center">
-                                                            <div className="font-bold text-slate-700">{row.ecp}</div>
-                                                            <div className={`text-[10px] font-bold ${row.ecpChange?.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                {row.ecpChange}
-                                                            </div>
-                                                        </td>
-                                                        <td className="w-[25%] px-3 sm:px-4 py-3 text-center">
-                                                            <div className="font-bold text-slate-700">{row.discount}</div>
-                                                            <div className={`text-[10px] font-bold ${row.discountChange?.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                {row.discountChange}
-                                                            </div>
-                                                        </td>
-                                                        <td className="w-[25%] px-3 sm:px-4 py-3 text-center">
-                                                            <div className="font-bold text-slate-700">{row.rpi}</div>
-                                                            <div className={`text-[10px] font-bold ${row.rpiChange?.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                {row.rpiChange}
-                                                            </div>
-                                                        </td>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <td className="px-3 sm:px-4 py-3 text-right">
-                                                            <div className="font-bold text-slate-700">{row.estOfftake}</div>
-                                                            <div className={`text-[10px] font-bold ${row.offtakeChange?.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                {row.offtakeChange}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 sm:px-4 py-3 text-right">
-                                                            <div className="font-bold text-slate-700">{row.catShare}</div>
-                                                            <div className={`text-[10px] font-bold ${row.shareChange?.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                {row.shareChange}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 sm:px-4 py-3 text-right">
-                                                            <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-bold ${getHeatmapClass(row.wtOsa)}`}>
-                                                                {row.wtOsa}
-                                                            </span>
-                                                            <div className={`text-[10px] font-bold mt-1 ${row.osaChange?.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                {row.osaChange}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 sm:px-4 py-3 text-right font-bold text-slate-600">{row.overallSos}</td>
-                                                        <td className="px-3 sm:px-4 py-3 text-right font-bold text-slate-600">{row.adSos}</td>
-                                                        <td className="px-3 sm:px-4 py-3 text-right pr-6">
-                                                            <div className="font-bold text-slate-700">{row.wtDisc}</div>
-                                                            <div className="text-[10px] font-bold text-emerald-500">{row.discChange}</div>
-                                                        </td>
-                                                    </>
-                                                )}
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
 
-                    {/* Pagination - Responsive */}
-                    <div className="shrink-0 px-4 py-3 border-t border-slate-100 bg-white">
+                    {/* Pagination */}
+                    {/* Pagination */}
+                    <div className="mt-4 border-t border-slate-100">
                         <PaginationFooter
                             isVisible={true}
                             currentPage={page}

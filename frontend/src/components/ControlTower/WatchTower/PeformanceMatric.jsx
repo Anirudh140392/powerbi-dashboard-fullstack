@@ -4,13 +4,14 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  Tooltip as RechartsTooltip,
+  Tooltip,
   CartesianGrid,
   XAxis,
   YAxis,
 } from "recharts";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
-import { Typography, Skeleton, Box, Tooltip } from "@mui/material";
+import { Typography } from "@mui/material";
+import { defaultBrands } from "@/utils/DataCenter";
 
 /* ------------------------------------------------------
    ALL KPI CARDS (OLD + NEW)
@@ -120,6 +121,24 @@ const KPI_CARDS = [
       { period: "P7", value: 3 },
     ],
   },
+
+  // {
+  //   id: "osa",
+  //   label: "AVG OSA",
+  //   value: "95.6%",
+  //   unit: "",
+  //   tag: "stable",
+  //   tagTone: "neutral",
+  //   footer: "Availability weighted",
+  //   trendTitle: "OSA – Weighted",
+  //   trendSubtitle: "Last 4 periods",
+  //   trendData: [
+  //     { period: "P1", value: 95.2 },
+  //     { period: "P2", value: 95.4 },
+  //     { period: "P3", value: 95.7 },
+  //     { period: "P4", value: 95.6 },
+  //   ],
+  // },
 ];
 
 /* ------------------------------------------------------
@@ -142,70 +161,51 @@ function getTagColors(tone) {
 export default function PerformanceMatric({
   cardWidth = 240,
   cardHeight = 120,
-  data,
-  filters,
 }) {
-  // Check if data is loading
-  const isLoading = !data || data.length === 0;
-
-  // Use backend data if available, otherwise fall back to static KPI_CARDS
-  const KPI_CARDS_DATA = isLoading ? KPI_CARDS : data;
-
   const [activeTrendId, setActiveTrendId] = useState(null);
   const [showTrends, setShowTrends] = useState(false);
   const [selectedTrendName, setSelectedTrendName] = useState("All");
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("Metric");
 
-  const activeCard = KPI_CARDS_DATA.find((c) => c.id === activeTrendId) || null;
-
-  const handleKpiTrendClick = (kpiId) => {
-    setSelectedKpiId(kpiId);
-    setShowTrends(true);
-  };
+  const activeCard = KPI_CARDS.find((c) => c.id === activeTrendId) || null;
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         width: "100%",
         backgroundColor: "white",
-        p: { xs: "8px 12px", sm: "12px 16px" },
+        padding: "12px 16px",
         boxSizing: "border-box",
         borderRadius: "24px",
       }}
     >
       {/* Card Row */}
-      <Box
-        sx={{
+      <div
+        style={{
           display: "flex",
-          gap: { xs: 1.5, sm: 2 },
-          flexWrap: { xs: "wrap", sm: "nowrap" },
-          overflowX: { xs: "visible", sm: "auto" },
-          pb: 1,
-          pt: 1.2,
-          px: { xs: 0.5, sm: 1.5 },
-          "&::-webkit-scrollbar": { display: "none" },
-          msOverflowStyle: "none",
-          scrollbarWidth: "none",
+          gap: 16,
+          overflowX: "auto",
+          paddingBottom: 8,
+          paddingTop: 10,
+          paddingLeft: 12,
+          paddingRight: 12,
         }}
       >
-        {isLoading
-          ? // Show skeleton cards while loading
-          [1, 2, 3, 4, 5].map((i) => <SkeletonKpiCard key={i} />)
-          : KPI_CARDS_DATA.map((card) => (
-            <KpiCard
-              key={card.id}
-              card={card}
-              cardWidth={cardWidth}
-              cardHeight={cardHeight}
-              onOpenTrend={() => setActiveTrendId(card.id)}
-              onViewTrends={(name) => {
-                setSelectedTrendName(name);
-                setSelectedTrendLevel("Metric");
-                setShowTrends(true);
-              }}
-            />
-          ))}
-      </Box>
+        {KPI_CARDS.map((card) => (
+          <KpiCard
+            key={card.id}
+            card={card}
+            cardWidth={cardWidth}
+            cardHeight={cardHeight}
+            onOpenTrend={() => setActiveTrendId(card.id)}
+            onViewTrends={(name) => {
+              setSelectedTrendName(name);
+              setSelectedTrendLevel("Metric");
+              setShowTrends(true);
+            }}
+          />
+        ))}
+      </div>
 
       {activeCard && (
         <TrendPopup card={activeCard} onClose={() => setActiveTrendId(null)} />
@@ -216,46 +216,9 @@ export default function PerformanceMatric({
         selectedColumn={selectedTrendName}
         selectedLevel={selectedTrendLevel}
         dynamicKey="performance_dashboard_tower"
-        filters={filters}
+        brandOptions={defaultBrands.map(b => b.label)}
       />
-    </Box>
-  );
-}
-
-/* ------------------------------------------------------
-   SKELETON KPI CARD - Fancy Shimmer Loading
--------------------------------------------------------*/
-function SkeletonKpiCard() {
-  return (
-    <Box
-      sx={{
-        width: { xs: "100%", sm: 260 },
-        height: 150,
-        background: "#FFFFFF",
-        borderRadius: "18px",
-        padding: "16px 18px",
-        boxSizing: "border-box",
-        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15), -3px 0 6px rgba(0, 0, 0, 0.12), 3px 0 6px rgba(0, 0, 0, 0.12)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-      }}
-    >
-      {/* Row 1 - Label + Icon */}
-      <Box display="flex" justifyContent="space-between" alignItems="center">
-        <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
-        <Skeleton variant="circular" width={30} height={30} animation="wave" />
-      </Box>
-
-      {/* Row 2 - Value + Tag */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mt={0.5}>
-        <Skeleton variant="text" width={80} height={40} animation="wave" sx={{ borderRadius: 1 }} />
-        <Skeleton variant="rounded" width={70} height={24} animation="wave" sx={{ borderRadius: 3 }} />
-      </Box>
-
-      {/* Row 3 - Footer */}
-      <Skeleton variant="text" width={140} height={16} animation="wave" sx={{ borderRadius: 1 }} />
-    </Box>
+    </div>
   );
 }
 
@@ -266,14 +229,13 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
   const { bg, text } = getTagColors(card.tagTone);
 
   return (
-    <Box
-      sx={{
-        width: { xs: "100%", sm: 260 },
-        flexShrink: 0,
+    <div
+      style={{
+        width: 260,
         height: 150,
         background: "#FFFFFF",
-        borderRadius: "18px",
-        p: "16px 18px",
+        borderRadius: 18,
+        padding: "16px 18px",
         boxSizing: "border-box",
         boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15), -3px 0 6px rgba(0, 0, 0, 0.12), 3px 0 6px rgba(0, 0, 0, 0.12)",
         display: "flex",
@@ -281,10 +243,14 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
         justifyContent: "space-between",
         transition: "transform 0.25s, box-shadow 0.25s",
         cursor: "pointer",
-        "&:hover": {
-          transform: "translateY(-5px)",
-          boxShadow: "0 10px 20px rgba(0, 0, 0, 0.2), -5px 0 12px rgba(0, 0, 0, 0.15), 5px 0 12px rgba(0, 0, 0, 0.15)",
-        },
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-5px)";
+        e.currentTarget.style.boxShadow = "0 10px 20px rgba(0, 0, 0, 0.2), -5px 0 12px rgba(0, 0, 0, 0.15), 5px 0 12px rgba(0, 0, 0, 0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.15), -3px 0 6px rgba(0, 0, 0, 0.12), 3px 0 6px rgba(0, 0, 0, 0.12)";
       }}
     >
       {/* 🔵 ROW 1 — LABEL + GRAPH ICON */}
@@ -296,14 +262,11 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
         }}
       >
 
-        <Tooltip title={card.label} arrow placement="top">
-          <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 150, display: 'block' }}>
-            {card.label}
-          </Typography>
-        </Tooltip>
+        <Typography variant="body2" color="text.secondary">{card.label}</Typography>
 
         <div
           onClick={() => onViewTrends(card.label)}
+          // onClick={onOpenTrend}
           className="trend-icon"
           style={{
             background: "#EEF2F7",
@@ -326,16 +289,16 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
         }}
       >
         {/* Value */}
-        <div style={{ fontSize: 22, fontWeight: 700 }}>{card.value}</div>
+        <div style={{ fontSize: 28, fontWeight: 700 }}>{card.value}</div>
 
         {/* MoM Tag */}
         <div
           style={{
             background: bg,
             color: text,
-            padding: "3px 8px",
+            padding: "4px 10px",
             borderRadius: 20,
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: 500,
             whiteSpace: "nowrap",
           }}
@@ -346,7 +309,7 @@ function KpiCard({ card, onOpenTrend, onViewTrends }) {
 
       {/* 🔵 ROW 3 — FOOTER TEXT */}
       <div style={{ fontSize: "0.75rem", fontWeight: 400, color: "#94A3B8", fontFamily: "Roboto, sans-serif" }}>{card.footer}</div>
-    </Box>
+    </div>
   );
 }
 
@@ -368,18 +331,19 @@ function TrendPopup({ card, onClose }) {
       />
 
       {/* Popup */}
-      <Box
-        sx={{
+      <div
+        style={{
           position: "fixed",
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%)",
+          transform: "translate(-50%, -50%)", // ⭐ FIXED CENTER
           background: "#fff",
-          borderRadius: "16px",
-          p: 2,
-          width: { xs: "90%", sm: 360 },
-          maxWidth: 400,
-          boxShadow: "0 18px 45px rgba(15,23,42,0.25), 0 0 0 1px rgba(15,23,42,0.05)",
+          borderRadius: 16,
+          padding: 16,
+          width: 360,
+          maxWidth: "90vw",
+          boxShadow:
+            "0 18px 45px rgba(15,23,42,0.25), 0 0 0 1px rgba(15,23,42,0.05)",
           zIndex: 41,
         }}
       >
@@ -433,7 +397,7 @@ function TrendPopup({ card, onClose }) {
                 <XAxis dataKey="period" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} width={28} />
 
-                <RechartsTooltip
+                <Tooltip
                   contentStyle={{
                     borderRadius: 8,
                     border: "1px solid #E5E7EB",
@@ -452,7 +416,7 @@ function TrendPopup({ card, onClose }) {
             </ResponsiveContainer>
           </div>
         </div>
-      </Box>
+      </div>
     </>
   );
 }

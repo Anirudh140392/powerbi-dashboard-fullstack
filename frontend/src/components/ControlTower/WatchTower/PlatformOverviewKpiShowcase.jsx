@@ -1,5 +1,4 @@
-import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
-import axiosInstance from "../../../api/axiosInstance";
+import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -11,12 +10,12 @@ import {
   Line,
   XAxis,
   YAxis,
-  Tooltip as RechartsTooltip,
+  Tooltip,
   Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { Box, Tooltip } from "@mui/material";
+import { Box } from "@mui/material";
 import PaginationFooter from "../../CommonLayout/PaginationFooter";
 
 
@@ -28,30 +27,376 @@ function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
-// Color palette for brand differentiation in comparison charts
-const BRAND_COLORS = [
-  "#2563EB", // Blue
-  "#DC2626", // Red
-  "#16A34A", // Green
-  "#F97316", // Orange
-  "#8B5CF6", // Purple
-  "#EC4899", // Pink
-  "#0891B2", // Cyan
-  "#84CC16", // Lime
-  "#F59E0B", // Amber
-  "#6366F1", // Indigo
-];
-
-// Helper to get a consistent color for a brand based on its index
-const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
-
-
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
 /* -------------------------------------------------------------------------- */
 
 /* Card */
-const DASHBOARD_DATA = { trends: { metrics: [] }, compareSkus: { metrics: [] }, competition: { brands: [] } };
+const DASHBOARD_DATA = {
+  /* =====================================================================
+     TRENDS (MAIN LINE CHART)
+  ===================================================================== */
+  trends: {
+    context: {
+      level: "MRP",
+      audience: "Platform",
+    },
+
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Daily",
+
+    metrics: [
+      {
+        id: "Offtakes",
+        label: "Offtakes",
+        color: "#2563EB",
+        axis: "left",
+        default: true,
+      },
+      {
+        id: "Spend",
+        label: "Spend",
+        color: "#DC2626",
+        axis: "left",
+        default: true,
+      },
+      {
+        id: "ROAS",
+        label: "ROAS",
+        color: "#16A34A",
+        axis: "right",
+        default: true,
+      },
+      {
+        id: "InorgSales",
+        label: "Inorg Sales",
+        color: "#7C3AED",
+        axis: "right",
+      },
+      {
+        id: "DspSales",
+        label: "DSP Sales",
+        color: "#0EA5E9",
+        axis: "right",
+      },
+      {
+        id: "Conversion",
+        label: "Conversion",
+        color: "#F97316",
+        axis: "left",
+      },
+      {
+        id: "Availability",
+        label: "Availability",
+        color: "#22C55E",
+        axis: "left",
+      },
+      { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
+      {
+        id: "MarketShare",
+        label: "Market Share",
+        color: "#9333EA",
+        axis: "right",
+      },
+      {
+        id: "PromoMyBrand",
+        label: "Promo – My Brand",
+        color: "#F59E0B",
+        axis: "left",
+      },
+      {
+        id: "PromoCompete",
+        label: "Promo – Compete",
+        color: "#FB7185",
+        axis: "left",
+      },
+      { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
+      { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
+      { id: "ASP", label: "ASP", color: "#E11D48", axis: "right" },
+    ],
+
+    points: [
+      {
+        date: "06 Sep'25",
+        Offtakes: 57,
+        Spend: 18.4,
+        ROAS: 7.1,
+        InorgSales: 21,
+        DspSales: 14,
+        Conversion: 3.4,
+        Availability: 84,
+        SOS: 42,
+        MarketShare: 18.1,
+        PromoMyBrand: 12.4,
+        PromoCompete: 9.8,
+        CPM: 146,
+        CPC: 9.6,
+        ASP: 185,
+      },
+      {
+        date: "08 Sep'25",
+        Offtakes: 49,
+        Spend: 20.1,
+        ROAS: 6.2,
+        InorgSales: 17,
+        DspSales: 11,
+        Conversion: 2.9,
+        Availability: 79,
+        SOS: 38,
+        MarketShare: 16.9,
+        PromoMyBrand: 14.8,
+        PromoCompete: 11.2,
+        CPM: 162,
+        CPC: 10.8,
+        ASP: 210,
+      },
+      {
+        date: "10 Sep'25",
+        Offtakes: 52,
+        Spend: 17.8,
+        ROAS: 6.9,
+        InorgSales: 19,
+        DspSales: 13,
+        Conversion: 3.2,
+        Availability: 78,
+        SOS: 40,
+        MarketShare: 17.2,
+        PromoMyBrand: 11.9,
+        PromoCompete: 9.3,
+        CPM: 142,
+        CPC: 9.2,
+        ASP: 195,
+      },
+      {
+        date: "13 Sep'25",
+        Offtakes: 44,
+        Spend: 21.4,
+        ROAS: 5.8,
+        InorgSales: 15,
+        DspSales: 10,
+        Conversion: 2.6,
+        Availability: 72,
+        SOS: 35,
+        MarketShare: 16.1,
+        PromoMyBrand: 15.6,
+        PromoCompete: 12.9,
+        CPM: 171,
+        CPC: 11.6,
+        ASP: 240,
+      },
+      {
+        date: "16 Sep'25",
+        Offtakes: 51,
+        Spend: 16.9,
+        ROAS: 7.3,
+        InorgSales: 22,
+        DspSales: 15,
+        Conversion: 3.5,
+        Availability: 82,
+        SOS: 43,
+        MarketShare: 18.0,
+        PromoMyBrand: 10.8,
+        PromoCompete: 8.6,
+        CPM: 138,
+        CPC: 8.9,
+        ASP: 175,
+      },
+      {
+        date: "18 Sep'25",
+        Offtakes: 47,
+        Spend: 19.7,
+        ROAS: 6.4,
+        InorgSales: 18,
+        DspSales: 12,
+        Conversion: 3.0,
+        Availability: 76,
+        SOS: 39,
+        MarketShare: 16.8,
+        PromoMyBrand: 13.9,
+        PromoCompete: 10.7,
+        CPM: 155,
+        CPC: 10.3,
+      },
+      {
+        date: "20 Sep'25",
+        Offtakes: 56,
+        Spend: 19.6,
+        ROAS: 7.4,
+        InorgSales: 24,
+        DspSales: 16,
+        Conversion: 3.6,
+        Availability: 85,
+        SOS: 45,
+        MarketShare: 18.9,
+        PromoMyBrand: 14.6,
+        PromoCompete: 10.5,
+        CPM: 151,
+        CPC: 10.1,
+      },
+      {
+        date: "23 Sep'25",
+        Offtakes: 42,
+        Spend: 22.8,
+        ROAS: 5.5,
+        InorgSales: 14,
+        DspSales: 9,
+        Conversion: 2.4,
+        Availability: 70,
+        SOS: 33,
+        MarketShare: 15.6,
+        PromoMyBrand: 16.8,
+        PromoCompete: 13.5,
+        CPM: 178,
+        CPC: 12.2,
+      },
+      {
+        date: "26 Sep'25",
+        Offtakes: 50,
+        Spend: 17.2,
+        ROAS: 7.0,
+        InorgSales: 20,
+        DspSales: 14,
+        Conversion: 3.3,
+        Availability: 81,
+        SOS: 41,
+        MarketShare: 17.7,
+        PromoMyBrand: 11.6,
+        PromoCompete: 9.1,
+        CPM: 144,
+        CPC: 9.4,
+      },
+      {
+        date: "30 Sep'25",
+        Offtakes: 58,
+        Spend: 18.9,
+        ROAS: 7.8,
+        InorgSales: 26,
+        DspSales: 18,
+        Conversion: 3.9,
+        Availability: 87,
+        SOS: 47,
+        MarketShare: 19.4,
+        PromoMyBrand: 13.2,
+        PromoCompete: 9.7,
+        CPM: 148,
+        CPC: 9.0,
+      },
+    ],
+  },
+
+  /* =====================================================================
+     COMPARE SKUs
+  ===================================================================== */
+  compareSkus: {
+    context: { level: "MRP" },
+
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Weekly",
+
+    metrics: [
+      {
+        id: "Offtakes",
+        label: "Offtakes",
+        color: "#2563EB",
+        default: true,
+      },
+      { id: "Spend", label: "Spend", color: "#DC2626", default: true },
+      { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
+      { id: "MarketShare", label: "Market Share", color: "#9333EA" },
+      { id: "Conversion", label: "Conversion", color: "#F97316" },
+    ],
+
+    x: ["W1", "W2", "W3", "W4"],
+
+    trendsBySku: {
+      1: [
+        {
+          x: "W1",
+          Offtakes: 54,
+          Spend: 4.2,
+          ROAS: 6.8,
+          MarketShare: 17.6,
+          Conversion: 3.2,
+        },
+        {
+          x: "W2",
+          Offtakes: 55,
+          Spend: 4.5,
+          ROAS: 7.0,
+          MarketShare: 17.9,
+          Conversion: 3.3,
+        },
+        {
+          x: "W3",
+          Offtakes: 56,
+          Spend: 4.8,
+          ROAS: 7.2,
+          MarketShare: 18.1,
+          Conversion: 3.4,
+        },
+        {
+          x: "W4",
+          Offtakes: 57,
+          Spend: 5.0,
+          ROAS: 7.4,
+          MarketShare: 18.4,
+          Conversion: 3.5,
+        },
+      ],
+    },
+  },
+
+  /* =====================================================================
+     COMPETITION TABLE
+  ===================================================================== */
+  competition: {
+    context: {
+      level: "MRP",
+      region: "All × Chennai",
+    },
+
+    tabs: ["Brands", "SKUs"],
+
+    periodToggle: {
+      primary: "MTD",
+      compare: "Previous Month",
+    },
+
+    columns: [
+      { id: "brand", label: "Brand / SKU", type: "text" },
+      { id: "Offtakes", label: "Offtakes", type: "metric" },
+      { id: "Spend", label: "Spend", type: "metric" },
+      { id: "ROAS", label: "ROAS", type: "metric" },
+      { id: "SOS", label: "SOS", type: "metric" },
+      { id: "MarketShare", label: "Market Share", type: "metric" },
+    ],
+
+    brands: [
+      {
+        brand: "Colgate",
+        Offtakes: { value: 32.9, delta: -4.5 },
+        Spend: { value: 6.8, delta: 0.4 },
+        ROAS: { value: 7.3, delta: 0.2 },
+        SOS: { value: 44, delta: 1.2 },
+        MarketShare: { value: 18.8, delta: 0.4 },
+      },
+      {
+        brand: "Sensodyne",
+        Offtakes: { value: 19.6, delta: 2.2 },
+        Spend: { value: 5.1, delta: -0.3 },
+        ROAS: { value: 6.9, delta: -0.1 },
+        SOS: { value: 39, delta: -0.8 },
+        MarketShare: { value: 18.5, delta: -0.3 },
+      },
+    ],
+  },
+};
 
 const Card = ({ className, children }) => (
   <div
@@ -185,7 +530,7 @@ const Dialog = ({ open, onOpenChange, children }) => {
 const DialogContent = ({ className, children }) => (
   <div
     className={cn(
-      "rounded-lg bg-white shadow-xl border border-slate-200 overflow-hidden",
+      "rounded-lg bg-white shadow-xl border border-slate-200",
       className
     )}
   >
@@ -332,27 +677,358 @@ const SelectItem = ({ value, children }) => {
 /* -------------------------------------------------------------------------- */
 
 /** Base days for trend charts */
-const DAYS = [];
+const DAYS = Array.from({ length: 20 }).map((_, i) => `${(i + 6).toString().padStart(2, '0')} Nov'25`);
 
-/** Raw config - simplified and empty to force API usage */
-const RAW_DATA = { cities: [], categories: [], brands: [], skus: [] };
-const CITIES = [];
-const CATEGORY_OPTIONS = [];
-const BRAND_OPTIONS = [];
-const SKU_OPTIONS = [];
+/** Raw config – you can change this and UI will adapt */
+const RAW_DATA = {
+  cities: ["All India", "Delhi NCR", "Mumbai", "Bengaluru", "Kolkata"],
+  categories: ["Cassata", "Core Tubs", "Cup", "Sandwich"],
+  brands: [
+    { id: "amul", name: "Amul", category: "Cassata" },
+    { id: "mother-dairy", name: "Mother Dairy", category: "Core Tubs" },
+    { id: "vadilal", name: "Vadilal", category: "Cup" },
+    { id: "havmor", name: "Havmor", category: "Sandwich" },
+    { id: "baskin-robbins", name: "Baskin Robbins", category: "Core Tubs" },
+    { id: "london-dairy", name: "London Dairy", category: "Premium" },
+    { id: "cream-bell", name: "Cream Bell", category: "Cup" },
+    { id: "kwality-walls", name: "Kwality Walls", category: "All" },
+    { id: "cornetto", name: "Cornetto", category: "Cone" },
+    { id: "magnum", name: "Magnum", category: "Stick" },
+    { id: "feast", name: "Feast", category: "Stick" },
+    { id: "twister", name: "Twister", category: "Ice Lolly" },
+    { id: "arun", name: "Arun", category: "Cup" },
+    { id: "grameen", name: "Grameen", category: "Stick" },
+    { id: "go-zero", name: "Go-Zero", category: "Tub" },
+    { id: "hocco", name: "Hocco", category: "Cone" },
+    { id: "dairy-day", name: "Dairy Day", category: "Cup" },
+    { id: "nic", name: "Nic", category: "Tub" },
+    { id: "minus-30", name: "Minus 30", category: "Tub" },
+    { id: "infino", name: "Infino", category: "Bar" },
+    { id: "noto", name: "Noto", category: "Tub" },
+    { id: "get-a-way", name: "Get-A-Way", category: "Tub" },
+    { id: "hangyo", name: "Hangyo", category: "Cone" },
+  ],
+  skus: [
+    { id: "amul-tricone", name: "Amul Tricone 120ml", brandId: "amul", category: "Cone" },
+    { id: "md-cup", name: "Mother Dairy Vanilla Cup", brandId: "mother-dairy", category: "Cup" },
+    { id: "vadilal-bombay", name: "Vadilal Bombay Kulfi", brandId: "vadilal", category: "Stick" },
+    { id: "havmor-block", name: "Havmor Choco Block", brandId: "havmor", category: "Block" },
+    { id: "br-scoop", name: "BR Gold Medal Ribbon", brandId: "baskin-robbins", category: "Scoop" },
+    { id: "london-tub", name: "London Dairy Tiramisu", brandId: "london-dairy", category: "Tub" },
+    // Added Kwality Walls SKUs shown in the competition modal
+    { id: "kw-cornetto-disc-110ml", name: "KW Cornetto Disc 110ml", brandId: "kwality-walls", category: "Cone" },
+    { id: "kw-magnum-almond-90ml", name: "KW Magnum Almond 90ml", brandId: "kwality-walls", category: "Stick" },
+    { id: "kw-feast-jaljeera-65ml", name: "KW Feast Jaljeera 65ml", brandId: "kwality-walls", category: "Stick" },
+    { id: "kw-cup-vanilla-100ml", name: "KW Cup Vanilla 100ml", brandId: "kwality-walls", category: "Cup" },
+  ],
+};
+
+/** Derived option lists for filters */
+const CITIES = RAW_DATA.cities;
+const CATEGORY_OPTIONS = RAW_DATA.categories;
+const BRAND_OPTIONS = RAW_DATA.brands.map((b) => b.name);
+const SKU_OPTIONS = RAW_DATA.skus.map((s) => s.name);
+
+/** ID <-> Name maps */
 const BRAND_ID_TO_NAME = {};
 const BRAND_NAME_TO_ID = {};
+RAW_DATA.brands.forEach((b) => {
+  BRAND_ID_TO_NAME[b.id] = b.name;
+  BRAND_NAME_TO_ID[b.name] = b.id;
+});
+
 const SKU_ID_TO_NAME = {};
 const SKU_NAME_TO_ID = {};
-const SKUS_BY_BRAND_ID = {};
+RAW_DATA.skus.forEach((s) => {
+  SKU_ID_TO_NAME[s.id] = s.name;
+  SKU_NAME_TO_ID[s.name] = s.id;
+});
 
+/** SKU group by brand */
+const SKUS_BY_BRAND_ID = {};
+RAW_DATA.skus.forEach((s) => {
+  if (!SKUS_BY_BRAND_ID[s.brandId]) SKUS_BY_BRAND_ID[s.brandId] = [];
+  SKUS_BY_BRAND_ID[s.brandId].push(s);
+});
+
+const BRAND_MARKET_SHARES = {
+  "Amul": 20,
+  "Kwality Walls": 19,
+  "Baskin Robbins": 13,
+  "Havmor": 7,
+  "Cream Bell": 6,
+  "Arun": 5,
+  "Grameen": 4,
+  "Go-Zero": 4,
+  "Hocco": 4,
+  "Dairy Day": 3,
+  "Vadilal": 1,
+  "Nic": 1,
+  "Minus 30": 1,
+  "Infino": 1,
+  "Noto": 1,
+  "Mother Dairy": 1,
+  "Get-A-Way": 1,
+  "Hangyo": 1,
+  "London Dairy": 1
+};
+
+const getBrandShare = (name) => BRAND_MARKET_SHARES[name] || 0.5;
+
+// SOS Logic: High variance, total < 90%
+const getBrandSOS = (name) => {
+  if (name === "Amul") return 30 + Math.random() * 5; // ~30-35%
+  if (name === "Kwality Walls") return 25 + Math.random() * 5; // ~25-30%
+  if (name === "Baskin Robbins") return 10 + Math.random() * 4; // ~10-14%
+  if (name === "Havmor" || name === "Cream Bell") return 5 + Math.random() * 2; // ~5-7%
+  return 0.5 + Math.random() * 2; // ~0.5-2.5%
+};
+
+const CATEGORY_PRICES_MAP = {
+  "Cone": [0, 50, 100, 150],
+  "Stick": [0, 25, 50, 75, 100],
+  "Sticks": [0, 25, 50, 75, 100],
+  "Tub": [0, 100, 200, 300, 400],
+  "Tubs": [0, 100, 200, 300, 400],
+  "Core Tubs": [0, 100, 200, 300, 400],
+  "Cup": [0, 50, 100, 150],
+  "Sandwich": [0, 50, 100, 150],
+  "Cassata": [0, 50, 100, 150],
+  "Cakes": [0, 100, 200, 300, 400],
+  "Bon Bon/ Mini Bites": [0, 100, 200, 300, 400],
+  "Cheesecakes & Pastries": [0, 100, 200, 300, 400],
+  "Ice Lolly": [0, 25, 50, 75, 100],
+  "Bar": [0, 25, 50, 75, 100],
+  "Others": [0, 100, 200, 300, 400],
+  "All": [0, 50, 100, 150],
+  "Premium": [0, 100, 200, 300, 400],
+};
+
+const getPriceFromBucket = (cat, base) => {
+  const buckets = CATEGORY_PRICES_MAP[cat] || [0, 50, 100, 150];
+  const b = Math.floor(base); // ensure integer
+  const bucketIdx = (b % (buckets.length - 1)) + 1;
+  const target = buckets[bucketIdx];
+  const prev = buckets[bucketIdx - 1];
+
+  if (target === undefined || prev === undefined) return 60; // requested fallback
+
+  // variance within bucket
+  return prev + (target - prev) * 0.7 + (b % 5);
+};
+
+/** Build mock metrics and trends – all UI reads from this single data model */
 const buildDataModel = () => {
+  const days = DAYS;
+
+  const brandSummaryByCity = {};
+  const skuSummaryByCity = {};
+  const brandTrendsByCity = {};
+  const skuTrendsByCity = {};
+
+  // helper → generate KPI object
+  const buildKpis = (base, idxFactor = 1, cityIdx = 0) => ({
+    offtakes: (base * 0.5 + idxFactor * 0.2 + (cityIdx % 3) * 0.5), // Cr
+    spend: (base * 0.1 + idxFactor * 0.05 + cityIdx * 0.1), // L
+    roas: 5 + (idxFactor % 3) * 0.5 + (cityIdx % 2) * 0.3, // Category Size
+    ppu: 45 + (idxFactor % 5) * 2 + (cityIdx % 3), // PPU
+    wtDisc: 12 + (idxFactor % 4) * 1.5 + (cityIdx % 2), // Wt Disc %
+    dsListing: 88 + (idxFactor % 3) * 2 + (cityIdx % 4), // Ds Listing %
+    inorgSales: base * 0.9 + idxFactor * 0.2 + cityIdx * 1.2,
+    dspSales: base * 0.7 + idxFactor * 0.15 + cityIdx * 0.8,
+    conversion: 15 + (idxFactor % 4) * 0.8 + cityIdx * 0.5,
+    availability: 85 + idxFactor * 0.4 + (cityIdx % 3) * 1.2,
+    osa: 75 + (idxFactor % 5) * 0.8 + (cityIdx % 4) * 0.5,
+    sos: 20 + (idxFactor % 10) * 1.5 + (cityIdx % 3) * 2,
+    price: 85 + (idxFactor % 3) * 40 + (cityIdx % 4) * 10,
+    marketShare: 10, // will be overridden for brands
+    promoMyBrand: 6 + idxFactor * 0.3 + cityIdx * 0.4,
+    promoCompete: 5 + idxFactor * 0.25 + cityIdx * 0.3,
+    cpm: 140 + idxFactor * 4 + cityIdx * 8,
+    cpc: 9 + idxFactor * 0.4 + cityIdx * 0.5,
+    asp: 100 + (idxFactor * 10 + cityIdx * 5) % 220,
+    // Deltas
+    offtakesDelta: (Math.sin(base * 1.5) * 10),
+    ppuDelta: (Math.cos(base * 1.2) * 4),
+    wtDiscDelta: (Math.sin(base * 1.4) * 2),
+    dsListingDelta: (Math.cos(base * 1.6) * 3),
+    osaDelta: (Math.cos(base * 1.8) * 5),
+    sosDelta: (Math.sin(base * 2.2) * 3),
+    priceDelta: (Math.cos(base * 2.5) * 15),
+    marketShareDelta: (Math.sin(base * 2.8) * 2),
+    aspDelta: 5 + (Math.abs(Math.sin(base * 2.0)) * 5),
+  });
+
+  RAW_DATA.cities.forEach((city, cityIdx) => {
+    /* ------------------------------------------------------------------ */
+    /* BRAND SUMMARY                                                       */
+    /* ------------------------------------------------------------------ */
+    brandSummaryByCity[city] = RAW_DATA.brands.map((brand, brandIdx) => {
+      const base = 10 + cityIdx + brandIdx;
+
+      const kpis = buildKpis(base, brandIdx, cityIdx);
+
+      // Override based on image data
+      if (brand.name === "Amul") {
+        kpis.offtakes = 4.25;
+        kpis.marketShare = 20.0;
+        kpis.osa = 75.0;
+        kpis.sos = 33.3;
+        kpis.price = 85.0;
+      } else if (brand.name === "Mother Dairy") {
+        kpis.offtakes = 0.52;
+        kpis.marketShare = 1.0;
+        kpis.osa = 75.8;
+        kpis.sos = 1.8;
+        kpis.price = 371.0;
+      } else if (brand.name === "Vadilal") {
+        kpis.offtakes = 0.48;
+        kpis.marketShare = 1.0;
+        kpis.osa = 76.6;
+        kpis.sos = 1.8;
+        kpis.price = 37.0;
+      } else if (brand.name === "Havmor") {
+        kpis.offtakes = 1.42;
+        kpis.marketShare = 7.0;
+        kpis.osa = 77.4;
+        kpis.sos = 5.2;
+        kpis.price = 88.0;
+      } else if (brand.name === "Baskin Robbins") {
+        kpis.offtakes = 2.85;
+        kpis.marketShare = 13.0;
+        kpis.osa = 78.2;
+        kpis.sos = 10.3;
+        kpis.price = 274.0;
+      } else {
+        kpis.marketShare = getBrandShare(brand.name);
+        kpis.sos = getBrandSOS(brand.name);
+        kpis.price = getPriceFromBucket(brand.category, base);
+      }
+
+      // Location based variation for deltas
+      kpis.osaDelta = Math.cos(base * 0.8) * 6;
+      kpis.sosDelta = Math.sin(base * 1.1) * 4;
+      kpis.priceDelta = Math.cos(base * 1.4) * 10;
+      kpis.marketShareDelta = Math.sin(base * 1.7) * 2;
+      kpis.offtakesDelta = Math.sin(base * 1.3) * 5;
+
+      return {
+        id: brand.id,
+        name: brand.name,
+        category: brand.category,
+        ...kpis,
+      };
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* SKU SUMMARY                                                         */
+    /* ------------------------------------------------------------------ */
+    skuSummaryByCity[city] = RAW_DATA.skus.map((sku, skuIdx) => {
+      const brandIdx = RAW_DATA.brands.findIndex((b) => b.id === sku.brandId);
+      const base = 8 + cityIdx + skuIdx + brandIdx * 0.5;
+
+      const kpis = buildKpis(base, skuIdx, cityIdx);
+
+      // Override for SKU logic: Market Share 0.2-1.5%, SOS 0-20%
+      kpis.marketShare = 0.2 + ((base * 1.3) % 1.3);
+      kpis.sos = (base * 5.7) % 20;
+      // Price based on category buckets from image
+      kpis.price = getPriceFromBucket(sku.category, base);
+
+      // Ensure deltas also vary
+      kpis.osaDelta = Math.cos(base * 1.2) * 4;
+      kpis.sosDelta = Math.sin(base * 1.5) * 2;
+      kpis.priceDelta = Math.cos(base * 2.2) * 3;
+      kpis.marketShareDelta = Math.sin(base * 2.5) * 0.5;
+
+      return {
+        id: sku.id,
+        name: sku.name,
+        brandId: sku.brandId,
+        brandName: BRAND_ID_TO_NAME[sku.brandId],
+        category: sku.category,
+        ...kpis,
+      };
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* BRAND TRENDS                                                        */
+    /* ------------------------------------------------------------------ */
+    brandTrendsByCity[city] = {};
+    RAW_DATA.brands.forEach((brand, brandIdx) => {
+      const base = 10 + brandIdx + cityIdx;
+      const buckets = CATEGORY_PRICES_MAP[brand.category] || [0, 50, 100, 150];
+
+      brandTrendsByCity[city][brand.id] = days.map((date, idx) => {
+        const phase = (brandIdx * 1.5) + (cityIdx * 2.1);
+        const freq = 3.5 + (brandIdx % 2);
+
+        return {
+          date,
+          offtakes: base * 10 + Math.sin(idx / freq + phase) * 8,
+          spend: base * 1.7 + Math.cos(idx / (freq + 0.5) + phase) * 1.2,
+          roas: 4 + Math.sin(idx / (freq + 1) + phase) * 0.6,
+          inorgSales: base * 0.9 + Math.cos(idx / (freq + 1.5) + phase) * 0.5,
+          dspSales: base * 0.7 + Math.sin(idx / (freq + 2) + phase) * 0.4,
+          conversion: 1.9 + Math.cos(idx / (freq + 1.2) + phase) * 0.25,
+          availability: 78 + Math.sin(idx / (freq + 0.8) + phase) * 4,
+          osa: 78 + Math.sin(idx / (freq + 0.8) + phase) * 4,
+          sos: 23 + Math.cos(idx / freq + phase) * 3,
+          price: (buckets[((Math.floor(base) + cityIdx) % (buckets.length - 1)) + 1] || 100) + Math.sin(idx / 4 + phase) * 10,
+          categoryShare: 18 + Math.cos(idx / 5 + phase) * 4,
+          marketShare: 11 + Math.sin(idx / 6 + phase) * 2,
+          promoMyBrand: 6 + Math.sin(idx / 5 + phase) * 1.5,
+          promoCompete: 5 + Math.cos(idx / 6 + phase) * 1.2,
+          cpm: 145 + Math.sin(idx / 4 + phase) * 12,
+          cpc: 9.2 + Math.cos(idx / 5 + phase) * 0.8,
+          asp: 180 + Math.sin(idx / 4 + phase) * 40,
+        };
+      });
+    });
+
+    /* ------------------------------------------------------------------ */
+    /* SKU TRENDS                                                          */
+    /* ------------------------------------------------------------------ */
+    skuTrendsByCity[city] = {};
+    RAW_DATA.skus.forEach((sku, skuIdx) => {
+      const brandIdx = RAW_DATA.brands.findIndex((b) => b.id === sku.brandId);
+      const base = 8 + cityIdx + skuIdx + (brandIdx * 1.2);
+      const buckets = CATEGORY_PRICES_MAP[sku.category] || [0, 50, 100, 150];
+
+      skuTrendsByCity[city][sku.id] = days.map((date, idx) => {
+        const phase = (skuIdx * 2.2) + (cityIdx * 3.3);
+        const freq = 2.8 + (skuIdx % 3);
+
+        return {
+          date,
+          offtakes: base * 9 + Math.sin(idx / freq + phase) * 6,
+          spend: base * 1.6 + Math.cos(idx / (freq + 0.5) + phase) * 1,
+          roas: 3.8 + Math.sin(idx / (freq + 1) + phase) * 0.5,
+          inorgSales: base * 0.8 + Math.cos(idx / (freq + 1.5) + phase) * 0.4,
+          dspSales: base * 0.65 + Math.sin(idx / (freq + 2) + phase) * 0.35,
+          conversion: 1.7 + Math.cos(idx / (freq + 1.2) + phase) * 0.2,
+          availability: 76 + Math.sin(idx / (freq + 0.8) + phase) * 3.5,
+          osa: 76 + Math.sin(idx / (freq + 0.8) + phase) * 3.5,
+          sos: 21 + Math.cos(idx / freq + phase) * 2.5,
+          price: (buckets[((Math.floor(base) + cityIdx) % (buckets.length - 1)) + 1] || 60) + Math.sin(idx / 4 + phase) * 5,
+          categoryShare: 16 + Math.cos(idx / 5 + phase) * 2.5,
+          marketShare: 9.5 + Math.sin(idx / 6 + phase) * 1.8,
+          promoMyBrand: 5.5 + Math.sin(idx / 5 + phase) * 1.2,
+          promoCompete: 4.8 + Math.cos(idx / 6 + phase) * 1,
+          cpm: 142 + Math.sin(idx / 4 + phase) * 10,
+          cpc: 8.8 + Math.cos(idx / 5 + phase) * 0.7,
+          asp: 160 + Math.sin(idx / 4 + phase) * 30,
+        };
+      });
+    });
+  });
+
   return {
-    days: [],
-    brandSummaryByCity: {},
-    skuSummaryByCity: {},
-    brandTrendsByCity: {},
-    skuTrendsByCity: {},
+    days,
+    brandSummaryByCity,
+    skuSummaryByCity,
+    brandTrendsByCity,
+    skuTrendsByCity,
   };
 };
 
@@ -369,78 +1045,43 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
   );
   const [search, setSearch] = useState("");
 
-  // Dynamic filter options from API
-  const [filterOptions, setFilterOptions] = useState({
-    categories: [],
-    brands: [],
-    skus: [],
-    loading: false,
-    error: null
-  });
-
-  // Fetch filter options from backend API
-  useEffect(() => {
-    if (!open) return; // Only fetch when dialog is open
-
-    const fetchFilterOptions = async () => {
-      setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
-
-      try {
-        // Build query params for cascading filters
-        const params = new URLSearchParams();
-        if (value.categories.length > 0) {
-          params.append('category', value.categories[0]); // Use first selected category for cascading
-        }
-        if (value.brands.length > 0) {
-          params.append('brand', value.brands[0]); // Use first selected brand for cascading
-        }
-
-        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
-
-        if (response.data) {
-          setFilterOptions({
-            categories: (response.data.categories || []).filter(c => c && c !== 'All'),
-            brands: (response.data.brands || []).filter(b => b && b !== 'All'),
-            skus: (response.data.skus || []).filter(s => s && s !== 'All'),
-            loading: false,
-            error: null
-          });
-          console.log('[FilterDialog Platform Overview] Loaded filter options:', {
-            categories: response.data.categories?.length || 0,
-            brands: response.data.brands?.length || 0,
-            skus: response.data.skus?.length || 0
-          });
-        }
-      } catch (error) {
-        console.error('[FilterDialog Platform Overview] Error fetching filter options:', error);
-        setFilterOptions(prev => ({
-          ...prev,
-          loading: false,
-          error: 'Failed to load filter options'
-        }));
-      }
-    };
-
-    fetchFilterOptions();
-  }, [open, value.categories, value.brands]); // Refetch when categories or brands change (cascading filters)
-
-  // Use API-fetched options instead of hardcoded ones
-  const getCategoryOptions = () => filterOptions.categories;
+  // strict dependency: Category -> Brand -> SKU
+  // helpers to build dependent option lists
 
   const getBrandOptions = () => {
-    // Brands are already filtered by category via the API cascading
-    return filterOptions.brands;
+    let brands = RAW_DATA.brands;
+
+    // if categories selected, only brands from those categories
+    if (value.categories.length) {
+      brands = brands.filter((b) => value.categories.includes(b.category));
+    }
+
+    return brands.map((b) => b.name);
   };
 
   const getSkuOptions = () => {
-    // SKUs are already filtered by category and brand via the API cascading
-    return filterOptions.skus;
+    let skus = RAW_DATA.skus;
+
+    // filter by categories (if selected)
+    if (value.categories.length) {
+      skus = skus.filter((s) => value.categories.includes(s.category));
+    }
+
+    // filter by brands (if selected)
+    if (value.brands.length) {
+      const allowedBrandIds = new Set(
+        value.brands.map((name) => BRAND_NAME_TO_ID[name]).filter(Boolean)
+      );
+      skus = skus.filter((s) => allowedBrandIds.has(s.brandId));
+    }
+
+    return skus.map((s) => s.name);
   };
 
   const tabOptions = ["category", "brand", "sku"]; // always show all three
 
   const getListForTab = () => {
-    if (activeTab === "category") return getCategoryOptions();
+    if (activeTab === "category") return CATEGORY_OPTIONS;
     if (activeTab === "brand") return getBrandOptions();
     return getSkuOptions();
   };
@@ -450,7 +1091,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, filterOptions]); // filterOptions drives dependencies
+  }, [activeTab, search, value]); // value drives dependencies
 
   const currentKey =
     activeTab === "category"
@@ -536,7 +1177,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
           </div>
 
           {/* Main pane */}
-          <div className="flex-1 px-6 py-4 min-w-0 overflow-hidden">
+          <div className="flex-1 px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <Input
                 placeholder="Search"
@@ -554,34 +1195,22 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
               </button>
             </div>
 
-            <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60 overflow-x-hidden">
-              <div className="space-y-1 p-3 max-w-full">
-                {filterOptions.loading && (
-                  <div className="px-3 py-8 text-center text-xs text-slate-400">
-                    <div className="animate-pulse">Loading filter options...</div>
-                  </div>
-                )}
-
-                {filterOptions.error && (
-                  <div className="px-3 py-8 text-center text-xs text-red-400">
-                    {filterOptions.error}
-                  </div>
-                )}
-
-                {!filterOptions.loading && !filterOptions.error && list.map((item) => (
+            <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
+              <div className="space-y-1 p-3">
+                {list.map((item) => (
                   <label
                     key={item}
-                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100 overflow-hidden"
+                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                   >
                     <Checkbox
                       checked={value[currentKey].includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
                     />
-                    <span className="truncate flex-1 min-w-0" title={item}>{item}</span>
+                    <span className="truncate">{item}</span>
                   </label>
                 ))}
 
-                {!filterOptions.loading && !filterOptions.error && list.length === 0 && (
+                {list.length === 0 && (
                   <div className="px-3 py-8 text-center text-xs text-slate-400">
                     No options found.
                   </div>
@@ -650,75 +1279,67 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrendData, trendLoading }) => {
-  // ✅ single selected KPI
+const CHART_COLORS = [
+  "#2563EB", // blue
+  "#DC2626", // red
+  "#16A34A", // green
+  "#F59E0B", // amber
+  "#7C3AED", // violet
+  "#0891B2", // cyan
+  "#EC4899", // pink
+];
+
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
   const [activeMetric, setActiveMetric] = useState("osa");
-
-  const metricMeta =
-    KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
-
   const isBrandMode = mode === "brand";
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
-  /* ---------------- SELECTED BRANDS/LABELS ---------------- */
-  // Get brand names from filters or API data
-  const selectedBrands = useMemo(() => {
-    if (filters.brands.length > 0) {
-      return filters.brands.slice(0, 4);
+  const allPossibleIds = useMemo(() => {
+    if (isBrandMode) {
+      let rows = DATA_MODEL.brandSummaryByCity[city] || [];
+      if (filters.categories.length) rows = rows.filter((r) => filters.categories.includes(r.category));
+      if (filters.brands.length) rows = rows.filter((r) => filters.brands.includes(r.name));
+      return rows.map(r => r.id);
     }
-    // If no brands selected in filter, use brands from API data
-    if (apiTrendData && Object.keys(apiTrendData).length > 0) {
-      return Object.keys(apiTrendData).slice(0, 4);
-    }
-    return [];
-  }, [filters.brands, apiTrendData]);
+    let rows = DATA_MODEL.skuSummaryByCity[city] || [];
+    if (filters.categories.length) rows = rows.filter((r) => filters.categories.includes(r.category));
+    if (filters.brands.length) rows = rows.filter((r) => filters.brands.includes(r.brandName));
+    if (filters.skus.length) rows = rows.filter((r) => filters.skus.includes(r.name));
+    return rows.map(r => r.id);
+  }, [isBrandMode, filters, city]);
 
-  const selectedLabels = selectedBrands;
+  const [visibleIds, setVisibleIds] = useState([]);
 
-  /* ---------------- CHART DATA ---------------- */
+  useEffect(() => {
+    setVisibleIds(allPossibleIds.slice(0, 5));
+  }, [allPossibleIds]);
+
+  const metricMeta = KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+
   const chartData = useMemo(() => {
-    // Use API trend data when available
-    if (apiTrendData && Object.keys(apiTrendData).length > 0 && selectedBrands.length > 0) {
-      // Get all unique dates from all brands
-      const allDates = new Set();
-      selectedBrands.forEach(brand => {
-        const brandData = apiTrendData[brand] || [];
-        brandData.forEach(point => allDates.add(point.date));
+    const days = DATA_MODEL.days;
+    return days.map((date, idx) => {
+      const row = { date };
+      visibleIds.forEach((id) => {
+        const series = isBrandMode
+          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
+          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
+        if (series) row[id] = series[idx]?.[activeMetric] ?? null;
       });
-
-      // Sort dates chronologically
-      const sortedDates = Array.from(allDates).sort((a, b) => {
-        // Parse dates like "01 Jan'26" format
-        return new Date(a.replace("'", " 20")) - new Date(b.replace("'", " 20"));
-      });
-
-      return sortedDates.map(date => {
-        const row = { date };
-        selectedBrands.forEach(brand => {
-          const brandData = apiTrendData[brand] || [];
-          const point = brandData.find(p => p.date === date);
-          if (point) {
-            row[brand] = point[activeMetric] ?? null;
-          }
-        });
-        return row;
-      });
-    }
-
-    return [];
-  }, [apiTrendData, selectedBrands, city, isBrandMode, activeMetric]);
+      return row;
+    });
+  }, [visibleIds, city, isBrandMode, activeMetric]);
 
   const formatValue = (v) => {
-    if (metricMeta.unit) return `${v}${metricMeta.unit}`;
-    if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
-    if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
-    return v;
+    if (metricMeta.unit) return `${v.toFixed(1)}${metricMeta.unit}`;
+    if (metricMeta.prefix) return `${metricMeta.prefix}${v.toFixed(1)}`;
+    return v.toFixed(1);
   };
 
   return (
     <Card className="mt-4">
-      <CardHeader className="flex items-start justify-between border-b pb-3">
-        <div className="space-y-2">
-          {/* KPI CHIP SELECTOR */}
+      <CardHeader className="flex flex-col gap-4 border-b pb-4">
+        <div className="flex items-center justify-between w-full">
           <Box display="flex" gap={1} flexWrap="wrap">
             {KPI_KEYS.map((m) => (
               <MetricChip
@@ -730,67 +1351,169 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
               />
             ))}
           </Box>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
-            {selectedLabels.map((label) => (
-              <Badge key={label}>{label}</Badge>
-            ))}
-            <Separator orientation="vertical" className="mx-1 h-4" />
-            <span>{city}</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={onSwitchToKpi}>
+              <BarChart3 className="mr-1 h-4 w-4" />
+              Compare by KPIs
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onBackToTable}>
+              Back to list
+            </Button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onSwitchToKpi}>
-            <BarChart3 className="mr-1 h-4 w-4" />
-            Compare by KPIs
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onBackToTable}>
-            Back to list
-          </Button>
+        <div className="flex flex-col gap-2">
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Select {isBrandMode ? "Brands" : "SKUs"} to Plot ({city})
+          </div>
+          <Box display="flex" gap={1} flexWrap="wrap">
+            {(() => {
+              const maxInline = 5;
+              const inlineIds = allPossibleIds.slice(0, maxInline);
+              const overflowIds = allPossibleIds.slice(maxInline);
+
+              return (
+                <>
+                  {inlineIds.map((id, idx) => {
+                    const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
+                    const active = visibleIds.includes(id);
+                    const color = CHART_COLORS[idx % CHART_COLORS.length];
+                    return (
+                      <Box
+                        key={id}
+                        onClick={() => setVisibleIds(prev =>
+                          prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                        )}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          border: "1px solid",
+                          borderColor: active ? color : "#E2E8F0",
+                          backgroundColor: active ? `${color}10` : "transparent",
+                          color: active ? color : "#64748B",
+                          transition: "all 0.2s",
+                          maxWidth: "200px"
+                        }}
+                      >
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+                        {active && <span style={{ fontSize: "10px" }}>✓</span>}
+                      </Box>
+                    )
+                  })}
+
+                  {overflowIds.length > 0 && (
+                    <>
+                      <Box
+                        onClick={() => setOverflowOpen(true)}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          border: "1px dashed #E2E8F0",
+                          backgroundColor: "#F8FAFC",
+                          color: "#475569",
+                        }}
+                      >
+                        +{overflowIds.length} more
+                      </Box>
+
+                      <Dialog open={overflowOpen} onOpenChange={(v) => !v && setOverflowOpen(false)}>
+                        <DialogContent className="max-w-md p-4">
+                          <DialogHeader className="mb-2">
+                            <DialogTitle>Select more {isBrandMode ? 'Brands' : 'SKUs'}</DialogTitle>
+                          </DialogHeader>
+                          <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                            {overflowIds.map((id, idx) => {
+                              const name = isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id];
+                              const active = visibleIds.includes(id);
+                              const color = CHART_COLORS[(idx + maxInline) % CHART_COLORS.length];
+                              return (
+                                <div
+                                  key={id}
+                                  onClick={() => {
+                                    setVisibleIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+                                  }}
+                                  className="p-2 rounded-md mb-2 cursor-pointer"
+                                  style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6EEF8', background: active ? `${color}10` : 'white' }}
+                                >
+                                  <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                                  <div style={{ flex: 1 }}>{name}</div>
+                                  {active && <div style={{ fontSize: 12 }}>✓</div>}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          <DialogFooter className="mt-4">
+                            <Button variant="outline" onClick={() => setOverflowOpen(false)}>Close</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
+                  )}
+                </>
+              )
+            })()}
+          </Box>
         </div>
       </CardHeader>
 
-      <CardContent className="pt-4">
-        {trendLoading ? (
-          <div className="h-[280px] w-full flex items-center justify-center">
-            <div className="text-slate-400 animate-pulse">Loading trend data...</div>
-          </div>
-        ) : chartData.length === 0 ? (
-          <div className="h-[280px] w-full flex items-center justify-center">
-            <div className="text-slate-400">No trend data available. Select brands from the filter.</div>
-          </div>
-        ) : (
-          <div className="h-[280px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
-                <YAxis
-                  tickLine={false}
-                  fontSize={11}
-                  tickFormatter={formatValue}
+      <CardContent className="pt-6">
+        <div className="h-[320px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+              <XAxis
+                dataKey="date"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                dy={10}
+                tick={{ fill: '#94A3B8' }}
+              />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                fontSize={11}
+                tickFormatter={formatValue}
+                tick={{ fill: '#94A3B8' }}
+              />
+              <Tooltip
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                formatter={formatValue}
+              />
+              <Legend verticalAlign="top" height={36} />
+
+              {visibleIds.map((id, idx) => (
+                <Line
+                  key={id}
+                  type="monotone"
+                  dataKey={id}
+                  name={isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]}
+                  dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                  strokeWidth={2.5}
+                  animationDuration={1000}
                 />
-                <RechartsTooltip formatter={formatValue} />
-                <Legend />
-
-                {selectedBrands.map((brand, index) => (
-                  <Line
-                    key={brand}
-                    type="monotone"
-                    dataKey={brand}
-                    name={brand}
-                    dot={false}
-                    stroke={getBrandColor(index)}
-                    strokeWidth={2}
-                  />
-                ))}
-
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   );
@@ -836,12 +1559,6 @@ const KPI_KEYS = [
     prefix: "₹",
   },
   {
-    key: "categoryShare",
-    label: "Category Share",
-    color: "#BE185D", // dark pink
-    unit: "%",
-  },
-  {
     key: "marketShare",
     label: "Market Share",
     color: "#22C55E", // emerald
@@ -849,53 +1566,80 @@ const KPI_KEYS = [
   },
 ];
 
-const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, trendLoading }) => {
+const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
   const isBrandMode = mode === "brand";
 
-  // Get brand names from filters or API data
-  const selectedBrands = useMemo(() => {
-    if (filters.brands.length > 0) {
-      return filters.brands.slice(0, 4);
-    }
-    // If no brands selected in filter, use brands from API data
-    if (apiTrendData && Object.keys(apiTrendData).length > 0) {
-      return Object.keys(apiTrendData).slice(0, 4);
-    }
-    return [];
-  }, [filters.brands, apiTrendData]);
+  const selectedIds = useMemo(() => {
+    if (isBrandMode) {
+      const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
+      let rows = allRows;
 
-  const selectedLabels = selectedBrands;
+      if (filters.categories.length) {
+        rows = rows.filter((r) => filters.categories.includes(r.category));
+      }
+      if (filters.brands.length) {
+        rows = rows.filter((r) => filters.brands.includes(r.name));
+      }
 
-  // Build chart data for a specific KPI metric
+      const ids = rows.map((r) => r.id);
+      if (ids.length) return ids.slice(0, 4);
+      return allRows.slice(0, 3).map((r) => r.id);
+    } else {
+      const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
+      let rows = allRows;
+
+      if (filters.categories.length) {
+        rows = rows.filter((r) => filters.categories.includes(r.category));
+      }
+      if (filters.brands.length) {
+        rows = rows.filter((r) => filters.brands.includes(r.brandName));
+      }
+      if (filters.skus.length) {
+        rows = rows.filter((r) => filters.skus.includes(r.name));
+      }
+
+      const ids = rows.map((r) => r.id);
+      if (ids.length) return ids.slice(0, 5);
+      return allRows.slice(0, 5).map((r) => r.id);
+    }
+  }, [isBrandMode, filters, city]);
+
+  const selectedLabels = useMemo(
+    () =>
+      selectedIds.map((id) =>
+        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+      ),
+    [selectedIds, isBrandMode]
+  );
+
   const chartDataFor = (metricKey) => {
-    // Use API trend data when available
-    if (apiTrendData && Object.keys(apiTrendData).length > 0 && selectedBrands.length > 0) {
-      // Get all unique dates from all brands
-      const allDates = new Set();
-      selectedBrands.forEach(brand => {
-        const brandData = apiTrendData[brand] || [];
-        brandData.forEach(point => allDates.add(point.date));
-      });
+    const days = DATA_MODEL.days;
 
-      // Sort dates chronologically
-      const sortedDates = Array.from(allDates).sort((a, b) => {
-        return new Date(a.replace("'", " 20")) - new Date(b.replace("'", " 20"));
-      });
-
-      return sortedDates.map(date => {
+    if (isBrandMode) {
+      return days.map((date, idx) => {
         const row = { date };
-        selectedBrands.forEach(brand => {
-          const brandData = apiTrendData[brand] || [];
-          const point = brandData.find(p => p.date === date);
-          if (point) {
-            row[brand] = point[metricKey] ?? null;
-          }
+        selectedIds.forEach((id) => {
+          const series =
+            DATA_MODEL.brandTrendsByCity[city] &&
+            DATA_MODEL.brandTrendsByCity[city][id];
+          if (!series) return;
+          row[id] = series[idx][metricKey];
         });
         return row;
       });
     }
 
-    return [];
+    return days.map((date, idx) => {
+      const row = { date };
+      selectedIds.forEach((id) => {
+        const series =
+          DATA_MODEL.skuTrendsByCity[city] &&
+          DATA_MODEL.skuTrendsByCity[city][id];
+        if (!series) return;
+        row[id] = series[idx][metricKey];
+      });
+      return row;
+    });
   };
 
   return (
@@ -923,51 +1667,41 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, tren
       </CardHeader>
 
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
-        {trendLoading ? (
-          <div className="col-span-2 flex h-48 items-center justify-center">
-            <div className="text-slate-400 animate-pulse">Loading KPI data...</div>
-          </div>
-        ) : selectedBrands.length === 0 ? (
-          <div className="col-span-2 flex h-48 items-center justify-center">
-            <div className="text-slate-400">No brand data available. Select brands from the filter.</div>
-          </div>
-        ) : (
-          KPI_KEYS.map((kpi) => (
-            <Card
-              key={kpi.key}
-              className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">{kpi.label}</CardTitle>
-              </CardHeader>
-              <CardContent className="h-48 pt-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={chartDataFor(kpi.key)}
-                    margin={{ top: 8, left: -16, right: 8 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="date" hide />
-                    <YAxis tickLine={false} fontSize={10} width={32} />
-                    <RechartsTooltip />
-                    {selectedBrands.map((brand, index) => (
-                      <Line
-                        key={brand}
-                        type="monotone"
-                        dataKey={brand}
-                        name={brand}
-                        dot={false}
-                        stroke={getBrandColor(index)}
-                        strokeWidth={2}
-                      />
-                    ))}
-
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          ))
-        )}
+        {KPI_KEYS.map((kpi) => (
+          <Card
+            key={kpi.key}
+            className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">{kpi.label}</CardTitle>
+            </CardHeader>
+            <CardContent className="h-48 pt-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={chartDataFor(kpi.key)}
+                  margin={{ top: 8, left: -16, right: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="date" hide />
+                  <YAxis tickLine={false} fontSize={10} width={32} />
+                  <Tooltip />
+                  {selectedIds.map((id) => (
+                    <Line
+                      key={id}
+                      type="monotone"
+                      dataKey={id}
+                      name={
+                        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
+                      }
+                      dot={false}
+                      strokeWidth={2}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        ))}
       </CardContent>
     </Card>
   );
@@ -977,7 +1711,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, tren
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading }) => {
+const BrandTable = ({ rows }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -999,27 +1733,20 @@ const BrandTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[16%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[16%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[16%]">Price</th>
-                <th className="px-3 py-2 text-right w-[16%]">Category Share</th>
-                <th className="px-3 py-2 text-right w-[16%]">Market Share</th>
+                <th className="px-3 py-2 text-center w-[17%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[14%] whitespace-nowrap">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[9%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[9%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[9%]">Price</th>
+                <th className="px-3 py-2 text-center w-[9%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[11%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[13%]">Ds Listing</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100 bg-white">
-              {loading && Array.from({ length: pageSize }).map((_, idx) => (
-                <tr key={`skeleton-${idx}`} className="animate-pulse">
-                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                </tr>
-              ))}
-              {!loading && paginatedRows.map((row, idx) => (
+              {paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={cn(
@@ -1027,33 +1754,80 @@ const BrandTable = ({ rows, loading }) => {
                     idx % 2 === 1 && "bg-slate-50/60"
                   )}
                 >
-                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100 truncate max-w-[120px]">
-                    <Tooltip title={row.name} arrow placement="top">
-                      <span>{row.name}</span>
-                    </Tooltip>
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                    {row.name}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    {row.osa.toFixed(1)}%
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    {row.sos.toFixed(1)}%
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>₹{row.offtakes.toFixed(2)} Cr</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.offtakesDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.offtakesDelta >= 0 ? '↑' : '↓'} {Math.abs(row.offtakesDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    ₹{row.price.toFixed(1)}
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{row.osa.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.osaDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.osaDelta >= 0 ? '↑' : '↓'} {Math.abs(row.osaDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
-                    {row.categoryShare.toFixed(1)}%
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{row.sos.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.sosDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.sosDelta >= 0 ? '↑' : '↓'} {Math.abs(row.sosDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    {row.marketShare.toFixed(1)}%
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>₹{row.price.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.priceDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.priceDelta >= 0 ? '↑' : '↓'} {Math.abs(row.priceDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{row.marketShare.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.marketShareDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <span>₹{row.ppu.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.ppuDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <span>{row.wtDisc.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.wtDiscDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-2">
+                      <span>{row.dsListing.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-normal px-1 py-0.5 rounded-sm whitespace-nowrap", row.dsListingDelta >= 0 ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50")}>
+                        {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                 </tr>
               ))}
 
-              {!loading && rows.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={9}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1080,7 +1854,7 @@ const BrandTable = ({ rows, loading }) => {
 };
 
 
-const SkuTable = ({ rows, loading }) => {
+const SkuTable = ({ rows }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1102,29 +1876,21 @@ const SkuTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-left w-[20%]">SKU</th>
-                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                <th className="px-3 py-2 text-right w-[12%]">OSA</th>
-                <th className="px-3 py-2 text-right w-[12%]">SOS</th>
-                <th className="px-3 py-2 text-right w-[12%]">Price</th>
-                <th className="px-3 py-2 text-right w-[12%]">Cat Share</th>
-                <th className="px-3 py-2 text-right w-[12%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[13%]">SKU</th>
+                <th className="px-3 py-2 text-center w-[10%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[14%] whitespace-nowrap">Offtakes</th>
+                <th className="px-3 py-2 text-center w-[9%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[9%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[9%]">Price</th>
+                <th className="px-3 py-2 text-center w-[9%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt PPU</th>
+                <th className="px-3 py-2 text-center w-[9%]">Wt Disc</th>
+                <th className="px-3 py-2 text-center w-[9%]">Ds Listing</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100 bg-white">
-              {loading && Array.from({ length: pageSize }).map((_, idx) => (
-                <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
-                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
-                  <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                  <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                </tr>
-              ))}
-              {!loading && paginatedRows.map((row, idx) => (
+              {paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
                   className={cn(
@@ -1132,38 +1898,83 @@ const SkuTable = ({ rows, loading }) => {
                     idx % 2 === 1 && "bg-slate-50/60"
                   )}
                 >
-                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100 truncate max-w-[250px]">
-                    <Tooltip title={row.name} arrow placement="top">
-                      <span>{row.name}</span>
-                    </Tooltip>
+                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                    {row.name}
                   </td>
-                  <td className="px-3 py-2 text-slate-900 border-r border-slate-100 truncate max-w-[180px]">
-                    <Tooltip title={row.brandName} arrow placement="top">
-                      <span>{row.brandName}</span>
-                    </Tooltip>
+                  <td className="px-3 py-2 text-slate-900 border-r border-slate-100">
+                    {row.brandName}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    {row.osa.toFixed(1)}%
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    {row.sos.toFixed(1)}%
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>₹{row.offtakes.toFixed(2)} Cr</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.offtakesDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.offtakesDelta >= 0 ? '↑' : '↓'} {Math.abs(row.offtakesDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    ₹{row.price.toFixed(1)}
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{row.osa.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.osaDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.osaDelta >= 0 ? '↑' : '↓'} {Math.abs(row.osaDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
-                    {row.categoryShare.toFixed(1)}%
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{row.sos.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.sosDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.sosDelta >= 0 ? '↑' : '↓'} {Math.abs(row.sosDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    {row.marketShare.toFixed(1)}%
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>₹{row.price.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.priceDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.priceDelta >= 0 ? '↑' : '↓'} {Math.abs(row.priceDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{row.marketShare.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.marketShareDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.marketShareDelta >= 0 ? '↑' : '↓'} {Math.abs(row.marketShareDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <span>₹{row.ppu.toFixed(1)}</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.ppuDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.ppuDelta >= 0 ? '↑' : '↓'} {Math.abs(row.ppuDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <span>{row.wtDisc.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.wtDiscDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.wtDiscDelta >= 0 ? '↑' : '↓'} {Math.abs(row.wtDiscDelta).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <span>{row.dsListing.toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", row.dsListingDelta >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {row.dsListingDelta >= 0 ? '↑' : '↓'} {Math.abs(row.dsListingDelta).toFixed(1)}%
+                      </span>
+                    </div>
                   </td>
                 </tr>
               ))}
 
-              {!loading && rows.length === 0 && (
+              {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={10}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
@@ -1194,7 +2005,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlatform, period }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel }) => {
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1205,146 +2016,12 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
-  // API state for dynamic filter options
-  const [filterOptions, setFilterOptions] = useState({
-    locations: ['All India'],
-    categories: ['All'],
-    brands: ['All'],
-    skus: ['All']
-  });
-  const [apiBrandData, setApiBrandData] = useState([]);
-  const [apiSkuData, setApiSkuData] = useState([]);
-  const [apiLoading, setApiLoading] = useState(true);
-
-  // State for brand trend data (used in TrendView and KpiCompareView)
-  const [apiTrendData, setApiTrendData] = useState({});
-  const [trendLoading, setTrendLoading] = useState(false);
-
-  // Fetch brand trends when switching to trend or kpi view
-  useEffect(() => {
-    if (viewMode !== 'trend' && viewMode !== 'kpi') return;
-
-    const fetchBrandTrends = async () => {
-      setTrendLoading(true);
-      try {
-        // Get brands from filter selection or from API brand data
-        let brandList = filters.brands.length > 0
-          ? filters.brands.slice(0, 4)
-          : apiBrandData.slice(0, 4).map(b => b.name);
-
-        if (brandList.length === 0) {
-          console.log('[PlatformOverviewKpiShowcase] No brands to fetch trends for');
-          setTrendLoading(false);
-          return;
-        }
-
-        const params = {
-          brands: brandList.join(','),
-          location: city !== 'All India' ? city : 'All',
-          category: filters.categories.length > 0 ? filters.categories[0] : 'All',
-          period: period || '1M'
-        };
-
-        console.log('[PlatformOverviewKpiShowcase] Fetching brand trends with params:', params);
-        const res = await axiosInstance.get('/watchtower/competition-brand-trends', { params });
-
-        if (res.data && res.data.brands) {
-          console.log('[PlatformOverviewKpiShowcase] Received trend data for', Object.keys(res.data.brands).length, 'brands');
-          setApiTrendData(res.data.brands);
-        }
-      } catch (err) {
-        console.error('[PlatformOverviewKpiShowcase] Failed to fetch brand trends:', err);
-      } finally {
-        setTrendLoading(false);
-      }
-    };
-
-    fetchBrandTrends();
-  }, [viewMode, city, filters.brands, filters.categories, period]);
-
-
-  // Fetch filter options on mount
-  useEffect(() => {
-    const fetchFilterOptions = async () => {
-      try {
-        const params = { location: city !== 'All India' ? city : undefined };
-        const res = await axiosInstance.get('/watchtower/competition-filter-options', { params });
-        if (res.data) {
-          setFilterOptions(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch filter options:', err);
-      }
-    };
-    fetchFilterOptions();
-  }, [city]);
-
-  // Fetch brand/sku data when filters change
-  useEffect(() => {
-    const fetchCompetitionData = async () => {
-      setApiLoading(true);
-      try {
-        // Build params for competition API
-        const selectedBrands = filters.brands.length > 0 ? filters.brands.join(',') : 'All';
-        const selectedCategory = filters.categories.length > 0 ? filters.categories[0] : 'All';
-
-        const params = {
-          platform: selectedPlatform || selectedItem || 'All',
-          location: city !== 'All India' ? city : 'All',
-          category: selectedCategory,
-          brand: selectedBrands,
-          period: period || '1M'
-        };
-
-        console.log('[PlatformOverviewKpiShowcase] Fetching competition data with params:', params);
-        const res = await axiosInstance.get('/watchtower/competition', { params });
-
-        if (res.data) {
-          console.log('[PlatformOverviewKpiShowcase] Received:', res.data.brands?.length || 0, 'brands,', res.data.skus?.length || 0, 'skus');
-
-          // Transform API response to match expected format (top 8 sorted by OSA)
-          const brandsArray = (res.data.brands || []).slice(0, 8).map((b, idx) => ({
-            id: b.brand_name?.toLowerCase().replace(/\s+/g, '-') || `brand-${idx}`,
-            name: b.brand_name || 'Unknown',
-            category: selectedCategory !== 'All' ? selectedCategory : 'General',
-            osa: b.osa || 0,
-            sos: b.sos || 0,
-            price: b.price || 0,
-            categoryShare: b.categoryShare || 0,
-            marketShare: b.marketShare || 0,
-          }));
-
-          const skusArray = (res.data.skus || []).slice(0, 8).map((s, idx) => ({
-            id: s.sku_name?.toLowerCase().replace(/\s+/g, '-') || `sku-${idx}`,
-            name: s.sku_name || 'Unknown',
-            brandName: s.brand_name || 'Unknown',
-            category: selectedCategory !== 'All' ? selectedCategory : 'General',
-            osa: s.osa || 0,
-            sos: s.sos || 0,
-            price: s.price || 0,
-            categoryShare: s.categoryShare || 0,
-            marketShare: s.marketShare || 0,
-          }));
-
-          setApiBrandData(brandsArray);
-          setApiSkuData(skusArray);
-        }
-      } catch (err) {
-        console.error('[PlatformOverviewKpiShowcase] Failed to fetch competition data:', err);
-      } finally {
-        setApiLoading(false);
-      }
-    };
-    fetchCompetitionData();
-  }, [city, filters.brands, filters.categories, selectedPlatform, selectedItem, period]);
-
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
   // Dynamic filtered rows for table for the active tab + city
   const brandRows = useMemo(() => {
-    // Use API data if available, otherwise fallback to mock data (only when not loading)
-    const allRows = apiBrandData;
+    const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -1353,13 +2030,21 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
     if (filters.brands.length) {
       rows = rows.filter((r) => filters.brands.includes(r.name));
     }
+    // if SKUs selected, show only brands that have any selected SKU
+    if (filters.skus.length) {
+      const brandIdsWithSelectedSkus = new Set(
+        RAW_DATA.skus
+          .filter((s) => filters.skus.includes(s.name))
+          .map((s) => s.brandId)
+      );
+      rows = rows.filter((r) => brandIdsWithSelectedSkus.has(r.id));
+    }
 
     return rows;
-  }, [city, filters, apiBrandData]);
+  }, [city, filters]);
 
   const skuRows = useMemo(() => {
-    // Use API data if available, otherwise fallback to mock data (only when not loading)
-    const allRows = apiSkuData;
+    const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
     let rows = allRows;
 
     if (filters.categories.length) {
@@ -1373,7 +2058,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
     }
 
     return rows;
-  }, [city, filters, apiSkuData]);
+  }, [city, filters]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -1398,8 +2083,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
             <SelectTrigger className="h-9 w-40 bg-white">
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
-            <SelectContent className="max-h-60 overflow-y-auto">
-              {(filterOptions.locations || CITIES).map((c) => (
+            <SelectContent>
+              {CITIES.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>
@@ -1445,7 +2130,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
         <div className="flex items-center justify-between gap-3">
           <TabsList className="bg-slate-100">
             <TabsTrigger value="brand" className="px-4">
-              Brands
+              Brand
             </TabsTrigger>
             <TabsTrigger value="sku" className="px-4">
               SKUs
@@ -1464,7 +2149,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -1472,8 +2157,6 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
-              apiTrendData={apiTrendData}
-              trendLoading={trendLoading}
             />
           )}
           {viewMode === "kpi" && (
@@ -1482,15 +2165,13 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
-              apiTrendData={apiTrendData}
-              trendLoading={trendLoading}
             />
           )}
         </TabsContent>
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -1498,8 +2179,6 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
-              apiTrendData={apiTrendData}
-              trendLoading={trendLoading}
             />
           )}
           {viewMode === "kpi" && (
@@ -1508,12 +2187,9 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlat
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
-              apiTrendData={apiTrendData}
-              trendLoading={trendLoading}
             />
           )}
         </TabsContent>
-
       </Tabs>
 
       <FilterDialog

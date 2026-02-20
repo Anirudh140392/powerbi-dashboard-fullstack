@@ -1,8 +1,44 @@
-import { Box, Card, CardContent, Typography, Chip, Skeleton } from "@mui/material";
+import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
 const CardMetric = ({ data, onViewTrends }) => {
-  const isLoading = !data || data.length === 0;
+  const defaultCards = [
+    {
+      title: "Offtakes",
+      value: "₹14.8 Cr",
+      sub: "MTD (Month-to-Date)",
+      change: "▲6.4% (₹89.3 lac)",
+      changeColor: "green",
+      prevText: "vs Previous Month",
+      extra: "#Units: 7.1 lac",
+      extraChange: "▲4.2%",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Availability",
+      value: "96.8%",
+      sub: "MTD Coverage",
+      change: "▲1.8% (+1.7%)",
+      changeColor: "green",
+      prevText: "vs Previous Month",
+    },
+    {
+      title: "Promo Spends %",
+      value: "5.21%",
+      sub: "MTD (Avg.)",
+      change: "▼0.7% (-0.04%)",
+      changeColor: "red",
+      prevText: "vs Previous Month",
+    },
+    {
+      title: "Market Share",
+      value: "24.3%",
+      sub: "MTD",
+      change: "▲3.9% (+0.92%)",
+      changeColor: "green",
+      prevText: "vs Previous Month",
+    },
+  ];
 
   const cards = data && data.length > 0 ? data.map(item => ({
     title: item.name,
@@ -14,11 +50,10 @@ const CardMetric = ({ data, onViewTrends }) => {
     extra: item.units ? `#Units: ${item.units}` : null,
     extraChange: item.unitsTrend,
     extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
-    chart: item.chart,
-    labels: item.labels
-  })) : [];
+    chart: item.chart
+  })) : defaultCards;
 
-  const fallbackMonths = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+  const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
   // Generate smooth data
   const generateValues = (card) => {
@@ -29,7 +64,7 @@ const CardMetric = ({ data, onViewTrends }) => {
       // Let's just return the chart data.
       return card.chart;
     }
-    return fallbackMonths.map(() => Math.floor(Math.random() * 60) + 20);
+    return months.map(() => Math.floor(Math.random() * 60) + 20);
   };
 
   const isProfit = (txt) => txt?.includes("▲") || txt?.includes("+");
@@ -42,123 +77,67 @@ const CardMetric = ({ data, onViewTrends }) => {
         {/* Header */}
         <Box
           display="flex"
-          flexDirection={{ xs: "column", sm: "row" }}
           justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          gap={2}
+          alignItems="center"
           mb={3}
         >
           <Box display="flex" alignItems="center" gap={1.5}>
             <Box
               sx={{
-                width: { xs: 30, sm: 36 },
-                height: { xs: 30, sm: 36 },
+                width: 36,
+                height: 36,
                 borderRadius: "50%",
                 bgcolor: "primary.main",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: { xs: "1rem", sm: "1.2rem" },
               }}
             >
               📈
             </Box>
 
-            <Typography variant="h5" fontWeight={600} sx={{ fontSize: { xs: "1.1rem", sm: "1.5rem" } }}>
+            <Typography variant="h5" fontWeight={600}>
               Watchtower Overview
             </Typography>
 
-            <Chip label="All" size="small" variant="outlined" />
+            <Chip label="All" size="large" variant="outlined" />
           </Box>
+
+          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
-        {/* Cards Grid */}
+        {/* Cards Row */}
         <Box
           sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, 1fr)",
-              lg: "repeat(4, 1fr)",
-            },
-            gap: 3,
-            width: "100%",
+            display: "flex",
+            gap: 2,
+            overflowX: scrollNeeded ? "auto" : "hidden",
+            pb: 1,
+            px: 1.5,
+            scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
-          {isLoading
-            ? // Show skeleton cards while loading
-            [1, 2, 3, 4].map((i) => (
-              <SkeletonMetricCard
-                key={i}
-                width={scrollNeeded ? 250 : `${100 / 4 - 1.2}%`}
-              />
-            ))
-            : cards.map((card, index) => {
-              const values = generateValues(card);
-              const labels = Array.isArray(card.labels) && card.labels.length === values.length
-                ? card.labels
-                : fallbackMonths.slice(0, values.length);
-              const color = isProfit(card.change) ? "#28a745" : "#dc3545";
+          {cards.map((card, index) => {
+            const values = generateValues(card);
+            const color = isProfit(card.change) ? "#28a745" : "#dc3545";
 
-              return (
-                <MiniChartCard
-                  key={index}
-                  card={card}
-                  months={labels}
-                  values={values}
-                  color={color}
-                  scrollNeeded={scrollNeeded}
-                  totalCards={cards.length}
-                  onClick={() => onViewTrends && onViewTrends(card.title)}
-                />
-              );
-            })
-          }
+            return (
+              <MiniChartCard
+                key={index}
+                card={card}
+                months={months} // Note: months are hardcoded, might not match data
+                values={values}
+                color={color}
+                scrollNeeded={scrollNeeded}
+                totalCards={cards.length}
+                onClick={() => onViewTrends(card.title, "Metric")}
+              />
+            );
+          })}
         </Box>
       </Card>
     </Box>
-  );
-};
-
-/* ------------ Skeleton Metric Card - Loading placeholder ------------ */
-const SkeletonMetricCard = ({ width = 250 }) => {
-  return (
-    <Card
-      sx={{
-        height: "100%",
-        width: "100%",
-        borderRadius: 3,
-      }}
-    >
-      <CardContent>
-        {/* Title skeleton */}
-        <Skeleton variant="text" width={100} height={24} animation="wave" sx={{ borderRadius: 1 }} />
-
-        {/* Value + Sub skeleton */}
-        <Box display="flex" alignItems="baseline" gap={1} mt={0.5}>
-          <Skeleton variant="text" width={80} height={32} animation="wave" sx={{ borderRadius: 1 }} />
-          <Skeleton variant="text" width={120} height={20} animation="wave" sx={{ borderRadius: 1 }} />
-        </Box>
-
-        {/* Change + prevText skeleton */}
-        <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-          <Skeleton variant="text" width={100} height={18} animation="wave" sx={{ borderRadius: 1 }} />
-          <Skeleton variant="text" width={100} height={18} animation="wave" sx={{ borderRadius: 1 }} />
-        </Box>
-
-        {/* Extra row skeleton */}
-        <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-          <Skeleton variant="text" width={90} height={18} animation="wave" sx={{ borderRadius: 1 }} />
-          <Skeleton variant="text" width={50} height={18} animation="wave" sx={{ borderRadius: 1 }} />
-        </Box>
-
-        {/* Mini chart skeleton */}
-        <Box mt={1.5} sx={{ height: 80 }}>
-          <Skeleton variant="rounded" width="100%" height={70} animation="wave" sx={{ borderRadius: 2 }} />
-        </Box>
-      </CardContent>
-    </Card>
   );
 };
 
@@ -195,31 +174,32 @@ const MiniChartCard = ({
 
   return (
     <Card
-      onClick={onClick}
       sx={{
-        cursor: onClick ? "pointer" : "default",
-        width: "100%",
-        height: "100%",
+        flexShrink: 0,
+        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
         borderRadius: 3,
+        scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
+        cursor: "pointer",
       }}
+      onClick={onClick}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 12, sm: 14 } }}>
+        <Typography variant="body2" color="text.secondary" fontSize={16}>
           {card.title}
         </Typography>
 
-        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" } }}>
+        <Typography variant="h6" fontWeight={600}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary" sx={{ fontSize: { xs: 12, sm: 14 } }}>
+          <Typography component="span" color="text.secondary" fontSize={15}>
             {card.sub}
           </Typography>
         </Typography>
 
-        <Typography sx={{ color: card.changeColor, mt: 0.5, fontSize: { xs: 12, sm: 13 }, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+        <Typography variant="body3" sx={{ color: card.changeColor, mt: 1 }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary" sx={{ fontSize: { xs: 12, sm: 13 } }}>
+          <Typography component="span" color="text.secondary" fontSize={15}>
             {card.prevText}
           </Typography>
         </Typography>
@@ -289,7 +269,7 @@ const MiniChartCard = ({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      value : {typeof v === 'number' ? v.toFixed(2) : v}
+                      value : {v}
                     </Typography>
                   </Box>
                 )}

@@ -7,7 +7,6 @@ import {
   Button,
   Autocomplete,
   TextField,
-  Switch,
 } from "@mui/material";
 
 import {
@@ -32,6 +31,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
 
   const {
+    channels,
+    selectedChannel,
+    setSelectedChannel,
     brands,
     selectedBrand,
     setSelectedBrand,
@@ -53,27 +55,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     compareEnd,
     setCompareEnd,
     setComparisonLabel,
-    maxDate,
-    zones,
-    selectedZone,
-    setSelectedZone,
-    pmPlatforms,
-    pmSelectedPlatform,
-    setPmSelectedPlatform,
-    pmBrands,
-    pmSelectedBrand,
-    setPmSelectedBrand,
-    darkStoreData,
-    channels,
-    selectedChannel,
-    setSelectedChannel,
-    mslEnabled,
-    setMslEnabled,
     categories,
     selectedCategory,
-    setSelectedCategory
+    setSelectedCategory,
   } = React.useContext(FilterContext);
-
 
   const location = useLocation();
 
@@ -86,25 +71,24 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
         borderColor: (theme) => "#e5e7eb",
-        px: { xs: 1.5, sm: 3 },
-        py: { xs: 0.75, sm: 1.5 },
+        px: { xs: 2, sm: 3 },
+        py: 0.8,
         position: "sticky",
         top: 0,
         zIndex: 1200,
         transition: "all 0.3s ease",
-        // Premium subtle shadow
-        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.05)",
       }}
     >
       {/* ---------------- FIRST ROW ---------------- */}
       <Box
         sx={{
           display: "flex",
-          flexDirection: { xs: "column", sm: "row" },
           justifyContent: "space-between",
-          alignItems: { xs: "flex-start", sm: "center" },
-          gap: { xs: 0.25, sm: 1 },
-          pb: 0,
+          flexWrap: "nowrap",
+          gap: 1,
+          alignItems: "center",
+          overflowX: "auto",
+          pb: 0.5, // slightly partial scrolling buffer
         }}
       >
         {/* LEFT SIDE */}
@@ -132,13 +116,8 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
             <Box sx={{ display: "flex", flexDirection: "column" }}>
               <Typography
-                variant="h6"
-                fontWeight="700"
-                sx={{
-                  whiteSpace: "nowrap",
-                  lineHeight: 1.2,
-                  fontSize: { xs: "1.1rem", sm: "1.25rem" }
-                }}
+                fontWeight="600"
+                sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: "1.0rem" }}
               >
                 {title}
               </Typography>
@@ -152,6 +131,41 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       bgcolor: "#22C55E",
                     }}
                   />
+                  {/* <Typography
+                    sx={{
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#64748b",
+                    }}
+                  >
+                    {(() => {
+                      const darkStorePlatforms = ["Blinkit", "Zepto", "Instamart"];
+                      const marketplacePlatforms = ["Flipkart", "Amazon"];
+
+                      // Dark store counts per platform
+                      const darkStoreCounts = {
+                        "Blinkit": 1860,
+                        "Zepto": 1250,
+                        "Instamart": 1210,
+                      };
+
+                      const selectedList = platform === "All"
+                        ? [...darkStorePlatforms, ...marketplacePlatforms]
+                        : (Array.isArray(platform) ? platform : [platform]);
+
+                      const darkStoreTotal = selectedList
+                        .filter(p => darkStorePlatforms.includes(p))
+                        .reduce((sum, p) => sum + (darkStoreCounts[p] || 0), 0);
+
+                      const mCount = selectedList.filter(p => marketplacePlatforms.includes(p)).length;
+
+                      const parts = [];
+                      if (darkStoreTotal > 0) parts.push(`${darkStoreTotal.toLocaleString()} Dark Stores`);
+                      if (mCount > 0) parts.push(`${mCount} Active Marketplace${mCount > 1 ? 's' : ''}`);
+
+                      return parts.length > 0 ? parts.join(" & ") : "0 Active Platforms";
+                    })()}
+                  </Typography> */}
                   <Typography
                     sx={{
                       fontSize: "0.75rem",
@@ -159,7 +173,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       color: "#64748b",
                     }}
                   >
-                    {darkStoreData?.totalCount || 0} Active Dark Store{(darkStoreData?.totalCount || 0) !== 1 ? 's' : ''}
+                    Darkstores # (Blinkit - 1860, Instamart - 1210, Zepto - 1250)
                   </Typography>
                 </Box>
               )}
@@ -177,16 +191,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: { xs: 0.5, sm: 1.5 },
-                flexWrap: { xs: "wrap", sm: "nowrap" },
-                overflowX: { xs: "visible", sm: "auto" },
-                width: { xs: "100%", sm: "auto" },
-                justifyContent: { xs: "flex-start", sm: "flex-end" },
-                paddingBottom: { xs: 0.25, sm: 0.75 },
-                paddingTop: { xs: 0.5, sm: 0 },
-                "&::-webkit-scrollbar": { display: "none" },
-                msOverflowStyle: "none",
-                scrollbarWidth: "none",
+                gap: 0.5,
+                flexWrap: "nowrap",
+                overflow: "visible",
               }}
             >
 
@@ -196,69 +203,57 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={channels}
                 value={selectedChannel}
                 onChange={(newValue) => setSelectedChannel(newValue)}
-                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                width={130}
               />
 
               {/* PLATFORM SELECTION */}
               <CustomHeaderDropdown
                 label="PLATFORM"
-                options={title === "Performance Marketing" ? pmPlatforms : platforms}
-                value={title === "Performance Marketing" ? pmSelectedPlatform : platform}
-                onChange={(newValue) => {
-                  if (title === "Performance Marketing") {
-                    setPmSelectedPlatform(newValue);
-                  } else {
-                    setPlatform(newValue);
-                  }
-                }}
-                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                options={platforms}
+                value={platform}
+                onChange={(newValue) => setPlatform(newValue)}
+                width={115}
+                multiSelect={false}
               />
 
               <CustomHeaderDropdown
-                label="BRAND"
-                options={title === "Performance Marketing" ? pmBrands : brands}
-                value={title === "Performance Marketing" ? pmSelectedBrand : selectedBrand}
-                onChange={(newValue) => {
-                  if (title === "Performance Marketing") {
-                    setPmSelectedBrand(newValue);
-                  } else {
-                    setSelectedBrand(newValue);
-                  }
-                }}
-                width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                label="CATEGORY"
+                options={categories}
+                value={selectedCategory}
+                onChange={(newValue) => setSelectedCategory(newValue)}
+                width={115}
               />
-              {title !== 'Availability Analysis' && (
+
+              <CustomHeaderDropdown
+                label="LOCATION"
+                options={locations}
+                value={selectedLocation}
+                onChange={(newValue) => setSelectedLocation(newValue)}
+                width={115}
+              />
+
+              {location.pathname === "/visibility-anlysis" && (
                 <CustomHeaderDropdown
-                  label={title === "Performance Marketing" ? "ZONE" : "LOCATION"}
-                  options={title === "Performance Marketing" ? zones : locations}
-                  value={title === "Performance Marketing" ? selectedZone : selectedLocation}
-                  onChange={(newValue) => {
-                    if (title === "Performance Marketing") {
-                      setSelectedZone(newValue);
-                    } else {
-                      setSelectedLocation(newValue);
-                    }
-                  }}
-                  width={{ xs: "calc(50% - 3px)", sm: 140 }}
+                  label="KEYWORD"
+                  options={keywords}
+                  value={selectedKeyword}
+                  onChange={(newValue) => setSelectedKeyword(newValue)}
+                  width={130}
                 />
               )}
-              {title === 'Availability Analysis' && (
-                <CustomHeaderDropdown
-                  label="CATEGORY"
-                  options={categories}
-                  value={selectedCategory}
-                  onChange={(newValue) => setSelectedCategory(newValue)}
-                  width={{ xs: "calc(50% - 3px)", sm: 140 }}
-                />
-              )}
+
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: { xs: "calc(50% - 3px)", sm: 200 }, flexShrink: 0 }}>
+              <Box sx={{ width: 200, flexShrink: 0 }}>
                 <Typography
                   sx={{
-                    fontSize: "0.7rem",
+                    fontSize: "0.65rem",
                     fontWeight: 600,
-                    mb: 0.1,
-                    opacity: 0.7,
+                    mb: 0.4,
+                    opacity: 0.8,
+                    textTransform: "uppercase",
+                    letterSpacing: '0.05em',
+                    fontFamily: 'Roboto, sans-serif',
+                    color: '#64748b'
                   }}
                 >
                   TIME PERIOD
@@ -268,7 +263,6 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   timeEnd={timeEnd}
                   compareStart={compareStart}
                   compareEnd={compareEnd}
-                  maxDate={maxDate}
                   onApply={(start, end, cStart, cEnd, compareOn, label) => {
                     setTimeStart(start);
                     setTimeEnd(end);
@@ -295,57 +289,6 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                     }
                   }}
                 />
-
-              </Box>
-              {/* MSL TOGGLE */}
-              <Box sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-start",
-                minWidth: { xs: "calc(50% - 3px)", sm: 100 },
-                flexShrink: 0
-              }}>
-                <Typography
-                  sx={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    mb: 0.1,
-                    opacity: 0.7,
-                  }}
-                >
-                  MSL
-                </Typography>
-                <Box sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  height: 32,
-                  bgcolor: "#f1f5f9",
-                  borderRadius: "8px",
-                  px: 1,
-                  border: "1px solid #e2e8f0"
-                }}>
-                  <Switch
-                    checked={mslEnabled}
-                    onChange={(e) => setMslEnabled(e.target.checked)}
-                    size="small"
-                    sx={{
-                      "& .MuiSwitch-switchBase.Mui-checked": {
-                        color: "#7c3aed",
-                      },
-                      "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                        backgroundColor: "#7c3aed",
-                      },
-                    }}
-                  />
-                  <Typography sx={{
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: mslEnabled ? "#1e293b" : "#64748b",
-                    ml: 0.5
-                  }}>
-                    {mslEnabled ? "ON" : "OFF"}
-                  </Typography>
-                </Box>
               </Box>
             </Box>
           )}
@@ -365,7 +308,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               gap: 2,
               justifyContent: "flex-end",
               flexWrap: "wrap",
-              mt: { xs: 0.5, sm: 2 },
+              mt: 2,
               alignItems: "center",
               overflow: "visible",
             }}

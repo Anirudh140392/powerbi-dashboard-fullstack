@@ -1,5 +1,5 @@
 // HeatMapDrillTable.jsx
-import React, { useState, useRef, useEffect, useMemo, useContext } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Box,
   Card,
@@ -16,15 +16,12 @@ import {
   Chip,
   Select,
   MenuItem,
-  CircularProgress,
 } from "@mui/material";
 
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp, LineChart, SlidersHorizontal, X } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
 
-import axiosInstance from "../../api/axiosInstance";
-import { FilterContext } from "../../utils/FilterContext";
 import performanceData from "../../utils/PerformanceMarketingData";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import PerformanceTrendDatas from "./PerformanceTrendDatas";
@@ -34,19 +31,6 @@ import PaginationFooter from "../CommonLayout/PaginationFooter";
 // ----------------- HELPERS -----------------
 const parsePercent = (v) =>
   typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
-
-// Format numbers in Indian format (K, Lacs, Crores)
-const formatIndianNumber = (num) => {
-  if (num === null || num === undefined || num === "–" || num === "-") return "–";
-  const val = typeof num === "string" ? parseFloat(num.replace(/,/g, "")) : Number(num);
-  if (isNaN(val)) return "–";
-
-  const absVal = Math.abs(val);
-  if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
-  if (absVal >= 100000) return `${(val / 100000).toFixed(2)} L`;
-  if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
-  return val.toLocaleString('en-IN');
-};
 
 const rowConvAvg = (values) => {
   const convIndices = [3, 4, 5];
@@ -192,88 +176,6 @@ const evaluateRule = (rowValues, rule) => {
 
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
-  // Get filter context for API calls
-  const { pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd } = useContext(FilterContext);
-
-  // API data state
-  const [apiData, setApiData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedQuarter, setSelectedQuarter] = useState("Q1"); // Spend class filter (Q1-Q4)
-
-  // ---------- FILTERS STATE ----------
-  const [activeFilters, setActiveFilters] = useState({
-    brands: [],     // Formats
-    zones: [],      // Zones (replaced Region/City)
-    keywords: [],
-    skus: [],
-    platforms: [],
-    kpiRules: null,
-    weekendFlag: [],
-  });
-
-  // Filter Options State
-  const [filterOptionsData, setFilterOptionsData] = useState({
-    brands: [],
-    zones: [],
-  });
-
-  // Fetch Filter Options (Brands, Zones)
-  useEffect(() => {
-    const fetchOptions = async () => {
-      try {
-        const [brandsRes, zonesRes] = await Promise.all([
-          axiosInstance.get('/performance-marketing/brands', { params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform } }),
-          axiosInstance.get('/performance-marketing/zones')
-        ]);
-
-        console.log("DEBUG: Brands Response:", brandsRes.data);
-        console.log("DEBUG: Zones Response:", zonesRes.data);
-
-        const formatOptions = (list) => list.map(item => ({ id: item, label: item, value: item }));
-
-        setFilterOptionsData({
-          brands: formatOptions(brandsRes.data || []),
-          zones: formatOptions(zonesRes.data || [])
-        });
-      } catch (error) {
-        console.error("Error fetching filter options:", error);
-      }
-    };
-    fetchOptions();
-  }, [pmSelectedPlatform]);
-
-  // Fetch keyword type performance from API
-  useEffect(() => {
-    const fetchKeywordTypeData = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : (pmSelectedPlatform || 'All'),
-          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand),
-          zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone),
-          startDate: timeStart?.format?.('YYYY-MM-DD') || timeStart,
-          endDate: timeEnd?.format?.('YYYY-MM-DD') || timeEnd,
-          spendClass: selectedQuarter, // Q1, Q2, Q3, Q4 filter by acos_spend_class
-          weekendFlag: activeFilters.weekendFlag?.join(','), // Send weekend/weekday filter
-          category: activeFilters.categories?.join(','), // Add category filter
-          keywords: activeFilters.keywords?.join(','),   // Add keywords filter
-        };
-        const response = await axiosInstance.get('/performance-marketing/keyword-type-performance', { params });
-        setApiData(response.data);
-      } catch (error) {
-        console.error('Error fetching keyword type performance:', error);
-        // Fallback to static data on error
-        setApiData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchKeywordTypeData();
-  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd, selectedQuarter, activeFilters.brands, activeFilters.zones, activeFilters.weekendFlag]);
-
-
-  // Use API data if available, otherwise fallback to static data
   const {
     heatmapData,
     heatmapDataSecond,
@@ -282,7 +184,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     heatmapDataFifth,
   } = performanceData;
 
-  const staticCollectedData =
+  const collectedData =
     selectedInsight === "All Campaign Summary"
       ? heatmapData
       : selectedInsight === "Q1 - Performing Well"
@@ -295,34 +197,32 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               ? heatmapDataFifth
               : heatmapData;
 
-  // Sync selectedQuarter with selectedInsight from parent
-  useEffect(() => {
-    if (!selectedInsight) return;
-    if (selectedInsight.includes("Q1")) setSelectedQuarter("Q1");
-    else if (selectedInsight.includes("Q2")) setSelectedQuarter("Q2");
-    else if (selectedInsight.includes("Q3")) setSelectedQuarter("Q3");
-    else if (selectedInsight.includes("Q4")) setSelectedQuarter("Q4");
-  }, [selectedInsight]);
-
-  // Use API data when available, fallback to static
-  const collectedData = apiData || staticCollectedData;
-
-  const LEVEL_TITLES = ["Keyword Type", "Keyword", "Zone"];
+  const LEVEL_TITLES = ["Keyword Type", "Keyword", "City"];
   const openHeaderTrend = (levelIndex) => {
     setShowTrends(true);
   };
   const [expanded, setExpanded] = useState({});
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [showTrends, setShowTrends] = useState(false);
-  const [trendState, setTrendState] = useState(null);
-  const [selectedMetrics, setSelectedMetrics] = useState(["spend", "conv"]);
-  const [chartType, setChartType] = useState("line");
+  const [selectedQuarter, setSelectedQuarter] = useState("Q4");
   const [page, setPage] = useState(1);
+  // ---------- FILTERS STATE ----------
+  const [activeFilters, setActiveFilters] = useState({
+    brands: [],     // Formats
+    categories: [], // Regions
+    cities: [],
+    keywords: [],
+    skus: [],
+    platforms: [],
+    kpiRules: null,
+    weekendFlag: [],
+  });
+
   // ---------- DATA EXTRACTION FOR FILTERS ----------
   const filterOptions = useMemo(() => {
     const opts = {
       brands: new Map(),
-      zones: new Map(),
+      categories: new Map(),
+      cities: new Map(),
       keywords: new Map(),
     };
 
@@ -331,13 +231,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         const item = { id: node.label, label: node.label, value: 0 };
 
         if (level === 0) opts.brands.set(node.label, item);
-
-        // Use explicit flag if available, otherwise fallback to level 1
-        if (node.isKeyword || level === 1) {
-          opts.keywords.set(node.label, item);
-        }
-
-        if (level === 2) opts.zones.set(node.label, item); // Zone is at level 2 (Region level)
+        else if (level === 1) opts.categories.set(node.label, item);
+        else if (level === 2) opts.cities.set(node.label, item);
+        else if (node.isKeyword || level === 3) opts.keywords.set(node.label, item);
 
         if (node.children) traverse(node.children, level + 1);
       });
@@ -349,7 +245,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
     return {
       brands: Array.from(opts.brands.values()),
-      zones: Array.from(opts.zones.values()),
+      categories: Array.from(opts.categories.values()),
+      cities: Array.from(opts.cities.values()),
       keywords: Array.from(opts.keywords.values()),
       kpiFields: METRICS.map((m) => ({ id: m.key, label: m.label, type: "number" })),
     };
@@ -359,9 +256,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
   const filteredDataRows = useMemo(() => {
     if (!collectedData?.rows) return [];
 
-    const { brands, zones, keywords, kpiRules } = activeFilters;
+    const { brands, categories, cities, keywords, kpiRules } = activeFilters;
     const hasBrandFilter = brands.length > 0;
-    const hasZoneFilter = zones.length > 0;
+    const hasRegionFilter = categories.length > 0;
+    const hasCityFilter = cities.length > 0;
     const hasKwFilter = keywords.length > 0;
     const hasKpiRules = kpiRules && kpiRules.children && kpiRules.children.length > 0;
 
@@ -379,8 +277,9 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
         // 1. Check Level Filters
         if (level === 0 && hasBrandFilter && !brands.includes(node.label)) keep = false;
-        else if (level === 1 && hasKwFilter && !keywords.includes(node.label)) keep = false;
-        else if (level === 2 && hasZoneFilter && !zones.includes(node.label)) keep = false;
+        else if (level === 1 && hasRegionFilter && !categories.includes(node.label)) keep = false;
+        else if (level === 2 && hasCityFilter && !cities.includes(node.label)) keep = false;
+        else if ((level === 3 || node.isKeyword) && hasKwFilter && !keywords.includes(node.label)) keep = false;
 
         // 2. Check KPI Rules (on this node's values)
         if (keep && hasKpiRules && node.values) {
@@ -420,6 +319,15 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     return filterRecursive(collectedData.rows, 0);
   }, [collectedData, activeFilters, selectedQuarter]);
 
+  const [trendState, setTrendState] = useState(null); // { node, path }
+  const [showTrends, setShowTrends] = useState(false);
+  const [chartType, setChartType] = useState("line"); // 'line' | 'area' | 'bar'
+  const [selectedMetrics, setSelectedMetrics] = useState([
+    "spend",
+    "conv",
+    "roas",
+  ]);
+
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
   // Force reset expanded state on mount to ensure columns are hidden
@@ -429,21 +337,12 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
   // visibleHierarchyCols is dynamic based strictly on expansion
   const expandedDepth = getExpandedDepth(expanded);
-
-  const filteredRows = useMemo(() => {
-    const res = filteredDataRows;
-    if (res.length === 0 && apiData?.rows?.length > 0) {
-    }
-    return res;
-  }, [filteredDataRows, apiData]);
-
   // If nothing expanded (depth 0), show 1 column. 
   // If depth 1 expanded (e.g. Magnum), show 2 columns (Type + Keyword).
   // If depth 2 expanded (e.g. Magnum > Keyword), show 3 columns.
   const visibleHierarchyCols = expandedDepth + 1;
 
-  // visibleHierarchyCols needs to be defined BEFORE rendering logic
-
+  const filteredRows = filteredDataRows;
 
   // ---------------- TOTALS -----------------
   const getDeepNodes = (nodes, exp, path = [], res = []) => {
@@ -467,18 +366,15 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     );
 
     const nums = vals
-      .map((v) => parseFloat(String(v).replace("%", "").replace(/,/g, "")))
+      .map((v) => parseFloat(String(v).replace("%", "")))
       .filter((x) => !isNaN(x));
 
     if (!nums.length) return "–";
     const isPercent = idx >= 3;
-    const total = nums.reduce((a, b) => a + b, 0);
 
-    if (isPercent) {
-      return (total / nums.length).toFixed(1) + "%";
-    }
-    // Format spend columns (0, 1, 2) with Indian number format
-    return formatIndianNumber(total);
+    return isPercent
+      ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1) + "%"
+      : nums.reduce((a, b) => a + b, 0).toLocaleString();
   });
 
   // --------- Expand / Collapse all ----------
@@ -700,7 +596,6 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                           height: 20,
                           borderRadius: 2,
                           backgroundColor: 'white',
-                          cursor: 'pointer',
                           '&:hover': { backgroundColor: '#f8fafc' }
                         }}
                       >
@@ -710,8 +605,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       <Box sx={{ width: 26 }} />
                     )}
 
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {level === 2 ? "Pan India" : node.label}
+                    <Typography sx={{ fontSize: 12, fontWeight: 600 }}>
+                      {node.label}
                     </Typography>
                   </Box>
                 </TableCell>
@@ -727,10 +622,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
           {qVals.map((v, i) => {
             const heat = i >= 3 ? getHeatStyle(v) : {};
-            // Format spend columns (0, 1, 2) with Indian number format
-            const displayValue = i < 3 ? formatIndianNumber(v) : (v || "–");
             return (
-              <TableCell key={i} align="center" sx={{ minWidth: 100, width: 100 }}>
+              <TableCell key={i} align="center">
                 <Box
                   sx={{
                     px: 1,
@@ -743,7 +636,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     color: i >= 3 ? heat.color : "#475569",
                   }}
                 >
-                  {displayValue}
+                  {v || "–"}
                 </Box>
               </TableCell>
             );
@@ -794,10 +687,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         </TableRow>
 
         {isOpen &&
-          (level === 1
-            ? renderRow({ ...node, label: "Pan India", children: [] }, level + 1, fullPath)
-            : children.map((child) => renderRow(child, level + 1, fullPath))
-          )}
+          children.map((child) => renderRow(child, level + 1, fullPath))}
       </React.Fragment>
     );
   };
@@ -807,8 +697,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     <>
       {/* ------------------ KPI FILTER MODAL ------------------ */}
       {filterPanelOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-16 transition-all backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[600px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-24 transition-all backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -817,7 +707,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               </div>
               <button
                 onClick={() => setFilterPanelOpen(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -829,22 +719,24 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                 sectionConfig={[
                   { id: "brands", label: "Format" },
                   { id: "weekendFlag", label: "Weekend Flag" },
-                  { id: "zones", label: "Zone" },
+                  { id: "categories", label: "Region" },
+                  { id: "cities", label: "City" },
                   { id: "keywords", label: "Keyword" },
                   { id: "kpiRules", label: "KPI Rules" },
                 ]}
                 keywords={filterOptions.keywords}
-                brands={filterOptionsData.brands.length > 0 ? filterOptionsData.brands : filterOptions.brands}
-                zones={filterOptionsData.zones.length > 0 ? filterOptionsData.zones : (filterOptions.zones || filterOptions.categories)}
+                brands={filterOptions.brands}
+                categories={filterOptions.categories}
                 skus={[]}
+                cities={filterOptions.cities}
                 platforms={[]}
                 kpiFields={filterOptions.kpiFields}
                 onKeywordChange={(ids) => setActiveFilters(p => ({ ...p, keywords: ids }))}
                 onBrandChange={(ids) => setActiveFilters(p => ({ ...p, brands: ids }))}
-                onZoneChange={(ids) => setActiveFilters(p => ({ ...p, zones: ids }))}
+                onCategoryChange={(ids) => setActiveFilters(p => ({ ...p, categories: ids }))}
                 onWeekendChange={(vals) => setActiveFilters(p => ({ ...p, weekendFlag: vals || [] }))}
+                onCityChange={(ids) => setActiveFilters(p => ({ ...p, cities: ids }))}
                 onRulesChange={(tree) => setActiveFilters(p => ({ ...p, kpiRules: tree }))}
-                sectionValues={activeFilters}
               />
             </div>
 
@@ -852,13 +744,13 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
               <button
                 onClick={() => setFilterPanelOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setFilterPanelOpen(false)}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200 cursor-pointer"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >
                 Apply Filters
               </button>
@@ -877,11 +769,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
         }}
       >
         {/* HEADER */}
-        <Box mb={2} display="flex" flexDirection={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "flex-start" }} gap={{ xs: 2, md: 0 }}>
+        <Box mb={2} display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box>
             <Box display="flex" alignItems="center" gap={2}>
               <Typography
-                sx={{ fontSize: { xs: 16, md: 18 }, fontWeight: 700, color: "#0f172a" }}
+                sx={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}
               >
                 {collectedData?.title}
               </Typography>
@@ -889,78 +781,89 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               {/* QUICK CATEGORY FILTER REMOVED */}
             </Box>
 
-            <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: "#94a3b8" }}>
-              Keyword Type → Keyword → Zone
+            <Typography sx={{ fontSize: 11, color: "#94a3b8" }}>
+              {selectedInsight === "All Campaign Summary"
+                ? "Keyword Type → Keyword → City"
+                : "AD Property → GROUP → KEYWORD"}
             </Typography>
           </Box>
 
           <Box
             display="flex"
             flexDirection="column"
-            alignItems={{ xs: "flex-start", md: "flex-end" }}
+            alignItems="flex-end"
             gap={1}
-            width={{ xs: "100%", md: "auto" }}
           >
             {/* BUTTON ROW */}
-            <Box display="flex" flexWrap="wrap" gap={1} alignItems="center" width={{ xs: "100%", md: "auto" }}>
+            <Box display="flex" gap={1} alignItems="center">
               {/* FILTERS BUTTON */}
               <Button
                 onClick={() => setFilterPanelOpen(true)}
                 startIcon={<SlidersHorizontal size={14} />}
                 sx={{
-                  fontSize: { xs: 11, md: 12 },
+                  fontSize: 12,
                   textTransform: "none",
                   borderRadius: 999,
-                  px: { xs: 1.2, md: 1.6 },
+                  px: 1.6,
                   backgroundColor: "#f1f5f9",
                   color: "#334155",
                   border: "1px solid #e2e8f0",
-                  cursor: "pointer",
                   "&:hover": { backgroundColor: "#e2e8f0" },
                 }}
               >
                 Filters
               </Button>
 
-              {/* QUARTERS */}
+              {/* QUARTERS - Dynamic based on selected insight */}
               <Box display="flex" gap={1}>
-                {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                  <Button
-                    key={q}
-                    onClick={() => setSelectedQuarter(q)}
-                    sx={{
-                      fontSize: { xs: 11, md: 12 },
-                      textTransform: "none",
-                      borderRadius: 999,
-                      px: { xs: 1.2, md: 1.6 },
-                      minWidth: { xs: 36, md: 42 },
-                      backgroundColor:
-                        selectedQuarter === q ? "#0f172a" : "transparent",
-                      color: selectedQuarter === q ? "white" : "#6b7280",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {q}
-                  </Button>
-                ))}
+                {(() => {
+                  // Determine which quarters to show based on selectedInsight
+                  let quartersToShow = ["Q1", "Q2", "Q3", "Q4"]; // Default: show all
+
+                  if (selectedInsight?.includes("Q1")) {
+                    quartersToShow = ["Q1"];
+                  } else if (selectedInsight?.includes("Q2")) {
+                    quartersToShow = ["Q2"];
+                  } else if (selectedInsight?.includes("Q3")) {
+                    quartersToShow = ["Q3"];
+                  } else if (selectedInsight?.includes("Q4")) {
+                    quartersToShow = ["Q4"];
+                  }
+
+                  return quartersToShow.map((q) => (
+                    <Button
+                      key={q}
+                      onClick={() => setSelectedQuarter(q)}
+                      sx={{
+                        fontSize: 12,
+                        textTransform: "none",
+                        borderRadius: 999,
+                        px: 1.6,
+                        backgroundColor:
+                          selectedQuarter === q ? "#0f172a" : "transparent",
+                        color: selectedQuarter === q ? "white" : "#6b7280",
+                      }}
+                    >
+                      {q}
+                    </Button>
+                  ));
+                })()}
               </Box>
             </Box>
 
             {/* EXPAND / COLLAPSE ALL */}
-            <Box display="flex" gap={1} width={{ xs: "100%", md: "auto" }}>
+            <Box display="flex" gap={1}>
               <Button
                 onClick={expandAll}
                 sx={{
-                  fontSize: { xs: 10, md: 11 },
+                  fontSize: 11,
                   textTransform: "none",
                   borderRadius: 999,
-                  px: { xs: 1.4, md: 1.8 },
+                  px: 1.8,
                   py: 0.4,
-                  flex: { xs: 1, md: 0 },
                   backgroundColor: "#f1f5f9",
                   color: "#334155",
                   border: "1px solid #e2e8f0",
-                  cursor: "pointer",
                 }}
               >
                 Expand All
@@ -968,12 +871,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
               <Button
                 onClick={collapseAll}
                 sx={{
-                  fontSize: { xs: 10, md: 11 },
+                  fontSize: 11,
                   textTransform: "none",
                   borderRadius: 999,
-                  px: { xs: 1.4, md: 1.8 },
+                  px: 1.8,
                   py: 0.4,
-                  flex: { xs: 1, md: 0 },
                   backgroundColor: "#fee2e2",
                   color: "#b91c1c",
                   border: "1px solid #fecaca",
@@ -988,16 +890,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
 
 
         {/* TABLE */}
-        <TableContainer
+        < TableContainer
           component={Paper}
-          sx={{
-            maxHeight: 520,
-            borderRadius: 2,
-            boxShadow: 'none',
-            border: '1px solid #e2e8f0',
-            overflowX: { xs: 'auto', md: 'auto' },
-            WebkitOverflowScrolling: 'touch',
-          }}
+          sx={{ maxHeight: 520, borderRadius: 2, boxShadow: 'none', border: '1px solid #e2e8f0' }
+          }
         >
           <Table stickyHeader size="small">
             <TableHead>
@@ -1062,9 +958,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                     background: "white",
                     verticalAlign: "bottom",
                     pb: 1.5,
-                    borderLeft: "1px solid #f1f5f9",
-                    minWidth: 100,
-                    width: 100
+                    borderLeft: "1px solid #f1f5f9"
                   }}>
                     <Box
                       sx={{
@@ -1075,7 +969,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
                       }}
                     >
                       {/* Column Title */}
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
                         {col} ({selectedQuarter})
                       </Typography>
                     </Box>
@@ -1088,24 +982,11 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             </TableHead>
 
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={collectedData?.headers?.length + 2 || 8} align="center" sx={{ py: 6 }}>
-                    <CircularProgress size={32} sx={{ color: '#6366f1' }} />
-                    <Typography sx={{ mt: 2, fontSize: 13, color: '#64748b' }}>Loading keyword types...</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : filteredRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={collectedData?.headers?.length + 2 || 8} align="center" sx={{ py: 6 }}>
-                    <Typography sx={{ fontSize: 13, color: '#94a3b8' }}>No keyword types found</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredRows
-                  .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
-                  .map((row) => renderRow(row, 0, []))
-              )}
+              {filteredRows
+                .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
+                .map((row) => renderRow(row, 0, []))}
+
+
             </TableBody>
           </Table>
         </TableContainer >

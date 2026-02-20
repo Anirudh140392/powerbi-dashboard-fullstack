@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect, useContext } from "react";
+import React, { useState, useMemo, useContext, useEffect } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
-import { FilterContext } from "../../utils/FilterContext";
-import axiosInstance from "../../api/axiosInstance";
 import {
     X,
     SlidersHorizontal,
@@ -10,33 +9,11 @@ import {
     ChevronRight,
     ArrowUpDown,
     Download,
-    RefreshCw,
-    AlertCircle
+    Zap,
+    TrendingUp,
+    Package,
+    MapPin
 } from "lucide-react";
-
-/* ------------------------------------------------------
-   Error Component
--------------------------------------------------------*/
-const ErrorWithRefresh = ({ onRetry, message }) => (
-    <div className="flex flex-col items-center justify-center py-12 px-3 text-center">
-        <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mb-4">
-            <AlertCircle size={32} color="#ef4444" />
-        </div>
-        <h3 className="text-lg font-bold text-slate-900 mb-1">
-            API Reference Error
-        </h3>
-        <p className="text-sm text-slate-500 mb-6 max-w-[300px]">
-            {message || "We encountered an issue while fetching the latest data for this segment."}
-        </p>
-        <button
-            onClick={onRetry}
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all active:scale-95"
-        >
-            <RefreshCw size={16} />
-            Try Refreshing
-        </button>
-    </div>
-);
 
 /* ------------------------------------------------------
    KPI ORDER CONFIG
@@ -108,13 +85,6 @@ const KPI_LABELS = {
     drr: "DRR",
     oos: "OOS",
     expiryRisk: "Expiry Risk",
-
-    // Pricing
-    ecp: "ECP",
-    mrp: "MRP",
-    discount: "Discount",
-    rpi: "RPI",
-    priceChange: "Price Change",
 };
 
 /* ------------------------------------------------------
@@ -174,7 +144,7 @@ const SAMPLE_SKUS = [
         skuName: "Cornetto Double Choco",
         packSize: "120 ml",
         platform: "Blinkit",
-        categoryTag: "Cone",
+        categoryTag: "Tub",
         offtakeValue: "₹ 3.4 lac",
         impact: "-6.2%",
         kpis: {
@@ -359,6 +329,102 @@ const SAMPLE_SKUS = [
             { city: "Bangalore", metric: "Organic Sos 8.5%", change: "+2.5%" },
         ],
     },
+    {
+        id: "VIS-D05",
+        type: "drainer",
+        metricType: "visibility",
+        skuCode: "KW V05",
+        skuName: "Choco Crunch Cone",
+        packSize: "110 ml",
+        platform: "Zepto",
+        categoryTag: "Cone",
+        offtakeValue: "₹ 2.1 lac",
+        impact: "-4.2%",
+        kpis: {
+            adPosition: "5",
+            adSos: "6.8%",
+            organicPosition: "30",
+            overallSos: "5.2%",
+            volumeShare: "3.9%",
+            organicSos: "2.8%",
+        },
+        topCities: [
+            { city: "Mumbai", metric: "Ad Sos 5.1%", change: "-2.4%" },
+            { city: "Pune", metric: "Overall Sos 4.8%", change: "-1.9%" },
+        ],
+    },
+    {
+        id: "VIS-D10",
+        type: "drainer",
+        metricType: "visibility",
+        skuCode: "KW V10",
+        skuName: "Vanilla Tub 1L",
+        packSize: "1 L",
+        platform: "Instamart",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 1.8 lac",
+        impact: "-3.5%",
+        kpis: {
+            adPosition: "7",
+            adSos: "5.1%",
+            organicPosition: "35",
+            overallSos: "4.8%",
+            volumeShare: "3.2%",
+            organicSos: "2.1%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "Overall Sos 4.2%", change: "-2.1%" },
+            { city: "Lucknow", metric: "Ad Sos 3.8%", change: "-1.5%" },
+        ],
+    },
+    {
+        id: "VIS-G05",
+        type: "gainer",
+        metricType: "visibility",
+        skuCode: "KW V11",
+        skuName: "Premium Dark Choco",
+        packSize: "90 ml",
+        platform: "Zepto",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 4.5 lac",
+        impact: "+5.5%",
+        kpis: {
+            adPosition: "1",
+            adSos: "25.2%",
+            organicPosition: "5",
+            overallSos: "15.8%",
+            volumeShare: "12.4%",
+            organicSos: "10.2%",
+        },
+        topCities: [
+            { city: "Mumbai", metric: "Ad Sos 28.4%", change: "+6.2%" },
+            { city: "Pune", metric: "Volume Share 14.1%", change: "+3.8%" },
+        ],
+    },
+    {
+        id: "VIS-G06",
+        type: "gainer",
+        metricType: "visibility",
+        skuCode: "KW V12",
+        skuName: "Cotton Candy Cup",
+        packSize: "80 ml",
+        platform: "Instamart",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 3.2 lac",
+        impact: "+4.1%",
+        kpis: {
+            adPosition: "2",
+            adSos: "19.8%",
+            organicPosition: "12",
+            overallSos: "11.5%",
+            volumeShare: "9.2%",
+            organicSos: "7.5%",
+        },
+        topCities: [
+            { city: "Bangalore", metric: "Overall Sos 13.2%", change: "+4.2%" },
+            { city: "Chennai", metric: "Ad Sos 21.5%", change: "+3.1%" },
+        ],
+    },
 
     /* --- AVAILABILITY --- */
     {
@@ -533,6 +599,132 @@ const SAMPLE_SKUS = [
             { city: "Coimbatore", metric: "OSA 96.1%", change: "+1.5%" },
         ],
     },
+    {
+        id: "AVL-G-DEF",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG01-DEF",
+        skuName: "Magnum Truffle (Gainer)",
+        packSize: "80 ml",
+        platform: "Blinkit",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 5.2 lac",
+        impact: "+6.8%",
+        kpis: {
+            soh: "5.2 days",
+            doi: "18.5",
+            weightedOsa: "98.2%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 98.1%", change: "+4.2%" },
+            { city: "Mumbai", metric: "Fillrate 98.5%", change: "+3.1%" },
+        ],
+    },
+    {
+        id: "AVL-G-DEF2",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG02-DEF",
+        skuName: "Cornetto Oreo (Gainer)",
+        packSize: "110 ml",
+        platform: "Blinkit",
+        categoryTag: "Cassata",
+        offtakeValue: "₹ 4.8 lac",
+        impact: "+5.1%",
+        kpis: {
+            soh: "4.8 days",
+            doi: "16.2",
+            weightedOsa: "96.5%",
+        },
+        topCities: [
+            { city: "Delhi", metric: "OSA 97.4%", change: "+3.8%" },
+            { city: "Bangalore", metric: "Assortment 98%", change: "+2.5%" },
+        ],
+    },
+    {
+        id: "AVL-D05",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A05",
+        skuName: "Pineapple Cup",
+        packSize: "100 ml",
+        platform: "Zepto",
+        categoryTag: "Cup",
+        offtakeValue: "₹ 2.4 lac",
+        impact: "-3.1%",
+        kpis: {
+            soh: "1.5 days",
+            doi: "6.8",
+            weightedOsa: "74.2%",
+        },
+        topCities: [
+            { city: "Ahmedabad", metric: "OSA 70.2%", change: "-4.1%" },
+            { city: "Surat", metric: "Stock out 2.8 d", change: "-2.5%" },
+        ],
+    },
+    {
+        id: "AVL-D06",
+        type: "drainer",
+        metricType: "availability",
+        skuCode: "KW A06",
+        skuName: "Coffee Stick",
+        packSize: "60 ml",
+        platform: "Instamart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 1.9 lac",
+        impact: "-2.5%",
+        kpis: {
+            soh: "2.2 days",
+            doi: "8.1",
+            weightedOsa: "81.5%",
+        },
+        topCities: [
+            { city: "Kolkata", metric: "OSA 78.4%", change: "-3.2%" },
+            { city: "Patna", metric: "Fillrate 80.1%", change: "-2.1%" },
+        ],
+    },
+    {
+        id: "AVL-G05",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG05",
+        skuName: "Rocky Road Tub",
+        packSize: "750 ml",
+        platform: "Zepto",
+        categoryTag: "Tub",
+        offtakeValue: "₹ 5.1 lac",
+        impact: "+6.2%",
+        kpis: {
+            soh: "5.5 days",
+            doi: "18.2",
+            weightedOsa: "98.9%",
+        },
+        topCities: [
+            { city: "Ahmedabad", metric: "OSA 99.5%", change: "+4.2%" },
+            { city: "Baroda", metric: "Fillrate 99.8%", change: "+3.5%" },
+        ],
+    },
+    {
+        id: "AVL-G06",
+        type: "gainer",
+        metricType: "availability",
+        skuCode: "KW AG06",
+        skuName: "Fruit Pop Stick",
+        packSize: "45 ml",
+        platform: "Instamart",
+        categoryTag: "Stick",
+        offtakeValue: "₹ 3.8 lac",
+        impact: "+4.7%",
+        kpis: {
+            soh: "4.9 days",
+            doi: "16.4",
+            weightedOsa: "97.1%",
+        },
+        topCities: [
+            { city: "Hyderabad", metric: "Assortment 98%", change: "+3.1%" },
+            { city: "Vizag", metric: "OSA 98.2%", change: "+2.4%" },
+        ],
+    },
 
     /* --- SALES --- */
     {
@@ -548,7 +740,7 @@ const SAMPLE_SKUS = [
         impact: "-4.8%",
         kpis: { orders: "8.1k", asp: "₹ 76", revenueShare: "4.9%" },
         topCities: [
-            { city: "Mumbai", metric: "Offtake ₹ 2.1 lac", change: "-2.1%" },
+            { city: "Mumbai", metric: "Offtakes ₹ 2.1 lac", change: "-2.1%" },
             { city: "Pune", metric: "Orders 2.4k", change: "-1.4%" },
         ],
     },
@@ -565,7 +757,7 @@ const SAMPLE_SKUS = [
         impact: "-3.2%",
         kpis: { orders: "6.6k", asp: "₹ 71", revenueShare: "3.8%" },
         topCities: [
-            { city: "Delhi", metric: "Offtake ₹ 1.9 lac", change: "-1.8%" },
+            { city: "Delhi", metric: "Offtakes ₹ 1.9 lac", change: "-1.8%" },
             { city: "Gurgaon", metric: "Orders 1.6k", change: "-1.1%" },
         ],
     },
@@ -582,7 +774,7 @@ const SAMPLE_SKUS = [
         impact: "-5.6%",
         kpis: { orders: "4.2k", asp: "₹ 91", revenueShare: "2.6%" },
         topCities: [
-            { city: "Chennai", metric: "Offtake ₹ 1.2 lac", change: "-2.0%" },
+            { city: "Chennai", metric: "Offtakes ₹ 1.2 lac", change: "-2.0%" },
             { city: "Coimbatore", metric: "Orders 1.1k", change: "-1.3%" },
         ],
     },
@@ -599,7 +791,7 @@ const SAMPLE_SKUS = [
         impact: "-4.2%",
         kpis: { orders: "3.8k", asp: "₹ 85", revenueShare: "2.1%" },
         topCities: [
-            { city: "Bangalore", metric: "Offtake ₹ 1.1 lac", change: "-1.7%" },
+            { city: "Bangalore", metric: "Offtakes ₹ 1.1 lac", change: "-1.7%" },
             { city: "Mysore", metric: "Orders 1.0k", change: "-0.9%" },
         ],
     },
@@ -617,7 +809,7 @@ const SAMPLE_SKUS = [
         impact: "+6.0%",
         kpis: { orders: "12.4k", asp: "₹ 72", revenueShare: "6.1%" },
         topCities: [
-            { city: "Hyderabad", metric: "Offtake ₹ 2.6 lac", change: "+2.9%" },
+            { city: "Hyderabad", metric: "Offtakes ₹ 2.6 lac", change: "+2.9%" },
             { city: "Bangalore", metric: "Orders 3.1k", change: "+2.1%" },
         ],
     },
@@ -634,7 +826,7 @@ const SAMPLE_SKUS = [
         impact: "+4.2%",
         kpis: { orders: "9.6k", asp: "₹ 74", revenueShare: "5.4%" },
         topCities: [
-            { city: "Delhi", metric: "Offtake ₹ 2.2 lac", change: "+1.7%" },
+            { city: "Delhi", metric: "Offtakes ₹ 2.2 lac", change: "+1.7%" },
             { city: "Gurgaon", metric: "Orders 2.3k", change: "+1.2%" },
         ],
     },
@@ -651,7 +843,7 @@ const SAMPLE_SKUS = [
         impact: "+5.1%",
         kpis: { orders: "10.2k", asp: "₹ 64", revenueShare: "4.8%" },
         topCities: [
-            { city: "Mumbai", metric: "Offtake ₹ 1.8 lac", change: "+2.4%" },
+            { city: "Mumbai", metric: "Offtakes ₹ 1.8 lac", change: "+2.4%" },
             { city: "Thane", metric: "Orders 2.1k", change: "+1.9%" },
         ],
     },
@@ -668,7 +860,7 @@ const SAMPLE_SKUS = [
         impact: "+4.5%",
         kpis: { orders: "7.8k", asp: "₹ 75", revenueShare: "4.1%" },
         topCities: [
-            { city: "Pune", metric: "Offtake ₹ 1.5 lac", change: "+2.0%" },
+            { city: "Pune", metric: "Offtakes ₹ 1.5 lac", change: "+2.0%" },
             { city: "Nashik", metric: "Orders 1.4k", change: "+1.5%" },
         ],
     },
@@ -955,6 +1147,30 @@ const SAMPLE_SKUS = [
 /* ------------------------------------------------------
    SIGNAL CARD UI
 -------------------------------------------------------*/
+// Skeleton card for loading state
+const SkeletonCard = () => (
+    <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white shadow-sm px-4 py-3 w-full animate-pulse">
+        <div className="flex justify-between items-start">
+            <div className="w-full">
+                <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+            </div>
+            <div className="h-8 w-8 bg-slate-200 rounded-lg"></div>
+        </div>
+        <div className="mt-4 flex gap-4">
+            <div className="flex-1 h-8 bg-slate-100 rounded-xl"></div>
+            <div className="flex-1 h-8 bg-slate-100 rounded-xl"></div>
+        </div>
+        <div className="mt-4 pt-3 border-t border-slate-50">
+            <div className="h-4 bg-slate-200 rounded w-1/2 mb-2"></div>
+            <div className="flex justify-between">
+                <div className="h-3 bg-slate-100 rounded w-1/4"></div>
+                <div className="h-3 bg-slate-100 rounded w-1/4"></div>
+            </div>
+        </div>
+    </div>
+);
+
 function SignalCard({ sku, metricType, onShowDetails }) {
     const [showAllCities, setShowAllCities] = useState(false);
     const citiesToShow = showAllCities ? sku.topCities : sku.topCities.slice(0, 2);
@@ -965,30 +1181,20 @@ function SignalCard({ sku, metricType, onShowDetails }) {
         sales: salesKpiOrder,
         performance: performanceKpiOrder,
         inventory: inventoryKpiOrder,
-        ecp: ["mrp", "discount", "rpi"],
-        discount: ["ecp", "mrp", "rpi"],
-        rpi: ["ecp", "discount", "priceChange"],
     };
     const kpiKeys = kpiOrderMap[metricType] || visibilityKpiOrder;
 
-    const configMap = {
-        availability: { label: "Offtake", key: "offtakeValue" },
-        sales: { label: "Offtake", key: "offtakeValue" },
-        performance: { label: "Offtake", key: "offtakeValue" },
-        visibility: { label: "Offtake", key: "offtakeValue" },
-        inventory: { label: "DOI", key: "offtakeValue" },
-        ecp: { label: "Avg ECP", key: "ecpValue" },
-        discount: { label: "Avg Discount", key: "discountValue" },
-        rpi: { label: "RPI", key: "rpiValue" },
+    const PRIMARY_METRICS = {
+        visibility: { label: "Overall Sos", key: "overallSos" },
+        availability: { label: "Overall OSA", key: "weightedOsa" }
     };
 
-    const config = configMap[metricType] || { label: "Offtake", key: "offtakeValue" };
-
-    // Determine main value. If config.key is in kpis, use that, else use offtakeValue
-    const mainValue = sku.kpis?.[config.key] || sku?.[config.key] || sku.offtakeValue;
+    const primary = PRIMARY_METRICS[metricType] || { label: "Offtakes", key: "offtakeValue" };
+    // Fallback to offtakeValue if the key is not in kpis (though it should be for our mapped types)
+    const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
     return (
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-3 w-full transition-all duration-300 hover:translate-y-[-4px] hover:shadow-xl hover:border-indigo-100">
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 w-full capitalize">
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -1002,46 +1208,33 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     </span>
                 </div>
 
-                <div className="min-h-[40px]">
-                    <div className="text-sm font-semibold truncate-2-lines line-clamp-2 leading-tight" title={sku.skuName}>
-                        {sku.skuName}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{sku.packSize}</div>
+                <div>
+                    <div className="text-sm font-semibold">{sku.skuName}</div>
+                    <div className="text-xs text-slate-500">{sku.packSize}</div>
                 </div>
 
-                <div className="mt-3 flex justify-between items-end text-xs">
+                <div className="mt-3 flex justify-between text-xs">
                     <div>
-                        <div className="text-slate-400 text-[10px] uppercase font-medium tracking-wider mb-0.5">
-                            {config.label}
+                        <div className="text-slate-400">
+                            {metricType === "inventory" ? "DOI" : "Offtakes"}
                         </div>
-                        <div className="text-lg font-bold text-slate-900 leading-none">
-                            {mainValue}
+                        <div className="text-base font-semibold">
+                            {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
                         </div>
                     </div>
                     <ImpactPill value={sku.impact} />
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                    {/* Secondary KPI: Always show Offtake if it's not the primary metric */}
-                    {config.key !== "offtakeValue" && sku.offtakeValue && (
-                        <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full shadow-sm">
-                            <span className="text-slate-500 font-medium">Offtake:</span>
-                            <span className="font-bold text-slate-800 text-[11px]">
-                                {sku.offtakeValue}
-                            </span>
-                        </div>
-                    )}
-
                     {kpiKeys.map((key) =>
                         sku.kpis[key] ? (
                             <div
                                 key={key}
-                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-white border border-slate-100 rounded-full shadow-sm"
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full"
                             >
                                 <span className="text-slate-500">{KPI_LABELS[key]}:</span>
                                 <span className="font-semibold text-slate-800 text-[11px]">
                                     {sku.kpis[key]?.toString().replace("%", "")}
-                                    {key.toLowerCase().includes("sos") || key.toLowerCase().includes("share") ? "%" : ""}
                                 </span>
                             </div>
                         ) : null
@@ -1079,233 +1272,99 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType, usePagination = true, data, isPricing = false }) {
+function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
-    const [rowsPerPage, setRowsPerPage] = useState(4);
-    const [page, setPage] = useState(1);
-    const [totalCount, setTotalCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
 
-    // API data - initially empty to show loader
-    const [skusData, setSkusData] = useState([]);
-    const [isUsingApiData, setIsUsingApiData] = useState(false);
-    const [loading, setLoading] = useState(!data);
-    const [apiError, setApiError] = useState(null);
-
-    // Initial load from props if available
-    useEffect(() => {
-        if (data) {
-            if (Array.isArray(data)) {
-                setSkusData(data);
-                setTotalCount(data.length);
-            } else if (data[signalType]) {
-                // If data is an object with drainer/gainer keys
-                setSkusData(data[signalType]);
-                setTotalCount(data[signalType].length);
-            }
-            setLoading(false);
-        }
-    }, [data, signalType]);
-
-    // Reset pagination when tab or signal type changes
-    useEffect(() => {
-        setPage(1);
-    }, [metricType, signalType]);
-
-    // Get filters from FilterContext (from Header.jsx)
     const {
-        platform,
-        selectedBrand,
-        selectedLocation,
-        timeStart,
-        timeEnd,
-        compareStart,
-        compareEnd,
-        refreshFilters
+        platform: globalPlatform,
+        selectedCategory,
+        selectedLocation
     } = useContext(FilterContext);
 
-    const retrySignalLab = async () => {
-        refreshFilters();
-        // The useEffect will trigger automatically due to filters/dates dependency
-    };
+    const [rowsPerPage, setRowsPerPage] = useState(4);
+    const [page, setPage] = useState(1);
 
-    // Fetch data from API - use API data if successful, otherwise keep sample data
+    // Simulated loading delay on filter change
     useEffect(() => {
-        if (data) return; // Skip fetch if data is provided
+        setIsLoading(true);
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [globalPlatform, selectedCategory, selectedLocation, signalType]);
 
-        const controller = new AbortController();
-        const signal = controller.signal;
-        let isMounted = true;
+    const filtered = useMemo(() => {
+        return SAMPLE_SKUS.filter((sku) => {
+            const matchesMetric = sku.metricType === metricType;
+            const matchesSignal = sku.type === signalType;
 
-        const fetchSignalLabData = async () => {
-            try {
-                setLoading(true);
-                setApiError(null);
+            // Platform Filter
+            const matchesPlatform = !globalPlatform || (
+                Array.isArray(globalPlatform)
+                    ? globalPlatform.some(p => sku.platform.toLowerCase() === String(p).toLowerCase())
+                    : sku.platform.toLowerCase() === String(globalPlatform).toLowerCase()
+            );
 
-                // Build query parameters from FilterContext
-                const queryParams = new URLSearchParams({
-                    platform: platform || 'All',
-                    brand: selectedBrand || 'All',
-                    location: selectedLocation || 'All',
-                    startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
-                    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
-                    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
-                    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : '',
-                    type: metricType,
-                    signalType: signalType,
-                    page: 1, // Reset page for Top N view
-                    limit: 50 // Fetch a larger sample to ensure representation of top 8
-                });
+            // Category Filter (with mapping)
+            const catMap = { "Core Tub": "Tub" };
+            const matchesCategory = !selectedCategory || selectedCategory === "All" || (
+                Array.isArray(selectedCategory)
+                    ? selectedCategory.some(cat => (catMap[cat] || String(cat)).toLowerCase() === sku.categoryTag.toLowerCase())
+                    : (catMap[selectedCategory] || String(selectedCategory)).toLowerCase() === sku.categoryTag.toLowerCase()
+            );
 
-                console.log(`[SignalLabVisibility] Fetching Top ${signalType}s for ${metricType} (Limit 50)`);
+            // Location Filter: Only filter if selectedLocation is NOT "All" and NOT null/undefined
+            const matchesLocation = !selectedLocation || selectedLocation === "All" || (
+                Array.isArray(selectedLocation)
+                    ? selectedLocation.some(loc => sku.topCities.some(c => c.city.toLowerCase() === String(loc).toLowerCase()))
+                    : sku.topCities.some(c => c.city.toLowerCase() === String(selectedLocation).toLowerCase())
+            );
 
-                const response = await axiosInstance.get(
-                    `/availability-analysis/signal-lab?${queryParams}`,
-                    { signal }
-                );
+            // Platform and Category filters are already safe. 
+            // We want to make sure if no category matches, we are not empty if the user didn't explicitly select something other than default.
+            // But actually fixing the data is better.
 
-                const data = response.data;
+            return matchesMetric && matchesSignal && matchesPlatform && matchesCategory && matchesLocation;
+        });
+    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation]);
 
-                if (isMounted) {
-                    console.log('[SignalLabVisibility] API Response received');
-
-                    if (data.skus && data.skus.length > 0) {
-                        // Helper to parse impact string (e.g. "+5.2%" -> 5.2)
-                        const parseImpact = (str) => {
-                            if (!str) return 0;
-                            const num = parseFloat(str.replace(/[+%]/g, ''));
-                            return isNaN(num) ? 0 : num;
-                        };
-
-                        // Sort by impact locally
-                        const sorted = [...data.skus].sort((a, b) => {
-                            const valA = parseImpact(a.impact);
-                            const valB = parseImpact(b.impact);
-                            // Gainer: highest at top, Drainer: lowest (most negative) at top
-                            return signalType === 'gainer' ? valB - valA : valA - valB;
-                        });
-
-                        // Take only top 8
-                        const top8 = sorted.slice(0, 8);
-
-                        setSkusData(top8);
-                        setTotalCount(top8.length);
-                        setIsUsingApiData(true);
-                    } else if (data.skus && data.skus.length === 0) {
-                        setSkusData([]);
-                        setTotalCount(0);
-                        setIsUsingApiData(true);
-                    } else {
-                        // No valid data structure, show empty state
-                        setSkusData([]);
-                        setTotalCount(0);
-                        setIsUsingApiData(true);
-                        console.log('[SignalLabVisibility] Invalid API data format');
-                    }
-                }
-            } catch (err) {
-                if (err.name === 'AbortError') {
-                    console.log('[SignalLabVisibility] Fetch aborted');
-                    return;
-                }
-                if (isMounted) {
-                    console.error('[SignalLabVisibility] Error fetching API data:', err);
-                    setApiError(err.message || "Failed to fetch signal lab data");
-                    // If API fails, show empty state instead of sample data
-                    setSkusData([]);
-                    setTotalCount(0);
-                    setIsUsingApiData(true);
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchSignalLabData();
-
-        return () => {
-            isMounted = false;
-            controller.abort();
-        };
-    }, [metricType, platform, selectedBrand, selectedLocation, timeStart, timeEnd, page, rowsPerPage, signalType]);
-
-    // Implement client-side pagination for the Top 8 items
-    const filtered = skusData;
-    const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
+    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
 
-    const startIndex = (safePage - 1) * rowsPerPage;
-    const pageRows = usePagination ? skusData.slice(startIndex, startIndex + rowsPerPage) : skusData;
+    const pageRows = useMemo(() => {
+        if (!usePagination) return filtered;
+        const start = (safePage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        return filtered.slice(start, end);
+    }, [filtered, safePage, rowsPerPage, usePagination]);
 
 
     return (
         <>
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-                <h2 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">
-                    Signal Lab — <span className="text-indigo-600">{selectedBrand || 'All Brands'}</span>
-                    <span className="text-slate-400 font-normal ml-2 text-sm">
-                        ({metricType === "performance" ? "Performance Marketing" : metricType})
-                    </span>
+            <div className="flex justify-between items-center flex-wrap gap-4">
+                <h2 className="text-lg font-semibold capitalize">
+                    Signal Lab — Kwality Wall&apos;s ({metricType === "performance" ? "Performance Marketing" : metricType})
                 </h2>
 
-                <div className="relative">
-                    <SegmentedSwitch
-                        value={signalType}
-                        onChange={setSignalType}
-                        options={[
-                            { value: "drainer", label: "Drainers" },
-                            { value: "gainer", label: "Gainers" },
-                        ]}
-                    />
-
-                    {/* Subtle Top Loader when refreshing existing data */}
-                    {loading && skusData.length > 0 && (
-                        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2">
-                            <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm border px-3 py-1 rounded-full shadow-sm">
-                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-sky-600 border-r-transparent"></div>
-                                <span className="text-[10px] font-medium text-slate-600 italic">Updating...</span>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <SegmentedSwitch
+                    value={signalType}
+                    onChange={setSignalType}
+                    options={[
+                        { value: "drainer", label: "Drainers" },
+                        { value: "gainer", label: "Gainers" },
+                    ]}
+                />
             </div>
 
-            {/* Loading State (Overlay style if data exists, otherwise full spinner) */}
-            {loading && skusData.length === 0 && (
-                <div className="mt-5 flex items-center justify-center py-12">
-                    <div className="text-center">
-                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-sky-600 border-r-transparent"></div>
-                        <p className="mt-3 text-sm text-slate-600">Loading signal lab data...</p>
+            <div className="mt-5 min-h-[400px]">
+                {isLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                        {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
                     </div>
-                </div>
-            )}
-
-            {/* Error State */}
-            {apiError && !loading && (
-                <ErrorWithRefresh onRetry={retrySignalLab} message={apiError} />
-            )}
-
-            {/* No Data Found */}
-            {!loading && !apiError && filtered.length === 0 && (
-                <div className="mt-5 flex items-center justify-center py-12 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4 mx-auto">
-                        <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                        </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-700 mb-2">No Data Found</h3>
-                    <p className="text-sm text-slate-500">
-                        No {signalType === 'drainer' ? 'drainers' : 'gainers'} found for the selected filters.
-                    </p>
-                </div>
-            )}
-
-            {/* Data Grid - Responsive Grid layout for perfect alignment on PC screens */}
-            {skusData.length > 0 && (
-                <div className={`mt-6 transition-opacity duration-300 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                ) : filtered.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
                         {pageRows.map((s) => (
                             <SignalCard
                                 key={s.id}
@@ -1315,40 +1374,51 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                             />
                         ))}
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-300">
+                        <div className="p-4 bg-white rounded-2xl shadow-sm mb-4">
+                            <Zap className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <p className="text-slate-500 font-medium">No results found for current filters</p>
+                        <p className="text-slate-400 text-xs mt-1">Try adjusting your global or signal selections</p>
+                    </div>
+                )}
+            </div>
 
             {usePagination && (
-                <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
-                    <div className="flex items-center gap-3">
+                <div className="mt-6 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+                    <div className="flex items-center gap-2">
                         <button
                             disabled={safePage === 1}
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            className="rounded-xl border border-slate-200 px-4 py-2 disabled:opacity-30 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
+                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
                         >
                             Prev
                         </button>
-                        <span className="text-slate-500 text-xs font-medium">
+
+                        <span className="text-slate-600">
                             Page <b className="text-slate-900">{safePage}</b> / {totalPages}
                         </span>
+
                         <button
                             disabled={safePage >= totalPages}
                             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                            className="rounded-xl border border-slate-200 px-4 py-2 disabled:opacity-30 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all shadow-sm active:scale-95"
+                            className="rounded-full border border-slate-200 px-3 py-1 disabled:opacity-40 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
                         >
                             Next
                         </button>
                     </div>
+
                     <div className="flex items-center gap-3">
-                        <div className="text-slate-500 text-xs font-medium flex items-center gap-2">
-                            Rows per page
+                        <div className="text-slate-600">
+                            Rows/page
                             <select
                                 value={rowsPerPage}
                                 onChange={(e) => {
                                     setPage(1);
                                     setRowsPerPage(Number(e.target.value));
                                 }}
-                                className="rounded-xl border border-slate-200 px-3 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold transition-all shadow-sm cursor-pointer"
+                                className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
                             >
                                 <option value={4}>4</option>
                                 <option value={8}>8</option>
@@ -1366,7 +1436,6 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
                 <CityDetailedTable
                     sku={selectedSkuForDetails}
                     onClose={() => setSelectedSkuForDetails(null)}
-                    isPricing={isPricing}
                 />
             )}
         </>
@@ -1374,7 +1443,7 @@ function SignalLabBase({ metricType, usePagination = true, data, isPricing = fal
 }
 
 
-export function SignalLabVisibility({ type, usePagination = true, data, isPricing = false }) {
-    return <SignalLabBase key={type} metricType={type} usePagination={usePagination} data={data} isPricing={isPricing} />;
+export function SignalLabVisibility({ type, usePagination = true }) {
+    return <SignalLabBase metricType={type} usePagination={usePagination} />;
 }
 

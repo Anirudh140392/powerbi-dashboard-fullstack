@@ -571,7 +571,7 @@ const OlaLightThemeDashboard = () => {
               <p className="text-3xl font-semibold tracking-tight">77%</p>
             </div>
             <div className="rounded-xl bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-              +2.1 pts vs TDP-1
+              +2.1% vs TDP-1
             </div>
           </div>
           <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
@@ -582,7 +582,7 @@ const OlaLightThemeDashboard = () => {
             <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100 flex flex-col gap-1">
               <span className="text-[11px] text-slate-500">In-stock</span>
               <span className="text-lg font-semibold">77%</span>
-              <span className="text-[11px] text-emerald-600">▲ metro +3 pts</span>
+              <span className="text-[11px] text-emerald-600">▲ metro +3%</span>
             </div>
             <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100 flex flex-col gap-1">
               <span className="text-[11px] text-slate-500">Metro OLA</span>

@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 // MUI Date Picker Providers
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import SalesMainPage from "./pages/Sales/SalesMainPage";
@@ -16,18 +16,22 @@ import MarketShares from "./pages/AllMarketShares/MarketShares";
 import AvailablityAnalysis from "./pages/AllAvailablityAnalysis/AvailablityAnalysis";
 import VisibilityAnalysis from "./pages/AllVisibilityAnalysis/VisibilityAnalysis";
 import PiyConcept from "./pages/PiyConcept/PiyConcept";
+
 import { FilterProvider } from "./utils/FilterContext";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 import ScheduledReports from "./pages/Reports/ScheduledReports";
+import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
+import Insights from "./pages/Insights/Insights";
 
 export default function App() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <BrowserRouter>
-        <FilterProvider>
+      <FilterProvider>
+        <HashRouter>
           <Routes>
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
             <Route path="/watch-tower" element={<WatchTower />} />
+            <Route path="/insights" element={<Insights />} />
             <Route path="/category-rca" element={<CategoryRca />} />
             <Route path="/volume-cohort" element={<VolumeCohort />} />
             <Route path="/price-per-pack" element={<PricePerPack />} />
@@ -51,9 +55,10 @@ export default function App() {
             <Route path="/piy" element={<PiyConcept />} />
             <Route path="/inventory" element={<InventeryConceptMains />} />
             <Route path="/scheduled-reports" element={<ScheduledReports />} />
+            <Route path="/geo-intelligence" element={<GeoIntelligenceMap />} />
           </Routes>
-        </FilterProvider>
-      </BrowserRouter>
+        </HashRouter>
+      </FilterProvider>
     </LocalizationProvider>
   );
 }
