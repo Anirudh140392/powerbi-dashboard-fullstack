@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext, createCont
 import { motion, AnimatePresence } from "framer-motion";
 import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 const AUTH_TOKEN_KEY = "adsauto_auth_token";
 
 const ThemeContext = createContext({ darkMode: false });
@@ -21,8 +21,9 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
 function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
-    if (endpoint.startsWith("/api")) return `${API_BASE_URL}${endpoint}`;
-    return `${API_BASE_URL}/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    // Use relative paths to go through Vite proxy (dev) or nginx proxy (prod)
+    if (endpoint.startsWith("/api")) return endpoint;
+    return `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
 }
 function handleUnauthorized() {
     localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -176,7 +177,7 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
                         </>
                     )}
                 </div>
-                    {activeFilterCount > 0 && (
+                {activeFilterCount > 0 && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className={`flex flex-wrap gap-2 mt-3 pt-3 border-t ${darkMode ? "border-slate-700" : "border-slate-200"}`}>
                         {(filters.campaignTypes || []).map((value) => (
                             <span key={`campaignTypes-${value}`} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-700"}`}>

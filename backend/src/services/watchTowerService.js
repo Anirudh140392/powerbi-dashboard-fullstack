@@ -85,21 +85,25 @@ const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
  * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
  * @returns {string|null} - The SQL condition for platform
  */
-const buildPlatformChannelCond = (platform, channel) => {
+const buildPlatformChannelCond = (platform, channel, columnName = 'Platform') => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     if (platform && platform !== 'All') {
-        return `Platform = '${escapeStr(platform)}'`;
+        const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
+        if (platforms.length === 1) {
+            return `${columnName} = '${escapeStr(platforms[0])}'`;
+        } else if (platforms.length > 1) {
+            const list = platforms.map(p => `'${escapeStr(p.trim())}'`).join(', ');
+            return `${columnName} IN (${list})`;
+        }
     }
 
-    if (channel === 'Ecommerce' || channel === 'E-commerce') {
-        // Ecommerce mapped to Blinkit
-        return `Platform = 'Blinkit'`;
+    if (channel === 'Ecommerce' || channel === 'E-commerce' || channel === 'Ecom') {
+        return `${columnName} IN ('Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart')`;
     }
 
-    if (channel === 'Modern Trades') {
-        // Modern Trades mapped to everything except Blinkit
-        return `Platform != 'Blinkit'`;
+    if (channel === 'Modern Trades' || channel === 'ModernTrade') {
+        return `${columnName} NOT IN ('Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart')`;
     }
 
     return null;
@@ -450,7 +454,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             endDate = dayjs(qEndDate).endOf('day');
         }
 
+        // Calculate MoM (Previous Period) Date Range
+        let momStartDate = startDate.clone().subtract(1, 'month');
+        let momEndDate = endDate.clone().subtract(1, 'month');
+        if (qCompareStartDate && qCompareEndDate) {
+            momStartDate = dayjs(qCompareStartDate).startOf('day');
+            momEndDate = dayjs(qCompareEndDate).endOf('day');
+        }
+
         console.log(`Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
+        console.log(`Compare Range: ${momStartDate.format('YYYY-MM-DD')} to ${momEndDate.format('YYYY-MM-DD')}`);
 
         // ===== REDIS DATA LAYER: DISABLED =====
         // NOTE: Loading all 754K+ rows into Redis causes OOM crash.
@@ -516,29 +529,50 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             return `₹${val.toFixed(2)}`;
         };
 
+        const escapeStrMain = (str) => str ? str.replace(/'/g, "''") : '';
+
         // Build Where Clause for RbPdpOlap (Offtake) - MULTI-VALUE SUPPORT
-        const offtakeWhereClause = {
-            DATE: {
-                [Op.between]: [startDate.toDate(), endDate.toDate()]
+        const buildOfftakeConditions = (s = startDate, e = endDate) => {
+            // Use toDate(DATE) since DATE column is String type
+            const conditions = [`toDate(DATE) BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
+            if (brandArr && brandArr.length > 0) {
+                const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
+                conditions.push(`(${brandConds})`);
             }
+            if (locationArr && locationArr.length > 0) {
+                if (locationArr.length === 1) {
+                    conditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
+                } else {
+                    conditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+                }
+            }
+            if (platformArr && platformArr.length > 0) {
+                const cond = buildPlatformChannelCond(platformArr, channel);
+                if (cond) conditions.push(cond);
+            } else {
+                // If platform is 'All' or null, handle based on channel
+                const cond = buildPlatformChannelCond(null, channel);
+                if (cond) conditions.push(cond);
+            }
+            if (category && category !== 'All') {
+                conditions.push(`Category = '${escapeStrMain(category)}'`);
+            }
+
+            // Advanced SKU Search Filters
+            const skuArr = normalizeFilterArray(skuName);
+            if (skuArr && skuArr.length > 0) {
+                const skuConds = skuArr.map(s => `Product LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
+                conditions.push(`(${skuConds})`);
+            }
+            const skuCodeArr = normalizeFilterArray(skuCode);
+            if (skuCodeArr && skuCodeArr.length > 0) {
+                const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
+                conditions.push(`(${skuCodeConds})`);
+            }
+            return conditions.join(' AND ');
         };
 
-        // Handle brand filter with multi-value support
-        if (brandArr && brandArr.length > 0) {
-            offtakeWhereClause.Brand = buildBrandLikeCondition(brandArr);
-        }
-
-        // Handle location filter with multi-value support
-        const locationCondition = buildMultiValueCondition(locationArr);
-        if (locationCondition) {
-            offtakeWhereClause.Location = locationCondition;
-        }
-
-        // Handle platform filter with multi-value support
-        const platformCondition = buildMultiValueCondition(platformArr);
-        if (platformCondition) {
-            offtakeWhereClause.Platform = platformCondition;
-        }
+        const offtakeCondStr = buildOfftakeConditions();
 
         // 3. Availability Calculation Helper (Unified for all platforms using RbPdpOlap)
         // Supports multi-value filters - NOW USES CLICKHOUSE
@@ -570,12 +604,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // Handle platform with multi-value support
             const platformFilterArr = normalizeFilterArray(platformFilter);
             if (platformFilterArr && platformFilterArr.length > 0) {
-                if (platformFilterArr.length === 1) {
-                    const cond = buildPlatformChannelCond(platformFilterArr[0], channel);
-                    if (cond) conditions.push(cond);
-                } else {
-                    conditions.push(`Platform IN (${platformFilterArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                }
+                const cond = buildPlatformChannelCond(platformFilterArr, channel);
+                if (cond) conditions.push(cond);
             } else {
                 // If platform is 'All' or null, handle based on channel
                 const cond = buildPlatformChannelCond(null, channel);
@@ -665,26 +695,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Platform with multi-value support
                 const platFilterArr = normalizeFilterArray(platformFilter);
                 if (platFilterArr && platFilterArr.length > 0) {
-                    if (platFilterArr.length === 1) {
-                        const cond = buildPlatformChannelCond(platFilterArr[0], channel);
-                        // buildPlatformChannelCond returns SQL like "Platform = '...'", for SOS we need just the platform name or different column
-                        // Actually, rca_kw table has 'platform_name'.
-                        // Let's handle this carefully.
-                        if (platFilterArr[0] !== 'All') {
-                            baseConditions.push(`platform_name = '${escapeStr(platFilterArr[0])}'`);
-                        } else {
-                            const pCond = buildPlatformChannelCond(null, channel);
-                            if (pCond === "Platform = 'Blinkit'") baseConditions.push(`platform_name = 'Blinkit'`);
-                            if (pCond === "Platform != 'Blinkit'") baseConditions.push(`platform_name != 'Blinkit'`);
-                        }
-                    } else {
-                        baseConditions.push(`platform_name IN (${platFilterArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                    }
+                    const cond = buildPlatformChannelCond(platFilterArr, channel, 'platform_name');
+                    if (cond) baseConditions.push(cond);
                 } else {
                     // Handle All platform based on channel
-                    const pCond = buildPlatformChannelCond(null, channel);
-                    if (pCond === "Platform = 'Blinkit'") baseConditions.push(`platform_name = 'Blinkit'`);
-                    if (pCond === "Platform != 'Blinkit'") baseConditions.push(`platform_name != 'Blinkit'`);
+                    const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
+                    if (pCond) baseConditions.push(pCond);
                 }
 
                 // Build numerator conditions (Fixed: Always use keyword_is_rb_product='1' for our brands)
@@ -1033,53 +1049,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         // Execute queries concurrently - NOW USING CLICKHOUSE
         // Helper for building ClickHouse WHERE conditions
-        const escapeStrMain = (str) => str ? str.replace(/'/g, "''") : '';
-        const buildOfftakeConditions = () => {
-            // Use toDate(DATE) since DATE column is String type
-            const conditions = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-            if (brandArr && brandArr.length > 0) {
-                const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
-                conditions.push(`(${brandConds})`);
-            }
-            if (locationArr && locationArr.length > 0) {
-                if (locationArr.length === 1) {
-                    conditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
-                } else {
-                    conditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                }
-            }
-            if (platformArr && platformArr.length > 0) {
-                if (platformArr.length === 1) {
-                    const cond = buildPlatformChannelCond(platformArr[0], channel);
-                    if (cond) conditions.push(cond);
-                } else {
-                    conditions.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
-                }
-            } else {
-                // If platform is 'All' or null, handle based on channel
-                const cond = buildPlatformChannelCond(null, channel);
-                if (cond) conditions.push(cond);
-            }
-            if (category && category !== 'All') {
-                conditions.push(`Category = '${escapeStrMain(category)}'`);
-            }
-
-            // Advanced SKU Search Filters
-            const skuArr = normalizeFilterArray(skuName);
-            if (skuArr && skuArr.length > 0) {
-                const skuConds = skuArr.map(s => `Product LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
-                conditions.push(`(${skuConds})`);
-            }
-            const skuCodeArr = normalizeFilterArray(skuCode);
-            if (skuCodeArr && skuCodeArr.length > 0) {
-                const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
-                conditions.push(`(${skuCodeConds})`);
-            }
-            return conditions.join(' AND ');
-        };
-
-        const offtakeCondStr = buildOfftakeConditions();
-
         const [
             offtakeData,
             marketShareData,
@@ -1092,7 +1061,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             availabilityTrendData,
             shareOfSearchTrendData,
             prevOfftakeResult,
-            prevMarketShareResult
+            prevMarketShareResult,
+            currentPromoDepth,
+            prevPromoDepth,
+            promoTrendData
         ] = await Promise.all([
             // 1. Total Offtake (Sales) & Chart Data - NOW USES CLICKHOUSE
             (async () => {
@@ -1293,19 +1265,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
                     }
                     if (platformArr && platformArr.length > 0) {
-                        if (platformArr.length === 1) {
-                            const pCond = buildPlatformChannelCond(platformArr[0], channel);
-                            if (pCond === "Platform = 'Blinkit'") kwBaseConditions.push(`lower(platform_name) = 'blinkit'`);
-                            else if (pCond === "Platform != 'Blinkit'") kwBaseConditions.push(`lower(platform_name) != 'blinkit'`);
-                            else kwBaseConditions.push(`lower(platform_name) = '${escapeStrMain(platformArr[0].toLowerCase())}'`);
-                        } else {
-                            kwBaseConditions.push(`platform_name IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
-                        }
+                        const cond = buildPlatformChannelCond(platformArr, channel, 'platform_name');
+                        if (cond) kwBaseConditions.push(cond);
                     } else {
                         // Handle All platform based on channel
-                        const pCond = buildPlatformChannelCond(null, channel);
-                        if (pCond === "Platform = 'Blinkit'") kwBaseConditions.push(`lower(platform_name) = 'blinkit'`);
-                        else if (pCond === "Platform != 'Blinkit'") kwBaseConditions.push(`lower(platform_name) != 'blinkit'`);
+                        const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
+                        if (pCond) kwBaseConditions.push(pCond);
                     }
 
                     const numeratorConditions = [...kwBaseConditions];
@@ -1443,6 +1408,54 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     console.error('[PrevMarketShare] ClickHouse error:', err.message);
                     return null;
                 }
+            })(),
+            // 13. Current Promo Depth - CLICKHOUSE
+            (async () => {
+                try {
+                    const result = await queryClickHouse(`
+                        SELECT AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
+                        FROM rb_pdp_olap
+                        WHERE ${offtakeCondStr}
+                    `);
+                    return parseFloat(result[0]?.avg_promo || 0);
+                } catch (err) {
+                    console.error('[PromoDepth] ClickHouse error:', err.message);
+                    return 0;
+                }
+            })(),
+            // 14. Previous Promo Depth - CLICKHOUSE
+            (async () => {
+                if (!filters.compareStartDate || !filters.compareEndDate) return 0;
+                try {
+                    const prevOfftakeCondStr = buildOfftakeConditions(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate));
+                    const result = await queryClickHouse(`
+                        SELECT AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
+                        FROM rb_pdp_olap
+                        WHERE ${prevOfftakeCondStr}
+                    `);
+                    return parseFloat(result[0]?.avg_promo || 0);
+                } catch (err) {
+                    console.error('[PrevPromoDepth] ClickHouse error:', err.message);
+                    return 0;
+                }
+            })(),
+            // 15. Promo Trend Data - CLICKHOUSE
+            (async () => {
+                try {
+                    const result = await queryClickHouse(`
+                        SELECT 
+                            toMonday(toDate(DATE)) as week_date,
+                            AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
+                        FROM rb_pdp_olap
+                        WHERE ${offtakeCondStr}
+                        GROUP BY toMonday(toDate(DATE))
+                        ORDER BY week_date
+                    `);
+                    return result;
+                } catch (err) {
+                    console.error('[PromoTrend] ClickHouse error:', err.message);
+                    return [];
+                }
             })()
         ]);
 
@@ -1512,6 +1525,19 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             return match ? parseFloat(match.value) : 0;
         });
 
+        // Process Promo Data (with safe defaults to prevent crash)
+        const safePromoDepth = parseFloat(currentPromoDepth) || 0;
+        const safePrevPromoDepth = parseFloat(prevPromoDepth) || 0;
+        const formattedPromo = safePromoDepth.toFixed(1) + "%";
+        const promoChange = safePromoDepth - safePrevPromoDepth;
+        const promoTrendStr = (promoChange >= 0 ? "+" : "") + promoChange.toFixed(1) + " pp";
+
+        const safePromoTrendData = Array.isArray(promoTrendData) ? promoTrendData : [];
+        const promoChart = weekBuckets.map(bucket => {
+            const match = safePromoTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
+            return match ? parseFloat(match.avg_promo) : 0;
+        });
+
         // Process Top SKUs
         const skuTableData = topSkus.map(sku => ({
             sku_name: sku.sku_name,
@@ -1527,6 +1553,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             stockAvailability: formattedAvailability,
             stockAvailabilityTrend: availabilityTrendStr,
             marketShare: formattedMarketShare,
+            promo: formattedPromo,
+            promoTrend: promoTrendStr
         };
 
         // Prepare Top Metrics Array (Cards with Charts) - Use weekBuckets for weekly labels
@@ -1587,6 +1615,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 chart: marketShareChart,
                 labels: chartLabels
             },
+            {
+                name: "Promo",
+                label: formattedPromo,
+                subtitle: subtitle,
+                trend: promoTrendStr,
+                trendType: promoChange >= 0 ? "positive" : "negative",
+                comparison: "vs Previous Period",
+                units: "Depth",
+                unitsTrend: "",
+                chart: promoChart,
+                labels: chartLabels
+            }
         ];
 
         // Performance Metrics KPIs (6 KPI Cards) - OPTIMIZED WITH GROUP BY
@@ -2240,7 +2280,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 },
                 {
                     title: "Conversion",
-                    value: `${currentConv.toFixed(1)}%`,
+                    value: `${conversion.toFixed(1)}%`,
                     change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 },
                     meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) }
                 },
@@ -2461,43 +2501,66 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             allMarketShare = currTotal > 0 ? (currOur / currTotal) * 100 : 0;
             prevAllMarketShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : 0;
 
-            // Calculate Promo My Brand for "All" platforms (Comp_flag = 0)
-            const promoAllBrandCondition = buildBrandLikeCondition(brandArr);
-            if (promoAllBrandCondition) {
-                const allPromoMyBrandWhere = {
-                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    Brand: promoAllBrandCondition,
-                    Comp_flag: 0
-                };
-                const locCondition = buildMultiValueCondition(locationArr);
-                if (locCondition) allPromoMyBrandWhere.Location = locCondition;
-                if (category && category !== 'All') allPromoMyBrandWhere.Category = category;
+            // Helper for Promo Depth via ClickHouse
+            const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
+                const dayjsStart = dayjs(startDt);
+                const dayjsEnd = dayjs(endDt);
+                const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
+                if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
+                if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
 
-                const allPromoMyBrandResult = await RbPdpOlap.findOne({
-                    attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
-                    where: allPromoMyBrandWhere,
-                    raw: true
-                });
-                allPromoMyBrand = parseFloat(allPromoMyBrandResult?.avg_promo_depth || 0) * 100;
-            }
+                // Handle category with multi-value support
+                if (categoryArr && categoryArr.length > 0) {
+                    const lc = categoryArr.map(c => c.toLowerCase());
+                    const catConds = lc.map(c => `lower(Category) = '${escapeStr(c)}'`).join(' OR ');
+                    conds.push(`(${catConds})`);
+                } else if (category && category !== 'All') {
+                    conds.push(`lower(Category) = '${escapeStr(category.toLowerCase())}'`);
+                }
 
-            // Calculate Promo Compete for "All" platforms (Comp_flag = 1)
-            const allPromoCompeteWhere = {
-                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                Comp_flag: 1
+                if (isCompete) {
+                    conds.push(`Comp_flag = '1'`);
+                    if (targetBrand && targetBrand !== 'All') {
+                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                        const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
+                        conds.push(`(${bNotConds})`);
+                    }
+                } else {
+                    conds.push(`Comp_flag = '0'`);
+                    if (targetBrand && targetBrand !== 'All') {
+                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                        const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                        conds.push(`(${bConds})`);
+                    }
+                }
+
+                const q = `
+                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
+                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
+                    FROM rb_pdp_olap
+                    WHERE ${conds.join(' AND ')}
+                `;
+                try {
+                    const res = await queryClickHouse(q);
+                    return parseFloat(res?.[0]?.avg_depth || 0) * 100;
+                } catch (e) {
+                    console.error("Promo Depth CH Error:", e);
+                    return 0;
+                }
             };
-            if (location && location !== 'All') allPromoCompeteWhere.Location = location;
-            if (category && category !== 'All') allPromoCompeteWhere.Category = category;
-            if (brand && brand !== 'All') {
-                allPromoCompeteWhere.Brand = { [Op.notLike]: `%${brand}%` };
-            }
 
-            const allPromoCompeteResult = await RbPdpOlap.findOne({
-                attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
-                where: allPromoCompeteWhere,
-                raw: true
-            });
-            allPromoCompete = parseFloat(allPromoCompeteResult?.avg_promo_depth || 0) * 100;
+            // Calculate Promo Metrics for "All" platforms concurrently
+            const [allMyPromo, allCompetePromo, prevMyPromo, prevCompetePromo] = await Promise.all([
+                getPromoDepthCH(startDate, endDate, brand, false),
+                getPromoDepthCH(startDate, endDate, brand, true),
+                getPromoDepthCH(allMomStart, allMomEnd, brand, false),
+                getPromoDepthCH(allMomStart, allMomEnd, brand, true)
+            ]);
+
+            allPromoMyBrand = allMyPromo;
+            allPromoCompete = allCompetePromo;
+            prevAllPromoMyBrand = prevMyPromo;
+            prevAllPromoCompete = prevCompetePromo;
 
         } catch (err) {
             console.error("Error calculating All metrics:", err);
@@ -2588,63 +2651,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
 
 
-                // ===== PROMO METRICS =====
-                // Note: Promo metrics still require individual queries as they use Comp_flag filtering
-                // which is not included in bulk aggregation
-                const platformOfftakeWhere = {
-                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    Platform: p.label
-                };
-                const platformBrandCondition = buildBrandLikeCondition(brandArr);
-                if (platformBrandCondition) platformOfftakeWhere.Brand = platformBrandCondition;
-                const platLocCondition = buildMultiValueCondition(locationArr);
-                if (platLocCondition) platformOfftakeWhere.Location = platLocCondition;
-
-                // Handle category with multi-value support
-                if (categoryArr && categoryArr.length > 0) {
-                    platformOfftakeWhere[Op.and] = platformOfftakeWhere[Op.and] || [];
-                    const lowerCategories = categoryArr.map(c => c.toLowerCase());
-                    platformOfftakeWhere[Op.and].push(
-                        Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('Category')), { [Op.in]: lowerCategories })
-                    );
-                }
-
-                // ⚡ Fetch both promo metrics concurrently
-                const [promoMyBrandResult, promoCompeteResult] = await Promise.all([
-                    // Promo My Brand: Own brand promo depth (Comp_flag = 0)
-                    (brand && brand !== 'All') ? RbPdpOlap.findOne({
-                        attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
-                        where: {
-                            ...platformOfftakeWhere,
-                            Comp_flag: 0
-                        },
-                        raw: true
-                    }) : Promise.resolve(null),
-
-                    // Promo Compete: Competitor promo depth (Comp_flag = 1)
-                    RbPdpOlap.findOne({
-                        attributes: [[Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']],
-                        where: {
-                            DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                            Platform: p.label,
-                            Comp_flag: 1,
-                            ...(location && location !== 'All' && { Location: location }), // Note: Location already handled in platformOfftakeWhere if we refactored fully, but keeping existing structure for minimal diff
-                            ...(categoryArr && categoryArr.length > 0 && {
-                                [Op.and]: [
-                                    Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('Category')), {
-                                        [Op.in]: categoryArr.map(c => c.toLowerCase())
-                                    })
-                                ]
-                            }),
-                            ...(brand && brand !== 'All' && { Brand: { [Op.notLike]: `%${brand}%` } })
-                        },
-                        raw: true
-                    })
+                // ===== PROMO METRICS (ClickHouse) =====
+                const [promoMyBrand, promoCompete] = await Promise.all([
+                    getPromoDepthCH(startDate, endDate, brandArr, false, p.label),
+                    getPromoDepthCH(startDate, endDate, brandArr, true, p.label)
                 ]);
-
-                const promoMyBrand = parseFloat(promoMyBrandResult?.avg_promo_depth || 0) * 100;
-                const promoCompete = parseFloat(promoCompeteResult?.avg_promo_depth || 0) * 100;
-                console.log(`[${p.label}] Promo My Brand: ${promoMyBrand}, Promo Compete: ${promoCompete}`);
 
                 // ===== PREVIOUS PERIOD (MoM) CALCULATIONS =====
                 // Get from pre-computed bulk maps (NO DATABASE QUERIES!)
@@ -4218,9 +4229,8 @@ const getPlatformOverview = async (filters) => {
         }
 
         // Channel-based platform filtering
-        // FIX: Previously passed null, causing buildPlatformChannelCond to skip platform logic if platform was null
-        // Now it uses the platform from filters if available
-        const platformCond = buildPlatformChannelCond(platformArr?.[0] || 'All', channel);
+        // FIX: Now uses the full platform array from filters if available
+        const platformCond = buildPlatformChannelCond((platformArr && platformArr.length > 0) ? platformArr : 'All', channel);
         if (platformCond) {
             conds.push(platformCond);
         }
@@ -4816,10 +4826,8 @@ const getMonthOverview = async (filters) => {
     // Build SOS conditions
     const buildSosMoConds = () => {
         const conds = [`toDate(created_on) BETWEEN '${fetchStartDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-        const pCond = buildPlatformChannelCond(moPlatform, channel);
-        if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
-        else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
-        else if (moPlatform && moPlatform !== 'All') conds.push(`platform_name = '${escapeStr(moPlatform)}'`);
+        const pCond = buildPlatformChannelCond(moPlatform, channel, 'platform_name');
+        if (pCond) conds.push(pCond);
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
@@ -5101,10 +5109,8 @@ const getCategoryOverview = async (filters) => {
     // Build SOS conditions for rb_kw
     const buildSosCatConds = (sDate, eDate) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-        const pCond = buildPlatformChannelCond(catPlatform, channel);
-        if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
-        else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
-        else if (catPlatform && catPlatform !== 'All') conds.push(`platform_name = '${escapeStr(catPlatform)}'`);
+        const pCond = buildPlatformChannelCond(catPlatform, channel, 'platform_name');
+        if (pCond) conds.push(pCond);
         if (locationArr && locationArr.length > 0) {
             conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
@@ -5387,10 +5393,8 @@ const getBrandsOverview = async (filters) => {
     const buildSosBrandConds = (sDate, eDate) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         const platformArr = normalizeFilterArray(boPlatform);
-        const pCond = buildPlatformChannelCond(boPlatform, channel);
-        if (pCond === "Platform = 'Blinkit'") conds.push(`platform_name = 'Blinkit'`);
-        else if (pCond === "Platform != 'Blinkit'") conds.push(`platform_name != 'Blinkit'`);
-        else if (boPlatform && boPlatform !== 'All') conds.push(`platform_name = '${escapeStr(boPlatform)}'`);
+        const pCond = buildPlatformChannelCond(boPlatform, channel, 'platform_name');
+        if (pCond) conds.push(pCond);
         const categoryArr = normalizeFilterArray(boCategory);
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);

@@ -192,22 +192,22 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
     const deltaColor = isPositive ? "text-emerald-500" : "text-rose-500";
 
     // Trend Logic
-    const trendSeries = kpi.trendSeries || [];
+    const trendSeries = kpi.trend || kpi.trendSeries || [];
     const sliceSeries = useMemo(() => {
         const n = trendSeries.length;
         return trendSeries.slice(Math.max(0, n - period));
     }, [trendSeries, period]);
 
     const deltaVal = useMemo(() => {
-        if (sliceSeries.length < 6) return 0;
+        if (sliceSeries.length < 2) return 0;
         const last = sliceSeries[sliceSeries.length - 1];
-        const prev = (sliceSeries[0] + sliceSeries[1] + sliceSeries[2]) / 3;
-        return pctChange(last, prev);
+        const prev = sliceSeries[0];
+        return last - prev;
     }, [sliceSeries]);
 
-    // Use kpi.delta for valid delta or fallback to calculated from trendSeries
+    // Use kpi.delta for valid delta or fallback to calculated from trend
     const displayDelta = kpi.delta !== undefined ? kpi.delta : deltaVal;
-    const deltaLabel = displayDelta >= 0 ? `+${displayDelta.toFixed(1)}%` : `${displayDelta.toFixed(1)}%`;
+    const deltaLabel = kpi.deltaLabel || (displayDelta >= 0 ? `+${displayDelta.toFixed(1)} pp` : `${displayDelta.toFixed(1)} pp`);
 
 
     const onCardEnter = (e) => {
@@ -316,12 +316,20 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: themeColor }}>{kpi.value}</Typography>
+                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: themeColor }}>
+                                {Array.isArray(trendSeries) && trendSeries.length > 0
+                                    ? (typeof trendSeries[trendSeries.length - 1] === 'number'
+                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title === 'Offtake' ? 'Cr' : '%')
+                                        : trendSeries[trendSeries.length - 1])
+                                    : kpi.value}
+                            </Typography>
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Avg</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {(sliceSeries.reduce((a, b) => a + b, 0) / sliceSeries.length * 10).toFixed(1)}
+                                {sliceSeries.length > 0
+                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1)
+                                    : '0.0'}
                             </Typography>
                         </div>
                     </div>
@@ -360,22 +368,22 @@ const ComparisonCard = ({ kpi, loading = false }) => {
     const deltaColor = isPositive ? "text-emerald-500" : "text-rose-500";
 
     // Trend Logic
-    const trendSeries = kpi.trendSeries || [];
+    const trendSeries = kpi.trend || kpi.trendSeries || [];
     const sliceSeries = useMemo(() => {
         const n = trendSeries.length;
         return trendSeries.slice(Math.max(0, n - period));
     }, [trendSeries, period]);
 
     const deltaVal = useMemo(() => {
-        if (sliceSeries.length < 6) return 0;
+        if (sliceSeries.length < 2) return 0;
         const last = sliceSeries[sliceSeries.length - 1];
-        const prev = (sliceSeries[0] + sliceSeries[1] + sliceSeries[2]) / 3;
-        return pctChange(last, prev);
+        const prev = sliceSeries[0];
+        return last - prev;
     }, [sliceSeries]);
 
-    // Use kpi.delta for valid delta or fallback to calculated from trendSeries
+    // Use kpi.delta for valid delta or fallback to calculated from trend
     const displayDelta = kpi.delta !== undefined ? kpi.delta : deltaVal;
-    const deltaLabel = displayDelta >= 0 ? `+${displayDelta.toFixed(1)}%` : `${displayDelta.toFixed(1)}%`;
+    const deltaLabel = kpi.deltaLabel || (displayDelta >= 0 ? `+${displayDelta.toFixed(1)} pp` : `${displayDelta.toFixed(1)} pp`);
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
@@ -486,12 +494,20 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: color }}>{kpi.value}</Typography>
+                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: color }}>
+                                {Array.isArray(trendSeries) && trendSeries.length > 0
+                                    ? (typeof trendSeries[trendSeries.length - 1] === 'number'
+                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title === 'Offtake' ? 'Cr' : '%')
+                                        : trendSeries[trendSeries.length - 1])
+                                    : kpi.value}
+                            </Typography>
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Avg</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {(sliceSeries.reduce((a, b) => a + b, 0) / sliceSeries.length * 10).toFixed(1)}
+                                {sliceSeries.length > 0
+                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1)
+                                    : '0.0'}
                             </Typography>
                         </div>
                     </div>
