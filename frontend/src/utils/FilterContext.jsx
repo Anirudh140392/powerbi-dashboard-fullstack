@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useCallback } from "react";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 
@@ -49,33 +49,42 @@ export const FilterProvider = ({ children }) => {
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
 
+    // Dates are always initialized since they have defaults above
+    const datesInitialized = Boolean(timeStart && timeEnd);
+
     // ====== FETCH PLATFORMS FROM DB (on mount) ======
-    useEffect(() => {
-        const fetchPlatforms = async () => {
-            try {
-                const res = await axiosInstance.get("/watchtower/platforms");
-                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                    console.log("[FilterContext] Fetched platforms from DB:", res.data);
-                    setPlatforms(res.data);
-                    // Keep "All" or current selection if it's still valid
-                    if (platform !== "All") {
-                        const currentList = Array.isArray(platform) ? platform : [platform];
-                        const validPlatforms = currentList.filter(p => res.data.includes(p));
-                        if (validPlatforms.length === 0) {
-                            setPlatform("All");
-                        } else if (validPlatforms.length === res.data.length) {
-                            setPlatform("All");
-                        } else {
-                            setPlatform(validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms);
-                        }
+    const fetchPlatformsFromDb = useCallback(async () => {
+        try {
+            const res = await axiosInstance.get("/watchtower/platforms");
+            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                console.log("[FilterContext] Fetched platforms from DB:", res.data);
+                setPlatforms(res.data);
+                // Keep "All" or current selection if it's still valid
+                if (platform !== "All") {
+                    const currentList = Array.isArray(platform) ? platform : [platform];
+                    const validPlatforms = currentList.filter(p => res.data.includes(p));
+                    if (validPlatforms.length === 0) {
+                        setPlatform("All");
+                    } else if (validPlatforms.length === res.data.length) {
+                        setPlatform("All");
+                    } else {
+                        setPlatform(validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms);
                     }
                 }
-            } catch (err) {
-                console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
             }
-        };
-        fetchPlatforms();
+        } catch (err) {
+            console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
+        }
+    }, [platform]);
+
+    useEffect(() => {
+        fetchPlatformsFromDb();
     }, []);
+
+    // refreshFilters — can be called by child components to re-fetch filter options
+    const refreshFilters = useCallback(() => {
+        fetchPlatformsFromDb();
+    }, [fetchPlatformsFromDb]);
 
     // Update platforms list when channel changes (filter the DB platforms by channel mapping)
     useEffect(() => {
@@ -255,7 +264,9 @@ export const FilterProvider = ({ children }) => {
             setComparisonLabel,
             categories,
             selectedCategory,
-            setSelectedCategory
+            setSelectedCategory,
+            datesInitialized,
+            refreshFilters
         }}>
             {children}
         </FilterContext.Provider>

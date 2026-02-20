@@ -81,6 +81,7 @@ export default function InventoryDrill() {
         platform: globalPlatform,
         selectedBrand: globalBrand,
         selectedLocation: globalLocation,
+        selectedCategory: globalCategory,
         refreshFilters
     } = useContext(FilterContext);
 
@@ -108,7 +109,7 @@ export default function InventoryDrill() {
                 platform: getFilterValue(filters.platform, globalPlatform),
                 brand: getFilterValue(filters.brand, globalBrand),
                 location: getFilterValue(filters.citySelection, globalLocation),
-                category: getFilterValue(filters.format, null) // formats/categories are local here
+                category: getFilterValue(filters.format, globalCategory) // formats/categories are local here, fallback to global
             };
 
             const response = await axiosInstance.get(`/inventory-analysis/matrix`, { params });
@@ -133,7 +134,7 @@ export default function InventoryDrill() {
     // Initial load & Filter change effect
     useEffect(() => {
         fetchMatrixData();
-    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation]);
+    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation, globalCategory]);
 
     // Process backend data
     const allPlatforms = useMemo(() => {

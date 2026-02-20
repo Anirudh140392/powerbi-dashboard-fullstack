@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Typography } from "@mui/material";
 import CitySkuInventoryDrill from "./CitySkuInventoryDrill";
 import InventoryDrill from "./InventoryMainDrill";
 import MetricCardContainer from "../CommonLayout/MetricCardContainer";
+import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 
 // Single-page Inventory & DOH dashboard
 // Layout intentionally mirrors your Visibility page: overview cards, KPI matrix tabs,
@@ -186,7 +188,7 @@ function Sparkline({ values }) {
     .map((v, idx) => {
       const x = (idx / Math.max(1, values.length - 1)) * 100;
       const y = 90 - v * 70;
-      return `${x},${y}`;
+      return `${x},${y} `;
     })
     .join(" ");
 
@@ -209,7 +211,7 @@ function KpiPill({ value, delta, health, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center justify-between gap-2 rounded-full border px-3 py-1 text-xs font-medium shadow-sm transition hover:shadow-md ${HEALTH_COLOR[health]}`}
+      className={`flex items - center justify - between gap - 2 rounded - full border px - 3 py - 1 text - xs font - medium shadow - sm transition hover: shadow - md ${HEALTH_COLOR[health]} `}
     >
       <span>{value}</span>
       {delta && <span className="text-[10px] opacity-80">{delta}</span>}
@@ -227,8 +229,8 @@ function SegmentToggle({ options, value, onChange }) {
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
-            className={`min-w-[90px] rounded-full px-3 py-1 text-xs font-medium transition ${active ? "bg-white shadow-sm text-slate-900" : "text-slate-500"
-              }`}
+            className={`min - w - [90px] rounded - full px - 3 py - 1 text - xs font - medium transition ${active ? "bg-white shadow-sm text-slate-900" : "text-slate-500"
+              } `}
           >
             {opt}
           </button>
@@ -269,10 +271,10 @@ function MultiChipFilter({ label, options, selected, onChange }) {
               key={opt}
               type="button"
               onClick={() => toggle(opt)}
-              className={`rounded-full border px-3 py-1 text-xs transition ${active
+              className={`rounded - full border px - 3 py - 1 text - xs transition ${active
                 ? "border-sky-500 bg-sky-50 text-sky-700"
                 : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
+                } `}
             >
               {opt}
             </button>
@@ -325,9 +327,70 @@ function TrendModal({ context, onClose }) {
 ------------------------------------------------------------------ */
 
 function InventeryConceptMain() {
+  const {
+    platform,
+    selectedBrand,
+    selectedLocation,
+    selectedCategory,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+  } = useContext(FilterContext);
+
   const [dateFrom, setDateFrom] = useState("2025-12-01");
   const [dateTo, setDateTo] = useState("2025-12-12");
   const [drrUplift, setDrrUplift] = useState(20);
+
+  // --- Backend API state ---
+  const [overviewData, setOverviewData] = useState(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  // Fetch overview data from backend whenever filters change
+  const fetchOverview = async () => {
+    setOverviewLoading(true);
+    setOverviewError(null);
+    try {
+      const params = {};
+      if (platform && platform !== "All") {
+        params.platform = Array.isArray(platform) ? platform.join(",") : platform;
+      }
+      if (selectedBrand && selectedBrand !== "All") {
+        params.brand = selectedBrand;
+      }
+      if (selectedLocation && selectedLocation !== "All") {
+        params.location = selectedLocation;
+      }
+      if (selectedCategory && selectedCategory !== "All") {
+        params.category = selectedCategory;
+      }
+      if (timeStart) params.startDate = timeStart.format("YYYY-MM-DD");
+      if (timeEnd) params.endDate = timeEnd.format("YYYY-MM-DD");
+      if (compareStart) params.compareStartDate = compareStart.format("YYYY-MM-DD");
+      if (compareEnd) params.compareEndDate = compareEnd.format("YYYY-MM-DD");
+
+      const res = await axiosInstance.get("/inventory-analysis/overview", { params, timeout: 10000 });
+      setOverviewData(res.data);
+    } catch (err) {
+      console.error("[Inventory] Error fetching overview:", err);
+      setOverviewError(err.message || "Failed to load inventory overview");
+      setOverviewData(null);
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOverview();
+  }, [platform, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd]);
+
+  const retryOverview = async () => {
+    setIsRetrying(true);
+    await fetchOverview();
+    setIsRetrying(false);
+  };
 
   const allFormats = useMemo(
     () => Array.from(new Set(SAMPLE_SKUS.map((s) => s.format))).sort(),
@@ -423,55 +486,94 @@ function InventeryConceptMain() {
 
   const formatDays = (value) => `${value.toFixed(1)} d`;
   const formatLargeNumber = (num) => {
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)} K`;
     return num.toString();
   };
 
-  const cards = [
+  // Build cards from backend API data — NO hardcoded fallback
+  const m = overviewData?.metrics;
+  const cards = m ? [
     {
       title: "DOH",
-      value: overview.totalDoiFeBe.toFixed(1),
+      value: m.doh.value,
       sub: "Days",
-      change: "▲3.1% (from 82.1%)",
-      changeColor: "green",
+      change: `${m.doh.isPositive ? "▲" : "▼"}${Math.abs(parseFloat(m.doh.change)).toFixed(1)}% (from ${m.doh.previousValue})`,
+      changeColor: m.doh.isPositive ? "green" : "red",
       prevText: "vs Comparison Period",
-      extra: "High risk stores: 12",
-      extraChange: "▼4 stores",
+      extra: "",
+      extraChange: "",
       extraChangeColor: "green",
-      sparklineData: [90, 40, 45, 75, 65, 50, 85],
+      sparklineData: m.doh.sparkline || [0],
     },
     {
       title: "DRR",
-      value: Math.round(overview.totalDrr).toString(),
+      value: String(m.drr.value),
       sub: "Daily Rate",
-      change: "▼5.3% (from 65.9)",
-      changeColor: "red",
+      change: `${m.drr.isPositive ? "▲" : "▼"}${Math.abs(parseFloat(m.drr.change)).toFixed(1)}% (from ${m.drr.previousValue})`,
+      changeColor: m.drr.isPositive ? "green" : "red",
       prevText: "vs Comparison Period",
-      extra: "Target band: 55-65 days",
-      extraChange: "Within target range",
+      extra: "",
+      extraChange: "",
       extraChangeColor: "green",
-      sparklineData: [55, 75, 45, 46, 45, 48, 60],
+      sparklineData: m.drr.sparkline || [0],
     },
     {
       title: "Total Boxes Required",
-      value: formatLargeNumber(overview.totalBoxesRequired),
+      value: String(m.totalBoxesRequired.value),
       sub: "Replenishment",
-      change: "▼2.0% (from 80.5%)",
-      changeColor: "red",
+      change: `${m.totalBoxesRequired.isPositive ? "▲" : "▼"}${Math.abs(parseFloat(m.totalBoxesRequired.change)).toFixed(1)}%`,
+      changeColor: m.totalBoxesRequired.isPositive ? "green" : "red",
       prevText: "vs Comparison Period",
-      extra: "Orders delayed: 6%",
-      extraChange: "▼1.2%",
+      extra: "",
+      extraChange: "",
       extraChangeColor: "green",
-      sparklineData: [50, 60, 35, 38, 40, 45, 55],
+      sparklineData: m.totalBoxesRequired.sparkline || [0],
     },
-  ];
+  ] : [];
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900" >
       {/* Top Inventory & DOH Overview */}
       < div className="mx-auto max-w-6xl space-y-6" >
-        {/* REPLACED WITH METRIC CARD CONTAINER */}
-        < MetricCardContainer title="Inventory & DOH Overview" cards={cards} />
+        {/* Overview Cards or Error State */}
+        {overviewError && !overviewLoading ? (
+          <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+              <svg className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load Inventory Overview</h3>
+              <p className="text-sm text-slate-500 mb-4">{overviewError}</p>
+            </div>
+            <button
+              onClick={retryOverview}
+              disabled={isRetrying}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+                ${isRetrying
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-slate-600 text-white hover:bg-slate-700 shadow-md hover:shadow-lg'
+                }`}
+            >
+              {isRetrying ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500"></div>
+                  <span>Retrying...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Refresh</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          < MetricCardContainer title="Inventory & DOH Overview" cards={cards} loading={overviewLoading} />
+        )}
 
         {/* MATRIX + FILTERS */}
         {/* <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
@@ -560,7 +662,7 @@ function InventeryConceptMain() {
                                 health={p.health}
                                 onClick={() =>
                                   openTrend(
-                                    `${row.label} – ${p.platform}`,
+                                    `${ row.label } – ${ p.platform } `,
                                     value,
                                     "days"
                                   )
@@ -587,7 +689,7 @@ function InventeryConceptMain() {
                                 health={f.health}
                                 onClick={() =>
                                   openTrend(
-                                    `${row.label} – ${f.format}`,
+                                    `${ row.label } – ${ f.format } `,
                                     value,
                                     "days"
                                   )
@@ -614,7 +716,7 @@ function InventeryConceptMain() {
                                 health={c.health}
                                 onClick={() =>
                                   openTrend(
-                                    `${row.label} – ${c.city}`,
+                                    `${ row.label } – ${ c.city } `,
                                     value,
                                     "days"
                                   )
@@ -696,7 +798,7 @@ function InventeryConceptMain() {
             <div className="pt-1 text-[11px] text-slate-400">
               {filteredSkus.length === 0
                 ? "No rows for current filters"
-                : `${filteredSkus.length} SKU-city rows after filters`}
+                : `${ filteredSkus.length } SKU - city rows after filters`}
             </div>
           </div> */}
         {/* </div> */}
@@ -749,8 +851,9 @@ function InventeryConceptMain() {
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`rounded-full border px-2 py-1 text-[10px] ${PSL_COLOR[row.psl]
-                          }`}
+                        className={`rounded - full border px - 2 py - 1 text - [10px] ${
+  PSL_COLOR[row.psl]
+} `}
                       >
                         {row.psl}
                       </span>
@@ -797,7 +900,7 @@ function InventeryConceptMain() {
                   <button
                     onClick={() =>
                       openTrend(
-                        `Inventory signal – ${row.sku}`,
+                        `Inventory signal – ${ row.sku } `,
                         row.feDoh,
                         "days"
                       )
