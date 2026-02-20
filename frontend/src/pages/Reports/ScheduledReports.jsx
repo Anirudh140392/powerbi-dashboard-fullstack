@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import dayjs from "dayjs";
 import { ScheduledReport } from "@/components/Reports/ScheduledReport";
-import { fetchReportFilterOptions, downloadReport } from "../../api/reportsService";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import { getLogicalKpiValue } from "../../components/AllAvailablityAnalysis/availablityDataCenter";
 
 export default function ScheduledReports() {
     const [filters, setFilters] = useState({
@@ -12,8 +14,9 @@ export default function ScheduledReports() {
     const [selectedFilters, setSelectedFilters] = useState({
         platform: "Blinkit",
         brand: "All Brands",
-        city: "All Cities",
-        format: "All Formats",
+        category: "All Categories",
+        sku: "All SKUs",
+        location: "All Locations",
         timePeriod: "Last 30 Days",
         reportType: "Watch Tower",
     });
@@ -73,79 +76,64 @@ export default function ScheduledReports() {
         });
     };
 
-    const [options, setOptions] = useState({
-        platforms: [],
-        brands: [],
-        cities: [],
-        formats: [],
-        months: []
-    });
-    const [loadingOptions, setLoadingOptions] = useState(false);
+    // Data mapping for dependent dropdowns - Using actual project entities
+    const dataMapping = {
+        "Blinkit": {
+            brands: ["All Brands", "Kwality Walls", "Amul", "Mother Dairy", "Cornetto", "Magnum", "Feast", "Twister"],
+            categories: ["All Categories", "Cassata", "Core Tub", "Cup", "Sandwich", "Sticks", "Tubs"],
+            skus: ["All SKUs", "Magnum Butterscotch Cone", "Cornetto Double Chocolate", "Feast Cadbury Crackle", "Vanilla Ice Cream Tub"],
+            locations: ["All Locations", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Pune", "Chennai", "Kolkata"]
+        },
+        "Zepto": {
+            brands: ["All Brands", "Kwality Walls", "Amul", "Mother Dairy", "Cornetto", "Magnum"],
+            categories: ["All Categories", "Cassata", "Cup", "Sandwich", "Sticks", "Tubs"],
+            skus: ["All SKUs", "Magnum Chocolate Truffle", "Cornetto Oreo Cone", "Magnum Brownie Stick"],
+            locations: ["All Locations", "Mumbai", "Delhi", "Bangalore", "Pune"]
+        },
+        "Instamart": {
+            brands: ["All Brands", "Kwality Walls", "Amul", "Mother Dairy", "Cornetto", "Feast"],
+            categories: ["All Categories", "Core Tub", "Cup", "Sandwich", "Sticks", "Tubs"],
+            skus: ["All SKUs", "Magnum Pistachio Stick", "Dairy Factory Vanilla Tub", "Cornetto Double Chocolate"],
+            locations: ["All Locations", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai"]
+        },
+        "Amazon": {
+            brands: ["All Brands", "Kwality Walls", "Amul", "Mother Dairy", "Cornetto", "Magnum", "Feast"],
+            categories: ["All Categories", "Cassata", "Core Tub", "Cup", "Sandwich", "Sticks", "Tubs"],
+            skus: ["All SKUs", "Magnum Butterscotch Cone", "Cornetto Oreo Cone", "Vanilla Ice Cream Tub"],
+            locations: ["All Locations", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Pune", "Chennai", "Kolkata"]
+        },
+        "Flipkart": {
+            brands: ["All Brands", "Kwality Walls", "Amul", "Mother Dairy", "Cornetto", "Magnum"],
+            categories: ["All Categories", "Cassata", "Core Tub", "Cup", "Sandwich", "Sticks"],
+            skus: ["All SKUs", "Magnum Chocolate Truffle", "Feast Cadbury Crackle", "Magnum Brownie Stick"],
+            locations: ["All Locations", "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Pune", "Chennai", "Kolkata"]
+        }
+    };
 
-    // Fetch initial filter options (platforms)
-    React.useEffect(() => {
-        const loadInitialOptions = async () => {
-            setLoadingOptions(true);
-            try {
-                const data = await fetchReportFilterOptions();
-                if (data && data.platforms) {
-                    setOptions(prev => ({
-                        ...prev,
-                        ...data,
-                        months: data.months || prev.months || [],
-                        formats: data.formats || prev.formats || [],
-                        cities: data.cities || prev.cities || [],
-                        brands: data.brands || prev.brands || []
-                    }));
+    // Dropdown options - Platform is independent
+    const platformOptions = [
+        "Blinkit",
+        "Zepto",
+        "Instamart",
+        "Amazon",
+        "Flipkart",
+    ];
 
-                    // Set default platform if available
-                    if (data.platforms.length > 0 && !data.platforms.includes(selectedFilters.platform)) {
-                        setSelectedFilters(prev => ({ ...prev, platform: data.platforms[0] }));
-                    }
-                }
-            } catch (error) {
-                console.error("Error loading report filter options:", error);
-            } finally {
-                setLoadingOptions(false);
-            }
-        };
-        loadInitialOptions();
-    }, []);
-
-    // Fetch brands and locations when platform changes
-    React.useEffect(() => {
-        if (!selectedFilters.platform || selectedFilters.platform === 'All') return;
-
-        const loadDependentOptions = async () => {
-            try {
-                const data = await fetchReportFilterOptions({ platform: selectedFilters.platform });
-                if (data) {
-                    setOptions(prev => ({
-                        ...prev,
-                        brands: data.brands || [],
-                        cities: data.cities || [],
-                        formats: data.formats || []
-                    }));
-                }
-            } catch (error) {
-                console.error("Error loading dependent options:", error);
-            }
-        };
-        loadDependentOptions();
-    }, [selectedFilters.platform]);
-
-    const platformOptions = options.platforms.length > 0 ? options.platforms : ["Blinkit", "Zepto", "Instamart"];
-
+    // Get filtered options based on selected platform
     const getBrandOptions = () => {
-        return ["All Brands", ...options.brands];
+        return dataMapping[selectedFilters.platform]?.brands || ["All Brands"];
     };
 
-    const getCityOptions = () => {
-        return ["All Cities", ...options.cities];
+    const getCategoryOptions = () => {
+        return dataMapping[selectedFilters.platform]?.categories || ["All Categories"];
     };
 
-    const getFormatOptions = () => {
-        return ["All Formats", ...options.formats];
+    const getSkuOptions = () => {
+        return dataMapping[selectedFilters.platform]?.skus || ["All SKUs"];
+    };
+
+    const getLocationOptions = () => {
+        return dataMapping[selectedFilters.platform]?.locations || ["All Locations"];
     };
 
     const timePeriodOptions = [
@@ -155,7 +143,6 @@ export default function ScheduledReports() {
         "Last 6 Months",
         "Last Year",
         "Custom Range",
-        ...(options.months || [])
     ];
 
     const reportTypeOptions = [
@@ -173,40 +160,215 @@ export default function ScheduledReports() {
         "Category RCA",
     ];
 
-    const handleDownload = async () => {
+    const handleDownload = () => {
         setIsDownloading(true);
-        try {
-            const blob = await downloadReport(selectedFilters);
 
-            // Create a link element to trigger the download
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
+        const { platform, brand, location, timePeriod, reportType } = selectedFilters;
 
-            const fileName = `${selectedFilters.reportType.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-            link.setAttribute('download', fileName);
+        // Calculate date range
+        let end = dayjs();
+        let start = dayjs().subtract(30, 'day');
 
-            document.body.appendChild(link);
-            link.click();
-
-            // Clean up
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            setShowSuccess(true);
-            setTimeout(() => {
-                setShowSuccess(false);
-            }, 3000);
-        } catch (error) {
-            console.error("Error downloading report:", error);
-            // Optionally show error notification
-        } finally {
-            setIsDownloading(false);
+        if (timePeriod === "Last 7 Days") start = dayjs().subtract(7, 'day');
+        else if (timePeriod === "Last 90 Days") start = dayjs().subtract(90, 'day');
+        else if (timePeriod === "Last 6 Months") start = dayjs().subtract(6, 'month');
+        else if (timePeriod === "Last Year") start = dayjs().subtract(1, 'year');
+        else if (timePeriod === "Custom Range") {
+            start = dayjs(customDateRange.startDate);
+            end = dayjs(customDateRange.endDate);
         }
+
+        const dates = [];
+        let curr = start;
+        while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+            dates.push(curr.format('YYYY-MM-DD'));
+            curr = curr.add(1, 'day');
+        }
+
+        // Mock entities for report generation
+        const platforms = platform === "All" ? platformOptions : [platform];
+        const brands = (brand === "All Brands" || brand === "All") ? (dataMapping[platform]?.brands.filter(b => b !== "All Brands") || []) : [brand];
+        const locations = (location === "All Locations" || location === "All") ? (dataMapping[platform]?.locations.filter(l => l !== "All Locations") || []) : [location];
+        const categories = (selectedFilters.category === "All Categories" || selectedFilters.category === "All") ? (dataMapping[platform]?.categories.filter(c => c !== "All Categories") || []) : [selectedFilters.category];
+        const products = (selectedFilters.sku === "All SKUs" || selectedFilters.sku === "All") ? (dataMapping[platform]?.skus.filter(s => s !== "All SKUs") || []) : [selectedFilters.sku];
+
+        const reportData = [];
+
+        dates.forEach(date => {
+            platforms.forEach(p => {
+                brands.forEach(b => {
+                    locations.forEach(loc => {
+                        categories.forEach((cat, catIdx) => {
+                            const prod = products[catIdx % products.length];
+                            const context = { platform: p, brand: b, location: loc, category: cat, sku: prod, date };
+
+                            let row = {};
+
+                            if (reportType === "Visibility Analysis") {
+                                // Clamp SOS to 20% max as per user request
+                                const baseSos = getLogicalKpiValue('sos', context);
+                                const overallSos = Math.min(20, (baseSos / 5.5) + (catIdx % 3));
+                                const sponsoredRatio = (getLogicalKpiValue('inorg', context) / (getLogicalKpiValue('sos', context) || 1)) || 0.3;
+                                const sponsoredVal = overallSos * Math.min(0.7, sponsoredRatio);
+                                const organicVal = overallSos - sponsoredVal;
+
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    Keyword_Category: cat,
+                                    Keyword_Type: catIdx % 2 === 0 ? "Competition" : "Generic",
+                                    Overall_SOS_Percentage: overallSos.toFixed(2),
+                                    Sponsored_SOS_Percentage: sponsoredVal.toFixed(2),
+                                    Organic_SOS_Percentage: organicVal.toFixed(2),
+                                    Ad_POS: (2.5 + (Math.abs(p.length - catIdx) % 1.5)).toFixed(2),
+                                    Org_POS: (4.2 + (Math.abs(b.length - catIdx) % 2.5)).toFixed(2),
+                                };
+                            } else if (reportType === "Availability Analysis") {
+                                const osaVal = getLogicalKpiValue('osa', context);
+                                const dsVal = getLogicalKpiValue('dslisting', context) || 85;
+                                const aspVal = getLogicalKpiValue('asp', context) || 150;
+                                const discVal = (getLogicalKpiValue('promo', context) / 10).toFixed(2);
+
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    Category: cat,
+                                    Product: prod,
+                                    City: loc,
+                                    OSA: osaVal.toFixed(2),
+                                    "DS Listing": (dsVal / 10).toFixed(2),
+                                    ASP: (aspVal / 15).toFixed(2),
+                                    Discount: discVal,
+                                };
+                            } else if (reportType === "Market Share") {
+                                const offtake = getLogicalKpiValue('offtake', context);
+                                const marketShare = getLogicalKpiValue('market', context);
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    Category: cat,
+                                    Product: prod,
+                                    City: loc,
+                                    Offtakes: offtake.toFixed(2),
+                                    "SKU MS": (marketShare / 5).toFixed(2),
+                                    "Category Size": (offtake * 3).toFixed(2),
+                                    "Brand MS": marketShare.toFixed(2),
+                                };
+                            }
+                            else if (reportType === "Sales Data") {
+                                const offtake = getLogicalKpiValue('offtake', context);
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    Category: cat,
+                                    Product: prod,
+                                    City: loc,
+                                    Offtakes: offtake.toFixed(2),
+                                    "LMTD Offtakes": (offtake * 0.88).toFixed(2),
+                                    "LYMTD Offtakes": (offtake * 0.75).toFixed(2),
+                                    "Qty Sold": (offtake * 1.5).toFixed(2),
+                                    DOI: (offtake * 1.5).toFixed(2),
+                                };
+                            } else if (reportType === "Pricing Analysis") {
+                                const asp = getLogicalKpiValue('asp', context) || 1500;
+                                const rpi = (0.8 + (catIdx % 5) * 0.1).toFixed(2);
+                                // Varying discount logic
+                                const discount = (2.5 + (Math.abs(p.length - catIdx) % 15) * 0.4).toFixed(2);
+
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    Keyword_Category: cat,
+                                    Product: prod,
+                                    City: loc,
+                                    RPI: rpi,
+                                    Discount: discount,
+                                    ASP: (asp / 100).toFixed(2),
+                                };
+                            }
+                            else if (reportType === "Performance Marketing") {
+                                const offtake = getLogicalKpiValue('offtake', context);
+                                const spend = offtake / 2;
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    Product: prod,
+                                    Offtakes: "₹" + offtake.toFixed(2) + " Lakh",
+                                    Spend: "₹" + spend.toFixed(2) + " Lakh",
+                                    ROAS: (offtake / spend).toFixed(1) + "x",
+                                    Impressions: Math.floor(spend * 4000),
+                                    Clicks: Math.floor(spend * 120),
+                                    CTR: "3.0%",
+                                    CPC: "₹" + (spend * 100000 / (spend * 120)).toFixed(1),
+                                };
+                            } else {
+                                // Default "Watch Tower" optimized for SKU level
+                                const offtake = getLogicalKpiValue('offtake', context);
+                                const spend = offtake / 2;
+                                row = {
+                                    DATE: date,
+                                    Platform: p,
+                                    Brand: b,
+                                    City: loc,
+                                    Category: cat,
+                                    Product: prod,
+                                    Offtakes: "₹" + offtake.toFixed(2) + " Lakh",
+                                    Spend: "₹" + spend.toFixed(2) + " Lakh",
+                                    ROAS: (offtake / spend).toFixed(1) + "x",
+                                    Availability: getLogicalKpiValue('osa', context).toFixed(1) + "%",
+                                    SOS: getLogicalKpiValue('sos', context).toFixed(1) + "%",
+                                    Market_Share: (getLogicalKpiValue('market', context) / 5).toFixed(2) + "%",
+                                };
+                            }
+
+                            reportData.push(row);
+                        });
+                    });
+                });
+            });
+        });
+
+        // Create Excel
+        const worksheet = XLSX.utils.json_to_sheet(reportData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
+
+        // Download
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+        saveAs(data, `${reportType.replace(/\s+/g, '_')}_${timePeriod.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`);
+
+        setIsDownloading(false);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
     };
 
     const handleFilterChange = (key, value) => {
-        setSelectedFilters((prev) => ({ ...prev, [key]: value }));
+        setSelectedFilters((prev) => {
+            const newFilters = { ...prev, [key]: value };
+
+            // Reset dependent dropdowns when platform changes
+            if (key === "platform") {
+                const mapping = dataMapping[value] || {};
+                const newBrands = mapping.brands || ["All Brands"];
+                const newLocations = mapping.locations || ["All Locations"];
+                const newCategories = mapping.categories || ["All Categories"];
+                const newSkus = mapping.skus || ["All SKUs"];
+
+                if (!newBrands.includes(prev.brand)) newFilters.brand = "All Brands";
+                if (!newLocations.includes(prev.location)) newFilters.location = "All Locations";
+                if (!newCategories.includes(prev.category)) newFilters.category = "All Categories";
+                if (!newSkus.includes(prev.sku)) newFilters.sku = "All SKUs";
+            }
+
+            return newFilters;
+        });
     };
 
     return (
@@ -223,8 +385,9 @@ export default function ScheduledReports() {
                 showSuccess={showSuccess}
                 platformOptions={platformOptions}
                 getBrandOptions={getBrandOptions}
-                getCityOptions={getCityOptions}
-                getFormatOptions={getFormatOptions}
+                getCategoryOptions={getCategoryOptions}
+                getSkuOptions={getSkuOptions}
+                getLocationOptions={getLocationOptions}
                 timePeriodOptions={timePeriodOptions}
                 reportTypeOptions={reportTypeOptions}
                 customDateRange={customDateRange}

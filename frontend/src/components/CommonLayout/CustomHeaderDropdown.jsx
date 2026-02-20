@@ -17,13 +17,14 @@ const CustomHeaderDropdown = ({
     value,
     onChange,
     width = 200,
+    multiSelect = true,
 }) => {
     const [anchorEl, setAnchorEl] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const open = Boolean(anchorEl);
 
     const getSelectedList = () => {
-        if (!value || value === "All") return options;
+        if (value === "All") return options;
         if (Array.isArray(value)) return value;
         return [value];
     };
@@ -35,16 +36,28 @@ const CustomHeaderDropdown = ({
     );
 
     const emitChange = (newList) => {
+        if (!multiSelect) {
+            onChange(newList[0]);
+            handleClose();
+            return;
+        }
+
         if (newList.length === options.length) {
-            onChange("All"); // All options selected = "All"
+            onChange("All");
         } else if (newList.length === 0) {
-            onChange([]); // No options selected = empty array
+            // When nothing is selected, pass an empty array to deselect all
+            onChange([]);
         } else {
             onChange(newList.length === 1 ? newList[0] : newList);
         }
     };
 
     const handleToggleOption = (option) => {
+        if (!multiSelect) {
+            emitChange([option]);
+            return;
+        }
+
         let newList;
         if (currentSelected.includes(option)) {
             newList = currentSelected.filter((item) => item !== option);
@@ -55,12 +68,12 @@ const CustomHeaderDropdown = ({
     };
 
     const handleSelectAll = () => {
-        // Toggle: if all are selected, deselect all; otherwise select all
-        const allSelected = currentSelected.length === options.length && options.length > 0;
-        if (allSelected) {
-            onChange([]); // Deselect all - emit empty array
+        if (currentSelected.length === options.length && currentSelected.length > 0) {
+            // Deselect all
+            emitChange([]);
         } else {
-            onChange("All"); // Select all - emit "All"
+            // Select all
+            emitChange([...options]);
         }
     };
 
@@ -72,22 +85,22 @@ const CustomHeaderDropdown = ({
         setAnchorEl(event.currentTarget);
     };
 
-    const displayValue = !value
-        ? (options.length > 0 ? "All" : "Select...")
-        : Array.isArray(value)
-            ? (value.length === 0 ? "None" : value.length === options.length ? "All" : value.join(", "))
-            : value;
+    const displayValue = Array.isArray(value)
+        ? (value.length === 0 ? "None" : value.length === options.length ? "All" : value.join(", "))
+        : value;
 
     return (
         <Box sx={{ width }}>
             <Typography
                 sx={{
-                    fontSize: { xs: "0.6rem", sm: "0.65rem" },
-                    fontWeight: 700,
-                    mb: 0.25,
-                    color: "#64748b",
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    mb: 0.4,
+                    opacity: 0.8,
                     textTransform: "uppercase",
-                    letterSpacing: "0.04em",
+                    letterSpacing: '0.05em',
+                    fontFamily: 'Roboto, sans-serif',
+                    color: '#64748b'
                 }}
             >
                 {label}
@@ -97,50 +110,48 @@ const CustomHeaderDropdown = ({
             <Box
                 onClick={handleTriggerClick}
                 sx={{
-                    height: { xs: "30px", sm: "34px" },
+                    height: "34px",
                     bgcolor: "white",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     border: "1px solid",
-                    borderColor: open ? "#6366f1" : "#e2e8f0",
+                    borderColor: open ? "#2563eb" : "#e2e8f0",
                     display: "flex",
                     alignItems: "center",
-                    px: { xs: 1, sm: 1.25 },
+                    px: 1,
                     gap: 0.5,
                     cursor: "pointer",
                     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                    boxShadow: open ? "0 0 0 3px rgba(99, 102, 241, 0.1)" : "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
-                    "&:hover": {
-                        borderColor: "#6366f1",
-                        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.08)"
-                    },
+                    boxShadow: open ? "0 0 0 2px rgba(37, 99, 235, 0.1)" : "0 1px 2px rgba(0,0,0,0.02)",
+                    "&:hover": { borderColor: "#2563eb", bgcolor: "#fcfdfe" },
                 }}
             >
-                <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden", gap: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden" }}>
                     <Box
                         sx={{
                             bgcolor: "#f8fafc",
-                            px: { xs: 0.75, sm: 1 },
-                            py: { xs: 0.125, sm: 0.2 },
-                            borderRadius: "4px",
-                            border: "1px solid #e5e7eb",
+                            px: 1,
+                            py: 0.2,
+                            borderRadius: "5px",
+                            border: "1px solid #f1f5f9",
                         }}
                     >
                         <Typography
                             sx={{
-                                fontSize: { xs: "0.75rem", sm: "0.8rem" },
+                                fontSize: "0.8rem",
                                 fontWeight: 600,
                                 color: "#1e293b",
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
-                                maxWidth: { xs: "80px", sm: "100px" },
+                                maxWidth: "100px",
+                                fontFamily: 'Roboto, sans-serif'
                             }}
                         >
                             {displayValue}
                         </Typography>
                     </Box>
                 </Box>
-                {open ? <ChevronUp size={14} color="#6366f1" /> : <ChevronDown size={14} color="#64748b" />}
+                {open ? <ChevronUp size={14} className="text-blue-500" /> : <ChevronDown size={14} className="text-slate-400" />}
             </Box>
 
             <Popover
@@ -194,28 +205,31 @@ const CustomHeaderDropdown = ({
                     />
 
                     {/* Select All */}
-                    <Box
-                        onClick={handleSelectAll}
-                        sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                            cursor: "pointer",
-                            "&:hover": { opacity: 0.8 },
-                        }}
-                    >
-                        <Checkbox
-                            size="small"
-                            checked={currentSelected.length === options.length && options.length > 0}
-                            indeterminate={currentSelected.length > 0 && currentSelected.length < options.length}
-                            sx={{ p: 0.5 }}
-                        />
-                        <Typography sx={{ fontSize: "0.9rem", fontWeight: 700 }}>
-                            Select All
-                        </Typography>
-                    </Box>
-
-                    <Divider />
+                    {multiSelect && (
+                        <>
+                            <Box
+                                onClick={handleSelectAll}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                    cursor: "pointer",
+                                    "&:hover": { opacity: 0.8 },
+                                }}
+                            >
+                                <Checkbox
+                                    size="small"
+                                    checked={currentSelected.length === options.length && options.length > 0}
+                                    indeterminate={currentSelected.length > 0 && currentSelected.length < options.length}
+                                    sx={{ p: 0.5 }}
+                                />
+                                <Typography sx={{ fontSize: "0.9rem", fontWeight: 700 }}>
+                                    Select All
+                                </Typography>
+                            </Box>
+                            <Divider />
+                        </>
+                    )}
 
                     {/* Options List */}
                     <Box
@@ -245,11 +259,13 @@ const CustomHeaderDropdown = ({
                                         "&:hover": { bgcolor: "#F8FAFC" },
                                     }}
                                 >
-                                    <Checkbox
-                                        size="small"
-                                        checked={currentSelected.includes(option)}
-                                        sx={{ p: 0.5 }}
-                                    />
+                                    {multiSelect && (
+                                        <Checkbox
+                                            size="small"
+                                            checked={currentSelected.includes(option)}
+                                            sx={{ p: 0.5 }}
+                                        />
+                                    )}
                                     <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
                                         {option}
                                     </Typography>

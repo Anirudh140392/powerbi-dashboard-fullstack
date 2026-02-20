@@ -8,22 +8,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "react": path.resolve(__dirname, "./node_modules/react"),
-      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
-      "@emotion/react": path.resolve(__dirname, "./node_modules/@emotion/react"),
-      "@emotion/styled": path.resolve(__dirname, "./node_modules/@emotion/styled"),
     },
   },
   server: {
     port: 9500,
     host: true,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:5000',
-        changeOrigin: true,
-        secure: false, // In case of self-signed certs, though this is http
-      },
-
+    hmr: {
+      clientPort: 9000,
     },
   },
-}); 
+});

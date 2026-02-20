@@ -6,10 +6,10 @@ import RCATree from "./RCATree";
 
 // -------------------- Sample Data --------------------
 const SAMPLE_CATEGORIES = [
-  { category: "Magnum", offtake_sales: 8398, offtake_comp: -2.9, market_share_pct: 28, ms_comp: 0.9, availability_pct: 77, availability_comp: -1.6, spend: 730, spend_comp: 256.7, roas: 3.1, roas_comp: 36.4, cpm: 475, cpm_comp: -19.0, cpc: 36, cpc_comp: -17.5, a2c_pct: 1.8, a2c_comp: 6.7, sos_pct: 29, sos_comp: -10.0, reason: "OK" },
-  { category: "Core Tub", offtake_sales: 11064, offtake_comp: -7.0, market_share_pct: 18, ms_comp: 0.0, availability_pct: 84, availability_comp: 0.2, spend: 595, spend_comp: 289.4, roas: 3.3, roas_comp: -9.4, cpm: 576, cpm_comp: -3.6, cpc: 45, cpc_comp: 5.7, a2c_pct: 2.3, a2c_comp: -9.9, sos_pct: 19, sos_comp: -5.2, reason: "Conversion Drop" },
-  { category: "Cornetto", offtake_sales: 9551, offtake_comp: -2.8, market_share_pct: 31, ms_comp: 1.2, availability_pct: 81, availability_comp: -0.4, spend: 488, spend_comp: 375.7, roas: 4.0, roas_comp: 13.7, cpm: 530, cpm_comp: 3.6, cpc: 22, cpc_comp: 16.6, a2c_pct: 5.1, a2c_comp: 13.5, sos_pct: 38, sos_comp: -2.0, reason: "OK" },
-  { category: "Premium Tub", offtake_sales: 3854, offtake_comp: -3.9, market_share_pct: 18, ms_comp: 0.0, availability_pct: 78, availability_comp: -0.3, spend: 418, spend_comp: 321.3, roas: 2.5, roas_comp: -24.2, cpm: 503, cpm_comp: -1.5, cpc: 79, cpc_comp: 18.0, a2c_pct: 0.7, a2c_comp: -24.0, sos_pct: 19, sos_comp: -5.2, reason: "Conversion Drop" },
+  { category: "Magnum", offtake_sales: 8398, offtake_comp: -2.9, market_share_pct: 28, ms_comp: 0.9, availability_pct: 47, availability_comp: -1.6, spend: 730, spend_comp: 256.7, roas: 3.1, roas_comp: 36.4, cpm: 475, cpm_comp: -19.0, cpc: 36, cpc_comp: -17.5, a2c_pct: 1.8, a2c_comp: 6.7, sos_pct: 29, sos_comp: -10.0, reason: "OK" },
+  { category: "Core Tub", offtake_sales: 11064, offtake_comp: -7.0, market_share_pct: 18, ms_comp: 0.0, availability_pct: 51, availability_comp: 0.2, spend: 595, spend_comp: 289.4, roas: 3.3, roas_comp: -9.4, cpm: 576, cpm_comp: -3.6, cpc: 45, cpc_comp: 5.7, a2c_pct: 2.3, a2c_comp: -9.9, sos_pct: 19, sos_comp: -5.2, reason: "Conversion Drop" },
+  { category: "Cornetto", offtake_sales: 9551, offtake_comp: -2.8, market_share_pct: 31, ms_comp: 1.2, availability_pct: 42, availability_comp: -0.4, spend: 488, spend_comp: 375.7, roas: 4.0, roas_comp: 13.7, cpm: 530, cpm_comp: 3.6, cpc: 22, cpc_comp: 16.6, a2c_pct: 5.1, a2c_comp: 13.5, sos_pct: 38, sos_comp: -2.0, reason: "OK" },
+  { category: "Premium Tub", offtake_sales: 3854, offtake_comp: -3.9, market_share_pct: 18, ms_comp: 0.0, availability_pct: 48, availability_comp: -0.3, spend: 418, spend_comp: 321.3, roas: 2.5, roas_comp: -24.2, cpm: 503, cpm_comp: -1.5, cpc: 79, cpc_comp: 18.0, a2c_pct: 0.7, a2c_comp: -24.0, sos_pct: 19, sos_comp: -5.2, reason: "Conversion Drop" },
 ];
 
 const APPLIED_FILTERS = [
@@ -182,7 +182,7 @@ function makeCityRows(categoryRow) {
     const weight = i === 0 ? 0.42 : 0.1 + ((seed + i * 7) % 12) / 100;
     const offtake = Math.round(base * weight);
     const offtakeComp = clamp((safeNum(categoryRow.offtake_comp) ?? 0) + (((seed + i * 11) % 9) - 4) * 1.3, -35, 35);
-    const availability = clamp(baseAvail + (((seed + i * 13) % 9) - 4) * 1.1, 40, 98);
+    const availability = clamp(baseAvail + (((seed + i * 13) % 9) - 4) * 1.1, 15, 51);
     const availabilityComp = clamp((safeNum(categoryRow.availability_comp) ?? 0) + (((seed + i * 5) % 7) - 3) * 0.6, -8, 8);
     const cvr = clamp((safeNum(categoryRow.a2c_pct) ?? 2.0) + (((seed + i * 3) % 9) - 4) * 0.15, 0.2, 9.0);
     const cvrComp = clamp((safeNum(categoryRow.a2c_comp) ?? 0) + (((seed + i * 19) % 11) - 5) * 0.9, -40, 40);
@@ -226,7 +226,7 @@ function makeSkuRows(categoryRow, cityRow) {
     const share = clamp(2 + ((seed + i * 9) % 18), 1, 40);
     const offtake = Math.round((base * share) / 100);
     const offtakeComp = clamp(cityRow.offtakeComp + (((seed + i * 11) % 9) - 4) * 1.4, -45, 45);
-    const osa = clamp((safeNum(cityRow.availability) ?? 70) + (((seed + i * 7) % 11) - 5) * 1.2, 35, 99);
+    const osa = clamp((safeNum(cityRow.availability) ?? 45) + (((seed + i * 7) % 11) - 5) * 1.2, 15, 51);
     const osaComp = clamp(cityRow.availabilityComp + (((seed + i * 5) % 9) - 4) * 0.7, -12, 12);
     const cvr = clamp((safeNum(cityRow.cvr) ?? 2.0) + (((seed + i * 17) % 11) - 5) * 0.18, 0.2, 12);
     const cvrComp = clamp(cityRow.cvrComp + (((seed + i * 19) % 11) - 5) * 1.1, -50, 50);

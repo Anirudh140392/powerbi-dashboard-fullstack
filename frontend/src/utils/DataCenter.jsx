@@ -1161,10 +1161,10 @@ export const defaultPlatforms = [
     ],
   },
 
-  // ---------------- SWIGGY (Q-com) ----------------
+  // ---------------- INSTAMART (Q-com) ----------------
   {
-    key: "swiggy",
-    label: "Swiggy",
+    key: "instamart",
+    label: "Instamart",
     type: "Q-com",
     logo: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp",
     columns: [
@@ -1339,6 +1339,93 @@ export const defaultPlatforms = [
         value: "₹7.4",
         change: { text: "▲1.2% (+₹0.09)", positive: true },
         meta: { units: "4.7 lac clicks", change: "▲1.2%" },
+      },
+    ],
+  },
+  // ---------------- FLIPKART ----------------
+  {
+    key: "flipkart",
+    label: "Flipkart",
+    type: "Marketplace",
+    logo: "https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flipkart_logo.svg/1024px-Flipkart_logo.svg.png",
+    columns: [
+      {
+        title: "Offtakes",
+        value: "₹2.24 Cr",
+        change: { text: "▲2.4% (+₹5.8 lac)", positive: true },
+        meta: { units: "1.12 lac units", change: "▲1.6%" },
+      },
+      {
+        title: "Spend",
+        value: "₹0.38 Cr",
+        change: { text: "▲1.2% (+₹0.5 lac)", positive: true },
+        meta: { units: "₹38 lac", change: "▲1.2%" },
+      },
+      {
+        title: "ROAS",
+        value: "7.1x",
+        change: { text: "▲0.4% (+0.03x)", positive: true },
+        meta: { units: "₹2.68 Cr return", change: "▲0.4%" },
+      },
+      {
+        title: "Inorg Sales",
+        value: "₹0.52 Cr",
+        change: { text: "▲1.6% (+₹0.9 lac)", positive: true },
+        meta: { units: "0.38 lac units", change: "▲1.6%" },
+      },
+      {
+        title: "Dsp Sales",
+        value: "₹0.16 Cr",
+        change: { text: "▲1.5% (+₹0.2 lac)", positive: true },
+        meta: { units: "0.10 lac units", change: "▲1.5%" },
+      },
+      {
+        title: "Conversion",
+        value: "4.1%",
+        change: { text: "▲0.1 pp", positive: true },
+        meta: { units: "36.2k conversions", change: "▲0.1 pp" },
+      },
+      {
+        title: "Availability",
+        value: "92.8%",
+        change: { text: "▲0.4 pp", positive: true },
+        meta: { units: "3,840 stores", change: "▲0.4 pp" },
+      },
+      {
+        title: "SOS",
+        value: "32.4%",
+        change: { text: "▲0.2 pp", positive: true },
+        meta: { units: "Shelf index 32.4", change: "▲0.2 pp" },
+      },
+      {
+        title: "Market Share",
+        value: "33.2%",
+        change: { text: "▲0.3 pp", positive: true },
+        meta: { units: "Category: ₹6.82 Cr", change: "▲0.3 pp" },
+      },
+      {
+        title: "Promo My Brand",
+        value: "19.8%",
+        change: { text: "▲0.5 pp", positive: true },
+        meta: { units: "Depth 19.8%", change: "▲0.5 pp" },
+      },
+      {
+        title: "Promo Compete",
+        value: "26.4%",
+        change: { text: "▲0.3 pp", positive: true },
+        meta: { units: "Depth 26.4%", change: "▲0.3 pp" },
+      },
+      {
+        title: "CPM",
+        value: "₹128",
+        change: { text: "▲1.6% (+₹2.1)", positive: true },
+        meta: { units: "46.2 lac impressions", change: "▲1.6%" },
+      },
+      {
+        title: "CPC",
+        value: "₹7.1",
+        change: { text: "▲1.1% (+₹0.08)", positive: true },
+        meta: { units: "4.2 lac clicks", change: "▲1.1%" },
       },
     ],
   },
@@ -5034,10 +5121,10 @@ export const defaultCategory = [
 // ];
 
 export const defaultBrands = [
-  // ---------------------- DAIRY DAY ----------------------
+  // ---------------------- CORNETTO ----------------------
   {
-    key: "dairyDay",
-    label: "Dairy Day",
+    key: "cornetto",
+    label: "Cornetto",
     logo: categoryLogo,
     columns: [
       {
@@ -5121,10 +5208,10 @@ export const defaultBrands = [
     ],
   },
 
-  // ---------------------- KWALITY WALLS ----------------------
+  // ---------------------- MAGNUM ----------------------
   {
-    key: "kwalityWalls",
-    label: "Kwality Walls",
+    key: "magnum",
+    label: "Magnum",
     logo: categoryLogo,
     columns: [
       {
@@ -5208,10 +5295,10 @@ export const defaultBrands = [
     ],
   },
 
-  // ---------------------- MOTHER DAIRY ----------------------
+  // ---------------------- FEAST ----------------------
   {
-    key: "motherDairy",
-    label: "Mother Dairy",
+    key: "feast",
+    label: "Feast",
     logo: categoryLogo,
     columns: [
       {
@@ -5295,10 +5382,10 @@ export const defaultBrands = [
     ],
   },
 
-  // ---------------------- AMUL ----------------------
+  // ---------------------- TWISTER ----------------------
   {
-    key: "amul",
-    label: "Amul",
+    key: "twister",
+    label: "Twister",
     logo: categoryLogo,
     columns: [
       {
@@ -5382,10 +5469,10 @@ export const defaultBrands = [
     ],
   },
 
-  // ---------------------- HAVMOR ----------------------
+  // ---------------------- KWALITY WALLS ----------------------
   {
-    key: "havmor",
-    label: "Havmor",
+    key: "kwalityWalls",
+    label: "Kwality Walls",
     logo: categoryLogo,
     columns: [
       {
@@ -5465,93 +5552,6 @@ export const defaultBrands = [
         value: "₹6.2",
         change: { text: "▲0.9% (+₹0.05)", positive: true },
         meta: { units: "0.63 lac clicks", change: "▲0.9%" },
-      },
-    ],
-  },
-
-  // ---------------------- VADILAL ----------------------
-  {
-    key: "vadilal",
-    label: "Vadilal",
-    logo: categoryLogo,
-    columns: [
-      {
-        title: "Offtakes",
-        value: "₹1.76 Cr",
-        change: { text: "▲2.9% (+₹5.0 lac)", positive: true },
-        meta: { units: "0.91 lac units", change: "▲1.8%" },
-      },
-      {
-        title: "Spend",
-        value: "₹18.7 lac",
-        change: { text: "▲1.9% (+₹0.32 lac)", positive: true },
-        meta: { units: "₹18.7 lac", change: "▲1.9%" },
-      },
-      {
-        title: "ROAS",
-        value: "8.2x",
-        change: { text: "▲0.3% (+0.02x)", positive: true },
-        meta: { units: "₹1.53 Cr return", change: "▲0.3%" },
-      },
-      {
-        title: "Inorg Sales",
-        value: "₹0.26 Cr",
-        change: { text: "▲2.1% (+₹0.45 lac)", positive: true },
-        meta: { units: "0.17 lac units", change: "▲2.1%" },
-      },
-      {
-        title: "Dsp Sales",
-        value: "₹0.09 Cr",
-        change: { text: "▲1.6% (+₹0.26 lac)", positive: true },
-        meta: { units: "0.06 lac units", change: "▲0.9%" },
-      },
-      {
-        title: "Conversion",
-        value: "4.2%",
-        change: { text: "▲0.1 pp", positive: true },
-        meta: { units: "15.2k conversions", change: "▲0.1 pp" },
-      },
-      {
-        title: "Availability",
-        value: "95.6%",
-        change: { text: "▲0.3 pp", positive: true },
-        meta: { units: "1,540 stores", change: "▲0.3 pp" },
-      },
-      {
-        title: "SOS",
-        value: "31.1%",
-        change: { text: "▲0.3 pp", positive: true },
-        meta: { units: "31.1 shelf index", change: "▲0.3 pp" },
-      },
-      {
-        title: "Market Share",
-        value: "12.3%",
-        change: { text: "▲0.3 pp", positive: true },
-        meta: { units: "Category: ₹14.3 Cr", change: "▲0.3 pp" },
-      },
-      {
-        title: "Promo My Brand",
-        value: "20.1%",
-        change: { text: "▲0.4 pp", positive: true },
-        meta: { units: "Depth 20.1%", change: "▲0.4 pp" },
-      },
-      {
-        title: "Promo Compete",
-        value: "26.7%",
-        change: { text: "▲0.5 pp", positive: true },
-        meta: { units: "Depth 26.7%", change: "▲0.5 pp" },
-      },
-      {
-        title: "CPM",
-        value: "₹115",
-        change: { text: "▲1.6% (+₹1.8)", positive: true },
-        meta: { units: "16.1 lac impressions", change: "▲1.6%" },
-      },
-      {
-        title: "CPC",
-        value: "₹6.5",
-        change: { text: "▲1.1% (+₹0.07)", positive: true },
-        meta: { units: "1.01 lac clicks", change: "▲1.1%" },
       },
     ],
   },

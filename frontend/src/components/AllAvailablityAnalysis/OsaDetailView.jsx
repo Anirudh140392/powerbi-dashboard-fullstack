@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { SlidersHorizontal, X, RefreshCcw, AlertCircle, FileQuestion } from "lucide-react";
+import { SlidersHorizontal, X, ChevronRight, ChevronDown } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 
 // Single-file React component (JSX)
@@ -11,14 +11,6 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
-}
-
-// Helper function to truncate long SKU names to 5-6 words
-function truncateName(name, maxWords = 6) {
-    if (!name) return '';
-    const words = name.split(/\s+/);
-    if (words.length <= maxWords) return name;
-    return words.slice(0, maxWords).join(' ') + '...';
 }
 
 function seededRandom(seed) {
@@ -48,6 +40,11 @@ function makeRow(seed, name, sku, base) {
 }
 
 const SAMPLE_ROWS = [
+    makeRow(90001, "Amul Tricone 120ml", "90001", 78),
+    makeRow(90002, "Mother Dairy Vanilla Cup", "90002", 85),
+    makeRow(90003, "Vadilal Bombay Kulfi", "90003", 72),
+    makeRow(90004, "Havmor Choco Block", "90004", 88),
+    makeRow(90005, "BR Gold Medal Ribbon", "90005", 81),
     makeRow(85045, "KW CORNETTO - DOUBLE CHOC...", "85045", 80),
     makeRow(85047, "KW CORNETTO - BUTTERSCOTCH", "85047", 84),
     makeRow(85123, "KW Cassatta", "85123", 72),
@@ -95,23 +92,7 @@ function SortIcon({ dir }) {
     );
 }
 
-// Floating loader component for OSA Detail View
-const FloatingLoader = ({ loading = false, label = "Loading..." }) => {
-    if (!loading) return null;
-
-    return (
-        <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-20 flex items-center justify-center rounded-2xl transition-opacity duration-200">
-            <div className="flex items-center gap-3 bg-white/90 px-5 py-3 rounded-full shadow-lg border border-slate-200">
-                <div className="relative">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-200 border-t-slate-700"></div>
-                </div>
-                <span className="text-sm font-medium text-slate-600">{label}</span>
-            </div>
-        </div>
-    );
-};
-
-export default function OsaDetailTableLight({ filters = {}, initialLoading = false }) {
+export default function OsaDetailTableLight() {
     const [query, setQuery] = useState("");
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
@@ -122,248 +103,59 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
 
 
     const [visibleDays, setVisibleDays] = useState(31); // 7/14/31 toggle
+    const [expandedRows, setExpandedRows] = useState(new Set());
+
+    const toggleRow = (sku) => {
+        setExpandedRows((prev) => {
+            const next = new Set(prev);
+            if (next.has(sku)) {
+                next.delete(sku);
+            } else {
+                next.add(sku);
+            }
+            return next;
+        });
+    };
+
+    const METRO_CITIES = ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad"];
+
+    const getCityData = (sku, cityName, baseVal) => {
+        const seed = sku.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + cityName.length;
+        const rnd = seededRandom(seed);
+        const values = DAYS.map((d) => {
+            const drift = (rnd() - 0.5) * 8;
+            const v = clamp(Math.round(baseVal + drift), 50, 98);
+            return v;
+        });
+        const avg31 = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+        return { name: cityName, values, avg31 };
+    };
 
     const [statusFilter, setStatusFilter] = useState([]);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [filterRules, setFilterRules] = useState(null);
 
-    // State for dynamic filter options from API
-    const [platformOptions, setPlatformOptions] = useState([]);
-    const [cityOptions, setCityOptions] = useState([]);
-    const [categoryOptions, setCategoryOptions] = useState([]);
-    const [monthOptions, setMonthOptions] = useState([]);
-    const [dateOptions, setDateOptions] = useState([]);
-
-    // State for selected filter values (for cascading)
-    const [selectedPlatform, setSelectedPlatform] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState(null);
-    const [selectedMonth, setSelectedMonth] = useState(null);
-
-    // State for dynamic category OSA data from API
-    const [categoryData, setCategoryData] = useState([]);
-    // Combine parent initialLoading with internal isLoading for unified loading state
-    const [isLoading, setIsLoading] = useState(true);
-    const [apiDates, setApiDates] = useState([]);
-
-    // State to persist filter selections across filter panel open/close
-    const [filterSelections, setFilterSelections] = useState({});
-
-    // State to track the applied filters (set when Apply button is clicked)
-    const [appliedFilters, setAppliedFilters] = useState({});
-
-    const resetFilters = () => {
-        setFilterSelections({});
-        setSelectedPlatform(null);
-        setSelectedCategory(null);
-        setSelectedMonth(null);
-    };
-
-    // New error and refresh states
-    const [hasError, setHasError] = useState(false);
-    const [retryKey, setRetryKey] = useState(0);
-
-    // Fetch category OSA data from API - Uses global filters from props + local advanced filters
-    useEffect(() => {
-        const fetchCategoryOsaData = async () => {
-            try {
-                setIsLoading(true);
-                setHasError(false);
-                const params = new URLSearchParams({});
-
-                // 1. Base filters from props (Global Headers)
-                const platform = filters.platform || 'All';
-                const brand = filters.brand || 'All';
-                const location = filters.location || 'All';
-                const startDate = filters.startDate;
-                const endDate = filters.endDate;
-
-                // 2. Local Advanced Filters (from Filter Panel)
-                const {
-                    platform: localPlatforms,
-                    brand: localBrands,
-                    city: localCities,
-                    category: localCategories,
-                    date: localDates,
-                    month: localMonths
-                } = appliedFilters;
-
-                // Collect params - prioritizing local filters if they exist
-                if (localPlatforms && localPlatforms.length > 0) {
-                    params.append('platform', localPlatforms.join(','));
-                } else if (platform !== 'All') {
-                    params.append('platform', platform);
-                }
-
-                if (localBrands && localBrands.length > 0) {
-                    params.append('brand', localBrands.join(','));
-                } else if (brand !== 'All') {
-                    params.append('brand', brand);
-                }
-
-                if (localCities && localCities.length > 0) {
-                    params.append('cities', localCities.join(','));
-                } else if (location !== 'All') {
-                    params.append('location', location);
-                }
-
-                // Time Period logic: Internal Date/Month overrides global Start/End Date
-                if (localDates && localDates.length > 0) {
-                    params.append('dates', localDates.join(','));
-                } else if (localMonths && localMonths.length > 0) {
-                    params.append('months', localMonths.join(','));
-                } else {
-                    if (startDate) params.append('startDate', startDate);
-                    if (endDate) params.append('endDate', endDate);
-                }
-
-                // Other advanced filters
-                if (localCategories && localCategories.length > 0) {
-                    params.append('categories', localCategories.join(','));
-                }
-
-                const url = `/api/availability-analysis/osa-detail-by-category?${params}`;
-                console.log('[OsaDetailView] REQUEST:', url);
-
-                const res = await fetch(url);
-                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-                const data = await res.json();
-
-                if (data && data.categories) {
-                    setCategoryData(data.categories);
-                } else {
-                    setCategoryData([]);
-                }
-
-                if (data && data.dates) {
-                    setApiDates(data.dates);
-                    setVisibleDays(Math.min(data.dates.length, 31));
-                } else {
-                    setApiDates([]);
-                }
-            } catch (error) {
-                console.error('[OsaDetailView] FETCH ERROR:', error);
-                setHasError(true);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchCategoryOsaData();
-    }, [filters, appliedFilters, retryKey]);
-
-    // Fetch filter options from API
-    useEffect(() => {
-        const fetchFilterOptions = async () => {
-            try {
-                // Fetch platforms (no cascading dependency)
-                const platformRes = await fetch('/api/availability-analysis/filter-options?filterType=platforms');
-                const platformData = await platformRes.json();
-                if (platformData.options) {
-                    setPlatformOptions(platformData.options.map(p => ({ id: p.toLowerCase().replace(/\s+/g, '_'), label: p })));
-                }
-
-                // Fetch months
-                const monthRes = await fetch('/api/availability-analysis/filter-options?filterType=months');
-                const monthData = await monthRes.json();
-                if (monthData.options) {
-                    setMonthOptions(monthData.options.map(m => ({ id: m, label: m })));
-                }
-
-                // Fetch dates
-                const dateRes = await fetch('/api/availability-analysis/filter-options?filterType=dates');
-                const dateData = await dateRes.json();
-                if (dateData.options) {
-                    setDateOptions(dateData.options.map(d => ({ id: d, label: d })));
-                }
-            } catch (error) {
-                console.error('Error fetching filter options:', error);
-            }
-        };
-
-        fetchFilterOptions();
-    }, []);
-
-    // Fetch category options when platform changes
-    useEffect(() => {
-        const fetchCategoryOptions = async () => {
-            try {
-                const params = new URLSearchParams({ filterType: 'categories' });
-                if (selectedPlatform) params.append('platform', selectedPlatform);
-
-                const res = await fetch(`/api/availability-analysis/filter-options?${params}`);
-                const data = await res.json();
-                if (data.options) {
-                    setCategoryOptions(data.options.map(c => ({ id: c.toLowerCase().replace(/\s+/g, '_'), label: c })));
-                }
-            } catch (error) {
-                console.error('Error fetching category options:', error);
-            }
-        };
-
-        fetchCategoryOptions();
-    }, [selectedPlatform]);
-
-    // Fetch city options when platform or category changes
-    useEffect(() => {
-        const fetchCityOptions = async () => {
-            try {
-                const params = new URLSearchParams({ filterType: 'cities' });
-                if (selectedPlatform) params.append('platform', selectedPlatform);
-                if (selectedCategory) params.append('category', selectedCategory);
-
-                const res = await fetch(`/api/availability-analysis/filter-options?${params}`);
-                const data = await res.json();
-                if (data.options) {
-                    setCityOptions(data.options.map(c => ({ id: c.toLowerCase().replace(/\s+/g, '_'), label: c })));
-                }
-            } catch (error) {
-                console.error('Error fetching city options:', error);
-            }
-        };
-
-        fetchCityOptions();
-    }, [selectedPlatform, selectedCategory]);
-
-    // Fetch date options when month or platform changes
-    useEffect(() => {
-        const fetchDateOptions = async () => {
-            try {
-                const params = new URLSearchParams({ filterType: 'dates' });
-                if (selectedPlatform) params.append('platform', selectedPlatform);
-                if (selectedMonth) params.append('months', selectedMonth);
-
-                const res = await fetch(`/api/availability-analysis/filter-options?${params}`);
-                const data = await res.json();
-                if (data.options) {
-                    setDateOptions(data.options.map(d => ({ id: d, label: d })));
-                }
-            } catch (error) {
-                console.error('Error fetching date options:', error);
-            }
-        };
-
-        fetchDateOptions();
-    }, [selectedPlatform, selectedMonth]);
-
-    // Build filter options from loaded data
     const filterOptions = useMemo(() => {
         return [
-            { id: "platform", label: "Platform", options: platformOptions.length > 0 ? platformOptions : [] },
-            { id: "month", label: "Month", options: monthOptions.length > 0 ? [{ id: "all", label: "All" }, ...monthOptions] : [{ id: "all", label: "All" }] },
-            { id: "date", label: "Date", options: dateOptions.length > 0 ? dateOptions : [] },
-            { id: "city", label: "City", options: cityOptions.length > 0 ? cityOptions : [] },
-            { id: "category", label: "Category", options: categoryOptions.length > 0 ? categoryOptions : [] },
+            { id: "date", label: "Date", options: [] }, // Date range picker would be custom
+            { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
+            { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
+            { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
+            { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
+            { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+            { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
+            { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
+            { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
+            { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
+            { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
         ];
-    }, [platformOptions, cityOptions, categoryOptions, monthOptions, dateOptions]);
-
-    // Use API data, removed SAMPLE_ROWS fallback as per request
-    const dataSource = categoryData;
+    }, []);
 
     const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q && statusFilter.length === 0) return dataSource;
+        if (!q && statusFilter.length === 0) return SAMPLE_ROWS;
 
-        let res = dataSource;
+        let res = SAMPLE_ROWS;
         if (q) {
             res = res.filter(
                 (r) => r.name.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q)
@@ -373,7 +165,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
             res = res.filter((r) => statusFilter.includes(r.status));
         }
         return res;
-    }, [query, statusFilter, dataSource]);
+    }, [query, statusFilter]);
 
     const sorted = useMemo(() => {
         const dirMul = sortDir === "asc" ? 1 : -1;
@@ -383,7 +175,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
 
         const getVal = (r) => {
             if (dayIndex != null) {
-                const idx = clamp(dayIndex - 1, 0, r.values.length - 1);
+                const idx = clamp(dayIndex - 1, 0, 30);
                 return r.values[idx];
             }
             return r[sortKey];
@@ -426,63 +218,43 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
         });
     };
 
-    // Use API dates if available, otherwise fallback to indexed days
-    // Dynamic: Only shows columns for the selected date range (not always 31 days)
-    const dayCols = useMemo(() => {
-        if (apiDates && apiDates.length > 0) {
-            // Use ALL dates from API - no slicing (dynamic based on selected date range)
-            return apiDates.map((date, idx) => ({
-                idx: idx + 1,
-                date: date,
-                label: new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-            }));
-        }
-        // Fallback to indexed days when no API response yet
-        return DAYS.slice(0, visibleDays).map(d => ({
-            idx: d,
-            date: null,
-            label: `DAY ${d}`
-        }));
-    }, [apiDates, visibleDays]);
+    const dayCols = DAYS.slice(0, visibleDays);
 
     return (
         <div className="rounded-3xl flex-col bg-slate-50 relative">
             <div className="flex flex-1 overflow-hidden">
                 <div className="flex-1 overflow-auto p-0 pr-0">
-                    <div className="rounded-3xl border bg-white p-2 sm:p-4 shadow relative">
+                    <div className="rounded-3xl border bg-white p-4 shadow">
                         {/* Title + Legend */}
-                        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between font-bold text-slate-900 gap-4 sm:gap-0">
+                        <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
                             <div className="flex flex-col gap-0.5">
                                 <div className="text-base font-semibold text-slate-900">
                                     OSA % Detail View
                                 </div>
                                 <div className="text-xs text-slate-500 font-normal">
-                                    {filters.endDate
-                                        ? `${new Date(filters.endDate).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} • Full Month View`
-                                        : `Current Month`
-                                    } • Sortable • Paginated
+                                    Last {visibleDays} Days • Sortable • Paginated
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            <div className="flex items-center gap-2">
                                 {/* Filter Button */}
                                 <button
                                     onClick={() => setShowFilterPanel(true)}
-                                    className="flex-shrink-0 flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all"
+                                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all"
                                 >
                                     <SlidersHorizontal className="h-3.5 w-3.5" />
                                     <span>Filters</span>
                                 </button>
 
-                                {/* Status Legend - Scrollable on mobile */}
-                                <div className="flex items-center gap-2 ml-0 sm:ml-2 overflow-x-auto pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full sm:w-auto">
-                                    <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
+                                {/* Status Legend - Moved from body */}
+                                <div className="flex items-center gap-2 ml-2">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
                                     </span>
-                                    <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
                                         <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
                                     </span>
-                                    <span className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
                                         <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
                                     </span>
                                 </div>
@@ -491,6 +263,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
 
 
 
+                        {/* Controls */}
                         {/* Table */}
                         <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                             <div className="overflow-auto">
@@ -499,7 +272,8 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                         <tr>
                                             {/* Sticky first column header */}
                                             <th
-                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] min-w-[140px] sm:min-w-[280px]"
+                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
+                                                style={{ minWidth: 280 }}
                                             >
                                                 <div className="flex items-center h-full">PRODUCT / SKU</div>
                                             </th>
@@ -526,13 +300,13 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
 
                                             {dayCols.map((d) => (
                                                 <th
-                                                    key={d.idx}
+                                                    key={d}
                                                     className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
-                                                    onClick={() => headerSort(`day_${d.idx}`)}
+                                                    onClick={() => headerSort(`day_${d}`)}
                                                 >
                                                     <div className="flex items-center justify-center gap-1 h-full">
-                                                        {d.label}
-                                                        <SortIcon dir={sortKey === `day_${d.idx}` ? sortDir : undefined} />
+                                                        DAY {d}
+                                                        <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
                                                     </div>
                                                 </th>
                                             ))}
@@ -548,97 +322,116 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                                     : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
 
                                             return (
-                                                <tr key={r.sku} className={"group " + st.rowAccent}>
-                                                    <td
-                                                        className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100 min-w-[140px] sm:min-w-[280px] max-w-[140px] sm:max-w-[280px]"
-                                                        title={r.name} // Show full name on hover
-                                                    >
-                                                        <div className="font-bold text-slate-900 leading-tight text-xs line-clamp-2">
-                                                            {r.name}
-                                                        </div>
-                                                    </td>
-
-
-
-                                                    <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
-                                                        {avgND}%
-                                                    </td>
-
-                                                    <td className="px-3 py-2 border-b border-slate-100">
-                                                        <span
-                                                            className={
-                                                                "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
-                                                                st.chip
-                                                            }
+                                                <React.Fragment key={r.sku}>
+                                                    <tr className={"group " + st.rowAccent}>
+                                                        <td
+                                                            className="sticky left-0 z-10 bg-white px-3 py-2 border-b border-slate-100"
+                                                            style={{ minWidth: 280 }}
                                                         >
-                                                            <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
-                                                            {r.status}
-                                                        </span>
-                                                    </td>
-
-                                                    {dayCols.map((d) => {
-                                                        const v = r.values[d.idx - 1];
-                                                        return (
-                                                            <td
-                                                                key={d.idx}
-                                                                className="px-2 py-2 border-b border-slate-100 text-center"
-                                                                title={`${r.name} • ${d.label}: ${v}%`}
-                                                            >
-                                                                <span
-                                                                    className={
-                                                                        "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
-                                                                        cellTone(v)
-                                                                    }
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => toggleRow(r.sku)}
+                                                                    className="p-1 hover:bg-slate-100 rounded-md transition-colors text-slate-400 hover:text-slate-600"
                                                                 >
-                                                                    {v}%
-                                                                </span>
-                                                            </td>
-                                                        );
-                                                    })}
-                                                </tr>
+                                                                    {expandedRows.has(r.sku) ? (
+                                                                        <ChevronDown className="h-4 w-4" />
+                                                                    ) : (
+                                                                        <ChevronRight className="h-4 w-4" />
+                                                                    )}
+                                                                </button>
+                                                                <div>
+                                                                    <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
+                                                                    <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+
+
+                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
+                                                            {avgND}%
+                                                        </td>
+
+                                                        <td className="px-3 py-2 border-b border-slate-100">
+                                                            <span
+                                                                className={
+                                                                    "inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " +
+                                                                    st.chip
+                                                                }
+                                                            >
+                                                                <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />
+                                                                {r.status}
+                                                            </span>
+                                                        </td>
+
+                                                        {dayCols.map((d) => {
+                                                            const v = r.values[d - 1];
+                                                            return (
+                                                                <td
+                                                                    key={d}
+                                                                    className="px-2 py-2 border-b border-slate-100 text-center"
+                                                                    title={`${r.name} • Day ${d}: ${v}%`}
+                                                                >
+                                                                    <span
+                                                                        className={
+                                                                            "inline-flex min-w-[36px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 " +
+                                                                            cellTone(v)
+                                                                        }
+                                                                    >
+                                                                        {v}%
+                                                                    </span>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                    {expandedRows.has(r.sku) &&
+                                                        METRO_CITIES.map((city) => {
+                                                            const cityData = getCityData(r.sku, city, r.avg31);
+                                                            const cityAvgND =
+                                                                visibleDays === 31
+                                                                    ? cityData.avg31
+                                                                    : Math.round(cityData.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+
+                                                            return (
+                                                                <tr key={`${r.sku}-${city}`} className="bg-slate-50/50">
+                                                                    <td
+                                                                        className="sticky left-0 z-10 bg-slate-50/50 px-3 py-1.5 border-b border-slate-100 pl-10"
+                                                                        style={{ minWidth: 280 }}
+                                                                    >
+                                                                        <div className="text-[11px] font-medium text-slate-600">
+                                                                            {city}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-3 py-1.5 border-b border-slate-100 text-[10px] text-slate-500 text-center">
+                                                                        {cityAvgND}%
+                                                                    </td>
+                                                                    <td className="px-3 py-1.5 border-b border-slate-100 text-center">
+                                                                        <span className="text-[10px] text-slate-400">-</span>
+                                                                    </td>
+                                                                    {dayCols.map((d) => {
+                                                                        const v = cityData.values[d - 1];
+                                                                        return (
+                                                                            <td
+                                                                                key={d}
+                                                                                className="px-2 py-1.5 border-b border-slate-100 text-center"
+                                                                            >
+                                                                                <span className="text-[10px] text-slate-500 font-medium">
+                                                                                    {v}%
+                                                                                </span>
+                                                                            </td>
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                </React.Fragment>
                                             );
                                         })}
 
-                                        {pageRows.length === 0 && !isLoading && !hasError && (
+                                        {pageRows.length === 0 && (
                                             <tr>
-                                                <td colSpan={4 + dayCols.length} className="px-4 py-20 text-center">
-                                                    <div className="flex flex-col items-center justify-center gap-3">
-                                                        <div className="rounded-full bg-slate-50 p-4 ring-1 ring-slate-100">
-                                                            <FileQuestion className="h-8 w-8 text-slate-300" />
-                                                        </div>
-                                                        <div className="max-w-[200px] text-xs font-medium text-slate-500 leading-relaxed">
-                                                            No data found for the selected filters and time period.
-                                                        </div>
-                                                        <button
-                                                            onClick={() => setAppliedFilters({})}
-                                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-700 underline"
-                                                        >
-                                                            Reset Filters
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
-
-                                        {hasError && !isLoading && (
-                                            <tr>
-                                                <td colSpan={4 + dayCols.length} className="px-4 py-20 text-center">
-                                                    <div className="flex flex-col items-center justify-center gap-4">
-                                                        <div className="rounded-full bg-rose-50 p-4 ring-1 ring-rose-100">
-                                                            <AlertCircle className="h-8 w-8 text-rose-500" />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <div className="text-sm font-bold text-slate-900">Oops! Something went wrong</div>
-                                                            <div className="text-xs text-slate-500">Failed to load OSA detail data.</div>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => setRetryKey(k => k + 1)}
-                                                            className="flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2 text-xs font-bold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95"
-                                                        >
-                                                            <RefreshCcw className="h-3.5 w-3.5" />
-                                                            Try Again
-                                                        </button>
-                                                    </div>
+                                                <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
+                                                    No rows found.
                                                 </td>
                                             </tr>
                                         )}
@@ -647,8 +440,8 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                             </div>
 
                             {/* Pagination - Performance Marketing Style */}
-                            <div className="mt-3 flex flex-col sm:flex-row items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200 gap-3 sm:gap-0">
-                                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+                            <div className="mt-3 flex items-center justify-between text-[11px] px-4 py-3 border-t border-slate-200">
+                                <div className="flex items-center gap-2">
                                     <button
                                         disabled={safePage === 1}
                                         onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -670,7 +463,7 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                <div className="flex items-center gap-3">
                                     <div className="text-slate-600">
                                         Rows/page
                                         <select
@@ -693,10 +486,10 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
                     </div>
                     {/* ------------------ KPI FILTER MODAL ------------------ */}
                     {showFilterPanel && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
-                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
+                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                 {/* Modal Header */}
-                                <div className="flex items-center justify-between border-b border-slate-100 px-4 md:px-6 py-4">
+                                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                                     <div>
                                         <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
                                         <p className="text-sm text-slate-500">Configure data visibility and rules</p>
@@ -711,104 +504,35 @@ export default function OsaDetailTableLight({ filters = {}, initialLoading = fal
 
                                 {/* Panel Content */}
                                 {/* Panel Content */}
-                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-4 md:px-6 pt-0 pb-6">
+                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
-                                        sectionValues={filterSelections}
                                         onSectionChange={(sectionId, values) => {
-                                            console.log("Filter changed:", sectionId, values);
-
-                                            // Persist the selection to state
-                                            setFilterSelections(prev => ({
-                                                ...prev,
-                                                [sectionId]: values
-                                            }));
-
-                                            // Handle cascading filters - Platform selection affects Category and City
-                                            if (sectionId === 'platform') {
-                                                const selectedLabels = platformOptions
-                                                    .filter(p => values.includes(p.id))
-                                                    .map(p => p.label);
-
-                                                setSelectedPlatform(selectedLabels.length > 0 ? selectedLabels.join(',') : null);
-
-                                                // Reset dependent filters if platform changed
-                                                if (values?.length > 0) {
-                                                    setSelectedCategory(null);
-                                                    setFilterSelections(prev => ({
-                                                        ...prev,
-                                                        [sectionId]: values,
-                                                        category: [],
-                                                        city: []
-                                                    }));
-                                                } else {
-                                                    setSelectedPlatform(null);
-                                                    setSelectedCategory(null);
-                                                }
-                                            }
-
-                                            // Handle Category selection - affects City
-                                            if (sectionId === 'category') {
-                                                const selectedLabels = categoryOptions
-                                                    .filter(c => values.includes(c.id))
-                                                    .map(c => c.label);
-
-                                                setSelectedCategory(selectedLabels.length > 0 ? selectedLabels.join(',') : null);
-
-                                                if (values?.length > 0) {
-                                                    // Clear city selection when category changes
-                                                    setFilterSelections(prev => ({
-                                                        ...prev,
-                                                        [sectionId]: values,
-                                                        city: []
-                                                    }));
-                                                } else {
-                                                    setSelectedCategory(null);
-                                                }
-                                            }
-
-                                            // Handle Month selection - affects Date
-                                            if (sectionId === 'month') {
-                                                const selectedValues = values || [];
-                                                setSelectedMonth(selectedValues.length > 0 ? selectedValues.join(',') : null);
-
-                                                // Clear date selection when month changes
-                                                setFilterSelections(prev => ({
-                                                    ...prev,
-                                                    [sectionId]: values,
-                                                    date: []
-                                                }));
+                                            if (sectionId === 'kpi') {
+                                                // Handle KPI filter changes - Assuming 'values' is an array of selected IDs
+                                                // For now just console log, or update a state if we wanted to filter the table
+                                                console.log("Selected KPIs:", values);
+                                                // To make this functional, we would add:
+                                                // setStatusFilter(values); // if statusFilter is used for KPIs
                                             }
                                         }}
                                     />
                                 </div>
 
                                 {/* Modal Footer */}
-                                <div className="flex justify-between gap-3 border-t border-slate-100 bg-white px-4 md:px-6 py-4">
+                                <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
                                     <button
-                                        onClick={resetFilters}
-                                        className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
+                                        onClick={() => setShowFilterPanel(false)}
+                                        className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                                     >
-                                        Reset Filter
+                                        Cancel
                                     </button>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={() => setShowFilterPanel(false)}
-                                            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                // Copy current selections to applied filters to trigger API call
-                                                setAppliedFilters({ ...filterSelections });
-                                                setShowFilterPanel(false);
-                                            }}
-                                            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                                        >
-                                            Apply Filters
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => setShowFilterPanel(false)}
+                                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                                    >
+                                        Apply Filters
+                                    </button>
                                 </div>
                             </div>
                         </div>

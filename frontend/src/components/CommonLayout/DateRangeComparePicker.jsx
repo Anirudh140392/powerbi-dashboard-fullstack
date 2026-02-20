@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Box, Typography, Button, Popover } from "@mui/material";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import dayjs from "dayjs";
 
 // Date Range + Compare Picker (single-file JSX)
@@ -198,17 +197,9 @@ export default function DateRangeComparePicker({
     timeEnd,
     compareStart: initialCompareStart,
     compareEnd: initialCompareEnd,
-    onApply,
-    maxDate: maxDateProp // Optional: max selectable date from database
+    onApply
 }) {
-    // Use maxDate from props if provided, otherwise use today
-    const today = useMemo(() => {
-        if (maxDateProp && maxDateProp.isValid && maxDateProp.isValid()) {
-            return maxDateProp.toDate();
-        }
-        return new Date();
-    }, [maxDateProp]);
-
+    const today = useMemo(() => new Date(), []);
     const [anchorEl, setAnchorEl] = useState(null);
 
     const [start, setStart] = useState(timeStart ? timeStart.toDate() : addDays(today, -7));
@@ -217,7 +208,6 @@ export default function DateRangeComparePicker({
     const [activeQuick, setActiveQuick] = useState("last7");
     const [compareOn, setCompareOn] = useState(true);
     const [compareMode, setCompareMode] = useState("previous");
-
 
     const computedCompare = useMemo(() => computeCompareRange(start, end, compareMode), [start, end, compareMode]);
     const [customCompareStart, setCustomCompareStart] = useState(initialCompareStart ? initialCompareStart.toDate() : computedCompare[0]);
@@ -230,35 +220,6 @@ export default function DateRangeComparePicker({
     const compareLabel = rangeLabel(...clampRange(compareStartFinal, compareEndFinal));
 
     const quickRanges = useMemo(() => QUICK_RANGES(today), [today]);
-
-    useEffect(() => {
-        if (!timeStart || !timeEnd) return;
-
-        const incomingStart = timeStart.toDate();
-        const incomingEnd = timeEnd.toDate();
-
-        if (incomingStart.getTime() === start.getTime() && incomingEnd.getTime() === end.getTime()) {
-            return;
-        }
-
-        const [alignedStart, alignedEnd] = clampRange(incomingStart, incomingEnd);
-        setStart(alignedStart);
-        setEnd(alignedEnd);
-        setActiveQuick("custom");
-
-        const [ns, ne] = computeCompareRange(alignedStart, alignedEnd, compareMode);
-        setCustomCompareStart(ns);
-        setCustomCompareEnd(ne);
-    }, [timeStart, timeEnd]);
-
-    useEffect(() => {
-        if (!initialCompareStart || !initialCompareEnd) return;
-
-        const incomingCompareStart = initialCompareStart.toDate();
-        const incomingCompareEnd = initialCompareEnd.toDate();
-        setCustomCompareStart(incomingCompareStart);
-        setCustomCompareEnd(incomingCompareEnd);
-    }, [initialCompareStart, initialCompareEnd]);
 
     const handleOpen = (event) => setAnchorEl(event.currentTarget);
     const handleClose = () => setAnchorEl(null);
@@ -340,75 +301,24 @@ export default function DateRangeComparePicker({
 
     return (
         <Box>
-            <Box
+            <button
+                type="button"
+                className="flex w-full items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-sm shadow-sm hover:border-blue-500 transition-all"
+                style={{ cursor: 'pointer', textAlign: 'left', height: '34px', minWidth: '190px' }}
                 onClick={handleOpen}
-                sx={{
-                    height: { xs: "30px", sm: "34px" },
-                    bgcolor: "white",
-                    borderRadius: "6px",
-                    border: "1px solid",
-                    borderColor: open ? "#6366f1" : "#e2e8f0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    px: { xs: 1, sm: 1.25 },
-                    gap: 0.5,
-                    cursor: "pointer",
-                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                    boxShadow: open ? "0 0 0 3px rgba(99, 102, 241, 0.1)" : "0 1px 2px 0 rgba(0, 0, 0, 0.03)",
-                    "&:hover": {
-                        borderColor: "#6366f1",
-                        boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.08)"
-                    },
-                }}
             >
-                <Box sx={{ display: "flex", alignItems: "center", flex: 1, overflow: "hidden", gap: 0.5 }}>
-                    <Box
-                        sx={{
-                            bgcolor: "#f8fafc",
-                            px: { xs: 0.75, sm: 1 },
-                            py: { xs: 0.125, sm: 0.2 },
-                            borderRadius: "4px",
-                            border: "1px solid #e5e7eb",
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            minWidth: 0,
-                            flex: 1
-                        }}
-                    >
-                        <Typography
-                            sx={{
-                                fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                                fontWeight: 700,
-                                color: '#1e293b',
-                                lineHeight: 1.15,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis"
-                            }}
-                        >
-                            {primaryLabel}
+                <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', justifyContent: 'center' }}>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', lineHeight: 1.1, fontFamily: 'Roboto, sans-serif' }}>
+                        {primaryLabel}
+                    </Typography>
+                    {compareOn && (
+                        <Typography sx={{ fontSize: '0.62rem', color: '#64748b', lineHeight: 1.1, fontWeight: 500, fontFamily: 'Roboto, sans-serif' }}>
+                            vs {compareLabel}
                         </Typography>
-                        {compareOn && (
-                            <Typography
-                                sx={{
-                                    fontSize: { xs: '0.55rem', sm: '0.6rem' },
-                                    color: '#64748b',
-                                    lineHeight: 1.05,
-                                    fontWeight: 500,
-                                    whiteSpace: "nowrap",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis"
-                                }}
-                            >
-                                vs {compareLabel}
-                            </Typography>
-                        )}
-                    </Box>
+                    )}
                 </Box>
-                {open ? <ChevronUp size={14} color="#6366f1" /> : <ChevronDown size={14} color="#64748b" />}
-            </Box>
+                <Typography sx={{ color: '#94a3b8', fontSize: '9px' }}>▼</Typography>
+            </button>
 
             <Popover
                 open={open}
@@ -438,7 +348,6 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(start)}
                                         onChange={(e) => onPrimaryStartChange(e.target.value)}
-                                        max={toKey(today)}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
                                     />
                                 </Box>
@@ -450,13 +359,11 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(end)}
                                         onChange={(e) => onPrimaryEndChange(e.target.value)}
-                                        max={toKey(today)}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
                                     />
                                 </Box>
                             </Box>
                         </Box>
-
 
 
                     </Box>

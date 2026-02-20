@@ -140,12 +140,12 @@ const sampleHierarchy = [
         label: 'Brand',
 
         level: 'keyword-type',
-        metrics: { catImpShare: 0.5, adSos: 88.4, orgSos: 83.0, overallSos: 85.1 },
+        metrics: { catImpShare: 0.5, adSos: 50.4, orgSos: 83.0, overallSos: 55.1 },
         platforms: {
-            Blinkit: { catImpShare: 0.5, adSos: 88.4, orgSos: 83.0, overallSos: 85.1 },
-            Zepto: { catImpShare: 0.4, adSos: 87.2, orgSos: 81.5, overallSos: 84.0 },
-            Instamart: { catImpShare: 0.6, adSos: 89.1, orgSos: 84.2, overallSos: 86.3 },
-            BigBasket: { catImpShare: 0.5, adSos: 88.0, orgSos: 82.8, overallSos: 85.0 },
+            Blinkit: { catImpShare: 0.5, adSos: 48.4, orgSos: 83.0, overallSos: 34.1 },
+            Zepto: { catImpShare: 0.4, adSos: 47.2, orgSos: 81.5, overallSos: 44.0 },
+            Instamart: { catImpShare: 0.6, adSos: 49.1, orgSos: 84.2, overallSos: 56.3 },
+            BigBasket: { catImpShare: 0.5, adSos: 48.0, orgSos: 82.8, overallSos: 65.0 },
         },
         children: [
             {

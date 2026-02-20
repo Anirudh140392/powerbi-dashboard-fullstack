@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Button, TextField, Select, MenuItem, useTheme, Tooltip } from '@mui/material';
+import { Box, Typography, Button, TextField, Select, MenuItem, useTheme } from '@mui/material';
 import { Download } from 'lucide-react';
 
 const PlatformIcon = ({ platform }) => {
@@ -23,41 +23,6 @@ const PlatformIcon = ({ platform }) => {
   );
 };
 
-/* ---------------- SKU IMAGE WITH ERROR HANDLING ---------------- */
-const SKUImage = ({ src, alt, theme }) => {
-  const [error, setError] = React.useState(false);
-
-  if (error || !src) {
-    return (
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1,
-          bgcolor: theme.palette.action.hover,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          border: `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: theme.palette.text.secondary }}>
-          IMG
-        </Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <img
-      src={src}
-      alt={alt}
-      onError={() => setError(true)}
-      style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
-    />
-  );
-};
-
 export default function SKUTable({ data }) {
   const theme = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,7 +41,7 @@ export default function SKUTable({ data }) {
             value="offtake"
             sx={{ minWidth: 120 }}
           >
-            <MenuItem value="offtake">Offtake</MenuItem>
+            <MenuItem value="offtake">Offtakes</MenuItem>
             <MenuItem value="growth">Growth</MenuItem>
           </Select>
         </Box>
@@ -143,12 +108,7 @@ export default function SKUTable({ data }) {
                     fontWeight: 700,
                     color: theme.palette.text.primary,
                     borderRight: `1px solid ${theme.palette.divider}`,
-                    minWidth: '300px',
-                    position: 'sticky',
-                    left: 0,
-                    zIndex: 10,
-                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
-                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
+                    minWidth: '300px'
                   }}>
                     SKU
                   </th>
@@ -197,22 +157,14 @@ export default function SKUTable({ data }) {
                   </th>
                 </tr>
                 <tr style={{ backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb', borderTop: `1px solid ${theme.palette.divider}`, position: 'sticky', top: 49, zIndex: 2 }}>
-                  <th style={{
-                    padding: '8px 12px',
-                    borderRight: `1px solid ${theme.palette.divider}`,
-                    position: 'sticky',
-                    left: 0,
-                    zIndex: 10,
-                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.background.default : '#f9fafb',
-                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
-                  }}></th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px 12px', borderRight: `1px solid ${theme.palette.divider}` }}></th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Growth %</th>
-                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtake</th>
+                  <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600, borderRight: `1px solid ${theme.palette.divider}` }}>Offtakes</th>
                   <th style={{ padding: '8px', fontSize: '0.75rem', color: theme.palette.text.secondary, fontWeight: 600 }}>Growth %</th>
                 </tr>
               </thead>
@@ -229,30 +181,18 @@ export default function SKUTable({ data }) {
                   >
                     <td style={{
                       padding: '12px',
-                      borderRight: `1px solid ${theme.palette.divider}`,
-                      position: 'sticky',
-                      left: 0,
-                      zIndex: 1,
-                      backgroundColor: theme.palette.background.paper,
-                      boxShadow: '2px 0 5px -2px rgba(0,0,0,0.05)'
+                      borderRight: `1px solid ${theme.palette.divider}`
                     }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <SKUImage
+                        <img
                           src={row.productImage || 'https://via.placeholder.com/40'}
                           alt={row.sku}
-                          theme={theme}
+                          style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }}
                         />
                         <Box>
-                          <Tooltip title={row.sku} arrow placement="top">
-                            <Typography variant="body2" noWrap sx={{ fontWeight: 600, color: theme.palette.text.primary, maxWidth: 350, display: 'block' }}>
-                              {row.sku}
-                            </Typography>
-                          </Tooltip>
-                          <Tooltip title={row.brand} arrow placement="top">
-                            <Typography variant="body2" noWrap sx={{ color: theme.palette.text.secondary, maxWidth: 180, display: 'block' }}>
-                              {row.brand}
-                            </Typography>
-                          </Tooltip>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                            {row.sku}
+                          </Typography>
                           <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                             {row.weight}
                           </Typography>
