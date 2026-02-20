@@ -1,5 +1,6 @@
 import watchTowerService from '../services/watchTowerService.js';
 
+
 export const watchTowerOverview = async (req, res) => {
     try {
         const filters = req.query;
