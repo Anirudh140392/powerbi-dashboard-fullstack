@@ -14,7 +14,6 @@ import {
     MapPin,
     SlidersHorizontal,
 } from 'lucide-react'
-import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
@@ -165,6 +164,8 @@ const PlatformOverviewNew = ({
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(false)
+    const [apiError, setApiError] = useState(null)
+    const [isRetrying, setIsRetrying] = useState(false)
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -206,6 +207,7 @@ const PlatformOverviewNew = ({
         if (!endpoint) return
 
         setApiLoading(true)
+        setApiError(null)
         try {
             const params = {
                 platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform),
@@ -217,16 +219,19 @@ const PlatformOverviewNew = ({
                 channel: selectedChannel || undefined,
             }
             console.log(`[PlatformOverviewNew] Fetching ${dimension} data from ${endpoint}`, params)
-            const res = await axiosInstance.get(endpoint, { params })
+            const res = await axiosInstance.get(endpoint, { params, timeout: 10000 })
 
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                 console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities from API`)
                 setApiData(prev => ({ ...prev, [dimension]: res.data }))
             } else {
-                console.warn(`[PlatformOverviewNew] Empty response for ${dimension}, keeping previous data`)
+                console.warn(`[PlatformOverviewNew] Empty response for ${dimension}`)
+                setApiData(prev => ({ ...prev, [dimension]: [] }))
             }
         } catch (err) {
-            console.warn(`[PlatformOverviewNew] API error for ${dimension}, using fallback:`, err.message)
+            console.error(`[PlatformOverviewNew] API error for ${dimension}:`, err.message)
+            setApiError(err.message || `Failed to load ${dimension} data`)
+            setApiData(prev => ({ ...prev, [dimension]: null }))
         } finally {
             setApiLoading(false)
         }
@@ -236,25 +241,11 @@ const PlatformOverviewNew = ({
         fetchDimensionData()
     }, [fetchDimensionData])
 
-    // Generate mock data as fallback
-    function generateFallbackData(entityKey, entityIdx, context) {
-        const data = {}
-        kpis.forEach((kpi) => {
-            const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
-            const val = getLogicalKpiValue(kpi.key, seed);
-            const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
-            let value, deltaVal
-            switch (kpi.key) {
-                case 'offtakes': value = `₹${val} Cr`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`; break
-                case 'spend': value = `₹${val} L`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`; break
-                case 'roas': value = `${val.toFixed(1)} Cr`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`; break
-                case 'cpm': value = `₹${val}`; deltaVal = `${Math.floor(getLogicalKpiValue(kpi.key + 'delta', seed) / 5)}`; break
-                case 'cpc': value = `₹${val}`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}`; break
-                default: value = `${val}%`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-            }
-            data[kpi.key] = { value, delta: { value: deltaVal, dir: isUp ? 'up' : 'down' } }
-        })
-        return data
+    // Retry function for error state
+    const retryFetch = async () => {
+        setIsRetrying(true)
+        await fetchDimensionData()
+        setIsRetrying(false)
     }
 
     // Handle filter apply from modal
@@ -276,9 +267,8 @@ const PlatformOverviewNew = ({
     const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
-    // Build entities from API data (with fallback to mock)
+    // Build entities from API data only — NO hardcoded fallback
     const entities = useMemo(() => {
-        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
         const rawApiEntities = apiData[dimension]
 
         if (rawApiEntities && rawApiEntities.length > 0) {
@@ -298,54 +288,9 @@ const PlatformOverviewNew = ({
             })
         }
 
-        // Fallback: generate mock entities
-        const fallbackEntities = {
-            platform: [
-                { key: 'blinkit', name: 'Blinkit', logoSrc: platformLogos['blinkit'], color: '#fbbf24' },
-                { key: 'instamart', name: 'Instamart', logoSrc: platformLogos['instamart'], color: '#f97316' },
-                { key: 'zepto', name: 'Zepto', logoSrc: platformLogos['zepto'], color: '#8b5cf6' },
-                { key: 'flipkart', name: 'Flipkart', logoSrc: FlipkartLogo, color: '#2874f0' },
-                { key: 'amazon', name: 'Amazon', logoSrc: platformLogos['amazon'], color: '#f59e0b' },
-            ],
-            brand: [
-                { key: 'cornetto', name: 'Cornetto', color: '#e11d48' },
-                { key: 'magnum', name: 'Magnum', color: '#7c3aed' },
-                { key: 'feast', name: 'Feast', color: '#0ea5e9' },
-                { key: 'twister', name: 'Twister', color: '#f97316' },
-            ],
-            month: [
-                { key: 'oct', name: 'Oct 2025', color: '#6366f1' },
-                { key: 'nov', name: 'Nov 2025', color: '#8b5cf6' },
-                { key: 'dec', name: 'Dec 2025', color: '#a855f7' },
-                { key: 'jan', name: 'Jan 2026', color: '#c084fc' },
-            ],
-            category: [
-                { key: 'cassata', name: 'Cassata', color: '#14b8a6' },
-                { key: 'core tub', name: 'Core Tub', color: '#06b6d4' },
-                { key: 'cup', name: 'Cup', color: '#0ea5e9' },
-                { key: 'sandwich', name: 'Sandwich', color: '#22c55e' },
-            ],
-            sku: [
-                { key: 'sku1', name: 'KW Cornetto Disc 110ml', color: '#0ea5e9' },
-                { key: 'sku2', name: 'KW Magnum Almond 90ml', color: '#1d4ed8' },
-                { key: 'sku3', name: 'KW Feast Jaljeera 65ml', color: '#f97316' },
-                { key: 'sku4', name: 'KW Cup Vanilla 100ml', color: '#ec4899' },
-            ],
-        }
-
-        let list = (fallbackEntities[dimension] || fallbackEntities.platform).slice()
-
-        // Apply advanced filters
-        if (dimension === 'brand' && advancedFilters.brands?.length > 0) list = list.filter(e => advancedFilters.brands.includes(e.key))
-        if (dimension === 'category' && advancedFilters.categories?.length > 0) list = list.filter(e => advancedFilters.categories.includes(e.key))
-        if (dimension === 'platform' && advancedFilters.platforms?.length > 0) list = list.filter(e => advancedFilters.platforms.includes(e.key))
-        if (dimension === 'sku' && advancedFilters.skus?.length > 0) list = list.filter(e => advancedFilters.skus.includes(e.key))
-
-        return list.map((e, idx) => ({
-            ...e,
-            data: generateFallbackData(e.key, idx, context)
-        }))
-    }, [apiData, dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters])
+        // No fallback — return empty array
+        return []
+    }, [apiData, dimension])
 
     const SectionWrapper = ({
         title,
@@ -465,119 +410,181 @@ const PlatformOverviewNew = ({
                         </div>
                     }
                 >
-                    {/* Grid Content - Horizontal Scrollable Area */}
-                    <div className="overflow-x-auto no-scrollbar pb-2">
-                        <div className="min-w-max pb-2">
-                            {/* KPI Labels Header - Premium */}
-                            <div className="flex items-center gap-2 mb-4 px-1">
-                                <div className="w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
-                                </div>
-                                {selectedKpis.map(kpi => (
-                                    <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em]">
-                                            {kpiLabels[kpi.key] || kpi.label}
-                                        </div>
+                    {/* Grid Content - Or Error/Loading State */}
+                    {apiLoading ? (
+                        /* Loading skeleton rows */
+                        <div className="space-y-4 py-4">
+                            {[1, 2, 3, 4].map((i) => (
+                                <div key={i} className="flex items-center gap-3 px-2">
+                                    <div className="w-56 flex-shrink-0 flex items-center gap-3">
+                                        <div className="h-9 w-9 rounded-lg bg-slate-100 animate-pulse" />
+                                        <div className="h-4 w-24 bg-slate-100 rounded animate-pulse" />
                                     </div>
-                                ))}
+                                    {selectedKpis.map(kpi => (
+                                        <div key={kpi.key} className="flex-1 min-w-[125px] px-3 py-4 rounded-xl bg-slate-50 border border-slate-100">
+                                            <div className="h-4 w-16 mx-auto bg-slate-100 rounded animate-pulse mb-1" />
+                                            <div className="h-3 w-10 mx-auto bg-slate-100 rounded animate-pulse" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    ) : apiError && entities.length === 0 ? (
+                        /* Error state with Refresh button */
+                        <div className="rounded-2xl bg-slate-50 border border-slate-200 p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">
+                            <div className="h-12 w-12 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                                <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
                             </div>
-
-                            {/* Entity Rows */}
-                            <div className="space-y-3 px-1">
-                                {entities.map((e) => (
-                                    <motion.div
-                                        key={e.key}
-                                        className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                    >
-                                        {/* Entity with Trend & RCA buttons - Sticky */}
-                                        <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                            {e.logoSrc ? (
-                                                <div className="h-9 w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                    <BrandLogo name={e.name} src={e.logoSrc} className="h-9 w-9" imgClassName="h-6 w-6" />
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    className="h-9 w-9 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shadow-sm flex-shrink-0"
-                                                    style={{ background: `linear-gradient(135deg, ${e.color || '#6366f1'}, ${e.color || '#6366f1'}dd)` }}
-                                                >
-                                                    {e.name.slice(0, 2).toUpperCase()}
-                                                </div>
-                                            )}
-                                            <span className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap" style={{ fontFamily: 'Roboto, sans-serif' }}>{e.name}</span>
-
-                                            {/* Trend & RCA buttons */}
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    onClick={(evt) => {
-                                                        evt.stopPropagation();
-                                                        onViewTrends(e.name || e.label, currentDimension.label);
-                                                    }}
-                                                    className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                    title={`View ${e.name} Trend`}
-                                                >
-                                                    <LineChart size={13} className="text-slate-400" />
-                                                </button>
-                                                <button
-                                                    onClick={(evt) => {
-                                                        evt.stopPropagation();
-                                                        onViewRca(e.name || e.label);
-                                                    }}
-                                                    className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                    title={`View ${e.name} RCA`}
-                                                >
-                                                    <MapPin size={13} className="text-slate-400" />
-                                                </button>
+                            <div className="text-center">
+                                <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load Platform Overview</h3>
+                                <p className="text-sm text-slate-500 mb-4">{apiError}</p>
+                            </div>
+                            <button
+                                onClick={retryFetch}
+                                disabled={isRetrying}
+                                className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all
+                                    ${isRetrying
+                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                        : 'bg-slate-700 text-white hover:bg-slate-800 shadow-md hover:shadow-lg'
+                                    }`}
+                            >
+                                {isRetrying ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-300 border-t-slate-500" />
+                                        <span>Retrying...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        <span>Refresh</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    ) : entities.length === 0 ? (
+                        /* No data state */
+                        <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center min-h-[150px] gap-2">
+                            <p className="text-sm text-slate-400 font-medium">No data available for the current selection</p>
+                        </div>
+                    ) : (
+                        /* Normal data grid */
+                        <div className="overflow-x-auto no-scrollbar pb-2">
+                            <div className="min-w-max pb-2">
+                                {/* KPI Labels Header - Premium */}
+                                <div className="flex items-center gap-2 mb-4 px-1">
+                                    <div className="w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                    </div>
+                                    {selectedKpis.map(kpi => (
+                                        <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
+                                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em]">
+                                                {kpiLabels[kpi.key] || kpi.label}
                                             </div>
                                         </div>
+                                    ))}
+                                </div>
 
-
-                                        {/* KPI Cards - Enhanced with gradient glow */}
-                                        {selectedKpis.map(kpi => {
-                                            const cell = e.data[kpi.key]
-                                            const textColor = getStatusText(cell?.delta)
-                                            const isUp = cell?.delta?.dir === 'up'
-
-                                            return (
-                                                <motion.button
-                                                    key={kpi.key}
-                                                    onClick={() => copy(`${e.name} ${kpi.label}`, cell?.value)}
-                                                    className={cn(
-                                                        'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
-                                                        'bg-gradient-to-br from-white to-slate-50',
-                                                        'border',
-                                                        isUp ? 'border-emerald-100' : 'border-rose-100',
-                                                        'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
-                                                        'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1',
-                                                        'active:scale-[0.98]',
-                                                        cardSize.minW, cardSize.py
-                                                    )}
-                                                    title={`${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
-                                                    whileHover={{ scale: 1.02 }}
-                                                    whileTap={{ scale: 0.98 }}
-                                                >
-                                                    {/* Subtle glow effect */}
-                                                    <div className={cn(
-                                                        'absolute inset-0 opacity-10 rounded-xl',
-                                                        isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
-                                                    )} />
-                                                    <div className={cn('font-bold text-slate-900 tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
-                                                        {cell?.value}
+                                {/* Entity Rows */}
+                                <div className="space-y-3 px-1">
+                                    {entities.map((e) => (
+                                        <motion.div
+                                            key={e.key}
+                                            className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            {/* Entity with Trend & RCA buttons - Sticky */}
+                                            <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                                {e.logoSrc ? (
+                                                    <div className="h-9 w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-9 w-9" imgClassName="h-6 w-6" />
                                                     </div>
-                                                    <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>
-                                                        <span className="opacity-80">{isUp ? '↑' : '↓'}</span>
-                                                        <span>{cell?.delta?.value?.replace(/[+-]/, '')}</span>
+                                                ) : (
+                                                    <div
+                                                        className="h-9 w-9 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shadow-sm flex-shrink-0"
+                                                        style={{ background: `linear-gradient(135deg, ${e.color || '#6366f1'}, ${e.color || '#6366f1'}dd)` }}
+                                                    >
+                                                        {e.name.slice(0, 2).toUpperCase()}
                                                     </div>
-                                                </motion.button>
-                                            )
-                                        })}
-                                    </motion.div>
-                                ))}
+                                                )}
+                                                <span className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap" style={{ fontFamily: 'Roboto, sans-serif' }}>{e.name}</span>
+
+                                                {/* Trend & RCA buttons */}
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={(evt) => {
+                                                            evt.stopPropagation();
+                                                            onViewTrends(e.name || e.label, currentDimension.label);
+                                                        }}
+                                                        className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                                                        title={`View ${e.name} Trend`}
+                                                    >
+                                                        <LineChart size={13} className="text-slate-400" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(evt) => {
+                                                            evt.stopPropagation();
+                                                            onViewRca(e.name || e.label);
+                                                        }}
+                                                        className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                                                        title={`View ${e.name} RCA`}
+                                                    >
+                                                        <MapPin size={13} className="text-slate-400" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+
+                                            {/* KPI Cards - Enhanced with gradient glow */}
+                                            {selectedKpis.map(kpi => {
+                                                const cell = e.data[kpi.key]
+                                                const textColor = getStatusText(cell?.delta)
+                                                const isUp = cell?.delta?.dir === 'up'
+
+                                                return (
+                                                    <motion.button
+                                                        key={kpi.key}
+                                                        onClick={() => copy(`${e.name} ${kpi.label}`, cell?.value)}
+                                                        className={cn(
+                                                            'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
+                                                            'bg-gradient-to-br from-white to-slate-50',
+                                                            'border',
+                                                            isUp ? 'border-emerald-100' : 'border-rose-100',
+                                                            'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+                                                            'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1',
+                                                            'active:scale-[0.98]',
+                                                            cardSize.minW, cardSize.py
+                                                        )}
+                                                        title={`${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
+                                                        whileHover={{ scale: 1.02 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                    >
+                                                        {/* Subtle glow effect */}
+                                                        <div className={cn(
+                                                            'absolute inset-0 opacity-10 rounded-xl',
+                                                            isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
+                                                        )} />
+                                                        <div className={cn('font-bold text-slate-900 tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                                            {cell?.value}
+                                                        </div>
+                                                        <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>
+                                                            <span className="opacity-80">{isUp ? '↑' : '↓'}</span>
+                                                            <span>{cell?.delta?.value?.replace(/[+-]/, '')}</span>
+                                                        </div>
+                                                    </motion.button>
+                                                )
+                                            })}
+                                        </motion.div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Footer - Summary Stats */}
                     <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">

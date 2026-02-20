@@ -317,19 +317,20 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: themeColor }}>
-                                {Array.isArray(trendSeries) && trendSeries.length > 0
-                                    ? (typeof trendSeries[trendSeries.length - 1] === 'number'
-                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title === 'Offtake' ? 'Cr' : '%')
-                                        : trendSeries[trendSeries.length - 1])
-                                    : kpi.value}
+                                {kpi.value}
                             </Typography>
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Avg</Typography>
+                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {sliceSeries.length > 0
-                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1)
-                                    : '0.0'}
+                                {sliceSeries.length >= 2
+                                    ? (() => {
+                                        const start = sliceSeries[0];
+                                        const end = sliceSeries[sliceSeries.length - 1];
+                                        const pct = start !== 0 ? (((end - start) / start) * 100).toFixed(1) : '0.0';
+                                        return `${pct > 0 ? '+' : ''}${pct}%`;
+                                    })()
+                                    : '0.0%'}
                             </Typography>
                         </div>
                     </div>
@@ -495,19 +496,20 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: color }}>
-                                {Array.isArray(trendSeries) && trendSeries.length > 0
-                                    ? (typeof trendSeries[trendSeries.length - 1] === 'number'
-                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title === 'Offtake' ? 'Cr' : '%')
-                                        : trendSeries[trendSeries.length - 1])
-                                    : kpi.value}
+                                {kpi.value}
                             </Typography>
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Avg</Typography>
+                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {sliceSeries.length > 0
-                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1)
-                                    : '0.0'}
+                                {sliceSeries.length >= 2
+                                    ? (() => {
+                                        const start = sliceSeries[0];
+                                        const end = sliceSeries[sliceSeries.length - 1];
+                                        const pct = start !== 0 ? (((end - start) / start) * 100).toFixed(1) : '0.0';
+                                        return `${pct > 0 ? '+' : ''}${pct}%`;
+                                    })()
+                                    : '0.0%'}
                             </Typography>
                         </div>
                     </div>
