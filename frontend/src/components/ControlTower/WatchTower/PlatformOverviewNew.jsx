@@ -1,4 +1,5 @@
-import { useState, useMemo, useContext } from 'react'
+import { useState, useMemo, useContext, useEffect, useCallback } from 'react'
+import axiosInstance from '../../../api/axiosInstance'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../../utils/FilterContext'
 import {
@@ -76,6 +77,57 @@ const kpiLabels = {
     asp: 'ASP'
 };
 
+// Map backend KPI title → frontend kpiKey
+const BACKEND_TITLE_TO_KEY = {
+    'Offtakes': 'offtakes',
+    'Category Size': 'roas',
+    'Spend': 'spend',
+    'ROAS': 'roas_x',
+    'Inorg Sales': 'inorgSales',
+    'Conversion': 'conversion',
+    'Availability': 'availability',
+    'SOS': 'shareOfVolume',
+    'Market Share': 'marketShare',
+    'Promo My Brand': 'promoMyBrand',
+    'Promo Compete': 'promoCompete',
+    'CPM': 'cpm',
+    'CPC': 'cpc',
+}
+
+// Map backend API response entity → frontend entity format
+const mapApiEntityToFrontend = (apiEntity) => {
+    const data = {}
+    if (apiEntity.columns && Array.isArray(apiEntity.columns)) {
+        apiEntity.columns.forEach(col => {
+            const key = BACKEND_TITLE_TO_KEY[col.title]
+            if (key) {
+                const changeText = col.change?.text || '0%'
+                const isPositive = col.change?.positive !== false
+                data[key] = {
+                    value: col.value || '0',
+                    delta: {
+                        value: changeText.replace(/^[+-]/, ''),
+                        dir: isPositive ? 'up' : 'down'
+                    }
+                }
+            }
+        })
+    }
+    return data
+}
+
+// Dimension → API endpoint mapping
+const DIMENSION_API_MAP = {
+    platform: '/watchtower/platform-overview',
+    brand: '/watchtower/brands-overview',
+    month: '/watchtower/month-overview',
+    category: '/watchtower/category-overview',
+    sku: '/watchtower/sku-overview',
+}
+
+// Color palette for dynamically created entities
+const ENTITY_COLORS = ['#6366f1', '#8b5cf6', '#f97316', '#14b8a6', '#e11d48', '#06b6d4', '#0ea5e9', '#22c55e', '#eab308', '#ec4899', '#a855f7', '#f43f5e']
+
 const PlatformOverviewNew = ({
     onViewTrends = () => { },
     onViewRca = () => { },
@@ -84,8 +136,11 @@ const PlatformOverviewNew = ({
         selectedChannel,
         platform: globalPlatform,
         selectedBrand,
+        brands: globalBrands,
         selectedCategory,
+        categories: globalCategories,
         selectedLocation,
+        platforms: globalPlatforms,
         timeStart,
         timeEnd
     } = useContext(FilterContext);
@@ -95,23 +150,21 @@ const PlatformOverviewNew = ({
         { key: 'spend', label: 'Spend' },
         { key: 'roas', label: 'Category size' },
         { key: 'inorgSales', label: 'Inorg Sales' },
-        { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
         { key: 'shareOfVolume', label: 'Share of Volume' },
-        { key: 'ad_sov', label: 'Ad SOV' },
-        { key: 'organic_sov', label: 'Organic SOV' },
         { key: 'marketShare', label: 'Market share' },
         { key: 'promoMyBrand', label: 'Promo - My Brand' },
         { key: 'promoCompete', label: 'Promo - Compete' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
-        { key: 'asp', label: 'ASP' },
     ]
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+    const [apiData, setApiData] = useState({})
+    const [apiLoading, setApiLoading] = useState(false)
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -123,178 +176,87 @@ const PlatformOverviewNew = ({
         kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
         filterLogic: 'OR',
     })
-    // Dimension entities (same as App.jsx)
-    const dimensionData = {
-        platform: {
-            label: 'Platform',
-            icon: Monitor,
-            entities: [
-                {
-                    key: 'blinkit',
-                    name: 'Blinkit',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
-                    color: '#fbbf24'
-                },
-                {
-                    key: 'instamart',
-                    name: 'Instamart',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
-                    color: '#f97316'
-                },
-                {
-                    key: 'zepto',
-                    name: 'Zepto',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
-                    color: '#8b5cf6'
-                },
-                {
-                    key: 'flipkart',
-                    name: 'Flipkart',
-                    logoSrc: FlipkartLogo,
-                    color: '#2874f0'
-                },
-                {
-                    key: 'amazon',
-                    name: 'Amazon',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
-                    color: '#f59e0b'
-                }
-            ]
-        },
-        brand: {
-            label: 'Brand',
-            icon: Tag,
-            entities: [
-                { key: 'cornetto', name: 'Cornetto', color: '#e11d48' },
-                { key: 'magnum', name: 'Magnum', color: '#7c3aed' },
-                { key: 'feast', name: 'Feast', color: '#0ea5e9' },
-                { key: 'twister', name: 'Twister', color: '#f97316' },
-            ]
-        },
-        month: {
-            label: 'Month',
-            icon: Calendar,
-            entities: [
-                { key: 'oct', name: 'Oct 2025', color: '#6366f1' },
-                { key: 'nov', name: 'Nov 2025', color: '#8b5cf6' },
-                { key: 'dec', name: 'Dec 2025', color: '#a855f7' },
-                { key: 'jan', name: 'Jan 2026', color: '#c084fc' },
-            ]
-        },
-        category: {
-            label: 'Category',
-            icon: Grid3X3,
-            entities: [
-                { key: 'cassata', name: 'Cassata', color: '#14b8a6' },
-                { key: 'core tub', name: 'Core Tub', color: '#06b6d4' },
-                { key: 'cup', name: 'Cup', color: '#0ea5e9' },
-                { key: 'sandwich', name: 'Sandwich', color: '#22c55e' },
-            ]
-        },
-        sku: {
-            label: 'SKU',
-            icon: Package,
-            entities: [
-                { key: 'sku1', name: 'KW Cornetto Disc 110ml', color: '#0ea5e9' },
-                { key: 'sku2', name: 'KW Magnum Almond 90ml', color: '#1d4ed8' },
-                { key: 'sku3', name: 'KW Feast Jaljeera 65ml', color: '#f97316' },
-                { key: 'sku4', name: 'KW Cup Vanilla 100ml', color: '#ec4899' },
-            ]
-        },
-    }
-    // Generate mock data for each entity (same as App.jsx)
-    // Note: context is now defined in useMemo to ensure it updates with filter changes
-    function generateEntityData(entityKey, entityIdx, context, currentDimensionKey) {
-        const data = {}
 
-        kpis.forEach((kpi, kpiIdx) => {
+    // Static dimension metadata (icons, logos for known platforms)
+    const dimensionMeta = {
+        platform: { label: 'Platform', icon: Monitor },
+        brand: { label: 'Brand', icon: Tag },
+        month: { label: 'Month', icon: Calendar },
+        category: { label: 'Category', icon: Grid3X3 },
+        sku: { label: 'SKU', icon: Package },
+    }
+
+    // Known platform logos for enriching API data
+    const platformLogos = {
+        'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
+        'instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+        'swiggy instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+        'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
+        'flipkart': FlipkartLogo,
+        'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+    }
+    const platformColors = {
+        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316',
+        'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
+    }
+
+    // Fetch data from backend API when dimension or filters change
+    const fetchDimensionData = useCallback(async () => {
+        const endpoint = DIMENSION_API_MAP[dimension]
+        if (!endpoint) return
+
+        setApiLoading(true)
+        try {
+            const params = {
+                platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform),
+                brand: selectedBrand || undefined,
+                category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory),
+                location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
+                startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
+                endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined,
+                channel: selectedChannel || undefined,
+            }
+            console.log(`[PlatformOverviewNew] Fetching ${dimension} data from ${endpoint}`, params)
+            const res = await axiosInstance.get(endpoint, { params })
+
+            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities from API`)
+                setApiData(prev => ({ ...prev, [dimension]: res.data }))
+            } else {
+                console.warn(`[PlatformOverviewNew] Empty response for ${dimension}, keeping previous data`)
+            }
+        } catch (err) {
+            console.warn(`[PlatformOverviewNew] API error for ${dimension}, using fallback:`, err.message)
+        } finally {
+            setApiLoading(false)
+        }
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel])
+
+    useEffect(() => {
+        fetchDimensionData()
+    }, [fetchDimensionData])
+
+    // Generate mock data as fallback
+    function generateFallbackData(entityKey, entityIdx, context) {
+        const data = {}
+        kpis.forEach((kpi) => {
             const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
             const val = getLogicalKpiValue(kpi.key, seed);
             const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
-
             let value, deltaVal
             switch (kpi.key) {
-                case 'offtakes':
-                    value = `₹${val} Cr`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break
-                case 'spend':
-                    value = `₹${val} L`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break
-                case 'roas':
-                    value = `${val.toFixed(1)} Cr`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break
-                case 'availability':
-                case 'conversion':
-                case 'sos':
-                case 'marketShare':
-                case 'inorgSales':
-                case 'dspSales':
-                case 'promoMyBrand':
-                case 'promoCompete':
-                    value = `${val}%`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}%`
-                    break
-                case 'cpm':
-                    value = `₹${val}`
-                    deltaVal = `${isUp ? '+' : '-'}${Math.floor(getLogicalKpiValue(kpi.key + 'delta', seed) / 5)}`
-                    break
-                case 'cpc':
-                    value = `₹${val}`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}`
-                    break
-                case 'asp':
-                    value = `₹${Math.round(val)}`
-                    deltaVal = `${isUp ? '+' : '-'}${getLogicalKpiValue(kpi.key + 'delta', seed).toFixed(1)}%`
-                    break
-                default:
-                    value = `${val}%`
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
+                case 'offtakes': value = `₹${val} Cr`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`; break
+                case 'spend': value = `₹${val} L`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`; break
+                case 'roas': value = `${val.toFixed(1)} Cr`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`; break
+                case 'cpm': value = `₹${val}`; deltaVal = `${Math.floor(getLogicalKpiValue(kpi.key + 'delta', seed) / 5)}`; break
+                case 'cpc': value = `₹${val}`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}`; break
+                default: value = `${val}%`; deltaVal = `${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
             }
-
-            data[kpi.key] = {
-                value,
-                delta: { value: deltaVal, dir: isUp ? 'up' : 'down' }
-            }
+            data[kpi.key] = { value, delta: { value: deltaVal, dir: isUp ? 'up' : 'down' } }
         })
-
-        // Compute Share of Volume (SOV) and split into Ad SOV and Organic SOV
-        // Deterministic pseudo-random based on entityKey to keep values stable across renders
-        const deterministic = (str, salt = '') => {
-            let h = 2166136261 >>> 0
-            const s = `${str}-${salt}`
-            for (let i = 0; i < s.length; i++) {
-                h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0
-            }
-            return (h % 1000) / 1000
-        }
-
-        // Ranges by dimension
-        let min = 11, max = 21
-        if (currentDimensionKey === 'brand') { min = 11; max = 30 }
-        else if (currentDimensionKey === 'sku') { min = 11; max = 20 }
-        else if (currentDimensionKey === 'platform') { min = 11; max = 21 }
-
-        const frac = deterministic(entityKey, 'sov')
-        const sov = min + frac * (max - min)
-
-        // Ad share fraction between 20% - 60% of SOV
-        const adFrac = 0.2 + deterministic(entityKey, 'ad') * 0.4
-        const adVal = sov * adFrac
-        const organicVal = sov - adVal
-
-        const sovDelta = `${deterministic(entityKey, 'sov-delta') > 0.5 ? '+' : '-'}${(deterministic(entityKey, 'sov-delta') * 3).toFixed(1)}%`
-        const adDelta = `${deterministic(entityKey, 'ad-delta') > 0.5 ? '+' : '-'}${(deterministic(entityKey, 'ad-delta') * 3).toFixed(1)}%`
-        const orgDelta = `${deterministic(entityKey, 'org-delta') > 0.5 ? '+' : '-'}${(deterministic(entityKey, 'org-delta') * 3).toFixed(1)}%`
-
-        data['shareOfVolume'] = { value: `${sov.toFixed(1)}%`, delta: { value: sovDelta, dir: sovDelta.startsWith('+') ? 'up' : 'down' } }
-        data['ad_sov'] = { value: `${adVal.toFixed(1)}%`, delta: { value: adDelta, dir: adDelta.startsWith('+') ? 'up' : 'down' } }
-        data['organic_sov'] = { value: `${organicVal.toFixed(1)}%`, delta: { value: orgDelta, dir: orgDelta.startsWith('+') ? 'up' : 'down' } }
-
         return data
     }
+
     // Handle filter apply from modal
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -309,36 +271,81 @@ const PlatformOverviewNew = ({
         advancedFilters.skuCode.length > 0,
     ].filter(Boolean).length
 
-    const currentDimension = dimensionData[dimension]
+    const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
     // Get selected KPIs in order
     const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
+    // Build entities from API data (with fallback to mock)
     const entities = useMemo(() => {
-        // Define context here so it updates when filter values change
         const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
-        // start from all entities for the current dimension
-        let list = currentDimension.entities.slice()
+        const rawApiEntities = apiData[dimension]
 
-        // Apply active advanced filters for the same dimension (if any)
-        if (dimension === 'brand' && advancedFilters.brands && advancedFilters.brands.length > 0) {
-            list = list.filter(e => advancedFilters.brands.includes(e.key))
+        if (rawApiEntities && rawApiEntities.length > 0) {
+            // Use real API data
+            return rawApiEntities.map((apiEntity, idx) => {
+                const key = (apiEntity.key || apiEntity.label || `entity-${idx}`).toLowerCase()
+                const name = apiEntity.label || apiEntity.key || `Entity ${idx + 1}`
+                const logoSrc = apiEntity.logo || platformLogos[key] || null
+                const color = platformColors[key] || ENTITY_COLORS[idx % ENTITY_COLORS.length]
+                return {
+                    key,
+                    name,
+                    logoSrc,
+                    color,
+                    data: mapApiEntityToFrontend(apiEntity)
+                }
+            })
         }
-        if (dimension === 'category' && advancedFilters.categories && advancedFilters.categories.length > 0) {
-            list = list.filter(e => advancedFilters.categories.includes(e.key))
+
+        // Fallback: generate mock entities
+        const fallbackEntities = {
+            platform: [
+                { key: 'blinkit', name: 'Blinkit', logoSrc: platformLogos['blinkit'], color: '#fbbf24' },
+                { key: 'instamart', name: 'Instamart', logoSrc: platformLogos['instamart'], color: '#f97316' },
+                { key: 'zepto', name: 'Zepto', logoSrc: platformLogos['zepto'], color: '#8b5cf6' },
+                { key: 'flipkart', name: 'Flipkart', logoSrc: FlipkartLogo, color: '#2874f0' },
+                { key: 'amazon', name: 'Amazon', logoSrc: platformLogos['amazon'], color: '#f59e0b' },
+            ],
+            brand: [
+                { key: 'cornetto', name: 'Cornetto', color: '#e11d48' },
+                { key: 'magnum', name: 'Magnum', color: '#7c3aed' },
+                { key: 'feast', name: 'Feast', color: '#0ea5e9' },
+                { key: 'twister', name: 'Twister', color: '#f97316' },
+            ],
+            month: [
+                { key: 'oct', name: 'Oct 2025', color: '#6366f1' },
+                { key: 'nov', name: 'Nov 2025', color: '#8b5cf6' },
+                { key: 'dec', name: 'Dec 2025', color: '#a855f7' },
+                { key: 'jan', name: 'Jan 2026', color: '#c084fc' },
+            ],
+            category: [
+                { key: 'cassata', name: 'Cassata', color: '#14b8a6' },
+                { key: 'core tub', name: 'Core Tub', color: '#06b6d4' },
+                { key: 'cup', name: 'Cup', color: '#0ea5e9' },
+                { key: 'sandwich', name: 'Sandwich', color: '#22c55e' },
+            ],
+            sku: [
+                { key: 'sku1', name: 'KW Cornetto Disc 110ml', color: '#0ea5e9' },
+                { key: 'sku2', name: 'KW Magnum Almond 90ml', color: '#1d4ed8' },
+                { key: 'sku3', name: 'KW Feast Jaljeera 65ml', color: '#f97316' },
+                { key: 'sku4', name: 'KW Cup Vanilla 100ml', color: '#ec4899' },
+            ],
         }
-        if (dimension === 'platform' && advancedFilters.platforms && advancedFilters.platforms.length > 0) {
-            list = list.filter(e => advancedFilters.platforms.includes(e.key))
-        }
-        if (dimension === 'sku' && advancedFilters.skus && advancedFilters.skus.length > 0) {
-            list = list.filter(e => advancedFilters.skus.includes(e.key))
-        }
+
+        let list = (fallbackEntities[dimension] || fallbackEntities.platform).slice()
+
+        // Apply advanced filters
+        if (dimension === 'brand' && advancedFilters.brands?.length > 0) list = list.filter(e => advancedFilters.brands.includes(e.key))
+        if (dimension === 'category' && advancedFilters.categories?.length > 0) list = list.filter(e => advancedFilters.categories.includes(e.key))
+        if (dimension === 'platform' && advancedFilters.platforms?.length > 0) list = list.filter(e => advancedFilters.platforms.includes(e.key))
+        if (dimension === 'sku' && advancedFilters.skus?.length > 0) list = list.filter(e => advancedFilters.skus.includes(e.key))
 
         return list.map((e, idx) => ({
             ...e,
-            data: generateEntityData(e.key, idx, context, dimension)
+            data: generateFallbackData(e.key, idx, context)
         }))
-    }, [currentDimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters, dimension])
+    }, [apiData, dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters])
 
     const SectionWrapper = ({
         title,
@@ -400,7 +407,7 @@ const PlatformOverviewNew = ({
                         <div className="flex items-center gap-3">
                             {/* Dimension Tabs */}
                             <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50">
-                                {Object.entries(dimensionData).map(([key, dim]) => {
+                                {Object.entries(dimensionMeta).map(([key, dim]) => {
                                     const isSelected = dimension === key
                                     const DimIcon = dim.icon
                                     return (
@@ -506,7 +513,7 @@ const PlatformOverviewNew = ({
                                                 <button
                                                     onClick={(evt) => {
                                                         evt.stopPropagation();
-                                                        onViewTrends(e.name || e.label, dimensionData[dimension].label);
+                                                        onViewTrends(e.name || e.label, currentDimension.label);
                                                     }}
                                                     className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
                                                     title={`View ${e.name} Trend`}
@@ -600,10 +607,11 @@ const PlatformOverviewNew = ({
             </div>
             {/* Prepare options for advanced filter dropdowns */}
             {(() => {
-                const brandOptions = (dimensionData.brand?.entities || []).map(e => ({ id: e.key, name: e.name }))
-                const categoryOptions = (dimensionData.category?.entities || []).map(e => ({ id: e.key, name: e.name }))
-                const platformOptions = (dimensionData.platform?.entities || []).map(e => ({ id: e.key, name: e.name }))
-                const skuOptions = (dimensionData.sku?.entities || []).map(e => ({ id: e.key, name: e.name }))
+                const brandOptions = globalBrands.map(b => ({ id: b, name: b }))
+                const categoryOptions = globalCategories.map(c => ({ id: c, name: c }))
+                const platformOptions = globalPlatforms.map(p => ({ id: p, name: p }))
+                // SKUs: if current dimension is sku, use them, else empty (fetching all SKUs is too heavy)
+                const skuOptions = dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : []
 
                 return (
                     <AdvancedFilterModal

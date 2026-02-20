@@ -161,6 +161,8 @@ export default function WatchTower() {
       stockAvailability: "0%",
       stockAvailabilityTrend: "0%",
       marketShare: "0%",
+      promo: "0%",
+      promoTrend: "+0.0%",
     },
 
     topMetrics: [],
@@ -204,88 +206,80 @@ export default function WatchTower() {
 
   const context = { selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
 
-  const COMPARISON_KPIS = useMemo(() => [
-    {
-      id: 'offtake',
-      title: 'Offtakes',
-      value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
-      delta: getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta'),
-      deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)}L`,
-      icon: ShoppingCart,
-      gradient: ['#6366f1', '#8b5cf6'],
-      trend: getLogicalKpiTrend('offtake', context)
-    },
-    {
-      id: 'availability',
-      title: 'Availability',
-      value: `${getJitter(getLogicalKpiValue('osa', context), 'osa')}%`,
-      delta: getJitter(getLogicalKpiValue('osadelta', context), 'osadelta'),
-      deltaLabel: `+${(getJitter(getLogicalKpiValue('osadelta', context), 'osadelta') / 4).toFixed(1)}%`,
-      icon: Layers,
-      gradient: ['#14b8a6', '#06b6d4'],
-      trend: getLogicalKpiTrend('availability', context)
-    },
-    {
-      id: 'promo',
-      title: 'Promo',
-      value: `${getJitter(getLogicalKpiValue('promo', context), 'promo')}%`,
-      delta: -getJitter(getLogicalKpiValue('promodelta', context), 'promodelta') / 5,
-      deltaLabel: `-${(getJitter(getLogicalKpiValue('promodelta', context), 'promodelta') / 100).toFixed(2)}%`,
-      icon: Percent,
-      gradient: ['#f43f5e', '#ec4899'],
-      trend: getLogicalKpiTrend('promo', context)
-    },
-    {
-      id: 'market',
-      title: 'Market Share',
-      value: `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
-      delta: getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
-      deltaLabel: `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
-      icon: PieChart,
-      gradient: ['#8b5cf6', '#a855f7'],
-      trend: getLogicalKpiTrend('market', context)
-    },
-    {
-      id: 'sos',
-      title: 'Share of Search',
-      value: `${getJitter(getLogicalKpiValue('sos', context), 'sos')}%`,
-      delta: -getJitter(getLogicalKpiValue('sosdelta', context), 'sosdelta') / 6,
-      deltaLabel: `-${(getJitter(getLogicalKpiValue('sosdelta', context), 'sosdelta') / 10).toFixed(1)}%`,
-      icon: Eye,
-      gradient: ['#f97316', '#fb923c'],
-      trend: getLogicalKpiTrend('sos', context)
-    },
-    {
-      id: 'inorg',
-      title: 'Inorganic Sales',
-      value: `₹${getJitter(getLogicalKpiValue('inorg', context), 'inorg')}Cr`,
-      delta: getJitter(getLogicalKpiValue('inorgdelta', context), 'inorgdelta'),
-      deltaLabel: `+${(getJitter(getLogicalKpiValue('inorgdelta', context), 'inorgdelta') / 5).toFixed(1)}%`,
-      icon: TrendingUp,
-      gradient: ['#22c55e', '#4ade80'],
-      trend: getLogicalKpiTrend('inorg', context)
-    },
-    {
-      id: 'conversion',
-      title: 'Conversion',
-      value: `${getJitter(getLogicalKpiValue('conversion', context), 'conversion')}%`,
-      delta: getJitter(getLogicalKpiValue('convdelta', context), 'convdelta') * 2,
-      deltaLabel: `+${(getJitter(getLogicalKpiValue('convdelta', context), 'convdelta') / 30).toFixed(1)}%`,
-      icon: Target,
-      gradient: ['#06b6d4', '#22d3ee'],
-      trend: getLogicalKpiTrend('conversion', context)
-    },
-    {
-      id: 'roas',
-      title: 'ROAS',
-      value: `${getJitter(getLogicalKpiValue('roas', context), 'roas')}`,
-      delta: getJitter(getLogicalKpiValue('roasdelta', context), 'roasdelta') * 1.5,
-      deltaLabel: `+${(getJitter(getLogicalKpiValue('roasdelta', context), 'roasdelta') / 20).toFixed(1)}x`,
-      icon: DollarSign,
-      gradient: ['#eab308', '#facc15'],
-      trend: getLogicalKpiTrend('roas', context)
-    },
-  ], [selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
+  // Map backend topMetrics to SnapshotOverview format
+  const KPI_ICON_MAP = {
+    'Offtake': { icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'], id: 'offtake' },
+    'Availability': { icon: Layers, gradient: ['#14b8a6', '#06b6d4'], id: 'availability' },
+    'Share of Search': { icon: Eye, gradient: ['#f97316', '#fb923c'], id: 'sos' },
+    'Market Share': { icon: PieChart, gradient: ['#8b5cf6', '#a855f7'], id: 'market' },
+    'Promo': { icon: Percent, gradient: ['#f59e0b', '#fbbf24'], id: 'promo' },
+  };
+
+  const COMPARISON_KPIS = useMemo(() => {
+    const topMetrics = dashboardData?.topMetrics;
+
+    // If real data available from backend, use it
+    if (topMetrics && Array.isArray(topMetrics) && topMetrics.length > 0) {
+      return topMetrics.map((metric) => {
+        const meta = KPI_ICON_MAP[metric.name] || { icon: TrendingUp, gradient: ['#6366f1', '#8b5cf6'], id: metric.name.toLowerCase().replace(/\s+/g, '_') };
+        const trendValue = parseFloat((metric.trend || '0%').replace(/[^0-9.-]/g, '')) || 0;
+        return {
+          id: meta.id,
+          title: metric.name,
+          value: metric.label || '0',
+          delta: trendValue,
+          deltaLabel: metric.trend || '0%',
+          icon: meta.icon,
+          gradient: meta.gradient,
+          trend: metric.chart || getLogicalKpiTrend(meta.id, context),
+        };
+      });
+    }
+
+    // Fallback: mock data
+    return [
+      {
+        id: 'offtake', title: 'Offtakes',
+        value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
+        delta: getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta'),
+        deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)}L`,
+        icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'],
+        trend: getLogicalKpiTrend('offtake', context)
+      },
+      {
+        id: 'availability', title: 'Availability',
+        value: `${getJitter(getLogicalKpiValue('osa', context), 'osa')}%`,
+        delta: getJitter(getLogicalKpiValue('osadelta', context), 'osadelta'),
+        deltaLabel: `+${(getJitter(getLogicalKpiValue('osadelta', context), 'osadelta') / 4).toFixed(1)}%`,
+        icon: Layers, gradient: ['#14b8a6', '#06b6d4'],
+        trend: getLogicalKpiTrend('availability', context)
+      },
+      {
+        id: 'sos', title: 'Share of Search',
+        value: `${getJitter(getLogicalKpiValue('sos', context), 'sos')}%`,
+        delta: -getJitter(getLogicalKpiValue('sosdelta', context), 'sosdelta') / 6,
+        deltaLabel: `-${(getJitter(getLogicalKpiValue('sosdelta', context), 'sosdelta') / 10).toFixed(1)}%`,
+        icon: Eye, gradient: ['#f97316', '#fb923c'],
+        trend: getLogicalKpiTrend('sos', context)
+      },
+      {
+        id: 'market', title: 'Market Share',
+        value: `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
+        delta: getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
+        deltaLabel: `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
+        icon: PieChart, gradient: ['#8b5cf6', '#a855f7'],
+        trend: getLogicalKpiTrend('market', context)
+      },
+      {
+        id: 'promo', title: 'Promo',
+        value: `${getJitter(8.5, 'promo')}%`,
+        delta: getJitter(1.2, 'promodelta'),
+        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)} pp`,
+        icon: Percent, gradient: ['#f59e0b', '#fbbf24'],
+        trend: getLogicalKpiTrend('osa', context) // Reuse OSA trend for mock variety
+      }
+    ];
+  }, [dashboardData, selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
   const FORMAT_ROWS = useMemo(() => {
     const row = (name, key) => {
@@ -341,8 +335,14 @@ export default function WatchTower() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const params = {
+          ...filters,
+          platform: filters.platform === "All" ? undefined : (Array.isArray(filters.platform) ? filters.platform.join(",") : filters.platform),
+          category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
+          location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
+        };
         const response = await axiosInstance.get("/watchtower", {
-          params: filters,
+          params,
         });
         if (response.data) {
           console.log("Fetched Watch Tower data:", response.data);

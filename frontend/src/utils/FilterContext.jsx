@@ -4,84 +4,13 @@ import dayjs from "dayjs";
 
 export const FilterContext = createContext();
 
-// Static platform-brand-location mapping
-const platformData = {
-    // --- ECOM CHANNELS ---
-    "Blinkit": {
-        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
-        locations: {
-            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Cornetto": ["Delhi", "Mumbai", "Bangalore", "Pune"],
-            "Magnum": ["Delhi", "Mumbai", "Hyderabad"],
-            "Feast": ["Delhi", "Bangalore", "Chennai"],
-            "Twister": ["Delhi", "Mumbai", "Kolkata"]
-        }
-    },
-    "Zepto": {
-        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
-        locations: {
-            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Cornetto": ["Mumbai", "Delhi", "Pune"],
-            "Magnum": ["Delhi", "Mumbai", "Chennai"],
-            "Feast": ["Delhi", "Bangalore"],
-            "Twister": ["Delhi", "Mumbai"]
-        }
-    },
-    "Instamart": {
-        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
-        locations: {
-            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Cornetto": ["Hyderabad", "Pune", "Delhi"],
-            "Magnum": ["Delhi", "Bangalore", "Mumbai"],
-            "Feast": ["Delhi", "Noida", "Gurgaon"],
-            "Twister": ["Delhi", "Chennai"]
-        }
-    },
-    "Flipkart": {
-        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
-        locations: {
-            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Cornetto": ["Delhi", "Bangalore", "Pune"],
-            "Magnum": ["Mumbai", "Delhi", "Chennai"],
-            "Feast": ["Delhi", "Kolkata"],
-            "Twister": ["Delhi", "Mumbai", "Bangalore"]
-        }
-    },
-    "Amazon": {
-        brands: ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"],
-        locations: {
-            "Kwality Walls": ["Delhi", "Mumbai", "Bangalore"],
-            "Cornetto": ["Mumbai", "Delhi", "Bangalore"],
-            "Magnum": ["Delhi", "Pune", "Hyderabad"],
-            "Feast": ["Delhi", "Mumbai"],
-            "Twister": ["Delhi", "Chennai", "Bangalore"]
-        }
-    },
-    // --- MODERN TRADE CHANNELS ---
-    "Reliance Fresh": {
-        brands: ["Kwality Walls", "Cornetto"],
-        locations: {
-            "Kwality Walls": ["Mumbai", "Pune"],
-            "Cornetto": ["Mumbai", "Ahmedabad"]
-        }
-    },
-    "Big Bazaar": {
-        brands: ["Kwality Walls", "Magnum"],
-        locations: {
-            "Kwality Walls": ["Delhi", "Kolkata"],
-            "Magnum": ["Bangalore", "Chennai"]
-        }
-    },
-    "DMart": {
-        brands: ["Kwality Walls", "Cornetto", "Magnum"],
-        locations: {
-            "Kwality Walls": ["Mumbai", "Thane"],
-            "Cornetto": ["Mumbai", "Surat"],
-            "Magnum": ["Mumbai", "Bangalore"]
-        }
-    }
-};
+// Static fallback data (used if API is unreachable)
+const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"];
+const FALLBACK_CATEGORIES = ["All", "Cassata", "Core Tub", "Cup", "Sandwich"];
+const FALLBACK_LOCATIONS = ["All"];
+const FALLBACK_BRANDS = ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"];
 
+// Channel → platform mapping (static, channels are not in rca_sku_dim)
 const channelPlatformMap = {
     "Ecom": ["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"],
     "ModernTrade": ["Reliance Fresh", "Big Bazaar", "DMart"]
@@ -94,23 +23,23 @@ export const FilterProvider = ({ children }) => {
     const [selectedChannel, setSelectedChannel] = useState("Ecom");
 
     // Platform state
-    const [platforms, setPlatforms] = useState(channelPlatformMap["Ecom"]);
-    const [platform, setPlatform] = useState("Blinkit");
+    const [platforms, setPlatforms] = useState(FALLBACK_PLATFORMS);
+    const [platform, setPlatform] = useState("All");
 
     // Brand state
-    const [brands, setBrands] = useState([]);
+    const [brands, setBrands] = useState(FALLBACK_BRANDS);
     const [selectedBrand, setSelectedBrand] = useState(null);
 
     // Location state
-    const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(null);
+    const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
+    const [selectedLocation, setSelectedLocation] = useState("All");
 
     // Keyword state (for visibility analysis)
     const [keywords, setKeywords] = useState(["vanilla", "chocolate", "strawberry", "butterscotch", "mango"]);
     const [selectedKeyword, setSelectedKeyword] = useState("vanilla");
 
     // Category state
-    const [categories] = useState(["All", "Cassata", "Core Tub", "Cup", "Sandwich"]);
+    const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
     const [selectedCategory, setSelectedCategory] = useState("All");
 
     // Date Ranges
@@ -120,52 +49,182 @@ export const FilterProvider = ({ children }) => {
     const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
 
-    // Update platforms when channel changes
+    // ====== FETCH PLATFORMS FROM DB (on mount) ======
     useEffect(() => {
-        let availablePlatforms = [];
-        if (selectedChannel === "All") {
-            availablePlatforms = [...channelPlatformMap["Ecom"], ...channelPlatformMap["ModernTrade"]];
-        } else {
-            availablePlatforms = channelPlatformMap[selectedChannel] || [];
-        }
+        const fetchPlatforms = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/platforms");
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched platforms from DB:", res.data);
+                    setPlatforms(res.data);
+                    // Keep "All" or current selection if it's still valid
+                    if (platform !== "All") {
+                        const currentList = Array.isArray(platform) ? platform : [platform];
+                        const validPlatforms = currentList.filter(p => res.data.includes(p));
+                        if (validPlatforms.length === 0) {
+                            setPlatform("All");
+                        } else if (validPlatforms.length === res.data.length) {
+                            setPlatform("All");
+                        } else {
+                            setPlatform(validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
+            }
+        };
+        fetchPlatforms();
+    }, []);
 
-        setPlatforms(availablePlatforms);
+    // Update platforms list when channel changes (filter the DB platforms by channel mapping)
+    useEffect(() => {
+        const filterPlatformsByChannel = async () => {
+            if (selectedChannel === "All") {
+                // Fetch all platforms from DB
+                try {
+                    const res = await axiosInstance.get("/watchtower/platforms");
+                    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                        setPlatforms(res.data);
+                        // Reset to All if current selection is not compatible or keep All
+                        if (platform !== "All") {
+                            const currentList = Array.isArray(platform) ? platform : [platform];
+                            const validPlatforms = currentList.filter(p => res.data.includes(p));
+                            if (validPlatforms.length === 0) setPlatform("All");
+                        }
+                        return;
+                    }
+                } catch (err) {
+                    console.warn("[FilterContext] Failed to fetch platforms on channel change:", err.message);
+                }
+                // Fallback
+                const allFallback = [...channelPlatformMap["Ecom"], ...channelPlatformMap["ModernTrade"]];
+                setPlatforms(allFallback);
+                if (platform !== "All") {
+                    const currentList = Array.isArray(platform) ? platform : [platform];
+                    const validPlatforms = currentList.filter(p => allFallback.includes(p));
+                    if (validPlatforms.length === 0) setPlatform("All");
+                }
+            } else {
+                const channelFallback = channelPlatformMap[selectedChannel] || [];
+                // Fetch from DB and filter by channel mapping
+                try {
+                    const res = await axiosInstance.get("/watchtower/platforms");
+                    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                        // Intersect DB platforms with channel mapping
+                        const channelPlatforms = res.data.filter(p => channelFallback.includes(p));
+                        const finalPlatforms = channelPlatforms.length > 0 ? channelPlatforms : channelFallback;
+                        setPlatforms(finalPlatforms);
 
-        // Only reset platform if the current one is not in the new list
-        if (availablePlatforms.length > 0 && !availablePlatforms.includes(platform)) {
-            setPlatform(availablePlatforms[0]);
-        }
+                        // If current platform selection isn't in finalPlatforms, set to All or intersect
+                        if (platform !== "All") {
+                            const currentList = Array.isArray(platform) ? platform : [platform];
+                            const validPlatforms = currentList.filter(p => finalPlatforms.includes(p));
+                            if (validPlatforms.length === 0) {
+                                setPlatform("All");
+                            } else if (validPlatforms.length === finalPlatforms.length) {
+                                setPlatform("All");
+                            } else {
+                                setPlatform(validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms);
+                            }
+                        }
+                        return;
+                    }
+                } catch (err) {
+                    console.warn("[FilterContext] Failed to fetch platforms on channel change:", err.message);
+                }
+                // Fallback to static
+                setPlatforms(channelFallback);
+                if (platform !== "All") {
+                    const currentList = Array.isArray(platform) ? platform : [platform];
+                    const validPlatforms = currentList.filter(p => channelFallback.includes(p));
+                    if (validPlatforms.length === 0) setPlatform("All");
+                }
+            }
+        };
+        filterPlatformsByChannel();
     }, [selectedChannel]);
 
-    // Update brands when platform changes
+    // ====== FETCH CATEGORIES FROM DB (when platform changes) ======
     useEffect(() => {
-        if (platform && platformData[platform]) {
-            const platformBrands = platformData[platform].brands;
-            setBrands(platformBrands);
-
-            // Auto-select first brand
-            if (platformBrands.length > 0) {
-                setSelectedBrand(platformBrands[0]);
+        const fetchCategories = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/categories", {
+                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                });
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched categories from DB:", res.data);
+                    const cats = ["All", ...res.data.filter(c => c !== "All")];
+                    setCategories(cats);
+                    // Keep current selection if still valid, otherwise reset to "All"
+                    if (selectedCategory !== "All" && !cats.includes(selectedCategory)) {
+                        setSelectedCategory("All");
+                    }
+                } else {
+                    setCategories(FALLBACK_CATEGORIES);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch categories, using fallback:", err.message);
+                setCategories(FALLBACK_CATEGORIES);
             }
-        }
+        };
+        fetchCategories();
     }, [platform]);
 
-    // Update locations when brand or platform changes
+    // ====== FETCH LOCATIONS FROM DB (when platform changes) ======
     useEffect(() => {
-        if (platform && selectedBrand && platformData[platform]) {
-            const brandLocations = platformData[platform].locations[selectedBrand];
-            if (brandLocations) {
-                const updatedLocations = ["All", ...brandLocations];
-                setLocations(updatedLocations);
-
-                // Auto-select 'All'
-                setSelectedLocation("All");
-            } else {
-                setLocations(["All"]);
+        const fetchLocations = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/locations", {
+                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                });
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched locations from DB:", res.data);
+                    const locs = ["All", ...res.data.filter(l => l !== "All")];
+                    setLocations(locs);
+                    // Keep current selection if still valid, otherwise reset to "All"
+                    if (selectedLocation !== "All" && !locs.includes(selectedLocation)) {
+                        setSelectedLocation("All");
+                    }
+                } else {
+                    setLocations(FALLBACK_LOCATIONS);
+                    setSelectedLocation("All");
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch locations, using fallback:", err.message);
+                setLocations(FALLBACK_LOCATIONS);
                 setSelectedLocation("All");
             }
-        }
-    }, [platform, selectedBrand]);
+        };
+        fetchLocations();
+    }, [platform]);
+
+    // ====== FETCH BRANDS FROM DB (when platform changes) ======
+    useEffect(() => {
+        const fetchBrands = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/brands", {
+                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                });
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched brands from DB:", res.data);
+                    setBrands(res.data);
+                    // Auto-select first brand if current not in list
+                    if (!res.data.includes(selectedBrand)) {
+                        setSelectedBrand(res.data[0]);
+                    }
+                } else {
+                    setBrands(FALLBACK_BRANDS);
+                    setSelectedBrand(FALLBACK_BRANDS[0]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch brands, using fallback:", err.message);
+                setBrands(FALLBACK_BRANDS);
+                setSelectedBrand(FALLBACK_BRANDS[0]);
+            }
+        };
+        fetchBrands();
+    }, [platform]);
 
     return (
         <FilterContext.Provider value={{
