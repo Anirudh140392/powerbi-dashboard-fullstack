@@ -95,8 +95,38 @@ const BACKEND_TITLE_TO_KEY = {
 }
 
 // Map backend API response entity → frontend entity format
+// Map backend API response entity → frontend entity format
 const mapApiEntityToFrontend = (apiEntity) => {
     const data = {}
+
+    // Handle flat structure (new optimized backend)
+    const flatKeyMapping = {
+        sales: 'offtakes',
+        spend: 'spend',
+        roas: 'roas',
+        conversion: 'conversion',
+        osa: 'availability',
+        marketShare: 'marketShare',
+        sos: 'shareOfVolume',
+        promo: 'promoMyBrand',
+        brand: 'label',
+        category: 'label',
+        platform: 'label',
+        month: 'label',
+        sku: 'label',
+        city: 'label'
+    }
+
+    Object.entries(flatKeyMapping).forEach(([apiK, uiK]) => {
+        if (apiEntity[apiK] !== undefined) {
+            data[uiK] = {
+                value: apiEntity[apiK],
+                delta: { value: '0%', dir: 'up' } // Default for now
+            }
+        }
+    })
+
+    // Handle nested columns structure (legacy/fallback)
     if (apiEntity.columns && Array.isArray(apiEntity.columns)) {
         apiEntity.columns.forEach(col => {
             const key = BACKEND_TITLE_TO_KEY[col.title]

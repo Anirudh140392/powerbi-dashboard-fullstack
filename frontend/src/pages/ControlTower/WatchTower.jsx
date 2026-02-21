@@ -167,6 +167,13 @@ export default function WatchTower() {
 
     topMetrics: [],
     skuTable: [],
+    breakdowns: {
+      category: [],
+      platform: [],
+      month: [],
+      brand: [],
+      sku: []
+    }
   });
 
   const {
@@ -282,27 +289,28 @@ export default function WatchTower() {
   }, [dashboardData, selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
   const FORMAT_ROWS = useMemo(() => {
-    const row = (name, key) => {
-      const ctx = { ...context, entityKey: key };
-      return { name, offtakes: getLogicalKpiValue('offtakes', ctx), spend: getLogicalKpiValue('spend', ctx), roas: getLogicalKpiValue('roas', ctx), inorgSalesPct: getLogicalKpiValue('inorg', ctx), conversionPct: getLogicalKpiValue('conversion', ctx), marketSharePct: getLogicalKpiValue('market', ctx), promoMyBrandPct: getLogicalKpiValue('promo', ctx), promoCompetePct: getLogicalKpiValue('promoCompete', ctx), cpm: getLogicalKpiValue('cpm', ctx), cpc: getLogicalKpiValue('cpc', ctx) };
-    };
-    return [
-      row("Cassata", "cassata"),
-      row("Core Tub", "core tub"),
-      row("Cornetto", "cornetto"),
-      row("Cup", "cup"),
-      row("KW Sticks", "kw sticks"),
-      row("Magnum", "magnum"),
-      row("Sandwich", "sandwich"),
-      row("Family Pack", "family pack"),
-      row("Chocobar", "chocobar"),
-      row("Kulfi", "kulfi"),
-      row("Jelly Cups", "jelly cups"),
-      row("Brownie Tub", "brownie tub"),
-      row("Exotics", "exotics"),
-      row("Others", "others"),
-    ];
-  }, [selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
+    const data = dashboardData.breakdowns?.category || [];
+    if (data.length === 0) {
+      // Fallback for UI skeleton if needed, but should be filled by API
+      return [];
+    }
+
+    return data.map(c => ({
+      name: c.category,
+      offtakes: parseFloat(c.sales?.replace(/[^0-9.]/g, '') || 0),
+      roas: parseFloat(c.roas || 0),
+      osa: parseFloat(c.osa?.replace('%', '') || 0),
+      marketSharePct: parseFloat(c.marketShare?.replace('%', '') || 0),
+      promoMyBrandPct: parseFloat(c.promo?.replace('%', '') || 0),
+      spend: parseFloat(c.spend?.replace(/[^0-9.]/g, '') || 0),
+      conversionPct: parseFloat(c.conversion?.replace('%', '') || 0),
+      // Ad-hoc mapping for other metrics
+      inorgSalesPct: 0,
+      promoCompetePct: 0,
+      cpm: 0,
+      cpc: 0
+    }));
+  }, [dashboardData.breakdowns?.category]);
 
 
   // Update filters when context changes
@@ -341,12 +349,23 @@ export default function WatchTower() {
           category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
           location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
         };
-        const response = await axiosInstance.get("/watchtower", {
-          params,
-        });
-        if (response.data) {
-          console.log("Fetched Watch Tower data:", response.data);
-          setDashboardData(response.data);
+
+        // Fetch Overview and Breakdown data in parallel
+        const [overviewRes, categoryRes] = await Promise.all([
+          axiosInstance.get("/watchtower", { params }),
+          axiosInstance.get("/watchtower/category-overview", { params })
+        ]);
+
+        if (overviewRes.data) {
+          console.log("Fetched Watch Tower data:", overviewRes.data);
+          setDashboardData(prev => ({
+            ...prev,
+            ...overviewRes.data,
+            breakdowns: {
+              ...prev.breakdowns,
+              category: categoryRes.data || []
+            }
+          }));
         }
       } catch (error) {
         console.error("Error fetching Watch Tower data:", error);
@@ -591,6 +610,13 @@ export default function WatchTower() {
 }
 
 const FormatPerformanceStudio = ({ rows }) => {
+  if (!rows || rows.length === 0) {
+    return (
+      <div className="h-96 rounded-3xl bg-white border border-slate-200 border-dashed flex items-center justify-center text-slate-400">
+        Loading performance studio...
+      </div>
+    );
+  }
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 

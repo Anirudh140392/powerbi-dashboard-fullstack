@@ -1,0 +1,138 @@
+DEBUG: dayBuckets length=32, startDate=2026-01-19, endDate=2026-02-19
+DEBUG: offtakeData length=32, offtakeChart length=32
+DEBUG: first offtakeData item={"week_date":"2026-01-19","total_sales":9658636.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=47, startDate=2026-01-01, endDate=2026-02-16
+DEBUG: offtakeData length=47, offtakeChart length=47
+DEBUG: first offtakeData item={"week_date":"2026-01-01","total_sales":11067197.72}
+DEBUG: dayBuckets length=16, startDate=2026-02-01, endDate=2026-02-16
+DEBUG: offtakeData length=16, offtakeChart length=16
+DEBUG: first offtakeData item={"week_date":"2026-02-01","total_sales":13583662.43}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: dayBuckets length=185, startDate=2025-08-19, endDate=2026-02-19
+DEBUG: dayBuckets length=6, startDate=2025-10-01, endDate=2025-10-06
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":7784507.85}
+DEBUG: offtakeData length=185, offtakeChart length=185
+DEBUG: first offtakeData item={"week_date":"2025-08-19","total_sales":2529798}
+DEBUG: offtakeData length=6, offtakeChart length=6
+DEBUG: first offtakeData item={"week_date":"2025-10-01","total_sales":5301251.3}

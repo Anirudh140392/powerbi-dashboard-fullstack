@@ -1,11 +1,13 @@
 import watchTowerService from '../services/watchTowerService.js';
+import * as watchTowerOverviewService from '../services/watchTowerOverviewService.js';
+import * as watchTowerBreakdownService from '../services/watchTowerBreakdownService.js';
 
 
 export const watchTowerOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log("watch tower api call received", filters);
-        const data = await watchTowerService.getSummaryMetrics(filters);
+        const data = await watchTowerOverviewService.getOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('Error fetching summary metrics:', error);
@@ -167,7 +169,7 @@ export const getOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getOverview(filters);
+        const data = await watchTowerOverviewService.getOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('Error fetching overview:', error);
@@ -197,7 +199,7 @@ export const getPlatformOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getPlatformOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getPlatformOverview(filters);
+        const data = await watchTowerBreakdownService.getPlatformOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('Error fetching platform overview:', error);
@@ -212,7 +214,7 @@ export const getMonthOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getMonthOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getMonthOverview(filters);
+        const data = await watchTowerBreakdownService.getMonthOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('Error fetching month overview:', error);
@@ -227,7 +229,7 @@ export const getCategoryOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getCategoryOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getCategoryOverview(filters);
+        const data = await watchTowerBreakdownService.getCategoryOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('Error fetching category overview:', error);
@@ -242,7 +244,7 @@ export const getBrandsOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getBrandsOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getBrandsOverview(filters);
+        const data = await watchTowerBreakdownService.getBrandOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('Error fetching brands overview:', error);
@@ -436,7 +438,7 @@ export const getSkuOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getSkuOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getSkuOverview(filters);
+        const data = await watchTowerBreakdownService.getSkuOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('[getSkuOverview] Error:', error);
@@ -452,7 +454,7 @@ export const getCityOverview = async (req, res) => {
     try {
         const filters = req.query;
         console.log('[getCityOverview] API call received with filters:', filters);
-        const data = await watchTowerService.getCityOverview(filters);
+        const data = await watchTowerBreakdownService.getCityOverviewData(filters);
         res.json(data);
     } catch (error) {
         console.error('[getCityOverview] Error:', error);

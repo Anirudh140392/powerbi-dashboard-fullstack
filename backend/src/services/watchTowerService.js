@@ -11,6 +11,7 @@ import { Op, Sequelize } from 'sequelize';
 import sequelize from '../config/db.js';
 import { queryClickHouse } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+import fs from 'fs';
 import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 
@@ -512,6 +513,25 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         const monthBuckets = generateMonthBuckets(startDate, endDate);
         const weekBuckets = generateWeekBuckets(startDate, endDate);
+
+        // Helper to generate day buckets for smoother KPI graphs
+        const generateDayBuckets = (start, end) => {
+            const buckets = [];
+            let current = start.clone().startOf('day');
+            const endDay = end.clone().endOf('day');
+            while (current.isBefore(endDay) || current.isSame(endDay, 'day')) {
+                buckets.push({
+                    label: current.format('DD MMM'),
+                    date: current.toDate(),
+                    value: 0
+                });
+                current = current.add(1, 'day');
+            }
+            return buckets;
+        };
+
+        const dayBuckets = generateDayBuckets(startDate, endDate);
+        fs.appendFileSync('debug_buckets.txt', `DEBUG: dayBuckets length=${dayBuckets.length}, startDate=${startDate.format('YYYY-MM-DD')}, endDate=${endDate.format('YYYY-MM-DD')}\n`);
 
         // Helper for currency formatting
         const formatCurrency = (value) => {
@@ -1071,11 +1091,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     const result = await queryClickHouse(`
                         SELECT 
-                            toMonday(toDate(DATE)) as week_date,
+                            toDate(DATE) as week_date,
                             SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY toMonday(toDate(DATE))
+                        GROUP BY week_date
                         ORDER BY week_date
                     `);
                     return result;
@@ -1126,16 +1146,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const [numeratorData, denominatorData] = await Promise.all([
                         queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(toString(sales))) as our_sales
+                            SELECT toDate(created_on) as week_date, SUM(toFloat64OrZero(toString(sales))) as our_sales
                             FROM test_brand_MS
                             WHERE ${msBaseConditions.join(' AND ')} AND brand IN (${brandInClause})
-                            GROUP BY toMonday(toDate(created_on))
+                            GROUP BY week_date
                         `),
                         queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week_date, SUM(toFloat64OrZero(toString(sales))) as total_sales
+                            SELECT toDate(created_on) as week_date, SUM(toFloat64OrZero(toString(sales))) as total_sales
                             FROM test_brand_MS
                             WHERE ${msBaseConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(created_on))
+                            GROUP BY week_date
                         `)
                     ]);
 
@@ -1239,12 +1259,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     return await queryClickHouse(`
                         SELECT 
-                            toMonday(toDate(DATE)) as week_date,
+                            toDate(DATE) as week_date,
                             SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
                             SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY toMonday(toDate(DATE))
+                        GROUP BY week_date
                         ORDER BY week_date
                     `);
                 } catch (err) {
@@ -1279,26 +1299,26 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const [brandWeekCounts, totalWeekCounts] = await Promise.all([
                         queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week, count() as count
+                            SELECT toDate(created_on) as week, count() as count
                             FROM rb_kw
                             WHERE ${numeratorConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(created_on))
+                            GROUP BY week
                         `),
                         queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week, count() as count
+                            SELECT toDate(created_on) as week, count() as count
                             FROM rb_kw
                             WHERE ${kwBaseConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(created_on))
+                            GROUP BY week
                         `)
                     ]);
 
                     const brandCountMap = new Map(brandWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
                     const totalCountMap = new Map(totalWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
 
-                    return weekBuckets.map(bucket => {
-                        const weekKey = dayjs(bucket.date).startOf('isoWeek').format('YYYY-MM-DD');
-                        const brandCount = brandCountMap.get(weekKey) || 0;
-                        const totalCount = totalCountMap.get(weekKey) || 0;
+                    return dayBuckets.map(bucket => {
+                        const dayKey = dayjs(bucket.date).format('YYYY-MM-DD');
+                        const brandCount = brandCountMap.get(dayKey) || 0;
+                        const totalCount = totalCountMap.get(dayKey) || 0;
                         const sosValue = totalCount > 0 ? (brandCount / totalCount) * 100 : 0;
                         return { week_date: bucket.date, value: sosValue };
                     });
@@ -1439,16 +1459,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return 0;
                 }
             })(),
-            // 15. Promo Trend Data - CLICKHOUSE
+            // 15. Promo Trend Data - CLICKHOUSE (DAILY)
             (async () => {
                 try {
                     const result = await queryClickHouse(`
                         SELECT 
-                            toMonday(toDate(DATE)) as week_date,
+                            toDate(DATE) as week_date,
                             AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
                         FROM rb_pdp_olap
                         WHERE ${offtakeCondStr}
-                        GROUP BY toMonday(toDate(DATE))
+                        GROUP BY week_date
                         ORDER BY week_date
                     `);
                     return result;
@@ -1459,13 +1479,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })()
         ]);
 
-        // Process Offtake Data - Using weekBuckets for weekly chart
-        const offtakeChart = weekBuckets.map(bucket => {
+        // Process Offtake Data - Using dayBuckets for daily chart
+        const offtakeChart = dayBuckets.map(bucket => {
             const match = offtakeData.find(d => {
-                return dayjs(d.week_date).isSame(dayjs(bucket.date), 'week');
+                return dayjs(d.week_date).isSame(dayjs(bucket.date), 'day');
             });
             return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
         });
+
+        fs.appendFileSync('debug_buckets.txt', `DEBUG: offtakeData length=${offtakeData.length}, offtakeChart length=${offtakeChart.length}\n`);
+        if (offtakeData.length > 0) {
+            fs.appendFileSync('debug_buckets.txt', `DEBUG: first offtakeData item=${JSON.stringify(offtakeData[0])}\n`);
+        }
 
         const totalOfftake = offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales), 0);
         const formattedOfftake = formatCurrency(totalOfftake);
@@ -1480,9 +1505,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(1) + "%";
 
-        // Process Market Share Data - Using weekBuckets for weekly chart
-        const marketShareChart = weekBuckets.map(bucket => {
-            const match = marketShareData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
+        // Process Market Share Data - Using dayBuckets for daily chart
+        const marketShareChart = dayBuckets.map(bucket => {
+            const match = marketShareData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'day'));
             return match ? parseFloat(match.avg_market_share) : 0;
         });
 
@@ -1501,9 +1526,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const availabilityChange = currentAvailability - prevAvailability;
         const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + " pp";
 
-        // Process Availability Chart - Using weekBuckets for weekly chart
-        const availabilityChart = weekBuckets.map(bucket => {
-            const match = availabilityTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
+        // Process Availability Chart - Using dayBuckets for daily chart
+        const availabilityChart = dayBuckets.map(bucket => {
+            const match = availabilityTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'day'));
             if (match) {
                 const totalNeno = parseFloat(match.total_neno || 0);
                 const totalDeno = parseFloat(match.total_deno || 0);
@@ -1519,9 +1544,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const sosChange = currentShareOfSearch - prevShareOfSearch;
         const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + " pp";
 
-        // Process Share of Search Chart - Using weekBuckets for weekly chart
-        const shareOfSearchChart = weekBuckets.map(bucket => {
-            const match = shareOfSearchTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
+        // Process Share of Search Chart - Using dayBuckets for daily chart
+        const shareOfSearchChart = dayBuckets.map(bucket => {
+            const match = shareOfSearchTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'day'));
             return match ? parseFloat(match.value) : 0;
         });
 
@@ -1533,8 +1558,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const promoTrendStr = (promoChange >= 0 ? "+" : "") + promoChange.toFixed(1) + " pp";
 
         const safePromoTrendData = Array.isArray(promoTrendData) ? promoTrendData : [];
-        const promoChart = weekBuckets.map(bucket => {
-            const match = safePromoTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
+        const promoChart = dayBuckets.map(bucket => {
+            const match = safePromoTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'day'));
             return match ? parseFloat(match.avg_promo) : 0;
         });
 
@@ -1557,8 +1582,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             promoTrend: promoTrendStr
         };
 
-        // Prepare Top Metrics Array (Cards with Charts) - Use weekBuckets for weekly labels
-        const chartLabels = weekBuckets.map(b => b.label);
+        // Prepare Top Metrics Array (Cards with Charts) - Use dayBuckets for daily labels
+        const chartLabels = dayBuckets.map(b => b.label);
 
         // Determine subtitle based on filters
         let subtitle = `last ${monthsBack} months`;
@@ -2966,29 +2991,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // 13. Category Overview Logic
         const categoryOverviewPlatform = filters.categoryOverviewPlatform || filters.platform || 'Zepto';
 
-        // Fetch unique categories based on filters from RcaSkuDim (status=1 only)
-        const categoryWhere = { status: 1 };
-
-        if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-            categoryWhere.platform = categoryOverviewPlatform;
-        }
-        if (brand && brand !== 'All') {
-            categoryWhere.brand_name = { [Op.like]: `%${brand}%` };
-        }
-        // Note: RcaSkuDim might not have location, or it might be 'location' column. 
-        // Assuming location filter is not strictly needed for category listing, or we check if column exists.
-        // Based on model, it has 'location'.
-        if (location && location !== 'All') {
-            categoryWhere.location = location;
-        }
-
-        const distinctCategories = await RcaSkuDim.findAll({
-            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Category')), 'Category']],
-            where: categoryWhere,
-            raw: true
-        });
-
-        const categories = distinctCategories.map(c => c.Category).filter(Boolean);
+        // Fetch unique categories based on filters from rca_sku_dim (status=1 only)
+        const categoriesResult = await queryClickHouse(`
+            SELECT DISTINCT category as Category 
+            FROM rca_sku_dim 
+            WHERE status = 1
+            ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+            ${brand && brand !== 'All' ? `AND brand_name LIKE '%${escapeStrMain(brand)}%'` : ''}
+            ${location && location !== 'All' ? `AND location = '${escapeStrMain(location)}'` : ''}
+        `);
+        const categories = categoriesResult.map(c => c.Category).filter(Boolean);
         console.log(`[Category Overview] Platform: ${categoryOverviewPlatform}, Found ${categories.length} categories:`, categories);
 
         const categoryOverviewPromises = categories.map(async (catName) => {
@@ -3019,8 +3031,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 console.log(`[Category Overview] Processing category: ${catName}, Platform: ${categoryOverviewPlatform}`);
 
                 // Calculate Metrics for this Category
+                // Calculate Metrics for this Category via ClickHouse
                 const [
-                    catOfftakeResult,
+                    catMetricsResult,
                     catAvailability,
                     catSos,
                     catMsResult,
@@ -3028,88 +3041,87 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     catPromoCompeteResult
                 ] = await Promise.all([
                     // Offtake (Sales) & Ad Metrics
-                    RbPdpOlap.findOne({
-                        attributes: [
-                            [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
-                        ],
-                        where: catWhere,
-                        raw: true
-                    }),
+                    queryClickHouse(`
+                        SELECT 
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                        AND lower(Category) = '${escapeStrMain(catName.toLowerCase())}'
+                        ${brand && brand !== 'All' ? `AND Brand LIKE '%${escapeStrMain(brand)}%'` : ''}
+                        ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                        ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+                    `),
                     // Availability (OSA)
                     getAvailability(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
                     // SOS
                     getShareOfSearch(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
-                    // Market Share - CALCULATED: (Our Brand Sales / Total Category Sales) × 100
-                    // Query 1: Get our brand's sales in this category (Comp_flag = 0)
-                    // Query 2: Get total sales in this category (all brands)
+                    // Market Share
                     Promise.all([
-                        // Our brand sales (Comp_flag = 0)
-                        RbPdpOlap.findOne({
-                            attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'our_sales']],
-                            where: {
-                                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                                Category: catName,
-                                Comp_flag: 0,
-                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: categoryOverviewPlatform }),
-                                ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                                ...(location && location !== 'All' && { Location: location })
-                            },
-                            raw: true
-                        }),
-                        // Total category sales (all brands, both Comp_flag 0 and 1)
-                        RbPdpOlap.findOne({
-                            attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
-                            where: {
-                                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                                Category: catName,
-                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: categoryOverviewPlatform }),
-                                ...(location && location !== 'All' && { Location: location })
-                            },
-                            raw: true
-                        })
+                        queryClickHouse(`
+                            SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as our_sales 
+                            FROM rb_pdp_olap 
+                            WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                            AND lower(Category) = '${escapeStrMain(catName.toLowerCase())}'
+                            AND Comp_flag = 0
+                            ${brand && brand !== 'All' ? `AND Brand LIKE '%${escapeStrMain(brand)}%'` : ''}
+                            ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                            ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+                        `),
+                        queryClickHouse(`
+                            SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales 
+                            FROM rb_pdp_olap 
+                            WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                            AND lower(Category) = '${escapeStrMain(catName.toLowerCase())}'
+                            ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                            ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+                        `)
                     ]),
-                    // Promo My Brand (Comp_flag = 0)
-                    RbPdpOlap.findOne({
-                        attributes: [
-                            [Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']
-                        ],
-                        where: {
-                            ...catWhere,
-                            Comp_flag: 0
-                        },
-                        raw: true
-                    }),
-                    // Promo Compete (Comp_flag = 1)
-                    RbPdpOlap.findOne({
-                        attributes: [
-                            [Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']
-                        ],
-                        where: {
-                            ...catWhere,
-                            Comp_flag: 1
-                        },
-                        raw: true
-                    })
+                    // Promo My Brand
+                    queryClickHouse(`
+                        SELECT AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_promo_depth
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                        AND lower(Category) = '${escapeStrMain(catName.toLowerCase())}'
+                        AND Comp_flag = 0
+                        ${brand && brand !== 'All' ? `AND Brand LIKE '%${escapeStrMain(brand)}%'` : ''}
+                        ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                        ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+                    `),
+                    // Promo Compete
+                    queryClickHouse(`
+                        SELECT AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_promo_depth
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                        AND lower(Category) = '${escapeStrMain(catName.toLowerCase())}'
+                        AND Comp_flag = 1
+                        ${brand && brand !== 'All' ? `AND Brand LIKE '%${escapeStrMain(brand)}%'` : ''}
+                        ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                        ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+                    `)
                 ]);
 
-                const catOfftake = parseFloat(catOfftakeResult?.total_sales || 0);
-                const catSpend = parseFloat(catOfftakeResult?.total_spend || 0);
-                const catAdSales = parseFloat(catOfftakeResult?.total_ad_sales || 0); // Inorg Sales
-                const catClicks = parseFloat(catOfftakeResult?.total_clicks || 0);
-                const catImpressions = parseFloat(catOfftakeResult?.total_impressions || 0);
+                const catOfftakeResult = catMetricsResult?.[0] || {};
+                const ourSalesData = catMsResult?.[0]?.[0] || {};
+                const totalSalesData = catMsResult?.[1]?.[0] || {};
+                const promoMyBrandData = catPromoMyBrandResult?.[0] || {};
+                const promoCompeteData = catPromoCompeteResult?.[0] || {};
 
-                // Market Share calculation: (Our Brand Sales / Total Category Sales) × 100
-                // catMsResult is now an array: [ourSalesResult, totalSalesResult]
-                const ourBrandSales = parseFloat(catMsResult?.[0]?.our_sales || 0);
-                const totalCategorySales = parseFloat(catMsResult?.[1]?.total_sales || 0);
+                const catOfftake = parseFloat(catOfftakeResult.total_sales || 0);
+                const catSpend = parseFloat(catOfftakeResult.total_spend || 0);
+                const catAdSales = parseFloat(catOfftakeResult.total_ad_sales || 0);
+                const catClicks = parseFloat(catOfftakeResult.total_clicks || 0);
+                const catImpressions = parseFloat(catOfftakeResult.total_impressions || 0);
+
+                const ourBrandSales = parseFloat(ourSalesData.our_sales || 0);
+                const totalCategorySales = parseFloat(totalSalesData.total_sales || 0);
                 const catMarketShare = totalCategorySales > 0 ? (ourBrandSales / totalCategorySales) * 100 : 0;
 
-                const catPromoMyBrand = parseFloat(catPromoMyBrandResult?.avg_promo_depth || 0) * 100;
-                const catPromoCompete = parseFloat(catPromoCompeteResult?.avg_promo_depth || 0) * 100;
+                const catPromoMyBrand = parseFloat(promoMyBrandData.avg_promo_depth || 0) * 100;
+                const catPromoCompete = parseFloat(promoCompeteData.avg_promo_depth || 0) * 100;
 
                 // Debug logging for troubleshooting
                 console.log(`[Category Overview] ${catName}: Offtake=${catOfftake}, Spend=${catSpend}, AdSales=${catAdSales}, Clicks=${catClicks}, Impressions=${catImpressions}`);
@@ -3639,6 +3651,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
     } catch (error) {
         console.error("Error in watchTowerService:", error);
+        fs.appendFileSync('error_log.txt', `ERROR: ${error.message}\nSTACK: ${error.stack}\n`);
         throw error;
     }
 };

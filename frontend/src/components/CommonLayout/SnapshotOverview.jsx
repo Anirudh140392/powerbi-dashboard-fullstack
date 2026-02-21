@@ -319,7 +319,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: themeColor }}>
                                 {Array.isArray(trendSeries) && trendSeries.length > 0
                                     ? (typeof trendSeries[trendSeries.length - 1] === 'number'
-                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title === 'Offtake' ? 'Cr' : '%')
+                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title?.includes('Offtake') ? 'Cr' : (kpi.title?.includes('ROAS') ? 'x' : (kpi.title?.includes('SOS') || kpi.title?.includes('Availability') || kpi.title?.includes('Promo') || kpi.title?.includes('Market') ? '%' : '')))
                                         : trendSeries[trendSeries.length - 1])
                                     : kpi.value}
                             </Typography>
@@ -328,7 +328,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Avg</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
                                 {sliceSeries.length > 0
-                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1)
+                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1) + (kpi.title?.includes('Offtake') ? 'Cr' : (kpi.title?.includes('ROAS') ? 'x' : (kpi.title?.includes('SOS') || kpi.title?.includes('Availability') || kpi.title?.includes('Promo') || kpi.title?.includes('Market') ? '%' : '')))
                                     : '0.0'}
                             </Typography>
                         </div>
@@ -497,7 +497,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: color }}>
                                 {Array.isArray(trendSeries) && trendSeries.length > 0
                                     ? (typeof trendSeries[trendSeries.length - 1] === 'number'
-                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title === 'Offtake' ? 'Cr' : '%')
+                                        ? trendSeries[trendSeries.length - 1].toFixed(1) + (kpi.title?.includes('Offtake') ? 'Cr' : (kpi.title?.includes('ROAS') ? 'x' : (kpi.title?.includes('SOS') || kpi.title?.includes('Availability') || kpi.title?.includes('Promo') || kpi.title?.includes('Market') ? '%' : '')))
                                         : trendSeries[trendSeries.length - 1])
                                     : kpi.value}
                             </Typography>
@@ -506,7 +506,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Avg</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
                                 {sliceSeries.length > 0
-                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1)
+                                    ? (sliceSeries.reduce((a, b) => a + (parseFloat(b) || 0), 0) / sliceSeries.length).toFixed(1) + (kpi.title?.includes('Offtake') ? 'Cr' : (kpi.title?.includes('ROAS') ? 'x' : (kpi.title?.includes('SOS') || kpi.title?.includes('Availability') || kpi.title?.includes('Promo') || kpi.title?.includes('Market') ? '%' : '')))
                                     : '0.0'}
                             </Typography>
                         </div>
@@ -643,7 +643,7 @@ const SnapshotOverview = ({
 
         let topRowItems = baseTop.map((kpi, idx) => ({
             ...kpi,
-            trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
+            trendSeries: kpi.chart || kpi.trend || kpi.trendSeries || makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
         }));
 
         if (sosItem) {
@@ -655,7 +655,7 @@ const SnapshotOverview = ({
                 deltaLabel: sosItem.tag,
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
-                trendSeries: makeSeries(35, 30, 0.12, seed)
+                trendSeries: sosItem.trendSeries || sosItem.chart || makeSeries(35, 30, 0.12, seed)
             };
 
             // Find Market Share to swap ensuring SOS comes BEFORE it
@@ -702,7 +702,7 @@ const SnapshotOverview = ({
                 icon: icon,
                 gradient: gradient,
                 subtitle: "Actionable Insight",
-                trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
+                trendSeries: baseItem?.chart || baseItem?.trend || baseItem?.trendSeries || perfItem?.trendSeries || perfItem?.chart || makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
         };
 
@@ -736,7 +736,7 @@ const SnapshotOverview = ({
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
             subtitle: "Actionable Insight",
-            trendSeries: makeSeries(45, 30, 0.14, seed)
+            trendSeries: ordersItem?.chart || ordersItem?.trend || ordersItem?.trendSeries || makeSeries(45, 30, 0.14, seed)
         };
 
         bottomItems.push(finalOrders);

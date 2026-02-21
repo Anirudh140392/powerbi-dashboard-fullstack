@@ -1,0 +1,248 @@
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+    at async ConnectionManager.getConnection (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:197:7)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/sequelize.js:305:26
+    at async MySQLQueryInterface.select (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/query-interface.js:407:12)
+    at async rb_pdp_olap.findAll (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/model.js:1140:21)
+    at async Promise.all (index 0)
+    at async computeSummaryMetrics (file:///home/asus/Music/powerbi-dashboard-fullstack/backend/src/services/watchTowerService.js:3384:13)
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-09-01') AND (toDate(DATE) <= '2025-09-06')) AND (Comp_flag = 0) GROUP BY Brand. 
+STACK: Error: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-09-01') AND (toDate(DATE) <= '2025-09-06')) AND (Comp_flag = 0) GROUP BY Brand. 
+    at parseError (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client-common/dist/error/error.js:38:16)
+    at ClientRequest.onResponse (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client/dist/connection/node_base_connection.js:459:107)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+ERROR: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-09-01') AND (toDate(DATE) <= '2025-09-06')) AND (Comp_flag = 0) GROUP BY Brand. 
+STACK: Error: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-09-01') AND (toDate(DATE) <= '2025-09-06')) AND (Comp_flag = 0) GROUP BY Brand. 
+    at parseError (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client-common/dist/error/error.js:38:16)
+    at ClientRequest.onResponse (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client/dist/connection/node_base_connection.js:459:107)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+ERROR: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-07-19') AND (toDate(DATE) <= '2026-01-19')) AND (Comp_flag = 0) AND (Platform = 'Blinkit') GROUP BY Brand. 
+STACK: Error: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-07-19') AND (toDate(DATE) <= '2026-01-19')) AND (Comp_flag = 0) AND (Platform = 'Blinkit') GROUP BY Brand. 
+    at parseError (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client-common/dist/error/error.js:38:16)
+    at ClientRequest.onResponse (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client/dist/connection/node_base_connection.js:459:107)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+ERROR: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-09-01') AND (toDate(DATE) <= '2025-09-06')) AND (Comp_flag = 0) GROUP BY Brand. 
+STACK: Error: Unknown expression or function identifier `ROAS` in scope SELECT Brand, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS total_spend, SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS total_ad_sales, SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_ad_orders, SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS total_ad_clicks, SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS total_ad_impressions, AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) AS avg_discount, AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) AS avg_roas, SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS total_neno, SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS total_deno FROM rb_pdp_olap WHERE ((toDate(DATE) >= '2025-09-01') AND (toDate(DATE) <= '2025-09-06')) AND (Comp_flag = 0) GROUP BY Brand. 
+    at parseError (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client-common/dist/error/error.js:38:16)
+    at ClientRequest.onResponse (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/@clickhouse/client/dist/connection/node_base_connection.js:459:107)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+    at async ConnectionManager.getConnection (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:197:7)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/sequelize.js:305:26
+    at async MySQLQueryInterface.select (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/query-interface.js:407:12)
+    at async tb_blinkit_sales_data.findAll (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/model.js:1140:21)
+    at async Promise.all (index 0)
+    at async computeSummaryMetrics (file:///home/asus/Music/powerbi-dashboard-fullstack/backend/src/services/watchTowerService.js:3384:13)
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
+ERROR: connect ECONNREFUSED 127.0.0.1:3306
+STACK: SequelizeConnectionRefusedError: connect ECONNREFUSED 127.0.0.1:3306
+    at ConnectionManager.connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/mysql/connection-manager.js:92:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ConnectionManager._connect (/home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:222:24)
+    at async /home/asus/Music/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/connection-manager.js:174:32
