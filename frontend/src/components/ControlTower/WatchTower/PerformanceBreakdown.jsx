@@ -381,7 +381,7 @@ export function AggregatedViewTable() {
                 params.set("group_by", groupBy);
                 if (comparePeriods) params.set("compare_periods", "true");
                 // slicerFilters removed — no additional slicer params
-                const res = await authGet(`/api/aggregated-view?${params.toString()}`);
+                const res = await authGet(`/api/watchtower/performance-breakdown?${params.toString()}`);
                 const result = res.data;
                 if (res.success && result?.success && result.data?.length > 0) {
                     setData(result.data);

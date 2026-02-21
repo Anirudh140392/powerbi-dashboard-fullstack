@@ -43,14 +43,38 @@ export const FilterProvider = ({ children }) => {
     const [selectedCategory, setSelectedCategory] = useState("All");
 
     // Date Ranges
-    const [timeStart, setTimeStart] = useState(dayjs("2025-10-01"));
-    const [timeEnd, setTimeEnd] = useState(dayjs("2025-10-06"));
-    const [compareStart, setCompareStart] = useState(dayjs("2025-09-01"));
-    const [compareEnd, setCompareEnd] = useState(dayjs("2025-09-06"));
-    const [comparisonLabel, setComparisonLabel] = useState("VS PREV. 30 DAYS");
+    const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
+    const [timeEnd, setTimeEnd] = useState(dayjs());
+    const [compareStart, setCompareStart] = useState(dayjs().subtract(1, 'month').startOf('month'));
+    const [compareEnd, setCompareEnd] = useState(dayjs().subtract(1, 'month'));
+    const [comparisonLabel, setComparisonLabel] = useState("VS PREV. PERIOD");
 
-    // Dates are always initialized since they have defaults above
     const datesInitialized = Boolean(timeStart && timeEnd);
+
+    // ====== FETCH LATEST DATES FROM DB (on mount) ======
+    useEffect(() => {
+        const fetchDates = async () => {
+            try {
+                const res = await axiosInstance.get('/watchtower/latest-available-month');
+                if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
+                    const lEnd = dayjs(res.data.defaultEndDate);
+                    const lStart = dayjs(res.data.defaultStartDate);
+
+                    setTimeEnd(lEnd);
+                    setTimeStart(lStart);
+
+                    // Simple Previous period comparison
+                    setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
+                    setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+
+                    console.log("[FilterContext] Fetched dynamic dates:", res.data.defaultStartDate, "to", res.data.defaultEndDate);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
+            }
+        };
+        fetchDates();
+    }, []);
 
     // ====== FETCH PLATFORMS FROM DB (on mount) ======
     const fetchPlatformsFromDb = useCallback(async () => {

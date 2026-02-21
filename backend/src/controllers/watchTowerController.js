@@ -459,3 +459,19 @@ export const getCityOverview = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+/**
+ * Get Performance Breakdown table data
+ * GET /api/watchtower/performance-breakdown
+ */
+export const getPerformanceBreakdown = async (req, res) => {
+    try {
+        const filters = req.query;
+        console.log('[getPerformanceBreakdown] API call received with filters:', filters);
+        const data = await watchTowerService.getPerformanceBreakdownData(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('[getPerformanceBreakdown] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
