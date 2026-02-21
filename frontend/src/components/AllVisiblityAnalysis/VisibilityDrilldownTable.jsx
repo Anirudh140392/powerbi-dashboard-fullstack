@@ -239,18 +239,16 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
         const keywordPath = node.level === 'keyword' ? node.label : parentPaths.keyword
         const cityPath = node.level === 'city' ? node.label : parentPaths.city
 
-        // Filter logic
+        // Filter logic 
+        // We pass if the filter is not set, OR if it matches, OR if we haven't reached that level yet (path is undefined)
         const passesFilter =
-            (!filters.keyword || keywordPath === filters.keyword) &&
-            (!filters.sku || skuPath === filters.sku) &&
-            (!filters.city || cityPath === filters.city)
+            (!filters.keyword || filters.keyword === 'All' || !keywordPath || keywordPath === filters.keyword) &&
+            (!filters.sku || filters.sku === 'All' || !skuPath || skuPath === filters.sku) &&
+            (!filters.city || filters.city === 'All' || !cityPath || cityPath === filters.city)
 
         if (!passesFilter) {
             if (node.children) {
-                // Pass explicit paths for filtering logic during recursion if needed, 
-                // though simplistic walking is usually fine if we don't prune parents based on children visibility here.
-                // Current implementation just recurses.
-                node.children.forEach((c) => walk(c, depth + 1, { keywordType: keywordTypePath, keyword: keywordPath, sku: skuPath }))
+                node.children.forEach((c) => walk(c, depth + 1, { ...parentPaths, keywordType: keywordTypePath, keyword: keywordPath, sku: skuPath }))
             }
             return
         }
@@ -516,7 +514,14 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
         return sourceData
     }, [activeView, sourceData])
 
-    const flatRows = useMemo(() => flattenHierarchy(hierarchyData, expandedRows, filters, activeView), [hierarchyData, expandedRows, filters, activeView])
+    const flatRows = useMemo(() => {
+        const rows = flattenHierarchy(hierarchyData, expandedRows, filters, activeView);
+        console.log('[VisibilityDrilldownTable] flatRows count:', rows.length, 'hierarchyData root count:', hierarchyData.length);
+        if (rows.length === 0 && hierarchyData.length > 0) {
+            console.warn('[VisibilityDrilldownTable] flatRows is empty despite having hierarchyData! Potential filter issue.');
+        }
+        return rows;
+    }, [hierarchyData, expandedRows, filters, activeView])
 
     const totalPages = Math.max(1, Math.ceil(flatRows.length / pageSize))
 
