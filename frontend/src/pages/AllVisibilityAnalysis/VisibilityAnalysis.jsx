@@ -10,6 +10,7 @@ export default function VisibilityAnalysis() {
     platform,
     selectedBrand,
     selectedLocation,
+    selectedKeyword,
     timeStart,
     timeEnd,
     refreshFilters,
@@ -25,10 +26,11 @@ export default function VisibilityAnalysis() {
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
+    keyword: selectedKeyword || "All",
     months: 6,
     timeStep: "Weekly",
-    startDate: null,  // Will be set after fetching latest available dates
-    endDate: null     // Will be set after fetching latest available dates
+    startDate: null,
+    endDate: null
   });
 
   // Ref to track last fetched filters to prevent duplicate API calls
@@ -95,15 +97,14 @@ export default function VisibilityAnalysis() {
         platform: platform || prev.platform,
         brand: selectedBrand || prev.brand,
         location: selectedLocation || prev.location,
+        keyword: selectedKeyword || prev.keyword,
       };
 
       // Sync dates from FilterContext if they're changed by user in the header
-      // Only update if timeStart/timeEnd are valid dayjs objects
       if (timeStart && timeEnd) {
         const newStartDate = dayjs(timeStart).format('YYYY-MM-DD');
         const newEndDate = dayjs(timeEnd).format('YYYY-MM-DD');
 
-        // Only update if dates have actually changed to avoid unnecessary re-renders
         if (newStartDate !== prev.startDate || newEndDate !== prev.endDate) {
           console.log('🗓️ [Visibility] Syncing dates from header:', newStartDate, 'to', newEndDate);
           updates.startDate = newStartDate;
@@ -113,7 +114,7 @@ export default function VisibilityAnalysis() {
 
       return updates;
     });
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedKeyword, timeStart, timeEnd]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -232,7 +233,75 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  // Fetch visibility data when filters change
+  // Fetch matrix with extra filters from the Advanced Filters modal
+  // sectionValues shape: { platform: [], zone: [], metroFlag: [], pincode: [], kpi: [], ... }
+  // Fetch dashboard data with extra filters from the Advanced Filters modal
+  const fetchDashboardWithFilters = async (sectionValues) => {
+    console.log('🔎 [Visibility] Global filter panel applied:', sectionValues);
+
+    const baseParams = {
+      brand: filters.brand || 'All',
+      location: filters.location || 'All',
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+    };
+
+    // Map filter panel selections to API params
+    const selectedPlatforms = sectionValues?.platform;
+    const platformParam = (selectedPlatforms && selectedPlatforms.length > 0)
+      ? selectedPlatforms.join(',')
+      : 'All';
+
+    const selectedZones = sectionValues?.zone;
+    const zoneParam = (selectedZones && selectedZones.length > 0)
+      ? selectedZones.join(',')
+      : undefined;
+
+    const selectedMetro = sectionValues?.metroFlag;
+    const metroParam = (selectedMetro && selectedMetro.length > 0)
+      ? selectedMetro.join(',')
+      : undefined;
+
+    const selectedPincodes = sectionValues?.pincode;
+    const pincodeParam = (selectedPincodes && selectedPincodes.length > 0)
+      ? selectedPincodes.join(',')
+      : undefined;
+
+    const extraParams = {
+      ...baseParams,
+      platform: platformParam,
+      ...(zoneParam ? { zone: zoneParam } : {}),
+      ...(metroParam ? { metroFlag: metroParam } : {}),
+      ...(pincodeParam ? { pincode: pincodeParam } : {}),
+    };
+
+    const cleanExtra = Object.fromEntries(
+      Object.entries(extraParams).filter(([_, v]) => v !== undefined)
+    );
+    const queryParams = new URLSearchParams(cleanExtra).toString();
+
+    // For Matrix, we often want platform: 'All' unless specifically overridden
+    const matrixParams = new URLSearchParams({
+      ...cleanExtra,
+      platform: platformParam || 'All'
+    }).toString();
+
+    const termsParams = new URLSearchParams({
+      ...cleanExtra,
+      filter: topSearchFilter
+    }).toString();
+
+    // Clear current data to show skeletons
+    setApiData({});
+
+    await Promise.allSettled([
+      fetchVisibilityOverview(queryParams),
+      fetchVisibilityMatrix(matrixParams),
+      fetchVisibilityKeywords(queryParams),
+      fetchVisibilitySearchTerms(termsParams)
+    ]);
+  };
+
   useEffect(() => {
     // Debug: log current state
     console.log('🔍 [Visibility] Effect triggered - visibilityDatesReady:', visibilityDatesReady,
@@ -254,6 +323,7 @@ export default function VisibilityAnalysis() {
       platform: filters.platform,
       brand: filters.brand,
       location: filters.location,
+      keyword: filters.keyword,
       startDate: filters.startDate,
       endDate: filters.endDate,
     });
@@ -297,13 +367,19 @@ export default function VisibilityAnalysis() {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
+          keyword: (filters.keyword && filters.keyword !== 'All') ? filters.keyword : undefined,
           startDate: filters.startDate,
           endDate: filters.endDate
         };
 
+        // Remove undefined keys before building URLSearchParams
+        const cleanParams = Object.fromEntries(
+          Object.entries(baseParams).filter(([_, v]) => v !== undefined)
+        );
+
         // 1. ALWAYS fetch Top Search Terms if tab OR main filters changed
         const termsParams = new URLSearchParams({
-          ...baseParams,
+          ...cleanParams,
           filter: topSearchFilter
         }).toString();
 
@@ -316,13 +392,10 @@ export default function VisibilityAnalysis() {
           return;
         }
 
-        const queryParams = new URLSearchParams(baseParams).toString();
+        const queryParams = new URLSearchParams(cleanParams).toString();
         const matrixParams = new URLSearchParams({
-          platform: 'All',
-          brand: filters.brand || 'All',
-          location: filters.location || 'All',
-          startDate: filters.startDate,
-          endDate: filters.endDate
+          ...cleanParams,
+          platform: 'All', // Matrix always fetches all platforms
         }).toString();
 
         console.log('📡 [Visibility] Fetching ALL segments (main filters changed)');
@@ -401,6 +474,7 @@ export default function VisibilityAnalysis() {
           filters={filters}
           topSearchFilter={topSearchFilter}
           setTopSearchFilter={setTopSearchFilter}
+          onMatrixFiltersApply={fetchDashboardWithFilters}
         />
       </CommonContainer>
     </>

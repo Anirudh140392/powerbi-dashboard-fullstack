@@ -38,6 +38,11 @@ import TopSearchTerms from './TopSearchTerms';
 import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
 import MetricCardContainer from '../CommonLayout/MetricCardContainer';
+import {
+  TabbedHeatmapTableSkeleton,
+  VisibilityDrilldownSkeleton,
+  TopSearchTermsSkeleton,
+} from './VisibilitySkeletons';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -438,7 +443,7 @@ const cards = [
   },
 ];
 
-const VisiblityAnalysisData = () => {
+const VisiblityAnalysisData = ({ apiData, apiErrors, onRetry, filters: parentFilters, topSearchFilter: parentTopSearchFilter, setTopSearchFilter: parentSetTopSearchFilter, onMatrixFiltersApply }) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
@@ -593,10 +598,15 @@ const VisiblityAnalysisData = () => {
     timeEnd
   } = useContext(FilterContext);
 
+  // ---- Loading state per section ----
+  // overviewLoading: true whenever overview data is absent (initial load + filter change)
+  const overviewLoading = !apiData?.overview;
+  // matrixLoading: show skeleton on initial load OR whenever matrix data is still fetching
+  const isFirstLoad = Object.keys(apiData || {}).length === 0;
+  const matrixLoading = isFirstLoad || (Object.keys(apiData || {}).length > 0 && !apiData?.matrix);
+  const keywordsLoading = isFirstLoad || (Object.keys(apiData || {}).length > 0 && !apiData?.keywords);
+  const searchTermsLoading = isFirstLoad || (Object.keys(apiData || {}).length > 0 && !apiData?.searchTerms);
   const visibilityKpis = useMemo(() => {
-    // User request: restrict Visibility Overview cards to ONLY change on Platform
-    const platformContext = { platform: globalPlatform };
-
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
@@ -605,38 +615,57 @@ const VisiblityAnalysisData = () => {
       ['#8b5cf6', '#a855f7']
     ];
 
-    // Map titles to keys that exist in data center or fall back to defaults
-    const titleToKey = {
-      "Overall Weighted SOS": "sos",
-      "Sponsored Weighted SOS": "promomybrand", // Approximation for sponsored
-      "Organic Weighted SOS": "market", // Approximation for organic
-      "Display SOS": "dspSales" // Approximation for display
-    };
+    // If we have backend data, map it
+    if (apiData?.overview?.cards && apiData.overview.cards.length > 0) {
+      return apiData.overview.cards.map((card, idx) => {
+        // Parse delta from change string like "▲4.3% (from 15.3%)" or "▼8.6% (from 26.2%)"
+        let delta = 0;
+        let isUp = true;
+        if (card.change) {
+          const match = card.change.match(/([▲▼])\s*([\d.]+)%/);
+          if (match) {
+            isUp = match[1] === '▲';
+            delta = parseFloat(match[2]) || 0;
+            if (!isUp) delta = -delta;
+          }
+        }
 
-    return cards.map((card, idx) => {
-      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
-      const val = getLogicalKpiValue(kpiKey, platformContext);
-      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
-      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
+        return {
+          id: `vis-${idx}`,
+          title: card.title,
+          value: card.value,
+          subtitle: card.sub,
+          delta: delta,
+          deltaLabel: card.change || '',
+          icon: icons[idx] || PieChart,
+          gradient: gradients[idx % gradients.length],
+          trendSeries: card.sparklineData || [],
 
-      return {
-        id: `vis-${idx}`,
-        title: card.title,
-        value: `${val.toFixed(1)}%`,
-        subtitle: card.sub,
-        delta: parseFloat(delta),
-        deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
-        icon: icons[idx] || PieChart,
-        gradient: gradients[idx % gradients.length],
-        trend: getLogicalKpiTrend(kpiKey, platformContext),
+          extra: card.extra || '',
+          extraChange: card.extraChange || '',
+          extraChangeColor: card.extraChangeColor || 'green',
+          prevText: card.prevText || 'vs Previous Period'
+        };
+      });
+    }
 
-        extra: card.extra,
-        extraChange: card.extraChange,
-        extraChangeColor: card.extraChangeColor,
-        prevText: card.prevText
-      };
-    });
-  }, [globalPlatform]);
+    // Fallback: use hardcoded cards if no API data yet
+    return cards.map((card, idx) => ({
+      id: `vis-${idx}`,
+      title: card.title,
+      value: card.value,
+      subtitle: card.sub,
+      delta: 0,
+      deltaLabel: card.change,
+      icon: icons[idx] || PieChart,
+      gradient: gradients[idx % gradients.length],
+      trendSeries: [],
+      extra: card.extra,
+      extraChange: card.extraChange,
+      extraChangeColor: card.extraChangeColor,
+      prevText: card.prevText
+    }));
+  }, [apiData?.overview]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
@@ -764,8 +793,10 @@ const VisiblityAnalysisData = () => {
     { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
   ];
 
-  const TabbedHeatmapTable = () => {
+  const TabbedHeatmapTable = ({ matrixData, onFiltersApply }) => {
     const [activeTab, setActiveTab] = useState("platform");
+
+    // Always call hooks unconditionally at the top level (React rules)
     const {
       selectedChannel,
       platform: globalPlatform,
@@ -775,84 +806,61 @@ const VisiblityAnalysisData = () => {
       timeEnd
     } = useContext(FilterContext);
 
-    // 🔥 Utility to compute unified trend + series for ANY item
-    const buildRows = (dataArray = [], columnList = [], context = {}) => {
-      // Map readable titles to data center keys
-      const kpiMap = {
-        "Overall Weighted SOS": "sos",
-        "Sponsored Weighted SOS": "promomybrand", // Approximation
-        "Organic Weighted SOS": "market", // Approximation
-        "Display SOS": "dspSales" // Approximation
-      };
-
-      return dataArray.map((item) => {
-        const trendObj = {};
-        const seriesObj = {};
-
-        // Resolve the correct data key if present, else fallback
-        const dataKey = kpiMap[item.kpi] || item.kpi;
-
-        columnList.forEach((col) => {
-          const seed = { ...context, kpi: dataKey, col };
-          const randomVal = getLogicalKpiValue(dataKey, seed);
-          const randomTrendSeries = getLogicalKpiTrend(dataKey, seed);
-          const validTrend = randomTrendSeries.length >= 2;
-
-          const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
-
-          // Use logical delta and direction for consistent 5-7% reporting
-          const logicalDelta = getLogicalKpiValue(dataKey + 'delta', seed);
-          const logicalDir = getLogicalKpiValue(dataKey + 'dir', seed);
-          const trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
-
-          trendObj[col] = trendDelta;
-          seriesObj[col] = randomTrendSeries;
-
-          // Store the randomized value in the row object for this column
-          item.values[col] = randomVal;
-        });
-
-        return {
-          kpi: item.kpi,
-          ...item.values,
-          trend: trendObj,
-          series: seriesObj,
-        };
-      });
-    };
-
-    // ---------------- TABS ----------------
+    // Use real backend data when available; fall back to mock data generator
     const tabs = useMemo(() => {
+      if (matrixData?.platformData && matrixData?.formatData && matrixData?.cityData) {
+        // ---- BACKEND DATA PATH ----
+        // Backend already returns the exact {columns, rows} shape CityKpiTrendShowcase needs.
+        // rows[*].kpi matches "Overall SOS" / "Sponsored SOS" / "Organic SOS" / "Display SOS"
+        // rows[*][platformName] = numeric SOS value
+        // rows[*].trend[platformName] = delta (current - prev)
+        // rows[*].series[platformName] = sparkline array
+        return [
+          { key: "platform", label: "Platform", data: matrixData.platformData },
+          { key: "format", label: "Format", data: matrixData.formatData },
+          { key: "city", label: "City", data: matrixData.cityData },
+        ];
+      }
+
+      // ---- MOCK DATA FALLBACK (when backend data is not available) ----
       const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
 
-      // ---------------- PLATFORM ----------------
+      const buildRows = (dataArray = [], columnList = [], ctx = {}) => {
+        const kpiMap = {
+          "Overall Weighted SOS": "sos",
+          "Sponsored Weighted SOS": "promomybrand",
+          "Organic Weighted SOS": "market",
+          "Display SOS": "dspSales"
+        };
+        return dataArray.map((item) => {
+          const dataKey = kpiMap[item.kpi] || item.kpi;
+          const trendObj = {};
+          const seriesObj = {};
+          columnList.forEach((col) => {
+            const seed = { ...ctx, kpi: dataKey, col };
+            const randomTrendSeries = getLogicalKpiTrend(dataKey, seed);
+            const logicalDelta = getLogicalKpiValue(dataKey + 'delta', seed);
+            const logicalDir = getLogicalKpiValue(dataKey + 'dir', seed);
+            const trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
+            trendObj[col] = trendDelta;
+            seriesObj[col] = randomTrendSeries;
+            item.values[col] = getLogicalKpiValue(dataKey, seed);
+          });
+          return { kpi: item.kpi, ...item.values, trend: trendObj, series: seriesObj };
+        });
+      };
+
       const platformData = {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.PlatformData])),
-          FORMAT_MATRIX_Visibility.PlatformColumns,
-          context
-        ),
+        rows: buildRows(JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.PlatformData])), FORMAT_MATRIX_Visibility.PlatformColumns, context),
       };
-
-      // ---------------- FORMAT ----------------
       const formatData = {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.FormatData])),
-          FORMAT_MATRIX_Visibility.formatColumns,
-          context
-        ),
+        rows: buildRows(JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.FormatData])), FORMAT_MATRIX_Visibility.formatColumns, context),
       };
-
-      // ---------------- CITY ----------------
       const cityData = {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.CityData])),
-          FORMAT_MATRIX_Visibility.CityColumns,
-          context
-        ),
+        rows: buildRows(JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.CityData])), FORMAT_MATRIX_Visibility.CityColumns, context),
       };
 
       return [
@@ -860,7 +868,8 @@ const VisiblityAnalysisData = () => {
         { key: "format", label: "Format", data: formatData },
         { key: "city", label: "City", data: cityData },
       ];
-    }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+    }, [matrixData, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+
 
     const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
@@ -891,10 +900,12 @@ const VisiblityAnalysisData = () => {
           title={active.label}
           showPagination={true}
           kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
+          onFiltersApply={onFiltersApply}
         />
       </div>
     );
   };
+
 
   return (
 
@@ -927,6 +938,7 @@ const VisiblityAnalysisData = () => {
         }
         kpis={visibilityKpis}
         variant="detailed"
+        loading={overviewLoading}
       />
       {/* MODAL SECTION */}
       {/* <SnapshotOverview
@@ -940,7 +952,7 @@ const VisiblityAnalysisData = () => {
         }
         kpis={visibilityKpis}
       /> */}
-      <TabbedHeatmapTable />
+      {matrixLoading ? <TabbedHeatmapTableSkeleton /> : <TabbedHeatmapTable matrixData={apiData?.matrix} onFiltersApply={onMatrixFiltersApply} />}
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
@@ -982,24 +994,30 @@ const VisiblityAnalysisData = () => {
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <VisibilityDrilldownTable />
+        {keywordsLoading ? <VisibilityDrilldownSkeleton /> : <VisibilityDrilldownTable data={apiData?.keywords} loading={keywordsLoading} />}
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-            {["All", "Branded", "Competitor", "Generic"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setTopSearchFilter(tab)}
-                className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
-        <TopSearchTerms filter={topSearchFilter} />
+        {searchTermsLoading ? (
+          <TopSearchTermsSkeleton />
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+                {["All", "Branded", "Competitor", "Generic"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setTopSearchFilter(tab)}
+                    className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                      }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <TopSearchTerms filter={topSearchFilter} data={apiData?.searchTerms} loading={searchTermsLoading} />
+          </>
+        )}
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

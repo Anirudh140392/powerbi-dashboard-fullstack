@@ -658,7 +658,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI", onFiltersApply }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -685,6 +685,8 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   // New KpiFilterPanel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterRules, setFilterRules] = useState(null);
+  // Track KpiFilterPanel section selections
+  const [sectionValues, setSectionValues] = useState({});
 
   const filterOptions = React.useMemo(() => {
     if (kpiFilterOptions) return kpiFilterOptions;
@@ -822,17 +824,82 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
             <CardDescription className="text-xs text-slate-500">
               Hover on any value to see trend sparkline.
             </CardDescription>
+
+            {/* Active Filters Summary */}
+            {(() => {
+              const activeItems = Object.entries(sectionValues)
+                .filter(([_, vals]) => Array.isArray(vals) && vals.length > 0)
+                .map(([id, vals]) => {
+                  const label = filterOptions.find(o => o.id === id || o.id === id + 's')?.label || id;
+                  return { id, label, count: vals.length };
+                });
+
+              if (activeItems.length > 0) {
+                return (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {activeItems.map(item => (
+                      <Badge
+                        key={item.id}
+                        variant="secondary"
+                        className="rounded-md bg-emerald-50 text-emerald-700 border-emerald-100 px-2 py-0.5 text-[10px] h-5 flex items-center gap-1 font-medium"
+                      >
+                        <span className="opacity-70 font-normal">{item.label}:</span>
+                        <span>{item.count}</span>
+                        <X
+                          className="h-2.5 w-2.5 ml-0.5 cursor-pointer hover:text-emerald-900"
+                          onClick={() => {
+                            setSectionValues(prev => {
+                              const next = { ...prev };
+                              delete next[item.id];
+                              if (onFiltersApply) onFiltersApply(next);
+                              return next;
+                            });
+                          }}
+                        />
+                      </Badge>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setSectionValues({});
+                        if (onFiltersApply) onFiltersApply({});
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 underline underline-offset-2 ml-1"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
 
           {/* City-style Heatmap Legend */}
           <div className="flex items-center gap-3 text-xs">
             {/* KpiFilterPanel Integration */}
+            {/* KpiFilterPanel Integration */}
             <button
               onClick={() => setShowFilterPanel(true)}
-              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              className={[
+                "flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-all duration-200",
+                Object.values(sectionValues).some(v => Array.isArray(v) && v.length > 0)
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              ].join(" ")}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Filters</span>
+              {(() => {
+                const total = Object.values(sectionValues).reduce((acc, v) => acc + (Array.isArray(v) ? v.length : 0), 0);
+                if (total > 0) {
+                  return (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white shadow-sm ring-2 ring-white ml-0.5">
+                      {total}
+                    </span>
+                  );
+                }
+                return null;
+              })()}
             </button>
             <div className="h-4 w-px bg-slate-200 mx-1"></div>
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
@@ -875,6 +942,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
               <KpiFilterPanel
                 sectionConfig={filterOptions}
                 keywords={mockKeywords}
+                sectionValues={sectionValues}
+                onSectionChange={(sectionId, vals) => {
+                  setSectionValues(prev => ({ ...prev, [sectionId]: vals }));
+                }}
               />
 
             </div>
@@ -888,7 +959,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                 Cancel
               </button>
               <button
-                onClick={() => setShowFilterPanel(false)}
+                onClick={() => {
+                  if (onFiltersApply) onFiltersApply(sectionValues);
+                  setShowFilterPanel(false);
+                }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >
                 Apply Filters
@@ -1333,12 +1407,11 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel, onFiltersApply }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} onFiltersApply={onFiltersApply} />;
 }
-

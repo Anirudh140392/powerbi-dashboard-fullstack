@@ -204,22 +204,42 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms({ filter = "All" }) {
+export default function TopSearchTerms({ filter = "All", data = null, loading = false }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [expandedCityRows, setExpandedCityRows] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
     const [selectedBrands, setSelectedBrands] = useState([]);
 
-    // Select specific data based on tab filter
+    // Logic: Use real data if provided, else fallback to mock
+    // Data from backend is usually an object: { terms: [...] }
     const activeData = useMemo(() => {
-        switch (filter) {
-            case "Branded": return BRANDED_DATA;
-            case "Competitor": return COMPETITOR_DATA;
-            case "Generic": return GENERIC_DATA;
-            default: return ALL_DATA;
+        // Normalize source to always be an array
+        const source = (data && Array.isArray(data.terms)) ? data.terms : (Array.isArray(data) ? data : ALL_DATA);
+
+        // If it's the "All" tab or we're using mock data which is already pre-filtered/shuffled
+        if (filter === "All" || !data) {
+            if (!data || (data && data.terms === undefined && !Array.isArray(data))) {
+                switch (filter) {
+                    case "Branded": return BRANDED_DATA;
+                    case "Competitor": return COMPETITOR_DATA;
+                    case "Generic": return GENERIC_DATA;
+                    default: return ALL_DATA;
+                }
+            }
+            return source;
         }
-    }, [filter]);
+
+        // Backend returns one big list, so we might need to filter by keyword_type if present in data
+        // For now, if the backend doesn't return keyword_type, assume the tab filtering is handled by parent API params
+        // However, TopSearchTerms has its own tabs, so we should filter the 'data' prop if it contains keyword_type
+        return source.filter(item => {
+            if (filter === "Branded") return item.keyword_type?.toLowerCase() === "branded";
+            if (filter === "Competitor") return item.keyword_type?.toLowerCase() === "competitor";
+            if (filter === "Generic") return item.keyword_type?.toLowerCase() === "generic";
+            return true;
+        });
+    }, [filter, data]);
 
     // Reset page when filter changes
     useEffect(() => {

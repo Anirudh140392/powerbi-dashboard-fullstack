@@ -436,8 +436,8 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     }, []) // Run once on mount
 
     // Use prop data first, then fallback to sampleHierarchy
-    const sourceData = data || sampleHierarchy;
-    console.log('[VisibilityDrilldownTable] Using sourceData:', data ? 'Prop data' : 'Fallback sampleHierarchy');
+    const sourceData = (data && Array.isArray(data.hierarchy)) ? data.hierarchy : (Array.isArray(data) ? data : sampleHierarchy);
+    console.log('[VisibilityDrilldownTable] Using sourceData:', (data && (data.hierarchy || Array.isArray(data))) ? 'Prop data' : 'Fallback sampleHierarchy');
 
 
 

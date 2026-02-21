@@ -83,11 +83,18 @@ export function KpiFilterPanel({
                 ].join(" ")}
               >
                 <span>{section.label}</span>
-                {Array.isArray(sectionValues[section.id]) && sectionValues[section.id].length > 0 && (
-                  <span className="ml-2 rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
-                    {sectionValues[section.id].length}
-                  </span>
-                )}
+                {(() => {
+                  const count = (Array.isArray(sectionValues[section.id]) ? sectionValues[section.id].length : 0) ||
+                    (Array.isArray(sectionValues[section.id.replace(/s$/, '')]) ? sectionValues[section.id.replace(/s$/, '')].length : 0);
+                  if (count > 0) {
+                    return (
+                      <span className="ml-2 rounded-md bg-emerald-600 text-white px-2 py-0.5 text-[10px] font-bold shadow-sm ring-1 ring-emerald-700/10">
+                        {count}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </button>
             );
           })}
@@ -101,6 +108,7 @@ export function KpiFilterPanel({
 
           // Legacy mappings
           if (section.id === "keywords" && keywords) {
+            const val = sectionValues["keywords"] || sectionValues["keyword"];
             return (
               <MultiSelectSection
                 key="keywords"
@@ -108,12 +116,16 @@ export function KpiFilterPanel({
                 description="Search and select keywords to filter the hierarchy."
                 options={keywords}
                 pageSize={pageSize}
-                onChange={onKeywordChange}
-                value={sectionValues["keywords"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onKeywordChange) onKeywordChange(vals);
+                  if (onSectionChange) onSectionChange("keywords", vals);
+                }}
               />
             );
           }
           if (section.id === "brands" && brands) {
+            const val = sectionValues["brands"] || sectionValues["brand"];
             return (
               <MultiSelectSection
                 key="brands"
@@ -121,12 +133,16 @@ export function KpiFilterPanel({
                 description="Filter by specific items."
                 options={brands}
                 pageSize={pageSize}
-                onChange={onBrandChange}
-                value={sectionValues["brands"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onBrandChange) onBrandChange(vals);
+                  if (onSectionChange) onSectionChange("brands", vals);
+                }}
               />
             );
           }
           if (section.id === "categories" && categories) {
+            const val = sectionValues["categories"] || sectionValues["category"];
             return (
               <MultiSelectSection
                 key="categories"
@@ -134,12 +150,16 @@ export function KpiFilterPanel({
                 description="Filter by specific groups."
                 options={categories}
                 pageSize={pageSize}
-                onChange={onCategoryChange}
-                value={sectionValues["categories"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onCategoryChange) onCategoryChange(vals);
+                  if (onSectionChange) onSectionChange("categories", vals);
+                }}
               />
             );
           }
           if (section.id === "skus" && skus) {
+            const val = sectionValues["skus"] || sectionValues["sku"];
             return (
               <MultiSelectSection
                 key="skus"
@@ -147,12 +167,16 @@ export function KpiFilterPanel({
                 description="Filter on specific SKUs within the selected hierarchy."
                 options={skus}
                 pageSize={pageSize}
-                onChange={onSkuChange}
-                value={sectionValues["skus"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onSkuChange) onSkuChange(vals);
+                  if (onSectionChange) onSectionChange("skus", vals);
+                }}
               />
             );
           }
           if (section.id === "regions" && regions) {
+            const val = sectionValues["regions"] || sectionValues["region"];
             return (
               <MultiSelectSection
                 key="regions"
@@ -160,12 +184,16 @@ export function KpiFilterPanel({
                 description="Filter by geographical regions."
                 options={regions}
                 pageSize={pageSize}
-                onChange={onRegionChange}
-                value={sectionValues["regions"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onRegionChange) onRegionChange(vals);
+                  if (onSectionChange) onSectionChange("regions", vals);
+                }}
               />
             );
           }
           if (section.id === "zones" && zones) {
+            const val = sectionValues["zones"] || sectionValues["zone"];
             return (
               <MultiSelectSection
                 key="zones"
@@ -173,8 +201,11 @@ export function KpiFilterPanel({
                 description="Filter by zones."
                 options={zones}
                 pageSize={pageSize}
-                onChange={onZoneChange}
-                value={sectionValues["zones"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onZoneChange) onZoneChange(vals);
+                  if (onSectionChange) onSectionChange("zones", vals);
+                }}
               />
             );
           }
@@ -191,14 +222,17 @@ export function KpiFilterPanel({
                 description="Choose weekend or weekday data."
                 options={opts}
                 pageSize={pageSize}
+                userContext="weekend"
+                value={sectionValues["weekendFlag"]}
                 onChange={(vals) => {
                   if (onWeekendChange) onWeekendChange(vals || []);
+                  if (onSectionChange) onSectionChange("weekendFlag", vals || []);
                 }}
-                value={sectionValues["weekendFlag"]}
               />
             );
           }
           if (section.id === "cities" && cities) {
+            const val = sectionValues["cities"] || sectionValues["city"];
             return (
               <MultiSelectSection
                 key="cities"
@@ -206,12 +240,16 @@ export function KpiFilterPanel({
                 description="Limit data to one or more cities."
                 options={cities}
                 pageSize={pageSize}
-                onChange={onCityChange}
-                value={sectionValues["cities"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onCityChange) onCityChange(vals);
+                  if (onSectionChange) onSectionChange("cities", vals);
+                }}
               />
             );
           }
           if (section.id === "platforms" && platforms) {
+            const val = sectionValues["platforms"] || sectionValues["platform"];
             return (
               <MultiSelectSection
                 key="platforms"
@@ -219,8 +257,11 @@ export function KpiFilterPanel({
                 description="Choose which platforms to keep in the view."
                 options={platforms}
                 pageSize={pageSize}
-                onChange={onPlatformChange}
-                value={sectionValues["platforms"]}
+                value={val}
+                onChange={(vals) => {
+                  if (onPlatformChange) onPlatformChange(vals);
+                  if (onSectionChange) onSectionChange("platforms", vals);
+                }}
               />
             );
           }
