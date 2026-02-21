@@ -1,18 +1,28 @@
+import { createClient } from '@clickhouse/client';
+import dotenv from 'dotenv';
+dotenv.config();
 
-import 'dotenv/config';
-import { queryClickHouse } from './src/config/clickhouse.js';
+const client = createClient({
+    url: 'http://13.200.55.131:8123',
+    username: 'readonly_user',
+    password: 'Readonly@123',
+    database: 'colpal',
+});
 
-async function check() {
+async function checkSchema() {
     try {
-        console.log('Using CLICKHOUSE_USER:', process.env.CLICKHOUSE_USER);
-        const result = await queryClickHouse('DESCRIBE TABLE test_brand_MS');
-        console.log('Columns of test_brand_MS:', JSON.stringify(result, null, 2));
-
-        const sample = await queryClickHouse('SELECT * FROM test_brand_MS LIMIT 1');
-        console.log('Sample row from test_brand_MS:', JSON.stringify(sample, null, 2));
+        console.log('Checking rb_pdp_olap schema with hardcoded creds...');
+        const resultSet = await client.query({
+            query: 'DESCRIBE TABLE rb_pdp_olap',
+            format: 'JSONEachRow',
+        });
+        const columns = await resultSet.json();
+        console.log('Columns in rb_pdp_olap:');
+        columns.forEach(col => console.log(`- ${col.name} (${col.type})`));
     } catch (err) {
-        console.error('Error:', err.message);
+        console.error('Error checking schema:', err);
     }
+    process.exit(0);
 }
 
-check();
+checkSchema();

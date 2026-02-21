@@ -2510,6 +2510,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
 
                 // Handle category with multi-value support
+                const categoryArr = normalizeFilterArray(category);
                 if (categoryArr && categoryArr.length > 0) {
                     const lc = categoryArr.map(c => c.toLowerCase());
                     const catConds = lc.map(c => `lower(Category) = '${escapeStr(c)}'`).join(' OR ');
@@ -2982,43 +2983,45 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             categoryWhere.location = location;
         }
 
-        const distinctCategories = await RcaSkuDim.findAll({
-            attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('Category')), 'Category']],
-            where: categoryWhere,
-            raw: true
-        });
+        // Use ClickHouse instead of Sequelize to avoid MySQL dependency
+        const catDimConds = [`status = 1`];
+        if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
+            catDimConds.push(`platform = '${escapeStrMain(categoryOverviewPlatform)}'`);
+        }
+        if (brand && brand !== 'All') {
+            catDimConds.push(`brand_name LIKE '%${escapeStrMain(brand)}%'`);
+        }
+        if (location && location !== 'All') {
+            catDimConds.push(`location = '${escapeStrMain(location)}'`);
+        }
+        const distinctCategories = await queryClickHouse(
+            `SELECT DISTINCT category FROM rca_sku_dim WHERE ${catDimConds.join(' AND ')} ORDER BY category`
+        );
 
-        const categories = distinctCategories.map(c => c.Category).filter(Boolean);
+        const categories = distinctCategories.map(c => c.category).filter(Boolean);
         console.log(`[Category Overview] Platform: ${categoryOverviewPlatform}, Found ${categories.length} categories:`, categories);
 
         const categoryOverviewPromises = categories.map(async (catName) => {
             try {
-                // Build catWhere independently to avoid conflicts from offtakeWhereClause
-                // (offtakeWhereClause may have different Platform filter or other conflicting filters)
-                const catWhere = {
-                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    // Case-insensitive Category match
-                    Category: catName
-                };
-
-                // Apply brand filter
+                // Build ClickHouse conditions for this category
+                const catConds = [
+                    `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
+                    `Category = '${escapeStrMain(catName)}'`
+                ];
                 if (brand && brand !== 'All') {
-                    catWhere.Brand = { [Op.like]: `%${brand}%` };
+                    catConds.push(`Brand LIKE '%${escapeStrMain(brand)}%'`);
                 }
-
-                // Apply location filter
                 if (location && location !== 'All') {
-                    catWhere.Location = location;
+                    catConds.push(`Location = '${escapeStrMain(location)}'`);
                 }
-
-                // Apply Platform filter from categoryOverviewPlatform (not platform)
                 if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-                    catWhere.Platform = categoryOverviewPlatform;
+                    catConds.push(`Platform = '${escapeStrMain(categoryOverviewPlatform)}'`);
                 }
+                const catCondStr = catConds.join(' AND ');
 
                 console.log(`[Category Overview] Processing category: ${catName}, Platform: ${categoryOverviewPlatform}`);
 
-                // Calculate Metrics for this Category
+                // Calculate Metrics for this Category using ClickHouse
                 const [
                     catOfftakeResult,
                     catAvailability,
@@ -3028,72 +3031,50 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     catPromoCompeteResult
                 ] = await Promise.all([
                     // Offtake (Sales) & Ad Metrics
-                    RbPdpOlap.findOne({
-                        attributes: [
-                            [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
-                        ],
-                        where: catWhere,
-                        raw: true
-                    }),
-                    // Availability (OSA)
+                    queryClickHouse(`
+                        SELECT 
+                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
+                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
+                        FROM rb_pdp_olap 
+                        WHERE ${catCondStr}
+                    `).then(r => r[0] || {}),
+                    // Availability (OSA) - already uses ClickHouse
                     getAvailability(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
-                    // SOS
+                    // SOS - already uses ClickHouse
                     getShareOfSearch(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
                     // Market Share - CALCULATED: (Our Brand Sales / Total Category Sales) × 100
-                    // Query 1: Get our brand's sales in this category (Comp_flag = 0)
-                    // Query 2: Get total sales in this category (all brands)
                     Promise.all([
                         // Our brand sales (Comp_flag = 0)
-                        RbPdpOlap.findOne({
-                            attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'our_sales']],
-                            where: {
-                                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                                Category: catName,
-                                Comp_flag: 0,
-                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: categoryOverviewPlatform }),
-                                ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                                ...(location && location !== 'All' && { Location: location })
-                            },
-                            raw: true
-                        }),
-                        // Total category sales (all brands, both Comp_flag 0 and 1)
-                        RbPdpOlap.findOne({
-                            attributes: [[Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']],
-                            where: {
-                                DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                                Category: catName,
-                                ...(categoryOverviewPlatform && categoryOverviewPlatform !== 'All' && { Platform: categoryOverviewPlatform }),
-                                ...(location && location !== 'All' && { Location: location })
-                            },
-                            raw: true
-                        })
+                        queryClickHouse(`
+                            SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as our_sales
+                            FROM rb_pdp_olap 
+                            WHERE ${catCondStr} AND toString(Comp_flag) = '0'
+                        `).then(r => r[0] || {}),
+                        // Total category sales (all brands)
+                        queryClickHouse(`
+                            SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
+                            FROM rb_pdp_olap 
+                            WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                            AND Category = '${escapeStrMain(catName)}'
+                            ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
+                            ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                        `).then(r => r[0] || {})
                     ]),
                     // Promo My Brand (Comp_flag = 0)
-                    RbPdpOlap.findOne({
-                        attributes: [
-                            [Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']
-                        ],
-                        where: {
-                            ...catWhere,
-                            Comp_flag: 0
-                        },
-                        raw: true
-                    }),
+                    queryClickHouse(`
+                        SELECT AVG(CASE WHEN toFloat64OrZero(toString(MRP)) > 0 THEN (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)) ELSE 0 END) as avg_promo_depth
+                        FROM rb_pdp_olap 
+                        WHERE ${catCondStr} AND toString(Comp_flag) = '0'
+                    `).then(r => r[0] || {}),
                     // Promo Compete (Comp_flag = 1)
-                    RbPdpOlap.findOne({
-                        attributes: [
-                            [Sequelize.fn('AVG', Sequelize.literal('CASE WHEN MRP > 0 THEN (MRP - Selling_Price) / MRP ELSE 0 END')), 'avg_promo_depth']
-                        ],
-                        where: {
-                            ...catWhere,
-                            Comp_flag: 1
-                        },
-                        raw: true
-                    })
+                    queryClickHouse(`
+                        SELECT AVG(CASE WHEN toFloat64OrZero(toString(MRP)) > 0 THEN (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)) ELSE 0 END) as avg_promo_depth
+                        FROM rb_pdp_olap 
+                        WHERE ${catCondStr} AND toString(Comp_flag) = '1'
+                    `).then(r => r[0] || {})
                 ]);
 
                 const catOfftake = parseFloat(catOfftakeResult?.total_sales || 0);
@@ -3275,92 +3256,62 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
 
 
-        // 1. Offtake Current (Conditional Logic)
-        let boOfftakePromise;
-        const lowerPlatform = (brandsOverviewPlatform || '').toLowerCase();
+        // 1. Offtake Current - Using ClickHouse instead of Sequelize
+        const boOfftakeConds = [
+            `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
+        ];
+        if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
+            boOfftakeConds.push(`lower(Platform) = '${escapeStrMain(brandsOverviewPlatform.toLowerCase())}'`);
+        }
+        if (brand && brand !== 'All') {
+            boOfftakeConds.push(`Brand LIKE '%${escapeStrMain(brand)}%'`);
+        }
+        if (location && location !== 'All') {
+            boOfftakeConds.push(`Location = '${escapeStrMain(location)}'`);
+        }
+        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
+            boOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategory)}'`);
+        }
 
-        if (lowerPlatform === 'zepto') {
-            const zeptoWhere = {
-                sales_date: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { sku_category: brandsOverviewCategory }),
-                ...(location && location !== 'All' && { city: location })
-            };
-            // Use rb_pdp_olap Sales column for Zepto (same as other platforms)
-            boOfftakePromise = RbPdpOlap.findAll({
-                attributes: [
-                    'Brand',
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Quanity_sold')), 'total_ad_orders'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
-                    [Sequelize.fn('AVG', Sequelize.col('Discount')), 'avg_discount'],
-                    // ROAS is calculated manually as: SUM(Ad_sales) / SUM(Ad_Spend)
-                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
-                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
-                ],
-                where: {
-                    DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                    Platform: sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), lowerPlatform),
-                    ...(brand && brand !== 'All' && { Brand: { [Op.like]: `%${brand}%` } }),
-                    ...(location && location !== 'All' && { Location: location }),
-                    ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: brandsOverviewCategory })
-                },
-                group: ['Brand'],
-                raw: true
-            });
-        } else if (lowerPlatform === 'blinkit') {
-            const blinkitWhere = {
-                created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
-                // Removed category filter due to mismatch with RcaSkuDim categories
-                ...(location && location !== 'All' && { city_name: location })
-            };
-            boOfftakePromise = TbBlinkitSalesData.findAll({
-                attributes: [
-                    [Sequelize.literal("SUBSTRING_INDEX(item_name, ' ', 1)"), 'Brand'], // Extract Brand proxy from item_name? Or use manufacturer_name? Using manufacturer_name is safer if available.
-                    // Actually, let's check if we can use manufacturer_name or if we need to extract.
-                    // Model has manufacturer_name. Let's use that as Brand for now.
-                    // [Sequelize.col('manufacturer_name'), 'Brand'], 
-                    // Wait, user wants "Brand" columns. manufacturer_name might be "Godrej Consumer Products Ltd".
-                    // Let's stick to existing pattern if possible. 
-                    // But for now, let's use manufacturer_name as 'Brand' alias.
-                    ['manufacturer_name', 'Brand'],
-                    [Sequelize.fn('SUM', Sequelize.literal('CAST(qty_sold AS DECIMAL(10,2)) * CAST(mrp AS DECIMAL(10,2))')), 'total_sales'],
-                    [Sequelize.literal('0'), 'total_spend'],
-                    [Sequelize.literal('0'), 'total_ad_sales'],
-                    [Sequelize.literal('0'), 'total_ad_orders'],
-                    [Sequelize.literal('0'), 'total_ad_clicks'],
-                    [Sequelize.literal('0'), 'total_ad_impressions'],
-                    [Sequelize.literal('0'), 'avg_discount'],
-                    // ROAS is calculated manually as: SUM(Ad_sales) / SUM(Ad_Spend)
-                    [Sequelize.literal('0'), 'total_neno'],
-                    [Sequelize.literal('0'), 'total_deno']
-                ],
-                where: blinkitWhere,
-                group: ['manufacturer_name'],
-                raw: true
-            });
-        } else {
-            // Fallback to RbPdpOlap for 'All' or other platforms
-            boOfftakePromise = RbPdpOlap.findAll({
-                attributes: [
-                    'Brand',
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Quanity_sold')), 'total_ad_orders'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
-                    [Sequelize.fn('AVG', Sequelize.col('Discount')), 'avg_discount'],
-                    // ROAS is calculated manually as: SUM(Ad_sales) / SUM(Ad_Spend)
-                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
-                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
-                ],
-                where: boOfftakeWhere,
-                group: ['Brand'],
-                raw: true
-            });
+        const boOfftakePromise = queryClickHouse(`
+            SELECT 
+                Brand,
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_ad_orders,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions,
+                AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
+            FROM rb_pdp_olap 
+            WHERE ${boOfftakeConds.join(' AND ')}
+            GROUP BY Brand
+        `);
+
+        // Previous period offtake conditions
+        const boPrevOfftakeConds = [
+            `toDate(DATE) BETWEEN '${boPrevStartDate.format('YYYY-MM-DD')}' AND '${boPrevEndDate.format('YYYY-MM-DD')}'`,
+            `toString(Comp_flag) = '0'`
+        ];
+        if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
+            boPrevOfftakeConds.push(`Platform = '${escapeStrMain(brandsOverviewPlatform)}'`);
+        }
+        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
+            boPrevOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategory)}'`);
+        }
+        if (location && location !== 'All') {
+            boPrevOfftakeConds.push(`Location = '${escapeStrMain(location)}'`);
+        }
+
+        // Brand list conditions for ClickHouse
+        const rcaBrandConds = [`toString(comp_flag) = '0'`, `brand_name IS NOT NULL`, `brand_name != ''`];
+        if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
+            rcaBrandConds.push(`platform = '${escapeStrMain(brandsOverviewPlatform)}'`);
+        }
+        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
+            rcaBrandConds.push(`Category = '${escapeStrMain(brandsOverviewCategory)}'`);
         }
 
         const [
@@ -3372,25 +3323,24 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         ] = await Promise.all([
             // 1. Offtake Current
             boOfftakePromise,
-            // 2. Offtake Previous
-            RbPdpOlap.findAll({
-                attributes: [
-                    'Brand',
-                    [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Quanity_sold')), 'total_ad_orders'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
-                    [Sequelize.fn('AVG', Sequelize.col('Discount')), 'avg_discount'],
-                    [Sequelize.fn('AVG', Sequelize.col('ROAS')), 'avg_roas'],
-                    [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'total_neno'],
-                    [Sequelize.fn('SUM', Sequelize.col('deno_osa')), 'total_deno']
-                ],
-                where: boPrevOfftakeWhere,
-                group: ['Brand'],
-                raw: true
-            }),
+            // 2. Offtake Previous - ClickHouse
+            queryClickHouse(`
+                SELECT 
+                    Brand,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_ad_orders,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions,
+                    AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                    AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) as avg_roas,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
+                FROM rb_pdp_olap 
+                WHERE ${boPrevOfftakeConds.join(' AND ')}
+                GROUP BY Brand
+            `),
             // 3. Market Share Current
             (async () => {
                 const baseMsConds = [
@@ -3425,12 +3375,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const totalSales = parseFloat(tSales[0]?.total_sales || 0);
                 return bSales.map(r => ({ brand: r.brand, avg_ms: totalSales > 0 ? (parseFloat(r.brand_sales) / totalSales) * 100 : 0 }));
             })(),
-            // 5. Brand List
-            RcaSkuDim.findAll({
-                attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
-                where: rcaBrandWhere,
-                raw: true
-            })
+            // 5. Brand List - ClickHouse
+            queryClickHouse(`
+                SELECT DISTINCT brand_name 
+                FROM rca_sku_dim 
+                WHERE ${rcaBrandConds.join(' AND ')} 
+                ORDER BY brand_name
+            `)
         ]);
 
 

@@ -222,16 +222,23 @@ export default function WatchTower() {
     if (topMetrics && Array.isArray(topMetrics) && topMetrics.length > 0) {
       return topMetrics.map((metric) => {
         const meta = KPI_ICON_MAP[metric.name] || { icon: TrendingUp, gradient: ['#6366f1', '#8b5cf6'], id: metric.name.toLowerCase().replace(/\s+/g, '_') };
-        const trendValue = parseFloat((metric.trend || '0%').replace(/[^0-9.-]/g, '')) || 0;
+        // Parse trend string properly: extract sign + numeric value
+        const trendStr = metric.trend || '0%';
+        const trendMatch = trendStr.match(/([+-]?\d+\.?\d*)/);
+        const trendValue = trendMatch ? parseFloat(trendMatch[1]) : 0;
+        // Preserve sign from the original string
+        const trendSign = trendStr.trim().startsWith('-') ? -1 : 1;
+        const finalTrend = trendValue * (trendMatch && trendMatch[1].startsWith('-') ? 1 : trendSign);
         return {
           id: meta.id,
           title: metric.name,
           value: metric.label || '0',
-          delta: trendValue,
-          deltaLabel: metric.trend || '0%',
+          delta: finalTrend,
+          deltaLabel: trendStr,
           icon: meta.icon,
           gradient: meta.gradient,
           trend: metric.chart || getLogicalKpiTrend(meta.id, context),
+          subtitle: metric.subtitle || undefined,
         };
       });
     }
