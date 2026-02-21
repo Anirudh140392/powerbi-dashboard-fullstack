@@ -634,10 +634,10 @@ const SnapshotOverview = ({
             performanceData.find(k => k.id === 'orders');
 
         // --- Top Row Logic ---
-        // We want all KPI cards passed in `kpis`, EXCEPT 'Orders' AND the ones moving to bottom.
+        // We want all KPI cards passed in `kpis`, EXCEPT 'Orders', ones moving to bottom, AND 'Share of Search' (since we inject a custom one).
         const baseTop = kpis.filter(k => {
             const id = normalize(k.title) || k.id;
-            return id !== 'orders' && !bottomIds.includes(id);
+            return id !== 'orders' && !bottomIds.includes(id) && id !== 'share_of_search' && id !== 'sos';
         });
 
         // Add Share of Search (sos_new) from performanceData to Top Row
@@ -694,6 +694,7 @@ const SnapshotOverview = ({
         const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, defaultVal, defaultDelta, icon, gradient, idx) => {
             const val = baseItem?.value || perfItem?.value || defaultVal;
             const delta = baseItem?.delta || parseFloat(perfItem?.tag) || defaultDelta;
+            const footer = baseItem?.footer || perfItem?.footer || "Actionable Insight";
 
             return {
                 id: baseItem?.id || defaultId,
@@ -703,7 +704,7 @@ const SnapshotOverview = ({
                 deltaLabel: `${delta > 0 ? '+' : ''}${delta}%`,
                 icon: icon,
                 gradient: gradient,
-                subtitle: "Actionable Insight",
+                subtitle: footer,
                 trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
         };
@@ -737,7 +738,7 @@ const SnapshotOverview = ({
             deltaLabel: ordersItem?.tag || ordersItem?.deltaLabel || '8.5%',
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
-            subtitle: "Actionable Insight",
+            subtitle: ordersItem?.footer || "Actionable Insight",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
 

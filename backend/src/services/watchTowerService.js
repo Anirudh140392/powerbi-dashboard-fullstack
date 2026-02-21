@@ -109,6 +109,8 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform') =>
     return null;
 };
 
+let cachedMaxDatePromise = null;
+
 /**
  * Get the latest available date in rb_pdp_olap
  */
@@ -117,22 +119,33 @@ const getCachedMaxDate = async () => {
         return cachedMaxDate.date;
     }
 
-    try {
-        const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
-        const maxDateStr = result?.[0]?.maxDate;
-        const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
-
-        cachedMaxDate = { date: maxDate, timestamp: Date.now() };
-        console.log(`🎯 [MaxDate] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
-        return maxDate;
-    } catch (error) {
-        console.error('Error fetching max date:', error);
-        return dayjs().endOf('day'); // Fallback to today
+    if (cachedMaxDatePromise) {
+        return cachedMaxDatePromise;
     }
+
+    cachedMaxDatePromise = (async () => {
+        try {
+            const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
+            const maxDateStr = result?.[0]?.maxDate;
+            const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
+
+            cachedMaxDate = { date: maxDate, timestamp: Date.now() };
+            console.log(`🎯 [MaxDate] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
+            return maxDate;
+        } catch (error) {
+            console.error('Error fetching max date:', error);
+            return dayjs().endOf('day'); // Fallback to today
+        } finally {
+            cachedMaxDatePromise = null;
+        }
+    })();
+
+    return cachedMaxDatePromise;
 };
 
 // Cache for RcaSkuDim valid brand names (comp_flag=0)
 let cachedValidBrandNames = { data: null, timestamp: 0 };
+let cachedValidBrandNamesPromise = null;
 
 /**
  * Get cached valid brand names from RcaSkuDim (comp_flag=0)
@@ -143,18 +156,28 @@ const getCachedValidBrandNames = async () => {
         return cachedValidBrandNames.data;
     }
 
-    try {
-        // ClickHouse query
-        const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != '' ORDER BY brand_name`;
-        const results = await queryClickHouse(query);
-        const result = results.map(b => b.brand_name).filter(Boolean);
-        cachedValidBrandNames = { data: result, timestamp: Date.now() };
-        console.log(`⚡ [Cache] Cached ${result.length} valid brand names from RcaSkuDim`);
-        return result;
-    } catch (error) {
-        console.error('Error fetching valid brand names:', error);
-        return [];
+    if (cachedValidBrandNamesPromise) {
+        return cachedValidBrandNamesPromise;
     }
+
+    cachedValidBrandNamesPromise = (async () => {
+        try {
+            // ClickHouse query
+            const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != '' ORDER BY brand_name`;
+            const results = await queryClickHouse(query);
+            const result = results.map(b => b.brand_name).filter(Boolean);
+            cachedValidBrandNames = { data: result, timestamp: Date.now() };
+            console.log(`⚡ [Cache] Cached ${result.length} valid brand names from RcaSkuDim`);
+            return result;
+        } catch (error) {
+            console.error('Error fetching valid brand names:', error);
+            return [];
+        } finally {
+            cachedValidBrandNamesPromise = null;
+        }
+    })();
+
+    return cachedValidBrandNamesPromise;
 };
 
 // =====================================================
@@ -1225,15 +1248,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // 5. Current Availability (already uses ClickHouse)
             getAvailability(startDate, endDate, brand, platform, location, category, skuName, skuCode),
             // 6. Previous Availability
-            (filters.compareStartDate && filters.compareEndDate)
-                ? getAvailability(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, platform, location, category, skuName, skuCode)
-                : Promise.resolve(0),
+            getAvailability(momStartDate, momEndDate, brand, platform, location, category, skuName, skuCode),
             // 7. Current Share of Search (already uses ClickHouse)
             getShareOfSearch(startDate, endDate, brand, platform, location, category),
             // 8. Previous Share of Search
-            (filters.compareStartDate && filters.compareEndDate)
-                ? getShareOfSearch(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate), brand, platform, location, category)
-                : Promise.resolve(0),
+            getShareOfSearch(momStartDate, momEndDate, brand, platform, location, category),
             // 9. Availability Trend Data - USING CLICKHOUSE
             (async () => {
                 try {
@@ -1309,10 +1328,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })(),
             // 11. Previous Offtake - USING CLICKHOUSE
             (async () => {
-                if (!filters.compareStartDate || !filters.compareEndDate) return 0;
                 try {
                     const prevConditions = [
-                        `DATE BETWEEN '${dayjs(filters.compareStartDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.compareEndDate).format('YYYY-MM-DD')}'`
+                        `DATE BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'`
                     ];
                     if (brandArr && brandArr.length > 0) {
                         prevConditions.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ')})`);
@@ -1355,7 +1373,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })(),
             // 12. Previous Market Share - USING test_brand_MS
             (async () => {
-                if (!filters.compareStartDate || !filters.compareEndDate) return null;
                 try {
                     const validBrands = await queryClickHouse(`SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL`);
                     const validBrandNames = validBrands.map(b => b.brand_name).filter(Boolean);
@@ -1365,7 +1382,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const brandInClause = brandsForNumerator.map(b => `'${escapeStrMain(b)}'`).join(', ');
                     const conditions = [
-                        `toDate(created_on) BETWEEN '${dayjs(filters.compareStartDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.compareEndDate).format('YYYY-MM-DD')}'`,
+                        `toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'`,
                         `sales IS NOT NULL`
                     ];
 
@@ -1425,9 +1442,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })(),
             // 14. Previous Promo Depth - CLICKHOUSE
             (async () => {
-                if (!filters.compareStartDate || !filters.compareEndDate) return 0;
                 try {
-                    const prevOfftakeCondStr = buildOfftakeConditions(dayjs(filters.compareStartDate), dayjs(filters.compareEndDate));
+                    const prevOfftakeCondStr = buildOfftakeConditions(momStartDate, momEndDate);
                     const result = await queryClickHouse(`
                         SELECT AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
                         FROM rb_pdp_olap
@@ -1937,6 +1953,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const momRoas = calculateRoas(momData);
                 const roasChange = momRoas > 0 ? ((currentRoas - momRoas) / momRoas) * 100 : (currentRoas > 0 ? 100 : 0);
 
+                const currentOrders = currentData.orders || 0;
+                const momOrders = momData.orders || 0;
+                const ordersChange = momOrders > 0 ? ((currentOrders - momOrders) / momOrders) * 100 : (currentOrders > 0 ? 100 : 0);
+
                 const currentBmi = calculateBmi(currentData);
                 const momBmi = calculateBmi(momData);
                 const bmiChange = momBmi > 0 ? ((currentBmi - momBmi) / momBmi) * 100 : (currentBmi > 0 ? 100 : 0);
@@ -2115,6 +2135,23 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     trendTitle: "ROAS Trend",
                     trendSubtitle: "Last 7 periods",
                     trendData: roasTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
+                });
+
+                // 5. Orders (Using actual 'orders' property calculated from Ad_Quanity_sold previously)
+                const ordersTrendData = last7Months.map(m => getDataForRange(m.start, m.end).orders);
+                const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+                performanceMetricsKpis.push({
+                    id: "orders",
+                    label: "ORDERS",
+                    value: currentOrders >= 1000 ? formatter.format(currentOrders) : currentOrders.toString(),
+                    prevValue: momOrders >= 1000 ? formatter.format(momOrders) : momOrders.toString(),
+                    unit: "",
+                    tag: `${ordersChange >= 0 ? '+' : ''}${ordersChange.toFixed(1)}%`,
+                    tagTone: ordersChange >= 0 ? "positive" : "warning",
+                    footer: "Ad Quantity Sold",
+                    trendTitle: "Orders Trend",
+                    trendSubtitle: "Last 7 periods",
+                    trendData: ordersTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
                 });
 
 
@@ -6532,7 +6569,7 @@ const getLatestAvailableMonth = async (filters = {}) => {
         }
 
         // Build WHERE conditions for ClickHouse
-        const conditions = [];
+        const conditions = ['Comp_flag = 0'];
 
         if (platform && platform !== 'All') {
             conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
@@ -6552,9 +6589,9 @@ const getLatestAvailableMonth = async (filters = {}) => {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        // Query ClickHouse for the latest date
+        // Query ClickHouse for the latest date using string max (YYYY-MM-DD format sorts correctly)
         const result = await queryClickHouse(`
-            SELECT MAX(toDate(DATE)) as latestDate
+            SELECT MAX(DATE) as latestDate
             FROM rb_pdp_olap
             ${whereClause}
         `);
@@ -7888,6 +7925,112 @@ const getCityOverview = async (filters) => {
     return sortedCityOverview;
 };
 
+/**
+ * Get Performance Breakdown Data
+ * @param {Object} filters
+ */
+const getPerformanceBreakdownData = async (filters) => {
+    try {
+        const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' ? `AND Platform = '${filters.platform_uuid}'` : '';
+        const groupByMap = {
+            'category': 'Category',
+            'brand': 'Brand',
+            'sku': 'Product'
+        };
+        const groupByCol = groupByMap[filters.group_by] || 'Category';
+
+        let dateClause = '';
+        if (filters.start_date && filters.end_date) {
+            // Optimized: Prevent full table scan by avoiding toDate(DATE)
+            dateClause = `AND DATE >= '${filters.start_date}' AND DATE <= '${filters.end_date}'`;
+        } else {
+            // Default to last 30 days if no date filters
+            const todayStr = new Date().toISOString().split('T')[0];
+            const pastDate = new Date();
+            pastDate.setDate(pastDate.getDate() - 30);
+            const pastStr = pastDate.toISOString().split('T')[0];
+            dateClause = `AND DATE >= '${pastStr}' AND DATE <= '${todayStr}'`;
+        }
+
+        const totalSpendsQuery = `
+            SELECT SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total
+            FROM rb_pdp_olap 
+            WHERE Comp_flag = 0 ${platformClause} ${dateClause}
+        `;
+        const totalSpendsResult = await queryClickHouse(totalSpendsQuery);
+        const total_spends = parseFloat(totalSpendsResult[0]?.total || 0);
+
+        const query = `
+            SELECT
+                ${groupByCol} AS tag,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS group_impressions,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS group_clicks,
+                if(group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
+                if(${total_spends} > 0, (group_spends / ${total_spends}) * 100, 0) AS spend_percent_share,
+                if(group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS group_orders,
+                if(group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS group_sales
+            FROM rb_pdp_olap
+            WHERE Comp_flag = 0
+            ${platformClause}
+            ${dateClause}
+            GROUP BY ${groupByCol}
+            ORDER BY group_spends DESC
+        `;
+
+        const data = await queryClickHouse(query);
+
+        let totals = {
+            impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0
+        };
+
+        const parsedData = data.map(row => {
+            const impressions = parseFloat(row.group_impressions) || 0;
+            const clicks = parseFloat(row.group_clicks) || 0;
+            const spends = parseFloat(row.group_spends) || 0;
+            const orders = parseFloat(row.group_orders) || 0;
+            const sales = parseFloat(row.group_sales) || 0;
+
+            totals.impressions += impressions;
+            totals.clicks += clicks;
+            totals.spends += spends;
+            totals.orders += orders;
+            totals.sales += sales;
+
+            return {
+                tag: row.tag || 'Unknown',
+                impressions,
+                clicks,
+                ctr: parseFloat(row.ctr) || 0,
+                spend_percent_share: parseFloat(row.spend_percent_share) || 0,
+                spends,
+                cpc: parseFloat(row.cpc) || 0,
+                orders,
+                cvr: parseFloat(row.cvr) || 0,
+                sales
+            };
+        });
+
+        totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
+        totals.cpc = totals.clicks > 0 ? (totals.spends / totals.clicks) : 0;
+        totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
+
+        return {
+            success: true,
+            data: parsedData,
+            totals,
+            untagged: { count: 0, percent: 0 },
+            period_comparison: null
+        };
+
+    } catch (error) {
+        console.error('[getPerformanceBreakdownData] Error:', error);
+        throw error;
+    }
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -7913,5 +8056,6 @@ export default {
     getOsaDeepDive,
     getRcaData,
     getSkuOverview,
-    getCityOverview
+    getCityOverview,
+    getPerformanceBreakdownData
 };

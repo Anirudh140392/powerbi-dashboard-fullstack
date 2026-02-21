@@ -219,7 +219,7 @@ const PlatformOverviewNew = ({
                 channel: selectedChannel || undefined,
             }
             console.log(`[PlatformOverviewNew] Fetching ${dimension} data from ${endpoint}`, params)
-            const res = await axiosInstance.get(endpoint, { params, timeout: 10000 })
+            const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
 
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                 console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities from API`)

@@ -221,18 +221,26 @@ export default function WatchTower() {
     // If real data available from backend, use it
     if (topMetrics && Array.isArray(topMetrics) && topMetrics.length > 0) {
       return topMetrics.map((metric) => {
-        const meta = KPI_ICON_MAP[metric.name] || { icon: TrendingUp, gradient: ['#6366f1', '#8b5cf6'], id: metric.name.toLowerCase().replace(/\s+/g, '_') };
+        const originalTitle = metric.title || metric.name || 'Unknown';
+        let normalizedTitle = originalTitle;
+        if (originalTitle === 'Inorg Sales') normalizedTitle = 'Inorganic Sales';
+        if (originalTitle === 'SOS') normalizedTitle = 'Share of Search';
+        if (originalTitle === 'Promo My Brand') normalizedTitle = 'Promo';
+        if (originalTitle === 'Offtakes') normalizedTitle = 'Offtake';
+
+        const meta = KPI_ICON_MAP[normalizedTitle] || KPI_ICON_MAP[originalTitle] || { icon: TrendingUp, gradient: ['#6366f1', '#8b5cf6'], id: normalizedTitle.toLowerCase().replace(/\s+/g, '_') };
         // Parse trend string properly: extract sign + numeric value
-        const trendStr = metric.trend || '0%';
+        const trendStr = (metric.change && metric.change.text) ? metric.change.text : (metric.trend || '0%');
         const trendMatch = trendStr.match(/([+-]?\d+\.?\d*)/);
         const trendValue = trendMatch ? parseFloat(trendMatch[1]) : 0;
         // Preserve sign from the original string
         const trendSign = trendStr.trim().startsWith('-') ? -1 : 1;
         const finalTrend = trendValue * (trendMatch && trendMatch[1].startsWith('-') ? 1 : trendSign);
+
         return {
           id: meta.id,
-          title: metric.name,
-          value: metric.label || '0',
+          title: normalizedTitle,
+          value: metric.value || metric.label || '0',
           delta: finalTrend,
           deltaLabel: trendStr,
           icon: meta.icon,
@@ -289,27 +297,39 @@ export default function WatchTower() {
   }, [dashboardData, selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
   const FORMAT_ROWS = useMemo(() => {
-    const row = (name, key) => {
-      const ctx = { ...context, entityKey: key };
-      return { name, offtakes: getLogicalKpiValue('offtakes', ctx), spend: getLogicalKpiValue('spend', ctx), roas: getLogicalKpiValue('roas', ctx), inorgSalesPct: getLogicalKpiValue('inorg', ctx), conversionPct: getLogicalKpiValue('conversion', ctx), marketSharePct: getLogicalKpiValue('market', ctx), promoMyBrandPct: getLogicalKpiValue('promo', ctx), promoCompetePct: getLogicalKpiValue('promoCompete', ctx), cpm: getLogicalKpiValue('cpm', ctx), cpc: getLogicalKpiValue('cpc', ctx) };
-    };
-    return [
-      row("Cassata", "cassata"),
-      row("Core Tub", "core tub"),
-      row("Cornetto", "cornetto"),
-      row("Cup", "cup"),
-      row("KW Sticks", "kw sticks"),
-      row("Magnum", "magnum"),
-      row("Sandwich", "sandwich"),
-      row("Family Pack", "family pack"),
-      row("Chocobar", "chocobar"),
-      row("Kulfi", "kulfi"),
-      row("Jelly Cups", "jelly cups"),
-      row("Brownie Tub", "brownie tub"),
-      row("Exotics", "exotics"),
-      row("Others", "others"),
-    ];
-  }, [selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
+    if (dashboardData?.categoryOverview?.length > 0) {
+      return dashboardData.categoryOverview.map(cat => {
+        const getColVal = (title) => {
+          const col = cat.columns?.find(c => c.title.toLowerCase().includes(title.toLowerCase()));
+          if (!col || !col.value) return 0;
+          const strVal = String(col.value).replace(/,/g, '');
+          const numMatch = strVal.match(/-?[\d.]+/);
+          return numMatch ? parseFloat(numMatch[0]) : 0;
+        };
+
+        return {
+          name: cat.label || cat.key,
+          offtakes: getColVal("Offtake"),
+          spend: getColVal("Spend"),
+          roas: getColVal("ROAS"),
+          inorgSalesPct: getColVal("Inorg"),
+          conversionPct: getColVal("Conversion"),
+          marketSharePct: getColVal("Market Share"),
+          promoMyBrandPct: getColVal("Promo My Brand"),
+          promoCompetePct: getColVal("Promo Compete"),
+          cpm: getColVal("CPM"),
+          cpc: getColVal("CPC")
+        };
+      }).sort((a, b) => b.offtakes - a.offtakes);
+    }
+
+    // Default safe row to prevent undefined errors when dashboardData is empty
+    return [{
+      name: "Loading...",
+      offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0, conversionPct: 0,
+      marketSharePct: 0, promoMyBrandPct: 0, promoCompetePct: 0, cpm: 0, cpc: 0
+    }];
+  }, [dashboardData]);
 
 
   // Update filters when context changes
@@ -396,6 +416,8 @@ export default function WatchTower() {
           variant="watchtower"
           seed={`${platform}-${selectedCategory}-${selectedBrand}`}
           loading={loading}
+          performanceData={dashboardData?.performanceMetricsKpis || []}
+          performanceLoading={loading}
         />
 
         {/* Top Cards */}
