@@ -3334,7 +3334,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks,
                     SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions,
                     AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
-                    AVG(ifNull(toFloat64OrZero(toString(ROAS)), 0)) as avg_roas,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                 FROM rb_pdp_olap 
