@@ -8,7 +8,7 @@
 // --------------------------------------------------------------
 
 import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
-import SnapshotOverview from "../CommonLayout/SnapShotOverview";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import SalesGainerDrainerWrapper from "../../pages/Sales/SalesGainerDrainerWrapper";
 import { FilterContext } from "../../utils/FilterContext";
 import {
