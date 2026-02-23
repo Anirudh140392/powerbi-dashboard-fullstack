@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
+import React, { useMemo, useState, useEffect, useContext, useCallback, createContext } from "react";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -18,6 +18,7 @@ import {
 import { Box } from "@mui/material";
 import PaginationFooter from "../../CommonLayout/PaginationFooter";
 import axiosInstance from "../../../api/axiosInstance";
+import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 
 
 /* -------------------------------------------------------------------------- */
@@ -1330,40 +1331,38 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
 
   const [apiTrendData, setApiTrendData] = useState(null);
   const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState(null);
+
+  const fetchTrendData = useCallback(async () => {
+    if (visibleIds.length === 0) {
+      setApiTrendData({ dates: [] });
+      return;
+    }
+    setTrendLoading(true);
+    setTrendError(null);
+    try {
+      const params = {
+        platform: platform || "All",
+        location: city === "All India" ? "All" : city,
+        brands: isBrandMode ? visibleIds.join(",") : "All",
+        skus: isBrandMode ? "All" : visibleIds.join(","),
+        category: filters.categories.length > 0 ? filters.categories.join(",") : "All",
+        period: "1M",
+      };
+
+      const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
+      setApiTrendData(response.data);
+    } catch (err) {
+      console.error("Error fetching watchtower competition trends", err);
+      setTrendError(err.message || "Failed to load trend data");
+    } finally {
+      setTrendLoading(false);
+    }
+  }, [visibleIds, city, platform, isBrandMode, filters.categories]);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchTrendData = async () => {
-      if (visibleIds.length === 0) {
-        setApiTrendData({ dates: [] });
-        return;
-      }
-      setTrendLoading(true);
-      try {
-        const params = {
-          platform: platform || "All",
-          location: city === "All India" ? "All" : city,
-          brands: isBrandMode ? visibleIds.join(",") : "All",
-          skus: isBrandMode ? "All" : visibleIds.join(","),
-          category: filters.categories.length > 0 ? filters.categories.join(",") : "All",
-          period: "1M",
-        };
-
-        const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
-        if (!cancelled) {
-          setApiTrendData(response.data);
-        }
-      } catch (err) {
-        console.error("Error fetching watchtower competition trends", err);
-      } finally {
-        if (!cancelled) setTrendLoading(false);
-      }
-    };
     fetchTrendData();
-    return () => {
-      cancelled = true;
-    };
-  }, [visibleIds, city, platform, isBrandMode, filters.categories]);
+  }, [fetchTrendData]);
 
   const chartData = useMemo(() => {
     if (!apiTrendData || !apiTrendData.brands) return [];
@@ -1543,6 +1542,8 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
                 <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
               </div>
             </div>
+          ) : trendError ? (
+            <ErrorRetryOverlay onRetry={fetchTrendData} message={trendError} compact />
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
@@ -1653,40 +1654,38 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
 
   const [apiTrendData, setApiTrendData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [compareError, setCompareError] = useState(null);
+
+  const fetchCompareTrendData = useCallback(async () => {
+    if (selectedIds.length === 0) {
+      setApiTrendData({ brands: {} });
+      return;
+    }
+    setLoading(true);
+    setCompareError(null);
+    try {
+      const params = {
+        platform: platform || "All",
+        location: city === "All India" ? "All" : city,
+        brands: isBrandMode ? selectedIds.join(",") : "All",
+        skus: isBrandMode ? "All" : selectedIds.join(","),
+        category: filters?.categories?.length > 0 ? filters.categories.join(",") : "All",
+        period: "1M",
+      };
+
+      const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
+      setApiTrendData(response.data);
+    } catch (err) {
+      console.error("Error fetching kpi compare trends", err);
+      setCompareError(err.message || "Failed to load comparison trends");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedIds, city, platform, isBrandMode, filters]);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchTrendData = async () => {
-      if (selectedIds.length === 0) {
-        setApiTrendData({ brands: {} });
-        return;
-      }
-      setLoading(true);
-      try {
-        const params = {
-          platform: platform || "All",
-          location: city === "All India" ? "All" : city,
-          brands: isBrandMode ? selectedIds.join(",") : "All",
-          skus: isBrandMode ? "All" : selectedIds.join(","),
-          category: filters?.categories?.length > 0 ? filters.categories.join(",") : "All",
-          period: "1M",
-        };
-
-        const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
-        if (!cancelled) {
-          setApiTrendData(response.data);
-        }
-      } catch (err) {
-        console.error("Error fetching kpi compare trends", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchTrendData();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedIds, city, platform, isBrandMode, filters]);
+    fetchCompareTrendData();
+  }, [fetchCompareTrendData]);
 
   const formatValue = (v, metricKey) => {
     const meta = KPI_KEYS.find(k => k.key === metricKey);
@@ -1760,6 +1759,8 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
                   <div className="w-[10%] bg-slate-200/60 h-[40%] rounded" />
                   <div className="w-[10%] bg-slate-200/60 h-[90%] rounded" />
                 </div>
+              ) : compareError ? (
+                <ErrorRetryOverlay onRetry={fetchCompareTrendData} message={compareError} compact />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart

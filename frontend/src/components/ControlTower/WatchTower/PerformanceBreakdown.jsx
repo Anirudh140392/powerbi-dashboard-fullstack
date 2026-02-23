@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus } from "lucide-react";
+import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 const AUTH_TOKEN_KEY = "adsauto_auth_token";
@@ -359,42 +360,51 @@ export function AggregatedViewTable() {
     const handlePageSizeChange = (newSize) => { setPageSize(newSize); setCurrentPage(1); };
     const toggleRowExpand = (tag) => { const n = new Set(expandedRows); n.has(tag) ? n.delete(tag) : n.add(tag); setExpandedRows(n); };
 
+    const [apiError, setApiError] = useState(null);
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        setApiError(null);
+        try {
+            const accountId = localStorage.getItem("selectedAccountId") || "";
+            const companyId = localStorage.getItem("selectedCompanyId") || localStorage.getItem("company_id") || filters.companyId || "";
+            const params = new URLSearchParams();
+            if (accountId) params.set("platform_account_id", accountId);
+            if (companyId) params.set("company_id", companyId);
+            if (filters.platform?.length > 0 && !filters.platform.includes("all")) params.set("platform_uuid", filters.platform[0]);
+            if (filters.dateStart) params.set("start_date", filters.dateStart);
+            if (filters.dateEnd) params.set("end_date", filters.dateEnd);
+            params.set("group_by", groupBy);
+            // Pass selected period keys so backend can compute comparison data
+            if (selectedPeriods.length > 0) {
+                const periodParams = selectedPeriods.map(p => {
+                    if (p.type === 'custom' && p.startDate && p.endDate) {
+                        return `${p.key}:${p.startDate}:${p.endDate}`;
+                    }
+                    return p.key;
+                });
+                params.set("compare_periods", periodParams.join(","));
+            }
+            const res = await authGet(`/api/watchtower/performance-breakdown?${params.toString()}`);
+            const result = res.data;
+            if (res.success && result?.success && result.data?.length > 0) {
+                setData(result.data);
+                setTotals(result.totals || null);
+                setUntagged(result.untagged || null);
+                setPeriodComparison(result.period_comparison || null);
+            } else {
+                throw new Error("No data returned from API");
+            }
+        } catch (e) {
+            console.error("Failed to fetch performance breakdown:", e);
+            setApiError(e.message || "Failed to load Performance Breakdown data");
+        }
+        setLoading(false);
+    }, [groupBy, filters, selectedPeriods]);
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            // Always load sample data first as default
-            const demo = getKwalityWallsSample(groupBy);
-            setData(demo.data);
-            setTotals(demo.totals);
-            setUntagged(demo.untagged);
-            setPeriodComparison(demo.period_comparison);
-            // Then try fetching from API — if successful, replace sample data with real data
-            try {
-                const accountId = localStorage.getItem("selectedAccountId") || "";
-                const companyId = localStorage.getItem("selectedCompanyId") || localStorage.getItem("company_id") || filters.companyId || "";
-                const params = new URLSearchParams();
-                if (accountId) params.set("platform_account_id", accountId);
-                if (companyId) params.set("company_id", companyId);
-                if (filters.platform?.length > 0 && !filters.platform.includes("all")) params.set("platform_uuid", filters.platform[0]);
-                if (filters.dateStart) params.set("start_date", filters.dateStart);
-                if (filters.dateEnd) params.set("end_date", filters.dateEnd);
-                params.set("group_by", groupBy);
-                if (comparePeriods) params.set("compare_periods", "true");
-                // slicerFilters removed — no additional slicer params
-                const res = await authGet(`/api/watchtower/performance-breakdown?${params.toString()}`);
-                const result = res.data;
-                if (res.success && result?.success && result.data?.length > 0) {
-                    setData(result.data);
-                    setTotals(result.totals || null);
-                    setUntagged(result.untagged || null);
-                    setPeriodComparison(result.period_comparison || null);
-                }
-                // If API fails or returns no data, sample data stays visible
-            } catch (e) { console.error("Failed to fetch aggregated view, using sample data:", e); }
-            setLoading(false);
-        };
         fetchData();
-    }, [groupBy, filters, comparePeriods]);
+    }, [fetchData]);
 
     const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)}Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)}L`; if (num >= 1000) return `${(num / 1000).toFixed(1)}K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
@@ -440,7 +450,23 @@ export function AggregatedViewTable() {
                                 )}
                             </AnimatePresence>
                         </div>
-                        <button className={`p-2 rounded-lg border transition-colors ${darkMode ? "border-slate-700 hover:bg-slate-700 text-slate-400" : "border-slate-200 hover:bg-slate-50 text-slate-500"}`}><Download className="w-4 h-4" /></button>
+                        <button onClick={() => {
+                            // CSV Download
+                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"];
+                            const csvRows = [headers.join(",")];
+                            data.forEach(row => {
+                                csvRows.push([
+                                    `"${row.tag || ''}"`, row.impressions, row.clicks, `${(row.ctr || 0).toFixed(2)}%`,
+                                    `${(row.spend_percent_share || 0).toFixed(1)}%`, row.spends, (row.cpc || 0).toFixed(2),
+                                    row.orders, `${(row.cvr || 0).toFixed(2)}%`, row.sales
+                                ].join(","));
+                            });
+                            const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url; a.download = `performance_breakdown_${groupBy}_${new Date().toISOString().split('T')[0]}.csv`;
+                            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                        }} className={`p-2 rounded-lg border transition-colors ${darkMode ? "border-slate-700 hover:bg-slate-700 text-slate-400" : "border-slate-200 hover:bg-slate-50 text-slate-500"}`}><Download className="w-4 h-4" /></button>
                     </div>
                 </div>
             </div>
@@ -471,6 +497,8 @@ export function AggregatedViewTable() {
                         )}
                         {loading ? (
                             [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={10} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
+                        ) : apiError ? (
+                            <tr><td colSpan={10}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
                         ) : data.length === 0 ? (
                             <tr><td colSpan={10} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
                         ) : (

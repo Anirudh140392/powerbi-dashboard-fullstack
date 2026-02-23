@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
+import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
@@ -359,6 +360,32 @@ export default function WatchTower() {
     selectedKeyword,
     selectedLocation,
   ]);
+  const [fetchError, setFetchError] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const params = {
+        ...filters,
+        platform: filters.platform === "All" ? undefined : (Array.isArray(filters.platform) ? filters.platform.join(",") : filters.platform),
+        category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
+        location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
+      };
+      const response = await axiosInstance.get("/watchtower", {
+        params,
+      });
+      if (response.data) {
+        console.log("Fetched Watch Tower data:", response.data);
+        setDashboardData(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching Watch Tower data:", error);
+      setFetchError(error.message || "Failed to load Watch Tower data");
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
 
   useEffect(() => {
     // Prevent fetching if core context data hasn't loaded yet
@@ -367,29 +394,6 @@ export default function WatchTower() {
       return;
     }
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          ...filters,
-          platform: filters.platform === "All" ? undefined : (Array.isArray(filters.platform) ? filters.platform.join(",") : filters.platform),
-          category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
-          location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
-        };
-        const response = await axiosInstance.get("/watchtower", {
-          params,
-        });
-        if (response.data) {
-          console.log("Fetched Watch Tower data:", response.data);
-          setDashboardData(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching Watch Tower data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     // Use a small timeout to debounce the initial rapid filter updates 
     // caused by the context syncing dynamic dates/platforms
     const debounceTimer = setTimeout(() => {
@@ -397,7 +401,7 @@ export default function WatchTower() {
     }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [filters, datesFetched, platformsFetched]); // Refetch when filters change
+  }, [filters, datesFetched, platformsFetched, fetchData]); // Refetch when filters change
 
 
   return (
@@ -417,22 +421,26 @@ export default function WatchTower() {
           />
         )} */}
 
-        <SnapshotOverview
-          title="Watchtower Overview"
-          icon={LayoutGrid}
-          chip="All Platforms"
-          headerRight={
-            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-              vs Previous Month
-            </span>
-          }
-          kpis={COMPARISON_KPIS}
-          variant="watchtower"
-          seed={`${platform}-${selectedCategory}-${selectedBrand}`}
-          loading={loading}
-          performanceData={dashboardData?.performanceMetricsKpis || []}
-          performanceLoading={loading}
-        />
+        {fetchError && !loading && !dashboardData?.performanceMetricsKpis?.length ? (
+          <ErrorRetryOverlay onRetry={fetchData} message={fetchError} />
+        ) : (
+          <SnapshotOverview
+            title="Watchtower Overview"
+            icon={LayoutGrid}
+            chip="All Platforms"
+            headerRight={
+              <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+                vs Previous Month
+              </span>
+            }
+            kpis={COMPARISON_KPIS}
+            variant="watchtower"
+            seed={`${platform}-${selectedCategory}-${selectedBrand}`}
+            loading={loading}
+            performanceData={dashboardData?.performanceMetricsKpis || []}
+            performanceLoading={loading}
+          />
+        )}
 
         {/* Top Cards */}
         {/* <Box
