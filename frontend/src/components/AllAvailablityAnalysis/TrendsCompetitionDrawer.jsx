@@ -849,6 +849,104 @@ export default function TrendsCompetitionDrawer({
         },
       };
 
+    } else if (dynamicKey === "pricing") {
+      return {
+        trends: {
+          context: {
+            level: "MRP",
+            audience: "Platform",
+          },
+          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+          defaultRange: "1M",
+          timeSteps: ["Daily", "Weekly", "Monthly"],
+          defaultTimeStep: "Daily",
+          metrics: [
+            {
+              id: "Discount",
+              label: "Discount %",
+              color: "#6366F1",
+              axis: "right",
+              default: true,
+            },
+            {
+              id: "PricePerUnit",
+              label: "Price Per Unit (₹)",
+              color: "#14B8A6",
+              axis: "left",
+              default: true,
+            },
+            {
+              id: "RPI",
+              label: "RPI",
+              color: "#F43F5E",
+              axis: "left",
+              default: false,
+            },
+            {
+              id: "ASP",
+              label: "Avg Selling Price (₹)",
+              color: "#8B5CF6",
+              axis: "left",
+              default: false,
+            },
+          ],
+          points: [
+            { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, RPI: 3.8, ASP: 190 },
+            { date: "10 Sep'25", Discount: 11.4, PricePerUnit: 175, RPI: 4.0, ASP: 188 },
+            { date: "15 Sep'25", Discount: 12.8, PricePerUnit: 172, RPI: 4.3, ASP: 186 },
+            { date: "20 Sep'25", Discount: 14.5, PricePerUnit: 169, RPI: 4.7, ASP: 182 },
+            { date: "25 Sep'25", Discount: 13.2, PricePerUnit: 174, RPI: 4.5, ASP: 185 },
+            { date: "30 Sep'25", Discount: 11.9, PricePerUnit: 177, RPI: 4.2, ASP: 189 },
+            { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, RPI: 4.8, ASP: 198 },
+          ].map((p, idx) => ({
+            ...p,
+            Discount: applyVar(p.Discount, idx),
+            PricePerUnit: applyVar(p.PricePerUnit, idx),
+            RPI: applyVar(p.RPI, idx),
+            ASP: applyVar(p.ASP, idx),
+          })),
+        },
+
+        compareSkus: {
+          context: { level: "MRP" },
+          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+          defaultRange: "1M",
+          timeSteps: ["Daily", "Weekly", "Monthly"],
+          defaultTimeStep: "Daily",
+          metrics: [
+            { id: "Discount", label: "Discount %", color: "#6366F1", default: true },
+            { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
+            { id: "RPI", label: "RPI", color: "#F43F5E", default: false },
+            { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
+          ],
+          x: COMPARE_X,
+          trendsBySku: {
+            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), RPI: applyVar(4.2, x), ASP: applyVar(195, x) })),
+            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), RPI: applyVar(3.9, x), ASP: applyVar(188, x) })),
+            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), RPI: applyVar(4.6, x), ASP: applyVar(200, x) })),
+          },
+        },
+
+        competition: {
+          context: { level: "MRP", region: "All × Cities" },
+          tabs: ["Brands", "SKUs"],
+          periodToggle: { primary: "MTD", compare: "Previous Month" },
+          columns: [
+            { id: "brand", label: "Brand", type: "text" },
+            { id: "Discount", label: "Discount %", type: "metric" },
+            { id: "PricePerUnit", label: "Price/Unit", type: "metric" },
+            { id: "RPI", label: "RPI", type: "metric" },
+            { id: "ASP", label: "ASP", type: "metric" },
+          ],
+          brands: BRAND_OPTIONS.map((b, i) => ({
+            brand: b,
+            Discount: { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
+            PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
+            RPI: { value: applyVar(4.0 + i * 0.2), delta: 0.1 },
+            ASP: { value: applyVar(190 + i * 8), delta: i % 2 === 0 ? 3.5 : -2.1 },
+          })),
+        },
+      };
     } else {
       return {
         /* =====================================================================

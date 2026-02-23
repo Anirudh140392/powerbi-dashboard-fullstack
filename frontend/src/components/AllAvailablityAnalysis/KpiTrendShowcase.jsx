@@ -396,6 +396,12 @@ const buildDataModel = () => {
         Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
         Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
         PSL: 15 + brandIdx * 0.4 + cityIdx * 0.2,
+
+        // PRICING KPI FIELDS
+        Discount: 8 + brandIdx * 1.5 + cityIdx * 0.4,
+        PricePerUnit: 175 + brandIdx * 6 + cityIdx * 2,
+        RPI: 3.6 + brandIdx * 0.18 + cityIdx * 0.06,
+        ASP: 188 + brandIdx * 9 + cityIdx * 3,
       };
     });
 
@@ -422,6 +428,12 @@ const buildDataModel = () => {
         Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
         Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
         PSL: 12 + skuIdx * 0.5 + cityIdx * 0.2,
+
+        // PRICING KPI FIELDS
+        Discount: 7 + skuIdx * 1.2 + cityIdx * 0.3,
+        PricePerUnit: 165 + skuIdx * 8 + cityIdx * 2,
+        RPI: 3.4 + skuIdx * 0.15 + cityIdx * 0.05,
+        ASP: 180 + skuIdx * 10 + cityIdx * 3,
       };
     });
 
@@ -446,6 +458,12 @@ const buildDataModel = () => {
         Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
         Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
         PSL: 14 + brandIdx * 0.6 + Math.sin(idx / 5) * 1.0,
+
+        // PRICING KPI TREND LINES
+        Discount: 8 + brandIdx * 1.5 + Math.sin(idx / 4) * 1.2,
+        PricePerUnit: 175 + brandIdx * 6 + Math.cos(idx / 5) * 4,
+        RPI: 3.6 + brandIdx * 0.18 + Math.sin(idx / 3) * 0.15,
+        ASP: 188 + brandIdx * 9 + Math.cos(idx / 6) * 5,
       }));
     });
 
@@ -470,6 +488,12 @@ const buildDataModel = () => {
         Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
         Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
         PSL: 11 + skuIdx * 0.5 + Math.cos(idx / 3) * 1.1,
+
+        // PRICING KPI TREND LINES
+        Discount: 7 + skuIdx * 1.2 + Math.sin(idx / 4) * 1.0,
+        PricePerUnit: 165 + skuIdx * 8 + Math.cos(idx / 5) * 3,
+        RPI: 3.4 + skuIdx * 0.15 + Math.sin(idx / 3) * 0.12,
+        ASP: 180 + skuIdx * 10 + Math.cos(idx / 6) * 4,
       }));
     });
   });
@@ -730,12 +754,12 @@ const MetricChip = ({ label, color, active, onClick }) => {
   );
 };
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys = KPI_KEYS }) => {
   // ✅ single selected KPI
-  const [activeMetric, setActiveMetric] = useState("Osa");
+  const [activeMetric, setActiveMetric] = useState(kpiKeys[0]?.key || "Osa");
 
   const metricMeta =
-    KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+    kpiKeys.find((m) => m.key === activeMetric) || kpiKeys[0];
 
   const isBrandMode = mode === "brand";
 
@@ -804,7 +828,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi }) => {
         <div className="space-y-2">
           {/* KPI CHIP SELECTOR */}
           <Box display="flex" gap={1} flexWrap="wrap">
-            {KPI_KEYS.map((m) => (
+            {kpiKeys.map((m) => (
               <MetricChip
                 key={m.key}
                 label={m.label}
@@ -877,25 +901,55 @@ const KPI_KEYS = [
   {
     key: "Osa",
     label: "OSA",
-    color: "#F97316", // orange (matching other drawer)
+    color: "#F97316",
     unit: "%",
   },
   {
     key: "Listing",
     label: "Listing %",
-    color: "#8B5CF6", // violet
+    color: "#8B5CF6",
     unit: "%",
   },
   {
     key: "Assortment",
     label: "Assortment",
-    color: "#22C55E", // green
+    color: "#22C55E",
     unit: "%",
   },
 ];
 
+const PRICING_KPI_KEYS = [
+  {
+    key: "Discount",
+    label: "Discount %",
+    color: "#6366F1",
+    unit: "%",
+    fmt: (v) => `${v.toFixed(1)}%`,
+  },
+  {
+    key: "PricePerUnit",
+    label: "Price/Unit",
+    color: "#14B8A6",
+    prefix: "₹",
+    fmt: (v) => `₹${v.toFixed(0)}`,
+  },
+  {
+    key: "RPI",
+    label: "RPI",
+    color: "#F43F5E",
+    fmt: (v) => v.toFixed(2),
+  },
+  {
+    key: "ASP",
+    label: "Avg Selling Price",
+    color: "#8B5CF6",
+    prefix: "₹",
+    fmt: (v) => `₹${v.toFixed(0)}`,
+  },
+];
 
-const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
+
+const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS }) => {
   const isBrandMode = mode === "brand";
 
   const selectedIds = useMemo(() => {
@@ -996,7 +1050,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend }) => {
       </CardHeader>
 
       <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
-        {KPI_KEYS.map((kpi) => (
+        {kpiKeys.map((kpi) => (
           <Card
             key={kpi.key}
             className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
@@ -1053,7 +1107,7 @@ const ProgressBar = ({ value, color }) => (
   </div>
 );
 
-const BrandTable = ({ rows }) => {
+const BrandTable = ({ rows, kpiKeys = KPI_KEYS }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1072,9 +1126,9 @@ const BrandTable = ({ rows }) => {
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="w-[40%] px-3 py-2 text-left">Brand</th>
-                <th className="w-[20%] px-3 py-2 text-center">Osa</th>
-                <th className="w-[20%] px-3 py-2 text-center">Listing %</th>
-                <th className="w-[20%] px-3 py-2 text-center">Assortment</th>
+                {kpiKeys.map((k) => (
+                  <th key={k.key} className="px-3 py-2 text-center" style={{ width: `${60 / kpiKeys.length}%` }}>{k.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1089,21 +1143,15 @@ const BrandTable = ({ rows }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
                     {row.name}
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {row.Osa.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {row.Listing.toFixed(0)}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
-                      {row.Assortment.toFixed(1)}
-                    </span>
-                  </td>
+                  {kpiKeys.map((k) => {
+                    const raw = row[k.key];
+                    const display = raw == null ? '—' : (k.fmt ? k.fmt(raw) : typeof raw === 'number' ? `${raw.toFixed(1)}${k.unit || ''}` : raw);
+                    return (
+                      <td key={k.key} className="px-3 py-2 text-center text-[12px]">
+                        <span className="font-semibold text-slate-700">{display}</span>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {rows.length === 0 && (
@@ -1135,7 +1183,7 @@ const BrandTable = ({ rows }) => {
   );
 };
 
-const SkuTable = ({ rows }) => {
+const SkuTable = ({ rows, kpiKeys = KPI_KEYS }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1155,9 +1203,9 @@ const SkuTable = ({ rows }) => {
               <tr>
                 <th className="w-[30%] px-3 py-2 text-left">SKU</th>
                 <th className="w-[25%] px-3 py-2 text-left">Brand</th>
-                <th className="w-[15%] px-3 py-2 text-center">Osa</th>
-                <th className="w-[15%] px-3 py-2 text-center">Listing %</th>
-                <th className="w-[15%] px-3 py-2 text-center">Assortment</th>
+                {kpiKeys.map((k) => (
+                  <th key={k.key} className="px-3 py-2 text-center">{k.label}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1175,21 +1223,15 @@ const SkuTable = ({ rows }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
                     {row.brandName}
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {row.Osa.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {row.Listing.toFixed(0)}%
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="inline-flex items-center justify-center rounded-md bg-slate-100 px-2 py-1 font-semibold text-slate-700">
-                      {row.Assortment.toFixed(0)}
-                    </span>
-                  </td>
+                  {kpiKeys.map((k) => {
+                    const raw = row[k.key];
+                    const display = raw == null ? '—' : (k.fmt ? k.fmt(raw) : typeof raw === 'number' ? `${raw.toFixed(1)}${k.unit || ''}` : raw);
+                    return (
+                      <td key={k.key} className="px-3 py-2 text-center text-[12px]">
+                        <span className="font-semibold text-slate-700">{display}</span>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {rows.length === 0 && (
@@ -1225,7 +1267,8 @@ const SkuTable = ({ rows }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = () => {
+export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
+  const kpiKeys = dynamicKey === 'pricing' ? PRICING_KPI_KEYS : KPI_KEYS;
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1399,12 +1442,13 @@ export const KpiTrendShowcase = () => {
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} kpiKeys={kpiKeys} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
               filters={filters}
               city={city}
+              kpiKeys={kpiKeys}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
             />
@@ -1414,6 +1458,7 @@ export const KpiTrendShowcase = () => {
               mode="brand"
               filters={filters}
               city={city}
+              kpiKeys={kpiKeys}
               onBackToTrend={() => setViewMode("trend")}
             />
           )}
@@ -1421,12 +1466,13 @@ export const KpiTrendShowcase = () => {
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} kpiKeys={kpiKeys} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
               filters={filters}
               city={city}
+              kpiKeys={kpiKeys}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
             />
@@ -1436,6 +1482,7 @@ export const KpiTrendShowcase = () => {
               mode="sku"
               filters={filters}
               city={city}
+              kpiKeys={kpiKeys}
               onBackToTrend={() => setViewMode("trend")}
             />
           )}
