@@ -8344,10 +8344,8 @@ const getPerformanceBreakdownData = async (filters) => {
 
         let dateClause = '';
         if (filters.start_date && filters.end_date) {
-            // Optimized: Prevent full table scan by avoiding toDate(DATE)
             dateClause = `AND DATE >= '${filters.start_date}' AND DATE <= '${filters.end_date}'`;
         } else {
-            // Default to last 30 days if no date filters
             const todayStr = new Date().toISOString().split('T')[0];
             const pastDate = new Date();
             pastDate.setDate(pastDate.getDate() - 30);
@@ -8420,12 +8418,94 @@ const getPerformanceBreakdownData = async (filters) => {
         totals.cpc = totals.clicks > 0 ? (totals.spends / totals.clicks) : 0;
         totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
 
+        // ── Period Comparison ───────────────────────────────────────────────
+        let period_comparison = null;
+        const comparePeriodKeys = filters.compare_periods;
+        if (comparePeriodKeys) {
+            const periodKeys = typeof comparePeriodKeys === 'string' ? comparePeriodKeys.split(',').map(k => k.trim()) : [];
+
+            const getPresetRange = (key) => {
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                switch (key) {
+                    case 'last_week': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setDate(s.getDate() - 6); return { start: s, end: e }; }
+                    case 'last_month': { const e = new Date(today.getFullYear(), today.getMonth(), 0); return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e }; }
+                    case 'mtd': { const s = new Date(today.getFullYear(), today.getMonth(), 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
+                    case 'last_3_months': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setMonth(s.getMonth() - 3); return { start: s, end: e }; }
+                    case 'ytd': { const s = new Date(today.getFullYear(), 0, 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
+                    default: return null;
+                }
+            };
+
+            const fmtDate = (d) => d.toISOString().split('T')[0];
+
+            const periodQueries = periodKeys.map(async (periodParam) => {
+                // Parse: preset keys are plain (e.g. "last_week"), custom are "custom_<ts>:<start>:<end>"
+                let key = periodParam;
+                let range = null;
+
+                if (periodParam.includes(':')) {
+                    // Custom period format: "custom_123456:2026-01-11:2026-01-15"
+                    const parts = periodParam.split(':');
+                    key = parts[0];
+                    const customStart = parts[1];
+                    const customEnd = parts[2];
+                    if (customStart && customEnd) {
+                        range = { start: new Date(customStart), end: new Date(customEnd) };
+                    }
+                } else {
+                    range = getPresetRange(key);
+                }
+
+                if (!range) {
+                    return { key, data: [] };
+                }
+
+                const periodDateClause = `AND DATE >= '${fmtDate(range.start)}' AND DATE <= '${fmtDate(range.end)}'`;
+                const periodQuery = `
+                    SELECT
+                        ${groupByCol} AS tag,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS group_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS group_clicks,
+                        if(group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
+                        if(group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS group_orders,
+                        if(group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
+                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS group_sales
+                    FROM rb_pdp_olap
+                    WHERE Comp_flag = 0 ${platformClause} ${periodDateClause}
+                    GROUP BY ${groupByCol}
+                    ORDER BY group_spends DESC
+                `;
+                const periodData = await queryClickHouse(periodQuery);
+                return {
+                    key,
+                    data: periodData.map(r => ({
+                        tag: r.tag || 'Unknown',
+                        impressions: parseFloat(r.group_impressions) || 0,
+                        clicks: parseFloat(r.group_clicks) || 0,
+                        ctr: parseFloat(r.ctr) || 0,
+                        spends: parseFloat(r.group_spends) || 0,
+                        cpc: parseFloat(r.cpc) || 0,
+                        orders: parseFloat(r.group_orders) || 0,
+                        cvr: parseFloat(r.cvr) || 0,
+                        sales: parseFloat(r.group_sales) || 0
+                    }))
+                };
+            });
+
+            const periodResults = await Promise.all(periodQueries);
+            period_comparison = {};
+            periodResults.forEach(({ key, data }) => { period_comparison[key] = data; });
+        }
+
         return {
             success: true,
             data: parsedData,
             totals,
             untagged: { count: 0, percent: 0 },
-            period_comparison: null
+            period_comparison
         };
 
     } catch (error) {

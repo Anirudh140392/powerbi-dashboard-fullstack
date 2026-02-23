@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     LineChart,
     Line,
@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import axiosInstance from "../../../api/axiosInstance";
 import { FilterContext } from "../../../utils/FilterContext";
+import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 
 const severityColor = {
     high: "bg-red-100 text-red-700 border-red-200",
@@ -721,44 +722,48 @@ const LayoutOne = ({ apiData, loading }) => {
 const TopActionsLayoutsShowcase = () => {
     const [apiData, setApiData] = useState({ topActions: null, osaDeepDive: null });
     const [loading, setLoading] = useState(true);
+    const [apiError, setApiError] = useState(null);
 
     // Pull filters from context so the section reacts to user filter changes
     const { timeEnd, platform } = React.useContext(FilterContext);
 
-    useEffect(() => {
-        let cancelled = false;
-        const loadApiData = async () => {
-            setLoading(true);
-            try {
-                const params = {};
-                if (timeEnd) params.endDate = timeEnd.format("YYYY-MM-DD");
-                if (platform && platform !== "All") params.platform = Array.isArray(platform) ? platform.join(",") : platform;
+    const loadApiData = useCallback(async () => {
+        setLoading(true);
+        setApiError(null);
+        try {
+            const params = {};
+            if (timeEnd) params.endDate = timeEnd.format("YYYY-MM-DD");
+            if (platform && platform !== "All") params.platform = Array.isArray(platform) ? platform.join(",") : platform;
 
-                // Fetch both Top Actions (KPIs & Graphs) and OSA Deep Dive (Detail rows)
-                const [topActionsRes, osaDeepDiveRes] = await Promise.all([
-                    axiosInstance.get("/watchtower/top-actions", { params }),
-                    axiosInstance.get("/watchtower/osa-deep-dive", { params })
-                ]);
+            const [topActionsRes, osaDeepDiveRes] = await Promise.all([
+                axiosInstance.get("/watchtower/top-actions", { params }),
+                axiosInstance.get("/watchtower/osa-deep-dive", { params })
+            ]);
 
-                if (!cancelled) {
-                    setApiData({
-                        topActions: topActionsRes.data,
-                        osaDeepDive: osaDeepDiveRes.data
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to load Top Actions APIs:", err);
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        };
-
-        const debounceTimer = setTimeout(loadApiData, 400);
-        return () => {
-            cancelled = true;
-            clearTimeout(debounceTimer);
-        };
+            setApiData({
+                topActions: topActionsRes.data,
+                osaDeepDive: osaDeepDiveRes.data
+            });
+        } catch (err) {
+            console.error("Failed to load Top Actions APIs:", err);
+            setApiError(err.message || "Failed to load Top Actions data");
+        } finally {
+            setLoading(false);
+        }
     }, [timeEnd, platform]);
+
+    useEffect(() => {
+        const debounceTimer = setTimeout(loadApiData, 400);
+        return () => clearTimeout(debounceTimer);
+    }, [loadApiData]);
+
+    if (apiError && !apiData.topActions) {
+        return (
+            <div className="min-h-[500px] w-full bg-slate-50 p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                <ErrorRetryOverlay onRetry={loadApiData} message={apiError} />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-[500px] w-full bg-slate-50 p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>

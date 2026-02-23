@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
   useLayoutEffect,
+  useCallback,
 } from "react";
 import {
   Box,
@@ -34,6 +35,7 @@ import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
+import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 
 /**
  * ---------------------------------------------------------------------------
@@ -488,93 +490,84 @@ export default function TrendsCompetitionDrawer({
     fetchFilterOptions();
   }, [open]);
 
+  const [trendError, setTrendError] = useState(null);
+  const [competitionError, setCompetitionError] = useState(null);
+
   // ===================== FETCH TREND DATA =====================
-  useEffect(() => {
+  const fetchTrendData = useCallback(async () => {
     if (view !== "Trends" || !open) return;
+    setLoading(true);
+    setTrendError(null);
+    try {
+      const params = {
+        period: range,
+        timeStep: timeStep,
+        startDate: range === "Custom" && customStart ? customStart : undefined,
+        endDate: range === "Custom" && customEnd ? customEnd : undefined,
+      };
 
-    let cancelled = false;
-    const fetchTrendData = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          period: range,
-          timeStep: timeStep,
-          startDate: range === "Custom" && customStart ? customStart : undefined,
-          endDate: range === "Custom" && customEnd ? customEnd : undefined,
-        };
+      const audience = allTrendMeta.context.audience;
+      if (audience === "Platform") params.platform = selectedPlatform || 'All';
+      else if (audience === "Format") params.category = selectedPlatform || 'All';
+      else if (audience === "City") params.location = selectedPlatform || 'All';
+      else if (audience === "Brand") params.brand = selectedPlatform || 'All';
+      else params.platform = selectedPlatform || 'All';
 
-        const audience = allTrendMeta.context.audience;
-        if (audience === "Platform") params.platform = selectedPlatform || 'All';
-        else if (audience === "Format") params.category = selectedPlatform || 'All';
-        else if (audience === "City") params.location = selectedPlatform || 'All';
-        else if (audience === "Brand") params.brand = selectedPlatform || 'All';
-        else params.platform = selectedPlatform || 'All';
+      const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
 
-        const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
-
-        if (cancelled) return;
-
-        if (response.data?.timeSeries?.length > 0) {
-          setChartData(response.data.timeSeries);
-        } else {
-          setChartData([]);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("[TrendsDrawer] Error fetching trends:", error);
-          setChartData([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (response.data?.timeSeries?.length > 0) {
+        setChartData(response.data.timeSeries);
+      } else {
+        setChartData([]);
       }
-    };
-
-    const timeoutId = setTimeout(fetchTrendData, 500);
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
+    } catch (error) {
+      console.error("[TrendsDrawer] Error fetching trends:", error);
+      setTrendError(error.message || "Failed to load trend data");
+      setChartData([]);
+    } finally {
+      setLoading(false);
+    }
   }, [view, range, selectedPlatform, timeStep, customStart, customEnd, allTrendMeta.context.audience, open]);
 
+  useEffect(() => {
+    if (view !== "Trends" || !open) return;
+    const timeoutId = setTimeout(fetchTrendData, 300);
+    return () => clearTimeout(timeoutId);
+  }, [fetchTrendData]);
+
   // ===================== FETCH COMPETITION DATA =====================
+  const fetchCompetitionData = useCallback(async () => {
+    if (!open || filterOptions.loading) return;
+    setCompetitionLoading(true);
+    setCompetitionError(null);
+    try {
+      const platformToUse = selectedColumn || 'All';
+      const params = {
+        period: '1M',
+        platform: platformToUse,
+      };
+
+      const response = await axiosInstance.get('/watchtower/competition', { params });
+
+      if (response.data) {
+        setCompetitionData({
+          brands: response.data.brands || [],
+          skus: response.data.skus || []
+        });
+      }
+    } catch (error) {
+      console.error("[TrendsDrawer] Error fetching competition:", error);
+      setCompetitionError(error.message || "Failed to load competition data");
+    } finally {
+      setCompetitionLoading(false);
+    }
+  }, [open, filterOptions.loading, selectedColumn]);
+
   useEffect(() => {
     if (!open || filterOptions.loading) return;
-
-    let cancelled = false;
-    const fetchCompetitionData = async () => {
-      setCompetitionLoading(true);
-      try {
-        const platformToUse = selectedColumn || 'All';
-        const params = {
-          period: '1M',
-          platform: platformToUse,
-        };
-
-        const response = await axiosInstance.get('/watchtower/competition', { params });
-
-        if (cancelled) return;
-
-        if (response.data) {
-          setCompetitionData({
-            brands: response.data.brands || [],
-            skus: response.data.skus || []
-          });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error("[TrendsDrawer] Error fetching competition:", error);
-        }
-      } finally {
-        if (!cancelled) setCompetitionLoading(false);
-      }
-    };
-
     const timeoutId = setTimeout(fetchCompetitionData, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [selectedColumn, open, filterOptions.loading]);
+    return () => clearTimeout(timeoutId);
+  }, [fetchCompetitionData]);
 
   /* ---------------------------------------------------------------------------
    * HELPERS FOR DYNAMIC DATA
@@ -1854,6 +1847,8 @@ export default function TrendsCompetitionDrawer({
                       <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
                     </div>
                   </div>
+                ) : trendError ? (
+                  <ErrorRetryOverlay onRetry={fetchTrendData} message={trendError} compact />
                 ) : (
                   <ReactECharts
                     style={{ height: "100%", width: "100%" }}
@@ -1869,7 +1864,9 @@ export default function TrendsCompetitionDrawer({
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
           <>
-            {dynamicKey === "platform_overview_tower" ? (
+            {competitionError && !competitionLoading ? (
+              <ErrorRetryOverlay onRetry={fetchCompetitionData} message={competitionError} />
+            ) : dynamicKey === "platform_overview_tower" ? (
               <PlatformOverviewKpiShowcase
                 dynamicKey={dynamicKey}
                 selectedItem={selectedColumn}
