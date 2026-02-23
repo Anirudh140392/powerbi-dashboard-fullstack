@@ -4,11 +4,15 @@ import dayjs from "dayjs";
 
 export const FilterContext = createContext();
 
+// Context ready states so children know when async data has loaded
+export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFetched;
+
+
 // Static fallback data (used if API is unreachable)
 const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"];
 const FALLBACK_CATEGORIES = ["All", "Cassata", "Core Tub", "Cup", "Sandwich"];
 const FALLBACK_LOCATIONS = ["All"];
-const FALLBACK_BRANDS = ["Kwality Walls", "Cornetto", "Magnum", "Feast", "Twister"];
+const FALLBACK_BRANDS = ["Colgate", "Palmolive", "Halo"];
 
 // Channel → platform mapping (static, channels are not in rca_sku_dim)
 const channelPlatformMap = {
@@ -28,7 +32,7 @@ export const FilterProvider = ({ children }) => {
 
     // Brand state
     const [brands, setBrands] = useState(FALLBACK_BRANDS);
-    const [selectedBrand, setSelectedBrand] = useState(null);
+    const [selectedBrand, setSelectedBrand] = useState("Colgate");
 
     // Location state
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
@@ -48,6 +52,10 @@ export const FilterProvider = ({ children }) => {
     const [compareStart, setCompareStart] = useState(dayjs().subtract(1, 'month').startOf('month'));
     const [compareEnd, setCompareEnd] = useState(dayjs().subtract(1, 'month'));
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. PERIOD");
+
+    // Tracks if async data is loaded
+    const [datesFetched, setDatesFetched] = useState(false);
+    const [platformsFetched, setPlatformsFetched] = useState(false);
 
     const datesInitialized = Boolean(timeStart && timeEnd);
 
@@ -71,6 +79,8 @@ export const FilterProvider = ({ children }) => {
                 }
             } catch (err) {
                 console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
+            } finally {
+                setDatesFetched(true);
             }
         };
         fetchDates();
@@ -98,6 +108,8 @@ export const FilterProvider = ({ children }) => {
             }
         } catch (err) {
             console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
+        } finally {
+            setPlatformsFetched(true);
         }
     }, [platform]);
 
@@ -290,6 +302,8 @@ export const FilterProvider = ({ children }) => {
             selectedCategory,
             setSelectedCategory,
             datesInitialized,
+            datesFetched,
+            platformsFetched,
             refreshFilters
         }}>
             {children}

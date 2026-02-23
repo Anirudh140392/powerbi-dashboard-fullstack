@@ -192,7 +192,9 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
     const deltaColor = isPositive ? "text-emerald-500" : "text-rose-500";
 
     // Trend Logic
-    const trendSeries = kpi.trend || kpi.trendSeries || [];
+    // If the backend provided 'weekly' data (e.g. 5 points) we fall back to the explicitly 
+    // generated 30-point daily mock data (kpi.trendSeries) so UI 7D/14D/30D slicing works correctly.
+    const trendSeries = (kpi.trend && kpi.trend.length >= 7) ? kpi.trend : (kpi.trendSeries || kpi.trend || []);
     const sliceSeries = useMemo(() => {
         const n = trendSeries.length;
         return trendSeries.slice(Math.max(0, n - period));
@@ -208,6 +210,17 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
     // Use kpi.delta for valid delta or fallback to calculated from trend
     const displayDelta = kpi.delta !== undefined ? kpi.delta : deltaVal;
     const deltaLabel = kpi.deltaLabel || (displayDelta >= 0 ? `+${displayDelta.toFixed(1)} pp` : `${displayDelta.toFixed(1)} pp`);
+
+    // Calculate dynamic hover deltas based on sliceSeries
+    const hoverStart = sliceSeries.length >= 2 ? sliceSeries[0] : 0;
+    const hoverEnd = sliceSeries.length >= 2 ? sliceSeries[sliceSeries.length - 1] : 0;
+
+    // Extract suffix from original deltaLabel (e.g '%', 'pp', 'Cr') to keep formatting consistent
+    const suffixMatch = (kpi.deltaLabel || '').match(/[^0-9.\-+]+$/);
+    const suffix = suffixMatch ? suffixMatch[0] : '%';
+
+    const hoverDeltaPct = hoverStart !== 0 ? (((hoverEnd - hoverStart) / hoverStart) * 100).toFixed(1) : '0.0';
+    const hoverDeltaStr = `${hoverDeltaPct > 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
 
     const onCardEnter = (e) => {
@@ -287,7 +300,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         <div>
                             <Typography sx={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{kpi.title} Trend</Typography>
                             <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                                {deltaLabel} <span className="text-[11px] font-normal text-slate-400">vs start</span>
+                                {hoverDeltaStr} <span className="text-[11px] font-normal text-slate-400">vs start</span>
                             </Typography>
                         </div>
                         <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 border border-slate-100">
@@ -323,14 +336,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {sliceSeries.length >= 2
-                                    ? (() => {
-                                        const start = sliceSeries[0];
-                                        const end = sliceSeries[sliceSeries.length - 1];
-                                        const pct = start !== 0 ? (((end - start) / start) * 100).toFixed(1) : '0.0';
-                                        return `${pct > 0 ? '+' : ''}${pct}%`;
-                                    })()
-                                    : '0.0%'}
+                                {hoverDeltaStr}
                             </Typography>
                         </div>
                     </div>
@@ -369,7 +375,9 @@ const ComparisonCard = ({ kpi, loading = false }) => {
     const deltaColor = isPositive ? "text-emerald-500" : "text-rose-500";
 
     // Trend Logic
-    const trendSeries = kpi.trend || kpi.trendSeries || [];
+    // If the backend provided 'weekly' data (e.g. 5 points) we fall back to the explicitly 
+    // generated 30-point daily mock data (kpi.trendSeries) so UI 7D/14D/30D slicing works correctly.
+    const trendSeries = (kpi.trend && kpi.trend.length >= 7) ? kpi.trend : (kpi.trendSeries || kpi.trend || []);
     const sliceSeries = useMemo(() => {
         const n = trendSeries.length;
         return trendSeries.slice(Math.max(0, n - period));
@@ -385,6 +393,17 @@ const ComparisonCard = ({ kpi, loading = false }) => {
     // Use kpi.delta for valid delta or fallback to calculated from trend
     const displayDelta = kpi.delta !== undefined ? kpi.delta : deltaVal;
     const deltaLabel = kpi.deltaLabel || (displayDelta >= 0 ? `+${displayDelta.toFixed(1)} pp` : `${displayDelta.toFixed(1)} pp`);
+
+    // Calculate dynamic hover deltas based on sliceSeries
+    const hoverStart = sliceSeries.length >= 2 ? sliceSeries[0] : 0;
+    const hoverEnd = sliceSeries.length >= 2 ? sliceSeries[sliceSeries.length - 1] : 0;
+
+    // Extract suffix from original deltaLabel (e.g '%', 'pp', 'Cr') to keep formatting consistent
+    const suffixMatch = (deltaLabel || '').match(/[^0-9.\-+]+$/);
+    const suffix = suffixMatch ? suffixMatch[0] : '%';
+
+    const hoverDeltaPct = hoverStart !== 0 ? (((hoverEnd - hoverStart) / hoverStart) * 100).toFixed(1) : '0.0';
+    const hoverDeltaStr = `${hoverDeltaPct > 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
@@ -465,7 +484,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                         <div>
                             <Typography sx={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{kpi.title} Trend</Typography>
                             <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                                {deltaLabel} <span className="text-[11px] font-normal text-slate-400">vs start</span>
+                                {hoverDeltaStr} <span className="text-[11px] font-normal text-slate-400">vs start</span>
                             </Typography>
                         </div>
                         <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 border border-slate-100">
@@ -502,14 +521,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                         <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
                             <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
                             <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {sliceSeries.length >= 2
-                                    ? (() => {
-                                        const start = sliceSeries[0];
-                                        const end = sliceSeries[sliceSeries.length - 1];
-                                        const pct = start !== 0 ? (((end - start) / start) * 100).toFixed(1) : '0.0';
-                                        return `${pct > 0 ? '+' : ''}${pct}%`;
-                                    })()
-                                    : '0.0%'}
+                                {hoverDeltaPct > 0 ? '+' : ''}{hoverDeltaPct}%
                             </Typography>
                         </div>
                     </div>

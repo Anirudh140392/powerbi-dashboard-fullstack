@@ -348,10 +348,11 @@ export const getCompetitionFilterOptions = async (req, res) => {
  */
 export const getCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period } = req.query;
-        console.log('[getCompetitionBrandTrends] Request:', { brands, location, category, period });
+        const { brands, skus, location, category, period } = req.query;
+        console.log('[getCompetitionBrandTrends] Request:', { brands, skus, location, category, period });
         const data = await watchTowerService.getCompetitionBrandTrends({
             brands,
+            skus,
             location,
             category,
             period

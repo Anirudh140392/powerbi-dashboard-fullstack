@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     LineChart,
     Line,
@@ -8,57 +8,7 @@ import {
     Legend,
     ResponsiveContainer,
 } from "recharts";
-
-const issues = [
-    {
-        id: 1,
-        label: "OSA – Quick Commerce NCR",
-        subtitle: "12 stores OOS in top 4 SKUs",
-        leak: "₹1.70 Cr leak",
-        tag: "OSA / Availability",
-        severity: "high",
-    },
-    {
-        id: 2,
-        label: "SOS – Competitive Visibility",
-        subtitle: "Share vs competition across platforms",
-        leak: "₹0.90 Cr risk",
-        tag: "Visibility",
-        severity: "high",
-    },
-    {
-        id: 5,
-        label: "Offtakes – Consumption Momentum",
-        subtitle: "Consumer pull vs dispatch trend",
-        leak: "₹0.19 Cr slowdown",
-        tag: "Demand",
-        severity: "low",
-    },
-    {
-        id: 6,
-        label: "Performance Marketing – ROI",
-        subtitle: "ROAS, CTR & conversion efficiency",
-        leak: "₹0.42 Cr inefficiency",
-        tag: "Marketing",
-        severity: "medium",
-    },
-    {
-        id: 3,
-        label: "Price Elasticity – Demand Sensitivity",
-        subtitle: "Volume vs price change impact",
-        leak: "₹0.70 Cr pressure",
-        tag: "Pricing",
-        severity: "medium",
-    },
-    {
-        id: 4,
-        label: "PO Fill Rate – Supply Reliability",
-        subtitle: "OTIF & fill performance by depot",
-        leak: "₹0.33 Cr execution gap",
-        tag: "Supply Chain",
-        severity: "medium",
-    },
-];
+import axiosInstance from "../../../api/axiosInstance";
 
 const severityColor = {
     high: "bg-red-100 text-red-700 border-red-200",
@@ -66,7 +16,7 @@ const severityColor = {
     low: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
-const DetailPanel = ({ selected }) => {
+const DetailPanel = ({ selected, apiData }) => {
     const [showModal, setShowModal] = useState(false);
     const [compareMode, setCompareMode] = useState("week");
 
@@ -78,7 +28,17 @@ const DetailPanel = ({ selected }) => {
         );
     }
 
-    const issue1Kpis = [
+    const { topActions, osaDeepDive } = apiData || {};
+
+    // Fallbacks for Issue 1 (OSA data) if API loads
+    const kpis1 = topActions?.kpis ? [
+        { name: "OSA %", value: topActions.kpis.osa?.value || "N/A", delta: topActions.kpis.osa?.delta || "" },
+        { name: "Fill Rate", value: topActions.kpis.fillRate?.value || "N/A", delta: topActions.kpis.fillRate?.delta || "" },
+        { name: "Sales MTD", value: topActions.kpis.salesMtd?.value || "N/A", delta: topActions.kpis.salesMtd?.delta || "" },
+        { name: "Lost Sales", value: topActions.kpis.lostSales?.value || "N/A", delta: topActions.kpis.lostSales?.delta || "" },
+        { name: "Active Stores", value: topActions.kpis.activeStores?.value || "N/A", delta: topActions.kpis.activeStores?.delta || "" },
+        { name: "Hero SKUs", value: topActions.kpis.heroSkus?.value || "N/A", delta: topActions.kpis.heroSkus?.delta || "" },
+    ] : [
         { name: "OSA %", value: "91.2%", delta: "-4.1%" },
         { name: "Fill Rate", value: "86.4%", delta: "-6.8%" },
         { name: "Sales MTD", value: "₹12.4 Cr", delta: "+8.2%" },
@@ -87,7 +47,7 @@ const DetailPanel = ({ selected }) => {
         { name: "Hero SKUs", value: "4", delta: "0" },
     ];
 
-    const overallTrendWeek = [
+    const overallTrendWeek = topActions?.graphData?.week || [
         { day: "D-6", current: 94, compare: 97 },
         { day: "D-5", current: 93, compare: 96 },
         { day: "D-4", current: 91, compare: 95 },
@@ -97,11 +57,20 @@ const DetailPanel = ({ selected }) => {
         { day: "Today", current: 82, compare: 92 },
     ];
 
-    const overallTrendMonth = [
+    const overallTrendMonth = topActions?.graphData?.month || [
         { day: "Wk 1", current: 95, compare: 96 },
         { day: "Wk 2", current: 93, compare: 95 },
         { day: "Wk 3", current: 90, compare: 94 },
         { day: "Wk 4", current: 88, compare: 93 },
+    ];
+
+    const osaStoreRows = osaDeepDive?.length > 0 ? osaDeepDive.map(r => ({
+        city: r.city, count: r.storeCount, osa: r.osa, fillRate: r.fillRate, sales: r.sales, lostSales: r.lostSales, heroSkus: r.heroSkus
+    })) : [
+        { city: "Gurgaon", count: 5, osa: "91.2%", fillRate: "86.4%", sales: "₹2.2 Cr", lostSales: "₹0.4 Cr", heroSkus: "4" },
+        { city: "Delhi", count: 4, osa: "88.5%", fillRate: "82.1%", sales: "₹2.1 Cr", lostSales: "₹0.3 Cr", heroSkus: "4" },
+        { city: "Noida", count: 3, osa: "85.2%", fillRate: "79.8%", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
+        { city: "Mumbai", count: 3, osa: "92.1%", fillRate: "88.5%", sales: "₹1.8 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" }
     ];
 
     const sosTrendWeek = [
@@ -161,16 +130,7 @@ const DetailPanel = ({ selected }) => {
         { day: "Today", current: 86.1, compare: 92 },
     ];
 
-    const osaStoreRows = [
-        { city: "Gurgaon", count: 5, osa: "91.2%", fillRate: "86.4%", sales: "₹2.2 Cr", lostSales: "₹0.4 Cr", heroSkus: "4" },
-        { city: "Delhi", count: 4, osa: "88.5%", fillRate: "82.1%", sales: "₹2.1 Cr", lostSales: "₹0.3 Cr", heroSkus: "4" },
-        { city: "Noida", count: 3, osa: "85.2%", fillRate: "79.8%", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Mumbai", count: 3, osa: "92.1%", fillRate: "88.5%", sales: "₹1.8 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Bengaluru", count: 2, osa: "94.5%", fillRate: "90.2%", sales: "₹1.5 Cr", lostSales: "₹0.1 Cr", heroSkus: "4" },
-        { city: "Hyderabad", count: 4, osa: "89.8%", fillRate: "84.5%", sales: "₹1.6 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Chennai", count: 3, osa: "87.2%", fillRate: "81.4%", sales: "₹1.2 Cr", lostSales: "₹0.2 Cr", heroSkus: "4" },
-        { city: "Pune", count: 2, osa: "90.5%", fillRate: "85.2%", sales: "₹0.8 Cr", lostSales: "₹0.1 Cr", heroSkus: "4" }
-    ];
+
 
     const sosStoreRows = [
         { city: "Gurgaon", count: 5, sos: "68%", rank: "#8", impression: "52%", topSlot: "38%", hero: "72%" },
@@ -443,7 +403,7 @@ const DetailPanel = ({ selected }) => {
     };
 
     const config = trendConfigs[selected.id];
-    const kpis = genericKpisByIssue[selected.id] || (selected.id === 1 ? issue1Kpis : []);
+    const kpis = genericKpisByIssue[selected.id] || (selected.id === 1 ? kpis1 : []);
 
     return (
         <div className="relative flex h-full flex-col gap-4 rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-sm">
@@ -587,8 +547,74 @@ const DetailPanel = ({ selected }) => {
     );
 };
 
-const LayoutOne = () => {
-    const [selectedId, setSelectedId] = useState(issues[0].id);
+const defaultIssuesList = [
+    {
+        id: 1,
+        label: "OSA – Quick Commerce NCR",
+        subtitle: "Loading store intel...",
+        leak: "Scanning...",
+        tag: "OSA / Availability",
+        severity: "high",
+    },
+    {
+        id: 2,
+        label: "SOS – Competitive Visibility",
+        subtitle: "Share vs competition across platforms",
+        leak: "₹0.90 Cr risk",
+        tag: "Visibility",
+        severity: "high",
+    },
+    {
+        id: 5,
+        label: "Offtakes – Consumption Momentum",
+        subtitle: "Consumer pull vs dispatch trend",
+        leak: "₹0.19 Cr slowdown",
+        tag: "Demand",
+        severity: "low",
+    },
+    {
+        id: 6,
+        label: "Performance Marketing – ROI",
+        subtitle: "ROAS, CTR & conversion efficiency",
+        leak: "₹0.42 Cr inefficiency",
+        tag: "Marketing",
+        severity: "medium",
+    },
+    {
+        id: 3,
+        label: "Price Elasticity – Demand Sensitivity",
+        subtitle: "Volume vs price change impact",
+        leak: "₹0.70 Cr pressure",
+        tag: "Pricing",
+        severity: "medium",
+    },
+    {
+        id: 4,
+        label: "PO Fill Rate – Supply Reliability",
+        subtitle: "OTIF & fill performance by depot",
+        leak: "₹0.33 Cr execution gap",
+        tag: "Supply Chain",
+        severity: "medium",
+    },
+];
+
+const LayoutOne = ({ apiData }) => {
+    const [selectedId, setSelectedId] = useState(defaultIssuesList[0].id);
+
+    // Hydrate the first issue item with dynamic backend values
+    const issues = defaultIssuesList.map(item => {
+        if (item.id === 1 && apiData?.topActions?.counts) {
+            const { darkstoreCount, skuCount } = apiData.topActions.counts;
+            const lostSalesVal = apiData.topActions.kpis?.lostSales?.value || "N/A";
+            return {
+                ...item,
+                subtitle: `${darkstoreCount} stores OOS in top ${skuCount} SKUs`,
+                leak: `${lostSalesVal} leak`
+            };
+        }
+        return item;
+    });
+
     const selected = issues.find((x) => x.id === selectedId) || null;
 
     return (
@@ -605,7 +631,7 @@ const LayoutOne = () => {
                         </p>
                     </div>
 
-                    <button className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-xs" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500 }}>
+                    <button className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-xs hover:bg-slate-50" style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 500 }}>
                         View full playbook
                     </button>
                 </div>
@@ -655,15 +681,38 @@ const LayoutOne = () => {
                 </div>
             </div>
 
-            <DetailPanel selected={selected} />
+            <DetailPanel selected={selected} apiData={apiData} />
         </section>
     );
 };
 
 const TopActionsLayoutsShowcase = () => {
+    const [apiData, setApiData] = useState({ topActions: null, osaDeepDive: null });
+
+    useEffect(() => {
+        const loadApiData = async () => {
+            try {
+                // Fetch both Top Actions (KPIs & Graphs) and OSA Deep Dive (Detail rows)
+                const [topActionsRes, osaDeepDiveRes] = await Promise.all([
+                    axiosInstance.get("/watchtower/top-actions"),
+                    axiosInstance.get("/watchtower/osa-deep-dive")
+                ]);
+
+                setApiData({
+                    topActions: topActionsRes.data,
+                    osaDeepDive: osaDeepDiveRes.data
+                });
+            } catch (err) {
+                console.error("Failed to load Top Actions APIs:", err);
+            }
+        };
+
+        loadApiData();
+    }, []);
+
     return (
-        <div className="min-h-[500px] w-full bg-white p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
-            <LayoutOne />
+        <div className="min-h-[500px] w-full bg-slate-50 p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
+            <LayoutOne apiData={apiData} />
         </div>
     );
 };

@@ -180,6 +180,8 @@ export default function WatchTower() {
     selectedKeyword,
     selectedLocation,
     selectedChannel,
+    datesFetched,
+    platformsFetched
   } = React.useContext(FilterContext);
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
@@ -359,6 +361,12 @@ export default function WatchTower() {
   ]);
 
   useEffect(() => {
+    // Prevent fetching if core context data hasn't loaded yet
+    if (!datesFetched || !platformsFetched) {
+      console.log("[WatchTower] Waiting for context to initialize dates/platforms...");
+      return;
+    }
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -382,8 +390,14 @@ export default function WatchTower() {
       }
     };
 
-    fetchData();
-  }, [filters]); // Refetch when filters change
+    // Use a small timeout to debounce the initial rapid filter updates 
+    // caused by the context syncing dynamic dates/platforms
+    const debounceTimer = setTimeout(() => {
+      fetchData();
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [filters, datesFetched, platformsFetched]); // Refetch when filters change
 
 
   return (
