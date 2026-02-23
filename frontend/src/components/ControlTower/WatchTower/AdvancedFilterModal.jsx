@@ -229,7 +229,9 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 // ========================================
 // MAIN ADVANCED FILTER MODAL
 // ========================================
-export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null }) {
+export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
+    const kpisToUse = propKpiOptions || kpiOptions;
+
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({
         brands: [],
@@ -488,7 +490,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                     </div>
                                     <div className="max-h-[160px] overflow-y-auto no-scrollbar pr-1">
                                         <div className="flex flex-wrap gap-1.5">
-                                            {kpiOptions.map(kpi => {
+                                            {kpisToUse.map(kpi => {
                                                 const isSelected = localFilters.kpis.includes(kpi.key)
                                                 return (
                                                     <motion.button
