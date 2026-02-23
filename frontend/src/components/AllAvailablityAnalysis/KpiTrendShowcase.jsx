@@ -1103,6 +1103,16 @@ const ProgressBar = ({ value, color }) => (
   </div>
 );
 
+const DeltaBadge = ({ delta }) => {
+  if (!delta || delta === 0) return null;
+  const isPos = delta >= 0;
+  return (
+    <span className={cn("mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border whitespace-nowrap inline-flex items-center gap-0.5", isPos ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+      {isPos ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}%
+    </span>
+  );
+};
+
 const BrandTable = ({ rows, loading }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -1151,30 +1161,45 @@ const BrandTable = ({ rows, loading }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
                     {row.name}
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {(row.osa || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-700 text-[12px]">
+                        {(row.osa || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.osaDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {(row.sos || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-700 text-[12px]">
+                        {(row.sos || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.sosDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      ₹{(row.price || 0).toFixed(0)}
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-700 text-[12px]">
+                        ₹{(row.price || 0).toFixed(0)}
+                      </span>
+                      <DeltaBadge delta={row.priceDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                      {(row.categoryShare || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700 text-[12px]">
+                        {(row.categoryShare || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.categoryShareDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
-                      {(row.marketShare || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
+                        {(row.marketShare || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.marketShareDelta} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1260,30 +1285,45 @@ const SkuTable = ({ rows, loading }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
                     {row.brandName}
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {(row.osa || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-700 text-[12px]">
+                        {(row.osa || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.osaDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      {(row.sos || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-700 text-[12px]">
+                        {(row.sos || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.sosDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="font-semibold text-slate-700">
-                      ₹{(row.price || 0).toFixed(0)}
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold text-slate-700 text-[12px]">
+                        ₹{(row.price || 0).toFixed(0)}
+                      </span>
+                      <DeltaBadge delta={row.priceDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                      {(row.categoryShare || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700 text-[12px]">
+                        {(row.categoryShare || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.categoryShareDelta} />
+                    </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-[12px]">
-                    <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
-                      {(row.marketShare || 0).toFixed(1)}%
-                    </span>
+                  <td className="px-3 py-2 text-center align-middle">
+                    <div className="flex flex-col items-center">
+                      <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
+                        {(row.marketShare || 0).toFixed(1)}%
+                      </span>
+                      <DeltaBadge delta={row.marketShareDelta} />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1374,11 +1414,16 @@ export const KpiTrendShowcase = ({ platform, globalFilters, period }) => {
     return apiBrands.slice(0, 8).map((b, idx) => ({
       id: b.brand_name || `brand-${idx}`,
       name: b.brand_name || 'Unknown',
-      osa: b.osa || 0,
-      sos: b.sos || 0,
-      price: b.price || 0,
-      categoryShare: b.categoryShare || 0,
-      marketShare: b.marketShare || 0
+      osa: b.osa?.value ?? (b.osa || 0),
+      osaDelta: b.osa?.delta || 0,
+      sos: b.sos?.value ?? (b.sos || 0),
+      sosDelta: b.sos?.delta || 0,
+      price: b.price?.value ?? (b.price || 0),
+      priceDelta: b.price?.delta || 0,
+      categoryShare: b.CategoryShare?.value ?? (b.categoryShare?.value ?? (b.categoryShare || 0)),
+      categoryShareDelta: b.CategoryShare?.delta ?? (b.categoryShare?.delta || 0),
+      marketShare: b.MarketShare?.value ?? (b.marketShare?.value ?? (b.marketShare || 0)),
+      marketShareDelta: b.MarketShare?.delta ?? (b.marketShare?.delta || 0)
     }));
   }, [competitionData.brands]);
 
@@ -1389,11 +1434,16 @@ export const KpiTrendShowcase = ({ platform, globalFilters, period }) => {
       id: s.sku_name || `sku-${idx}`,
       name: s.sku_name || 'Unknown',
       brandName: s.brand_name || 'Unknown',
-      osa: s.osa || 0,
-      sos: s.sos || 0,
-      price: s.price || 0,
-      categoryShare: s.categoryShare || 0,
-      marketShare: s.marketShare || 0
+      osa: s.osa?.value ?? (s.osa || 0),
+      osaDelta: s.osa?.delta || 0,
+      sos: s.sos?.value ?? (s.sos || 0),
+      sosDelta: s.sos?.delta || 0,
+      price: s.price?.value ?? (s.price || 0),
+      priceDelta: s.price?.delta || 0,
+      categoryShare: s.CategoryShare?.value ?? (s.categoryShare?.value ?? (s.categoryShare || 0)),
+      categoryShareDelta: s.CategoryShare?.delta ?? (s.categoryShare?.delta || 0),
+      marketShare: s.MarketShare?.value ?? (s.marketShare?.value ?? (s.marketShare || 0)),
+      marketShareDelta: s.MarketShare?.delta ?? (s.marketShare?.delta || 0)
     }));
   }, [competitionData.skus]);
 

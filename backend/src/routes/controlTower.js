@@ -2,6 +2,11 @@ import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms,
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 
 export default (app) => {
+    // Middleware to log Watch Tower API calls
+    app.use('/api/watchtower', (req, res, next) => {
+        console.log(`[Watch Tower API] Called: ${req.method} ${req.originalUrl}`);
+        next();
+    });
     /**
      * @swagger
      * /api/watchtower:

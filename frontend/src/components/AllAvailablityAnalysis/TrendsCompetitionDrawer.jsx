@@ -33,6 +33,7 @@ import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
+import axiosInstance from "../../api/axiosInstance";
 
 /**
  * ---------------------------------------------------------------------------
@@ -410,6 +411,8 @@ export default function TrendsCompetitionDrawer({
   const [compTab, setCompTab] = useState("Brands");
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
@@ -418,16 +421,160 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
-  const PLATFORM_OPTIONS = [
+  // ===================== API STATE =====================
+  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+  const [competitionLoading, setCompetitionLoading] = useState(true);
+
+  // ===================== DYNAMIC FILTER OPTIONS STATE =====================
+  const [filterOptions, setFilterOptions] = useState({
+    platforms: [],
+    formats: [],
+    cities: [],
+    brands: [],
+    skus: [],
+    loading: true
+  });
+
+  const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : [
     "Blinkit",
     "Zepto",
     "Instamart",
     "Swiggy",
     "Amazon",
   ];
-  const FORMAT_OPTIONS = ["Cassata", "Core Tubs", "Premium"];
-  const CITY_OPTIONS = ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Cassata", "Core Tubs", "Premium"];
+  const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
+
+  // ===================== FETCH FILTER OPTIONS =====================
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchFilterOptions = async () => {
+      try {
+        console.log("[TrendsDrawer] Fetching filter options");
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'platforms' } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories' } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'cities' } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands' } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } })
+        ]);
+
+        const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
+        const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
+        const defaultCities = (citiesRes.data?.options || []).filter(c => c !== 'All' && c !== 'All India');
+        const cities = ["All India", ...defaultCities];
+        const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
+        const skus = (skusRes.data?.options || []).filter(s => s !== 'All');
+
+        setFilterOptions({
+          platforms,
+          formats,
+          cities,
+          brands,
+          skus,
+          loading: false
+        });
+
+      } catch (error) {
+        console.error("[TrendsDrawer] Error fetching filter options:", error);
+        setFilterOptions(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    fetchFilterOptions();
+  }, [open]);
+
+  // ===================== FETCH TREND DATA =====================
+  useEffect(() => {
+    if (view !== "Trends" || !open) return;
+
+    let cancelled = false;
+    const fetchTrendData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          period: range,
+          timeStep: timeStep,
+          startDate: range === "Custom" && customStart ? customStart : undefined,
+          endDate: range === "Custom" && customEnd ? customEnd : undefined,
+        };
+
+        const audience = allTrendMeta.context.audience;
+        if (audience === "Platform") params.platform = selectedPlatform || 'All';
+        else if (audience === "Format") params.category = selectedPlatform || 'All';
+        else if (audience === "City") params.location = selectedPlatform || 'All';
+        else if (audience === "Brand") params.brand = selectedPlatform || 'All';
+        else params.platform = selectedPlatform || 'All';
+
+        const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+
+        if (cancelled) return;
+
+        if (response.data?.timeSeries?.length > 0) {
+          setChartData(response.data.timeSeries);
+        } else {
+          setChartData([]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[TrendsDrawer] Error fetching trends:", error);
+          setChartData([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchTrendData, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [view, range, selectedPlatform, timeStep, customStart, customEnd, allTrendMeta.context.audience, open]);
+
+  // ===================== FETCH COMPETITION DATA =====================
+  useEffect(() => {
+    if (!open || filterOptions.loading) return;
+
+    let cancelled = false;
+    const fetchCompetitionData = async () => {
+      setCompetitionLoading(true);
+      try {
+        const platformToUse = selectedColumn || 'All';
+        const params = {
+          period: '1M',
+          platform: platformToUse,
+        };
+
+        const response = await axiosInstance.get('/watchtower/competition', { params });
+
+        if (cancelled) return;
+
+        if (response.data) {
+          setCompetitionData({
+            brands: response.data.brands || [],
+            skus: response.data.skus || []
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[TrendsDrawer] Error fetching competition:", error);
+        }
+      } finally {
+        if (!cancelled) setCompetitionLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchCompetitionData, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [selectedColumn, open, filterOptions.loading]);
 
   /* ---------------------------------------------------------------------------
    * HELPERS FOR DYNAMIC DATA
@@ -1320,7 +1467,8 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const trendOption = useMemo(() => {
-    const xData = trendPoints.map((p) => p.date);
+    const dataSource = chartData;
+    const xData = dataSource.map((p) => p.date);
 
     const series = trendMeta.metrics
       .filter((m) => activeMetrics.includes(m.id))
@@ -1334,7 +1482,7 @@ export default function TrendsCompetitionDrawer({
         yAxisIndex: m.axis === "right" ? 1 : 0,
         lineStyle: { width: 2 },
         emphasis: { focus: "series" },
-        data: trendPoints.map((p) => p[m.id] ?? null),
+        data: dataSource.map((p) => p[m.id] ?? null),
         itemStyle: { color: m.color },
       }));
 
@@ -1369,18 +1517,20 @@ export default function TrendsCompetitionDrawer({
       legend: { show: false },
       series,
     };
-  }, [trendMeta, activeMetrics, trendPoints]);
+  }, [trendMeta, activeMetrics, trendPoints, chartData]);
 
   const competitionRows = useMemo(() => {
-    const baseRows =
-      compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands;
+    const hasApiData = competitionData.brands.length > 0 || competitionData.skus.length > 0;
+    const baseRows = hasApiData
+      ? (compTab === "Brands" ? competitionData.brands : competitionData.skus)
+      : (compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands);
 
     return baseRows.filter((r) =>
       search.trim()
         ? r.brand.toLowerCase().includes(search.toLowerCase())
         : true
     );
-  }, [compMeta, compTab, search]);
+  }, [compMeta, compTab, search, competitionData]);
 
   // Compare SKUs chart option (multi-KPI, multi-SKU)
   const compareOption = useMemo(() => {
@@ -1605,11 +1755,30 @@ export default function TrendsCompetitionDrawer({
               gap={2}
               flexWrap="wrap"
             >
-              <PillToggleGroup
-                value={range}
-                onChange={setRange}
-                options={trendMeta.rangeOptions}
-              />
+              <Box display="flex" alignItems="center" gap={1}>
+                <PillToggleGroup
+                  value={range}
+                  onChange={setRange}
+                  options={trendMeta.rangeOptions}
+                />
+                {range === "Custom" && (
+                  <Box display="flex" alignItems="center" gap={1} ml={1}>
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '12px' }}
+                    />
+                    <Typography variant="body2" color="#64748b" sx={{ fontSize: '12px' }}>to</Typography>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '12px' }}
+                    />
+                  </Box>
+                )}
+              </Box>
 
               <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
@@ -1674,11 +1843,24 @@ export default function TrendsCompetitionDrawer({
 
               {/* Chart */}
               <Box sx={{ height: 340 }}>
-                <ReactECharts
-                  style={{ height: "100%", width: "100%" }}
-                  option={trendOption}
-                  notMerge
-                />
+                {loading ? (
+                  <div className="w-full h-full bg-slate-100/50 animate-pulse rounded-lg border border-slate-100 flex items-center justify-center">
+                    <div className="h-full flex items-end gap-4 px-8 pb-8 w-full">
+                      <div className="w-1/6 bg-slate-200/50 h-[40%] rounded-t-sm" />
+                      <div className="w-1/6 bg-slate-200/50 h-[70%] rounded-t-sm" />
+                      <div className="w-1/6 bg-slate-200/50 h-[50%] rounded-t-sm" />
+                      <div className="w-1/6 bg-slate-200/50 h-[80%] rounded-t-sm" />
+                      <div className="w-1/6 bg-slate-200/50 h-[60%] rounded-t-sm" />
+                      <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
+                    </div>
+                  </div>
+                ) : (
+                  <ReactECharts
+                    style={{ height: "100%", width: "100%" }}
+                    option={trendOption}
+                    notMerge
+                  />
+                )}
               </Box>
             </Paper>
           </Box>
@@ -1692,6 +1874,9 @@ export default function TrendsCompetitionDrawer({
                 dynamicKey={dynamicKey}
                 selectedItem={selectedColumn}
                 selectedLevel={selectedLevel}
+                competitionData={competitionData}
+                loading={competitionLoading}
+                filterOptions={filterOptions}
               />
             ) : (
               <KpiTrendShowcase dynamicKey={dynamicKey} />
