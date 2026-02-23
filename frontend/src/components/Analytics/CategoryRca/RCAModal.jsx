@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity } from "lucide-react";
 import RCATree from "./RCATree";
+import axiosInstance from "../../../api/axiosInstance";
 
 /**
  * RCAModal
@@ -66,28 +67,74 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%' }) => 
 export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [showFilters, setShowFilters] = useState(false);
 
-    // Sample Options
-    const platforms = ['Blinkit', 'Instamart', 'Zepto', 'Flipkart', 'Amazon'];
-    const categories = ['Chocolate', 'Energy Drinks', 'Snacking', 'Soft Drinks'];
-    const brands = ['All Brands', "Hershey's", 'Ferrero', 'Mondelez'];
-    const skus = ['All SKUs', 'SKU-772: Milk Chocolate 40g', 'SKU-819: Dark Almond 80g', 'SKU-902: Hazelnut Crunch 50g'];
-    const months = ['Dec 2024', 'Nov 2024', 'Oct 2024', 'Sep 2024'];
+    // Dynamic filter options from DB
+    const [platformOptions, setPlatformOptions] = useState([]);
+    const [categoryOptions, setCategoryOptions] = useState([]);
+    const [brandOptions, setBrandOptions] = useState([]);
+    const [skuOptions, setSkuOptions] = useState(['All SKUs']);
+    const [filtersLoading, setFiltersLoading] = useState(true);
 
-    const [platform, setPlatform] = useState(initialData.platform || platforms[0]);
-    const [category, setCategory] = useState(initialData.category || categories[0]);
-    const [brand, setBrand] = useState(initialData.brand || brands[0]);
-    const [sku, setSku] = useState(skus[0]);
-    const [month, setMonth] = useState(months[0]);
+    // Generate last 6 months dynamically
+    const monthOptions = React.useMemo(() => {
+        const now = new Date();
+        return Array.from({ length: 6 }, (_, i) => {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        });
+    }, []);
 
-    // Update platform when initialData changes (e.g., when opening RCA for a different platform)
+    // Selected filter values
+    const [platform, setPlatform] = useState('');
+    const [category, setCategory] = useState('');
+    const [brand, setBrand] = useState('All Brands');
+    const [sku, setSku] = useState('All SKUs');
+    const [month, setMonth] = useState('');
+
+    // Fetch platforms and categories on mount
     useEffect(() => {
-        if (initialData.platform && platforms.includes(initialData.platform)) {
+        if (!open) return;
+        let cancelled = false;
+        const load = async () => {
+            setFiltersLoading(true);
+            try {
+                const [platRes, catRes, brandRes] = await Promise.all([
+                    axiosInstance.get('/watchtower/platforms'),
+                    axiosInstance.get('/watchtower/categories'),
+                    axiosInstance.get('/watchtower/brands')
+                ]);
+                if (cancelled) return;
+                const plats = platRes.data || [];
+                const cats = ['All', ...(catRes.data || [])];
+                const brands = ['All Brands', ...(brandRes.data || [])];
+                setPlatformOptions(plats);
+                setCategoryOptions(cats);
+                setBrandOptions(brands);
+
+                // Apply initialData or defaults once options are available
+                setPlatform(initialData.platform && plats.includes(initialData.platform) ? initialData.platform : (plats[0] || ''));
+                setCategory(initialData.category && cats.includes(initialData.category) ? initialData.category : (cats[0] || ''));
+                setBrand(initialData.brand && brands.includes(initialData.brand) ? initialData.brand : 'All Brands');
+                setSku('All SKUs');
+                setMonth(monthOptions[0] || '');
+            } catch (err) {
+                console.error('[RCAModal] Failed to load filter options:', err);
+            } finally {
+                if (!cancelled) setFiltersLoading(false);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, [open]);
+
+    // Update platform when initialData changes (e.g., when opening RCA for a different entity)
+    useEffect(() => {
+        if (initialData.platform && platformOptions.includes(initialData.platform)) {
             setPlatform(initialData.platform);
         }
-        if (initialData.category && categories.includes(initialData.category)) {
+        if (initialData.category && categoryOptions.includes(initialData.category)) {
             setCategory(initialData.category);
         }
-        if (initialData.brand && brands.includes(initialData.brand)) {
+        if (initialData.brand && brandOptions.includes(initialData.brand)) {
             setBrand(initialData.brand);
         }
     }, [initialData, open]);
@@ -208,11 +255,11 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                             </Typography>
                         </Box>
 
-                        <SelectBox label="Marketplace Engine" value={platform} onChange={setPlatform} options={platforms} />
-                        <SelectBox label="Category Vertical" value={category} onChange={setCategory} options={categories} />
-                        <SelectBox label="Brand Identity" value={brand} onChange={setBrand} options={brands} />
-                        <SelectBox label="SKU / ASIN" value={sku} onChange={setSku} options={skus} />
-                        <SelectBox label="Fiscal Period" value={month} onChange={setMonth} options={months} />
+                        <SelectBox label="Marketplace Engine" value={platform} onChange={setPlatform} options={platformOptions} />
+                        <SelectBox label="Category Vertical" value={category} onChange={setCategory} options={categoryOptions} />
+                        <SelectBox label="Brand Identity" value={brand} onChange={setBrand} options={brandOptions} />
+                        <SelectBox label="SKU / ASIN" value={sku} onChange={setSku} options={skuOptions} />
+                        <SelectBox label="Fiscal Period" value={month} onChange={setMonth} options={monthOptions} />
 
                         <Box sx={{
                             mt: 'auto',

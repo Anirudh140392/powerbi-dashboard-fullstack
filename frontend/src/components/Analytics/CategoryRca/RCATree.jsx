@@ -13,6 +13,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { motion, useSpring, useMotionValue } from "framer-motion";
 import { Plus, Minus, Activity, Zap } from "lucide-react";
+import axiosInstance from "../../../api/axiosInstance";
 import {
   Box,
   Typography,
@@ -445,7 +446,7 @@ const getDynamicRcaTreeData = (context) => {
   const platformMult = getEntityBase(platform, 1.5);
   const brandMult = getEntityBase(brand, 2.0);
   const catMult = getEntityBase(category, 1.0);
-  
+
   // Amplify behavior for certain platforms (Amazon should show larger swings)
   const platformAmplify = platform?.toLowerCase() === "amazon" ? 3.0 : 1.0;
 
@@ -1045,9 +1046,43 @@ const RcaTreeInner = ({ context, title }) => {
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
+  const [apiTreeData, setApiTreeData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const reactFlowInstance = useReactFlow();
 
-  const currentTreeData = useMemo(() => getDynamicRcaTreeData(context), [context]);
+  // Fetch RCA tree data from backend
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRcaData = async () => {
+      setLoading(true);
+      try {
+        const params = {};
+        if (context.platform) params.platform = context.platform;
+        if (context.category && context.category !== 'All') params.category = context.category;
+        if (context.brand && context.brand !== 'All Brands' && context.brand !== 'All') params.brand = context.brand;
+        if (context.sku && context.sku !== 'All SKUs' && context.sku !== 'All') params.sku = context.sku;
+        if (context.month) params.month = context.month;
+
+        const res = await axiosInstance.get('/category-rca', { params });
+        if (!cancelled && res.data?.tree) {
+          setApiTreeData(res.data.tree);
+        }
+      } catch (err) {
+        console.error('[RCATree] API fetch failed, using fallback:', err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchRcaData, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [context.platform, context.category, context.brand, context.sku, context.month]);
+
+  // Use API data if available, otherwise fall back to hardcoded
+  const currentTreeData = useMemo(
+    () => apiTreeData || getDynamicRcaTreeData(context),
+    [apiTreeData, context]
+  );
 
   const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
   const focusId = selectedNodeId || hoveredNodeId;
@@ -1151,6 +1186,27 @@ const RcaTreeInner = ({ context, title }) => {
     <div style={{ width: "100%", height: "100%", position: "relative", cursor: "none" }}>
       <CoolGreyBackground />
       <MagicCursor />
+
+      {loading && (
+        <Box sx={{
+          position: "absolute", inset: 0, zIndex: 50,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          bgcolor: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)", gap: 3
+        }}>
+          <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.5, repeat: Infinity }}>
+            <Activity size={40} color="#6366f1" strokeWidth={2.5} />
+          </motion.div>
+          <Typography sx={{ fontSize: "13px", fontWeight: 800, color: "#6366f1", letterSpacing: "1.5px", textTransform: "uppercase" }}>
+            Loading Intelligence Graph...
+          </Typography>
+          <Box sx={{ display: "flex", gap: 3, mt: 2 }}>
+            {[160, 200, 180].map((w, i) => (
+              <motion.div key={i} animate={{ opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                style={{ width: w, height: 110, borderRadius: 24, backgroundColor: "#e2e8f0", border: "2px solid #cbd5e1" }} />
+            ))}
+          </Box>
+        </Box>
+      )}
 
       <ReactFlow
         nodes={nodes}

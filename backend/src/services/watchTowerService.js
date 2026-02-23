@@ -7186,13 +7186,31 @@ const getTopActions = async (filters = {}) => {
             queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCond} AND toDate(DATE) = '${requestedEnd}'`)
         ]);
 
-        const hasOlapData = parseInt(olapCheckRes[0]?.count || 0) > 0;
-        const hasInsightData = parseInt(insightCheckRes[0]?.count || 0) > 0;
+        let hasOlapData = parseInt(olapCheckRes[0]?.count || 0) > 0;
+        let hasInsightData = parseInt(insightCheckRes[0]?.count || 0) > 0;
 
-        const endDateStr = requestedEnd;
-        const insightDateStr = requestedEnd;
+        let endDateStr = requestedEnd;
+        let insightDateStr = requestedEnd;
 
-        console.log(`[getTopActions] Requested: ${requestedEnd}, Has OLAP: ${hasOlapData}, Has Insight: ${hasInsightData}`);
+        // Fallback: if no data for exact date, find latest available date
+        if (!hasOlapData) {
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')}`);
+            if (latestRes[0]?.latest) {
+                endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
+                hasOlapData = true;
+                console.log(`[getTopActions] No OLAP data for ${requestedEnd}, falling back to latest: ${endDateStr}`);
+            }
+        }
+        if (!hasInsightData) {
+            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCond}`);
+            if (latestInsightRes[0]?.latest) {
+                insightDateStr = dayjs(latestInsightRes[0].latest).format('YYYY-MM-DD');
+                hasInsightData = true;
+                console.log(`[getTopActions] No Insight data for ${requestedEnd}, falling back to latest: ${insightDateStr}`);
+            }
+        }
+
+        console.log(`[getTopActions] Requested: ${requestedEnd}, Using OLAP: ${endDateStr}, Using Insight: ${insightDateStr}`);
 
         // 2. Basic Counts & KPIs (Refined based on user feedback)
         // NCR Filtering for the "OSA – Quick Commerce NCR" segment
@@ -7366,16 +7384,33 @@ const getOsaDeepDive = async (filters = {}) => {
             queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCondDarkstore} AND toDate(DATE) = '${requestedEnd}'`)
         ]);
 
-        const hasOlap = parseInt(olapCheckRes[0]?.count || 0) > 0;
-        const hasInsight = parseInt(insightCheckRes[0]?.count || 0) > 0;
+        let hasOlap = parseInt(olapCheckRes[0]?.count || 0) > 0;
+        let hasInsight = parseInt(insightCheckRes[0]?.count || 0) > 0;
 
-        // If either essential data source is missing for the exact date, return empty (Strict matching)
-        if (!hasOlap || !hasInsight) {
-            console.log(`[getOsaDeepDive] Strict matching failed: hasOlap=${hasOlap}, hasInsight=${hasInsight}`);
-            return [];
+        let endDateStr = requestedEnd;
+
+        // Fallback: if no data for exact date, find latest available date
+        if (!hasOlap) {
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rb_pdp_olap WHERE ${platCondOlap}`);
+            if (latestRes[0]?.latest) {
+                endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
+                hasOlap = true;
+                console.log(`[getOsaDeepDive] No OLAP data for ${requestedEnd}, falling back to latest: ${endDateStr}`);
+            }
+        }
+        if (!hasInsight) {
+            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCondDarkstore}`);
+            if (latestInsightRes[0]?.latest) {
+                hasInsight = true;
+                console.log(`[getOsaDeepDive] No Insight data for ${requestedEnd}, falling back to latest insight date`);
+            }
         }
 
-        const endDateStr = requestedEnd;
+        // If still no data after fallback, return empty
+        if (!hasOlap) {
+            console.log(`[getOsaDeepDive] No OLAP data found at all`);
+            return [];
+        }
         const mtdStart = dayjs(requestedEnd).startOf('month').format('YYYY-MM-DD');
 
         // 2. Fetch Hero SKUs for filtering (Strict date)
@@ -7483,6 +7518,9 @@ const getRcaData = async (filters = {}) => {
         if (month) {
             startDate = dayjs(month).startOf('month');
             endDate = dayjs(month).endOf('month');
+        } else if (filters.startDate && filters.endDate) {
+            startDate = dayjs(filters.startDate);
+            endDate = dayjs(filters.endDate);
         } else {
             // Fallback to latest month if not provided
             endDate = await getCachedMaxDate();
@@ -7492,162 +7530,321 @@ const getRcaData = async (filters = {}) => {
         const startStr = startDate.format('YYYY-MM-DD');
         const endStr = endDate.format('YYYY-MM-DD');
 
-        // Build conditions
-        const buildConds = (table) => {
-            const dateCol = table === 'rb_kw' ? 'toDate(created_on)' : (table === 'test_brand_MS' ? 'created_on' : 'DATE');
-            const conds = [`toDate(${dateCol}) BETWEEN '${startStr}' AND '${endStr}'`];
+        // Previous period for delta calculation (same duration, shifted back)
+        const diff = endDate.diff(startDate, 'day') + 1;
+        const prevEndDate = startDate.subtract(1, 'day');
+        const prevStartDate = prevEndDate.subtract(diff - 1, 'day');
+        const prevStartStr = prevStartDate.format('YYYY-MM-DD');
+        const prevEndStr = prevEndDate.format('YYYY-MM-DD');
 
+        console.log(`[getRcaData] Current: ${startStr} to ${endStr}, Previous: ${prevStartStr} to ${prevEndStr}`);
+
+        // Build conditions for rb_pdp_olap
+        const buildOlapConds = (sDate, eDate) => {
+            const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
             if (platform && platform !== 'All') {
-                const platCol = table === 'rb_kw' ? 'platform_name' : 'Platform';
-                conds.push(`${platCol} = '${escapeStr(platform)}'`);
+                conds.push(`Platform = '${escapeStr(platform)}'`);
             }
             if (category && category !== 'All') {
-                const catCol = (table === 'rb_kw' ? 'keyword_category' : (table === 'test_brand_MS' ? 'category' : 'Category'));
-                conds.push(`${catCol} = '${escapeStr(category)}'`);
+                conds.push(`Category = '${escapeStr(category)}'`);
             }
-            if (brand && brand !== 'All') {
-                const brandCol = table === 'rb_pdp_olap' ? 'Brand' : 'brand';
-                if (table === 'rb_pdp_olap') {
-                    conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
-                } else if (table === 'test_brand_MS') {
-                    conds.push(`brand = '${escapeStr(brand)}'`);
-                }
+            if (brand && brand !== 'All' && brand !== 'All Brands') {
+                conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
             }
-            if (sku && sku !== 'All' && table === 'rb_pdp_olap') {
+            if (sku && sku !== 'All' && sku !== 'All SKUs') {
                 conds.push(`Web_Pid = '${escapeStr(sku)}'`);
             }
             return conds.join(' AND ');
         };
 
-        const olapConds = buildConds('rb_pdp_olap');
-        const kwConds = buildConds('rb_kw');
-        const msConds = buildConds('test_brand_MS');
+        // Build conditions for rb_kw
+        const buildKwConds = (sDate, eDate) => {
+            const conds = [`toDate(created_on) BETWEEN '${sDate}' AND '${eDate}'`];
+            conds.push(`keyword_search_rank < 11`);
+            if (platform && platform !== 'All') {
+                conds.push(`platform_name = '${escapeStr(platform)}'`);
+            }
+            if (category && category !== 'All') {
+                conds.push(`keyword_category = '${escapeStr(category)}'`);
+            }
+            return conds.join(' AND ');
+        };
 
-        // Parallel Queries
-        const [olapMetrics, msMetrics, kwMetrics] = await Promise.all([
-            // Query 1: OLAP Metrics (Offtake, Qty, Ads, OSA, Clicks, Conversion)
-            queryClickHouse(`
-                SELECT 
-                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
-                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as qty,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as orders,
-                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
-                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno,
-                    AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_mrp
-                FROM rb_pdp_olap
-                WHERE ${olapConds}
-            `),
-            // Query 2: Market Share & Category Size
+        // Build conditions for test_brand_MS
+        const buildMsConds = (sDate, eDate) => {
+            const conds = [`toDate(created_on) BETWEEN '${sDate}' AND '${eDate}'`];
+            if (platform && platform !== 'All') {
+                conds.push(`Platform = '${escapeStr(platform)}'`);
+            }
+            if (category && category !== 'All') {
+                conds.push(`category = '${escapeStr(category)}'`);
+            }
+            return conds.join(' AND ');
+        };
+
+        const currOlapConds = buildOlapConds(startStr, endStr);
+        const prevOlapConds = buildOlapConds(prevStartStr, prevEndStr);
+        const currKwConds = buildKwConds(startStr, endStr);
+        const prevKwConds = buildKwConds(prevStartStr, prevEndStr);
+        const currMsConds = buildMsConds(startStr, endStr);
+
+        // The big OLAP query - get all metrics in one shot
+        const olapQuery = (conds) => `
+            SELECT 
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
+                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as qty,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as orders,
+                SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno,
+                AVG(CASE WHEN toFloat64OrZero(toString(MRP)) > 0 
+                    THEN (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)) 
+                    ELSE 0 END) * 100 as avg_discount,
+                countIf(toFloat64OrZero(toString(deno_osa)) > 0) as listed_count,
+                count() as total_count
+            FROM rb_pdp_olap
+            WHERE ${conds}
+        `;
+
+        // SOS query from rb_kw
+        const kwQuery = (conds) => `
+            SELECT 
+                count() as total_kws,
+                countIf(toString(keyword_is_rb_product) = '1') as rb_kws,
+                countIf(toString(spons_flag) = '0' AND toString(keyword_is_rb_product) = '1') as organic_rb_kws,
+                countIf(toString(spons_flag) = '1' AND toString(keyword_is_rb_product) = '1') as ad_rb_kws,
+                countIf(toString(spons_flag) = '0') as organic_kws,
+                countIf(toString(spons_flag) = '1') as ad_kws
+            FROM rb_kw
+            WHERE ${conds}
+        `;
+
+        // Execute all queries in parallel
+        const [currOlap, prevOlap, currKw, prevKw, currMs] = await Promise.all([
+            queryClickHouse(olapQuery(currOlapConds)),
+            queryClickHouse(olapQuery(prevOlapConds)),
+            queryClickHouse(kwQuery(currKwConds)),
+            queryClickHouse(kwQuery(prevKwConds)),
             queryClickHouse(`
                 SELECT 
                     SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as total_sales,
-                    SUM(CASE WHEN brand = '${escapeStr(brand)}' THEN ifNull(toFloat64OrZero(toString(sales)), 0) ELSE 0 END) as brand_sales,
-                    (SELECT SUM(size) FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
-                        FROM test_brand_MS
-                        WHERE ${msConds} AND weekly_category_size IS NOT NULL
-                        GROUP BY created_on, Platform, category
-                    )) as cat_size
+                    SUM(CASE WHEN brand = '${escapeStr(brand)}' THEN ifNull(toFloat64OrZero(toString(sales)), 0) ELSE 0 END) as brand_sales
                 FROM test_brand_MS
-                WHERE ${msConds}
-            `),
-            // Query 3: Keyword Metrics (Organic vs Ad impressions, etc.)
-            queryClickHouse(`
-                SELECT 
-                    count() as total_kws,
-                    countIf(toString(spons_flag) = '1') as ad_kws,
-                    countIf(toString(spons_flag) = '0') as organic_kws
-                FROM rb_kw
-                WHERE ${kwConds}
+                WHERE ${currMsConds}
             `)
         ]);
 
-        const olap = olapMetrics[0] || {};
-        const ms = msMetrics[0] || {};
-        const kw = kwMetrics[0] || {};
+        const curr = currOlap[0] || {};
+        const prev = prevOlap[0] || {};
+        const kwCurr = currKw[0] || {};
+        const kwPrev = prevKw[0] || {};
+        const ms = currMs[0] || {};
 
-        const sales = parseFloat(olap.sales || 0);
-        const qty = parseFloat(olap.qty || 0);
-        const asp = qty > 0 ? sales / qty : 0;
-        const osa = olap.deno > 0 ? (olap.neno / olap.deno) * 100 : 0;
-        const conversion = olap.clicks > 0 ? (olap.orders / olap.clicks) * 100 : 0;
+        // Parse current values
+        const cSales = parseFloat(curr.sales || 0);
+        const cQty = parseFloat(curr.qty || 0);
+        const cImp = parseFloat(curr.impressions || 0);
+        const cClicks = parseFloat(curr.clicks || 0);
+        const cOrders = parseFloat(curr.orders || 0);
+        const cAdSales = parseFloat(curr.ad_sales || 0);
+        const cSpend = parseFloat(curr.spend || 0);
+        const cNeno = parseFloat(curr.neno || 0);
+        const cDeno = parseFloat(curr.deno || 0);
+        const cDiscount = parseFloat(curr.avg_discount || 0);
+        const cListed = parseFloat(curr.listed_count || 0);
+        const cTotal = parseFloat(curr.total_count || 1);
 
-        const categorySize = parseFloat(ms.cat_size || 0);
+        // Parse previous values
+        const pSales = parseFloat(prev.sales || 0);
+        const pQty = parseFloat(prev.qty || 0);
+        const pImp = parseFloat(prev.impressions || 0);
+        const pClicks = parseFloat(prev.clicks || 0);
+        const pOrders = parseFloat(prev.orders || 0);
+        const pAdSales = parseFloat(prev.ad_sales || 0);
+        const pNeno = parseFloat(prev.neno || 0);
+        const pDeno = parseFloat(prev.deno || 0);
+        const pDiscount = parseFloat(prev.avg_discount || 0);
+        const pListed = parseFloat(prev.listed_count || 0);
+        const pTotal = parseFloat(prev.total_count || 1);
+
+        // Keyword metrics
+        const cTotalKw = parseFloat(kwCurr.total_kws || 0);
+        const cRbKw = parseFloat(kwCurr.rb_kws || 0);
+        const cOrgRbKw = parseFloat(kwCurr.organic_rb_kws || 0);
+        const cAdRbKw = parseFloat(kwCurr.ad_rb_kws || 0);
+        const cOrgKw = parseFloat(kwCurr.organic_kws || 0);
+        const cAdKw = parseFloat(kwCurr.ad_kws || 0);
+        const pTotalKw = parseFloat(kwPrev.total_kws || 0);
+        const pRbKw = parseFloat(kwPrev.rb_kws || 0);
+        const pOrgRbKw = parseFloat(kwPrev.organic_rb_kws || 0);
+        const pAdRbKw = parseFloat(kwPrev.ad_rb_kws || 0);
+
+        // Derived KPIs
+        const cAsp = cQty > 0 ? cSales / cQty : 0;
+        const pAsp = pQty > 0 ? pSales / pQty : 0;
+        const cOsa = cDeno > 0 ? (cNeno / cDeno) * 100 : 0;
+        const pOsa = pDeno > 0 ? (pNeno / pDeno) * 100 : 0;
+        const cCvr = cImp > 0 ? (cOrders / cImp) * 100 : 0;
+        const pCvr = pImp > 0 ? (pOrders / pImp) * 100 : 0;
+        const cListing = cTotal > 0 ? (cListed / cTotal) * 100 : 0;
+        const pListing = pTotal > 0 ? (pListed / pTotal) * 100 : 0;
+        const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
+        const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
+
+        // Market share
         const msDenom = parseFloat(ms.total_sales || 0);
         const brandSalesMs = parseFloat(ms.brand_sales || 0);
         const marketShare = msDenom > 0 ? (brandSalesMs / msDenom) * 100 : 0;
 
-        // Construct RCACardMetric format
-        const cards = [
-            { title: "Estimated Offtake", value: formatCurrency(sales), change: "+2.3%", isPositive: true },
-            { title: "Estimated Category Share", value: `${marketShare.toFixed(1)}%`, change: "+1.2%", isPositive: true },
-            { title: "Estimated Category Size", value: formatCurrency(categorySize), change: "-0.5%", isPositive: false }
-        ];
+        // Formatting helpers
+        const formatLac = (val) => {
+            if (val >= 10000000) return `₹ ${(val / 10000000).toFixed(1)} Cr`;
+            if (val >= 100000) return `₹ ${(val / 100000).toFixed(1)} lac`;
+            if (val >= 1000) return `₹ ${(val / 1000).toFixed(1)} K`;
+            return `₹ ${val.toFixed(0)}`;
+        };
 
-        // Construct RCATree format (Simplified dynamic tree)
+        const formatCount = (val) => {
+            if (val >= 10000000) return `${(val / 10000000).toFixed(1)} Cr`;
+            if (val >= 100000) return `${(val / 100000).toFixed(1)} lac`;
+            if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
+            return `${val.toFixed(0)}`;
+        };
+
+        const pctDelta = (curr, prev) => {
+            if (prev === 0) return { val: curr > 0 ? '100.0%' : '0.0%', isPos: curr > 0 };
+            const d = ((curr - prev) / Math.abs(prev)) * 100;
+            return { val: `${Math.abs(d).toFixed(1)}%`, isPos: d >= 0 };
+        };
+
+        const absDelta = (curr, prev) => {
+            const d = curr - prev;
+            return { val: `${Math.abs(d).toFixed(1)}%`, isPos: d >= 0 };
+        };
+
+        // Calculate deltas
+        const salesDelta = pctDelta(cSales, pSales);
+        const aspDelta = pctDelta(cAsp, pAsp);
+        const impDelta = pctDelta(cImp, pImp);
+        const cvrDelta = absDelta(cCvr, pCvr);
+        const osaDelta = absDelta(cOsa, pOsa);
+        const listingDelta = absDelta(cListing, pListing);
+        const discDelta = absDelta(cDiscount, pDiscount);
+        const sosDelta = absDelta(cSos, pSos);
+        const qtyDelta = pctDelta(cQty, pQty);
+        const adImpDelta = pctDelta(cAdKw, parseFloat(kwPrev.ad_kws || 0));
+        const orgImpDelta = pctDelta(cOrgKw, parseFloat(kwPrev.organic_kws || 0));
+        const orgRbDelta = pctDelta(cOrgRbKw, pOrgRbKw);
+        const adRbDelta = pctDelta(cAdRbKw, pAdRbKw);
+
+        // Construct full RCA tree matching frontend getDynamicRcaTreeData structure
         const tree = {
             id: "root",
             label: "Offtake",
-            value: formatCurrency(sales),
-            change: "2.3%",
-            isPositive: true,
+            value: formatLac(cSales),
+            change: salesDelta.val,
+            isPositive: salesDelta.isPos,
             category: "offtake",
             importance: "outcome",
-            insight: "Dynamic Analysis",
-            meta: [{ label: "Est. Category Share", value: `${marketShare.toFixed(1)}%`, change: "11.2%", isPositive: true }],
+            insight: salesDelta.isPos ? "Volume Growth" : "Critical Decline",
+            meta: [{ label: "Est. Category Share", value: `${marketShare.toFixed(1)}%`, change: sosDelta.val, isPositive: sosDelta.isPos }],
             children: [
                 {
                     id: "asp",
                     label: "ASP",
-                    value: `₹ ${asp.toFixed(0)}`,
-                    change: "-1.2%",
-                    isPositive: false,
+                    value: `₹ ${cAsp.toFixed(1)}`,
+                    change: aspDelta.val,
+                    isPositive: aspDelta.isPos,
                     category: "price",
-                    importance: "critical",
-                    insight: "Price Sensitivity",
-                    children: []
+                    importance: "primary",
+                    meta: [{ label: "Baseline ASP", value: `₹ ${pAsp.toFixed(0)}` }]
                 },
                 {
-                    id: "impressions",
+                    id: "indexed-impressions",
                     label: "Indexed Impressions",
-                    value: (olap.impressions || 0).toLocaleString(),
-                    change: "+5.4%",
-                    isPositive: true,
-                    category: "traffic",
-                    importance: "high",
-                    insight: "Visibility Growth",
+                    value: formatCount(cImp),
+                    change: impDelta.val,
+                    isPositive: impDelta.isPos,
+                    category: "impressions",
+                    importance: "primary",
+                    insight: impDelta.isPos ? "High Visibility" : "Visibility Loss",
+                    meta: [{ label: "Overall SOS", value: `${cSos.toFixed(1)}%`, change: sosDelta.val, isPositive: sosDelta.isPos }],
                     children: [
                         {
-                            id: "osa",
+                            id: "availability",
                             label: "Wt. OSA %",
-                            value: `${osa.toFixed(1)}%`,
-                            change: "+0.5%",
-                            isPositive: true,
-                            category: "inventory",
-                            importance: "critical",
-                            insight: "Stock Health",
-                            children: []
+                            value: `${cOsa.toFixed(1)}%`,
+                            change: osaDelta.val,
+                            isPositive: osaDelta.isPos,
+                            category: "availability",
+                            children: [
+                                {
+                                    id: "listing",
+                                    label: "DS Listing %",
+                                    value: `${cListing.toFixed(1)}%`,
+                                    change: listingDelta.val,
+                                    isPositive: listingDelta.isPos,
+                                    category: "availability"
+                                }
+                            ]
+                        },
+                        {
+                            id: "organic-impressions",
+                            label: "Organic Impressions",
+                            value: formatCount(cOrgKw),
+                            change: orgImpDelta.val,
+                            isPositive: orgImpDelta.isPos,
+                            category: "organic",
+                            insight: orgImpDelta.isPos ? "Organic Pull" : "Low Ranking",
+                            meta: [{ label: "Organic SOS", value: cTotalKw > 0 ? `${((cOrgRbKw / cTotalKw) * 100).toFixed(1)}%` : "0.0%", change: orgRbDelta.val, isPositive: orgRbDelta.isPos }],
+                            children: [
+                                { id: "org-generic", label: "Generic Keywords", value: formatCount(cOrgKw - cOrgRbKw), change: orgImpDelta.val, isPositive: orgImpDelta.isPos, category: "organic" },
+                                { id: "org-branded", label: "Branded Keywords", value: formatCount(cOrgRbKw), change: orgRbDelta.val, isPositive: orgRbDelta.isPos, category: "organic" }
+                            ]
                         }
                     ]
                 },
                 {
-                    id: "cvr",
+                    id: "indexed-cvr",
                     label: "Indexed CVR",
-                    value: `${conversion.toFixed(1)}%`,
-                    change: "-0.8%",
-                    isPositive: false,
+                    value: `${cCvr.toFixed(1)}%`,
+                    change: cvrDelta.val,
+                    isPositive: cvrDelta.isPos,
                     category: "conversion",
-                    importance: "high",
-                    insight: "Conversion Funnel",
-                    children: []
+                    importance: "outcome",
+                    insight: cvrDelta.isPos ? "Conv. Efficacy" : "Conv. Drop",
+                    children: [
+                        {
+                            id: "ad-impressions",
+                            label: "Ad Impressions",
+                            value: formatCount(cAdKw),
+                            change: adImpDelta.val,
+                            isPositive: adImpDelta.isPos,
+                            category: "ad",
+                            meta: [{ label: "Ad SOS", value: cTotalKw > 0 ? `${((cAdRbKw / cTotalKw) * 100).toFixed(1)}%` : "0.0%", change: adRbDelta.val, isPositive: adRbDelta.isPos }],
+                            children: [
+                                { id: "ad-branded", label: "Branded Keywords", value: formatCount(cAdRbKw), change: adRbDelta.val, isPositive: adRbDelta.isPos, category: "ad" },
+                                { id: "ad-comp", label: "Comp Keywords", value: formatCount(cAdKw - cAdRbKw), change: adImpDelta.val, isPositive: adImpDelta.isPos, category: "ad" }
+                            ]
+                        },
+                        { id: "discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(1)}%`, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting" },
+                        { id: "rating-count", label: "Rating Count", value: formatCount(cQty), change: qtyDelta.val, isPositive: qtyDelta.isPos, category: "rating" }
+                    ]
                 }
             ]
         };
 
+        // Summary cards
+        const cards = [
+            { title: "Estimated Offtake", value: formatLac(cSales), change: salesDelta.val, isPositive: salesDelta.isPos },
+            { title: "Estimated Category Share", value: `${marketShare.toFixed(1)}%`, change: sosDelta.val, isPositive: sosDelta.isPos },
+            { title: "Avg Selling Price", value: `₹ ${cAsp.toFixed(0)}`, change: aspDelta.val, isPositive: aspDelta.isPos }
+        ];
+
+        console.log(`[getRcaData] Tree built - Offtake: ${formatLac(cSales)}, ASP: ₹${cAsp.toFixed(0)}, OSA: ${cOsa.toFixed(1)}%`);
         return { cards, tree };
 
     } catch (error) {

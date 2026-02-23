@@ -9,6 +9,7 @@ import {
     ResponsiveContainer,
 } from "recharts";
 import axiosInstance from "../../../api/axiosInstance";
+import { FilterContext } from "../../../utils/FilterContext";
 
 const severityColor = {
     high: "bg-red-100 text-red-700 border-red-200",
@@ -16,7 +17,7 @@ const severityColor = {
     low: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
-const DetailPanel = ({ selected, apiData }) => {
+const DetailPanel = ({ selected, apiData, loading }) => {
     const [showModal, setShowModal] = useState(false);
     const [compareMode, setCompareMode] = useState("week");
 
@@ -24,6 +25,37 @@ const DetailPanel = ({ selected, apiData }) => {
         return (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">
                 Select a card on the left to see full intelligence.
+            </div>
+        );
+    }
+
+    // Show skeleton loader while API is fetching
+    if (loading) {
+        return (
+            <div className="relative flex h-full flex-col gap-4 rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-sm animate-pulse">
+                <div className="h-5 bg-slate-200 rounded w-24" />
+                <div className="h-6 bg-slate-200 rounded w-56" />
+                <div className="h-4 bg-slate-100 rounded w-40" />
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-3 mt-2">
+                    {[...Array(6)].map((_, i) => (
+                        <div key={i} className="rounded-2xl border border-slate-100 bg-white p-3">
+                            <div className="h-3 bg-slate-200 rounded w-16 mb-2" />
+                            <div className="h-5 bg-slate-200 rounded w-20 mb-1" />
+                            <div className="h-3 bg-slate-100 rounded w-12" />
+                        </div>
+                    ))}
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 mt-2">
+                    <div className="h-4 bg-slate-200 rounded w-64 mb-2" />
+                    <div className="h-56 bg-slate-100 rounded-lg flex items-end gap-4 px-8 pb-8">
+                        <div className="w-1/6 bg-slate-200/50 h-[40%] rounded-t-sm" />
+                        <div className="w-1/6 bg-slate-200/50 h-[70%] rounded-t-sm" />
+                        <div className="w-1/6 bg-slate-200/50 h-[50%] rounded-t-sm" />
+                        <div className="w-1/6 bg-slate-200/50 h-[80%] rounded-t-sm" />
+                        <div className="w-1/6 bg-slate-200/50 h-[60%] rounded-t-sm" />
+                        <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
+                    </div>
+                </div>
             </div>
         );
     }
@@ -598,7 +630,7 @@ const defaultIssuesList = [
     },
 ];
 
-const LayoutOne = ({ apiData }) => {
+const LayoutOne = ({ apiData, loading }) => {
     const [selectedId, setSelectedId] = useState(defaultIssuesList[0].id);
 
     // Hydrate the first issue item with dynamic backend values
@@ -681,38 +713,56 @@ const LayoutOne = ({ apiData }) => {
                 </div>
             </div>
 
-            <DetailPanel selected={selected} apiData={apiData} />
+            <DetailPanel selected={selected} apiData={apiData} loading={loading} />
         </section>
     );
 };
 
 const TopActionsLayoutsShowcase = () => {
     const [apiData, setApiData] = useState({ topActions: null, osaDeepDive: null });
+    const [loading, setLoading] = useState(true);
+
+    // Pull filters from context so the section reacts to user filter changes
+    const { timeEnd, platform } = React.useContext(FilterContext);
 
     useEffect(() => {
+        let cancelled = false;
         const loadApiData = async () => {
+            setLoading(true);
             try {
+                const params = {};
+                if (timeEnd) params.endDate = timeEnd.format("YYYY-MM-DD");
+                if (platform && platform !== "All") params.platform = Array.isArray(platform) ? platform.join(",") : platform;
+
                 // Fetch both Top Actions (KPIs & Graphs) and OSA Deep Dive (Detail rows)
                 const [topActionsRes, osaDeepDiveRes] = await Promise.all([
-                    axiosInstance.get("/watchtower/top-actions"),
-                    axiosInstance.get("/watchtower/osa-deep-dive")
+                    axiosInstance.get("/watchtower/top-actions", { params }),
+                    axiosInstance.get("/watchtower/osa-deep-dive", { params })
                 ]);
 
-                setApiData({
-                    topActions: topActionsRes.data,
-                    osaDeepDive: osaDeepDiveRes.data
-                });
+                if (!cancelled) {
+                    setApiData({
+                        topActions: topActionsRes.data,
+                        osaDeepDive: osaDeepDiveRes.data
+                    });
+                }
             } catch (err) {
                 console.error("Failed to load Top Actions APIs:", err);
+            } finally {
+                if (!cancelled) setLoading(false);
             }
         };
 
-        loadApiData();
-    }, []);
+        const debounceTimer = setTimeout(loadApiData, 400);
+        return () => {
+            cancelled = true;
+            clearTimeout(debounceTimer);
+        };
+    }, [timeEnd, platform]);
 
     return (
         <div className="min-h-[500px] w-full bg-slate-50 p-4" style={{ fontFamily: 'Roboto, sans-serif' }}>
-            <LayoutOne apiData={apiData} />
+            <LayoutOne apiData={apiData} loading={loading} />
         </div>
     );
 };
