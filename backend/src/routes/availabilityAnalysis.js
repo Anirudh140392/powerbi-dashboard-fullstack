@@ -13,7 +13,8 @@ import {
     getAvailabilityCompetitionBrandTrends,
     getSignalLabData,
     getCityDetailsForProduct,
-    getBrandSkuCityDayLevel
+    getBrandSkuCityDayLevel,
+    getOsaCityDrilldown
 } from '../controllers/availabilityAnalysisController.js';
 
 export default (app) => {
@@ -240,6 +241,9 @@ export default (app) => {
 
     // OSA Detail by Category - Returns categories with daily OSA % for last 31 days
     app.get('/api/availability-analysis/osa-detail-by-category', getOsaDetailByCategory);
+
+    // OSA City Drilldown - Returns city-level daily OSA % for a specific SKU
+    app.get('/api/availability-analysis/osa-city-drilldown', getOsaCityDrilldown);
 
     /**
      * @swagger

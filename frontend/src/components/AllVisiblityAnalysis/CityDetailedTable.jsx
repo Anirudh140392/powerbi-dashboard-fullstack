@@ -1,28 +1,31 @@
-import React, { useState, useMemo } from "react";
-import {
-    X,
-    ChevronLeft,
-    ChevronRight,
-} from "lucide-react";
+import React, { useState, useEffect, useMemo, useContext } from "react";
+import { X } from "lucide-react";
+import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 
-function getHeatmapClass(value) {
-    // Basic heuristic: >100 or high % is good (green), low is bad (red)
-    // Adjust logic based on the column type if needed
-    if (typeof value === "string" && value.includes("%")) {
-        const num = parseFloat(value);
-        if (num >= 90) return "bg-emerald-50 text-emerald-700 font-semibold";
-        if (num >= 80) return "bg-emerald-50/50 text-emerald-700";
-        if (num >= 60) return "bg-amber-50 text-amber-700";
-        return "bg-rose-50 text-rose-700 font-semibold";
-    }
-    // For Values (Offtake), just bold
-    return "text-slate-700";
-}
+const getHeatmapClass = (value) => {
+    if (!value || value === '-') return "bg-slate-100 text-slate-600";
+    const num = parseFloat(value);
+    if (isNaN(num)) return "bg-slate-100 text-slate-600";
+    if (num >= 95) return "bg-emerald-100 text-emerald-700";
+    if (num >= 85) return "bg-amber-100 text-amber-700";
+    return "bg-rose-100 text-rose-700";
+};
 
 export default function CityDetailedTable({ sku, onClose }) {
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [cities, setCities] = useState([]);
+    const [totalCities, setTotalCities] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const {
+        timeStart,
+        timeEnd,
+        compareStart,
+        compareEnd
+    } = useContext(FilterContext);
 
     // Normalize data fields for display if they vary between visibility types
     const displaySkuName = sku.skuName || sku.keyword || "Unknown";
@@ -30,39 +33,46 @@ export default function CityDetailedTable({ sku, onClose }) {
     const displayPackSize = sku.packSize || "N/A";
     const displayPlatform = sku.platform || "N/A";
 
-    // Mock large dataset for this SKU
-    const allCities = useMemo(() => {
-        const cities = [
-            "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata", "Surat",
-            "Pune", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal",
-            "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra",
-            "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan-Dombivli", "Vasai-Virar", "Varanasi"
-        ];
-        return cities.map((city, idx) => {
-            const wtOsaVal = 70 + Math.random() * 30;
-            // Ensure listing percent is logically less than OSA %
-            const listingPctVal = wtOsaVal - (Math.random() * 10 + 5);
-
-            return {
-                id: idx,
-                city,
-                estOfftake: `₹ ${(Math.random() * 5 + 0.5).toFixed(1)} K`,
-                offtakeChange: Math.random() > 0.5 ? `+${(Math.random() * 10).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%`,
-                catShare: `${(Math.random() * 5).toFixed(1)}%`,
-                shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
-                wtOsa: `${wtOsaVal.toFixed(1)}%`,
-                osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
-                listingPct: `${listingPctVal.toFixed(1)}%`,
-                overallSos: `${(Math.random() * 5).toFixed(1)}%`,
-                adSos: `${(Math.random() * 15).toFixed(1)}%`,
-                wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
-                discChange: `+${(Math.random() * 2).toFixed(1)}%`,
+    const fetchCityDetails = async () => {
+        setIsLoading(true);
+        try {
+            const params = {
+                webPid: sku.webPid,
+                productCategory: sku.categoryTag,
+                startDate: timeStart?.format("YYYY-MM-DD"),
+                endDate: timeEnd?.format("YYYY-MM-DD"),
+                compareStartDate: compareStart?.format("YYYY-MM-DD"),
+                compareEndDate: compareEnd?.format("YYYY-MM-DD"),
+                type: sku.metricType
             };
-        });
-    }, [sku]);
 
-    const totalPages = Math.ceil(allCities.length / rowsPerPage);
-    const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+            const response = await axiosInstance.get("/availability-analysis/signal-lab/city-details", { params });
+            if (response.data && response.data.cities) {
+                // Backend returns numbers, but UI seems to expect strings with units for some fields
+                // We'll map them if needed or adjust the UI to handle numbers
+                setCities(response.data.cities);
+                setTotalCities(response.data.totalCities || 0);
+            }
+        } catch (error) {
+            console.error("Error fetching city details:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchCityDetails();
+    }, [sku.webPid, timeStart, timeEnd]);
+
+    const totalPages = Math.ceil(totalCities / rowsPerPage);
+    const displayedData = useMemo(() => {
+        // Since backend doesn't seem to support pagination for city details (returns all), 
+        // we slice on the frontend for now to keep it simple, or we could add backend pagination later.
+        const start = (page - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        return cities.slice(start, end);
+    }, [cities, page, rowsPerPage]);
+
 
     return (
         <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
@@ -134,7 +144,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                                         <td className="px-4 py-3text-center">
                                             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                                                 <span className="font-semibold text-slate-700">{row.estOfftake}</span>
-                                                <span className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                <span className={`text-[10px] ${row.offtakeChange?.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                     {row.offtakeChange}
                                                 </span>
                                             </div>
@@ -144,7 +154,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                                         <td className="px-4 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                                                 <span className="font-semibold text-slate-700">{row.catShare}</span>
-                                                <span className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                <span className={`text-[10px] ${row.shareChange?.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                     {row.shareChange}
                                                 </span>
                                             </div>
@@ -156,7 +166,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                                                 <span className={`inline-block px-2 py-0.5 rounded ${getHeatmapClass(row.wtOsa)}`}>
                                                     {row.wtOsa}
                                                 </span>
-                                                <span className={`text-[10px] ${row.osaChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                <span className={`text-[10px] ${row.osaChange?.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                     {row.osaChange}
                                                 </span>
                                             </div>

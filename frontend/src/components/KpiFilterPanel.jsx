@@ -69,25 +69,52 @@ export function KpiFilterPanel({
         <nav className="flex md:flex-col overflow-x-auto md:overflow-y-auto px-2 pb-2 pt-2 md:pt-0 gap-2 md:gap-1 no-scrollbar">
           {sectionConfig.map((section) => {
             const isActive = section.id === activeSection;
+            const selectedIds = sectionValues[section.id] || [];
+            const hasSelections = Array.isArray(selectedIds) && selectedIds.length > 0;
+
+            // Try to get labels for summary
+            let selectionSummary = "";
+            if (hasSelections) {
+              const opts = section.options || (
+                section.id === "keywords" ? keywords :
+                  section.id === "brands" ? brands :
+                    section.id === "categories" ? categories :
+                      section.id === "regions" ? regions :
+                        section.id === "zones" ? zones :
+                          section.id === "skus" ? skus :
+                            section.id === "cities" ? cities :
+                              section.id === "platforms" ? platforms : []
+              );
+
+              if (Array.isArray(opts)) {
+                selectionSummary = opts
+                  .filter(opt => selectedIds.includes(opt.id))
+                  .map(opt => opt.label)
+                  .join(", ");
+              }
+            }
+
             return (
               <button
                 key={section.id}
                 type="button"
                 onClick={() => setActiveSection(section.id)}
                 className={[
-                  "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition whitespace-nowrap shrink-0",
+                  "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm transition whitespace-nowrap shrink-0 group",
                   "w-auto md:w-full",
                   isActive
                     ? "bg-sky-50 text-sky-700 border border-sky-200"
                     : "text-slate-700 hover:bg-slate-100",
                 ].join(" ")}
               >
-                <span>{section.label}</span>
-                {Array.isArray(sectionValues[section.id]) && sectionValues[section.id].length > 0 && (
-                  <span className="ml-2 rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 text-[10px] font-semibold border border-sky-200">
-                    {sectionValues[section.id].length}
-                  </span>
-                )}
+                <div className="flex flex-col items-start overflow-hidden mr-2">
+                  <span className="font-medium">{section.label}</span>
+                  {hasSelections && selectionSummary && (
+                    <span className="text-[10px] text-sky-600 truncate w-full text-left font-normal opacity-80 group-hover:opacity-100 transition-opacity">
+                      {selectionSummary}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -340,7 +367,6 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
     notify(empty);
   };
 
-  const pageBadge = `${selected.size} selected`;
 
   return (
     <div className="flex h-full flex-col">
@@ -349,8 +375,15 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500">{description}</p>
         </div>
-        <div className="rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-600 self-start sm:self-auto">
-          {pageBadge}
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              onClick={clearAll}
+              className="text-[10px] font-bold text-rose-500 hover:text-rose-600 transition-colors uppercase tracking-wider"
+            >
+              Clear All
+            </button>
+          )}
         </div>
       </header>
 

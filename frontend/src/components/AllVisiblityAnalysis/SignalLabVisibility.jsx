@@ -1272,73 +1272,91 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
+import axiosInstance from "../../api/axiosInstance";
+
 function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [skus, setSkus] = useState([]);
+    const [totalCount, setTotalCount] = useState(0);
 
     const {
         platform: globalPlatform,
+        selectedBrand,
         selectedCategory,
-        selectedLocation
+        selectedLocation,
+        timeStart,
+        timeEnd,
+        compareStart,
+        compareEnd
     } = useContext(FilterContext);
 
     const [rowsPerPage, setRowsPerPage] = useState(4);
     const [page, setPage] = useState(1);
 
-    // Simulated loading delay on filter change
-    useEffect(() => {
+    const formatFilter = (val) => {
+        if (!val || val === "All") return "All";
+        if (Array.isArray(val)) return val.join(",");
+        return val;
+    };
+
+    const fetchSignals = async () => {
         setIsLoading(true);
-        const timer = setTimeout(() => {
+        try {
+            const params = {
+                platform: formatFilter(globalPlatform),
+                brand: formatFilter(selectedBrand),
+                location: formatFilter(selectedLocation),
+                startDate: timeStart?.format("YYYY-MM-DD"),
+                endDate: timeEnd?.format("YYYY-MM-DD"),
+                compareStartDate: compareStart?.format("YYYY-MM-DD"),
+                compareEndDate: compareEnd?.format("YYYY-MM-DD"),
+                type: metricType,
+                signalType: signalType,
+                page: page,
+                limit: rowsPerPage
+            };
+
+            const response = await axiosInstance.get("/availability-analysis/signal-lab", { params });
+            if (response.data && response.data.skus) {
+                setSkus(response.data.skus);
+                setTotalCount(response.data.totalCount || 0);
+            } else {
+                setSkus([]);
+                setTotalCount(0);
+            }
+        } catch (error) {
+            console.error("Error fetching signals:", error);
+            setSkus([]);
+            setTotalCount(0);
+        } finally {
             setIsLoading(false);
-        }, 600);
-        return () => clearTimeout(timer);
-    }, [globalPlatform, selectedCategory, selectedLocation, signalType]);
+        }
+    };
 
-    const filtered = useMemo(() => {
-        return SAMPLE_SKUS.filter((sku) => {
-            const matchesMetric = sku.metricType === metricType;
-            const matchesSignal = sku.type === signalType;
+    useEffect(() => {
+        fetchSignals();
+    }, [
+        metricType,
+        signalType,
+        globalPlatform,
+        selectedBrand,
+        selectedCategory,
+        selectedLocation,
+        timeStart,
+        timeEnd,
+        page,
+        rowsPerPage
+    ]);
 
-            // Platform Filter
-            const matchesPlatform = !globalPlatform || (
-                Array.isArray(globalPlatform)
-                    ? globalPlatform.some(p => sku.platform.toLowerCase() === String(p).toLowerCase())
-                    : sku.platform.toLowerCase() === String(globalPlatform).toLowerCase()
-            );
-
-            // Category Filter (with mapping)
-            const catMap = { "Core Tub": "Tub" };
-            const matchesCategory = !selectedCategory || selectedCategory === "All" || (
-                Array.isArray(selectedCategory)
-                    ? selectedCategory.some(cat => (catMap[cat] || String(cat)).toLowerCase() === sku.categoryTag.toLowerCase())
-                    : (catMap[selectedCategory] || String(selectedCategory)).toLowerCase() === sku.categoryTag.toLowerCase()
-            );
-
-            // Location Filter: Only filter if selectedLocation is NOT "All" and NOT null/undefined
-            const matchesLocation = !selectedLocation || selectedLocation === "All" || (
-                Array.isArray(selectedLocation)
-                    ? selectedLocation.some(loc => sku.topCities.some(c => c.city.toLowerCase() === String(loc).toLowerCase()))
-                    : sku.topCities.some(c => c.city.toLowerCase() === String(selectedLocation).toLowerCase())
-            );
-
-            // Platform and Category filters are already safe. 
-            // We want to make sure if no category matches, we are not empty if the user didn't explicitly select something other than default.
-            // But actually fixing the data is better.
-
-            return matchesMetric && matchesSignal && matchesPlatform && matchesCategory && matchesLocation;
-        });
-    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation]);
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+    const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
 
+
     const pageRows = useMemo(() => {
-        if (!usePagination) return filtered;
-        const start = (safePage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        return filtered.slice(start, end);
-    }, [filtered, safePage, rowsPerPage, usePagination]);
+        return skus;
+    }, [skus]);
 
 
     return (
@@ -1363,7 +1381,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
                         {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
                     </div>
-                ) : filtered.length > 0 ? (
+                ) : skus.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
                         {pageRows.map((s) => (
                             <SignalCard

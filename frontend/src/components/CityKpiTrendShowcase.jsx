@@ -1,5 +1,4 @@
-import React from "react";
-import { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -658,7 +657,16 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
+function MatrixVariant({
+  dynamicKey,
+  data,
+  title,
+  showPagination = true,
+  kpiFilterOptions,
+  firstColLabel = "KPI",
+  filters = {},
+  onFiltersChange
+}) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -684,9 +692,16 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
   // New KpiFilterPanel State
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [filterRules, setFilterRules] = useState(null);
+  const [localFilters, setLocalFilters] = useState(filters);
 
-  const filterOptions = React.useMemo(() => {
+  // Sync local filters when modal opens or external filters change
+  useEffect(() => {
+    if (showFilterPanel) {
+      setLocalFilters(filters);
+    }
+  }, [showFilterPanel, filters]);
+
+  const filterOptions = useMemo(() => {
     if (kpiFilterOptions) return kpiFilterOptions;
     return [
       { id: "date", label: "Date", options: [] }, // Date range picker would be custom
@@ -723,12 +738,22 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     }
   };
 
-  // Initialize/Sync selectedKPIs with rows
-  React.useEffect(() => {
+  // Initialize/Sync selectedKPIs with rows or filters
+  useEffect(() => {
     if (rows) {
-      setSelectedKPIs(rows.map(r => r.kpi));
+      if (filters.kpi && Array.isArray(filters.kpi) && filters.kpi.length > 0) {
+        // If external KPI filters are provided, filter the rows
+        const requested = filters.kpi.map(k => k.toLowerCase());
+        const matched = rows
+          .filter(r => requested.includes(r.kpi.toLowerCase()))
+          .map(r => r.kpi);
+        setSelectedKPIs(matched);
+      } else {
+        // Otherwise show all
+        setSelectedKPIs(rows.map(r => r.kpi));
+      }
     }
-  }, [rows]);
+  }, [rows, filters.kpi]);
 
   const allKPIs = React.useMemo(() => rows.map(r => r.kpi), [rows]);
   const isAllSelected = selectedKPIs.length === allKPIs.length;
@@ -874,9 +899,11 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
               <KpiFilterPanel
                 sectionConfig={filterOptions}
-                keywords={mockKeywords}
+                sectionValues={localFilters}
+                onSectionChange={(sectionId, vals) => {
+                  setLocalFilters(prev => ({ ...prev, [sectionId]: vals }));
+                }}
               />
-
             </div>
 
             {/* Modal Footer */}
@@ -888,7 +915,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                 Cancel
               </button>
               <button
-                onClick={() => setShowFilterPanel(false)}
+                onClick={() => {
+                  if (onFiltersChange) onFiltersChange(localFilters);
+                  setShowFilterPanel(false);
+                }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
               >
                 Apply Filters
@@ -1333,12 +1363,32 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
+export default function CityKpiTrendShowcase({
+  dynamicKey,
+  data,
+  title,
+  showPagination = true,
+  kpiFilterOptions,
+  firstColLabel,
+  filters = {},
+  onFiltersChange
+}) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
+  return (
+    <MatrixVariant
+      dynamicKey={dynamicKey}
+      data={data}
+      title={title}
+      showPagination={showPagination}
+      kpiFilterOptions={kpiFilterOptions}
+      firstColLabel={firstColLabel}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+    />
+  );
 }
 

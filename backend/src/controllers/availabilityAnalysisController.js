@@ -164,6 +164,35 @@ export const getOsaPercentageDetail = async (req, res) => {
 };
 
 /**
+ * Get City Drilldown for specific SKU
+ */
+export const getOsaCityDrilldown = async (req, res) => {
+    try {
+        const filters = {
+            sku: req.query.sku,
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            channel: req.query.channel
+        };
+        console.log('\n========== OSA CITY DRILLDOWN API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const data = await availabilityService.getOsaCityDrilldown(filters);
+
+        // console.log('[RESPONSE] City count:', data.cities?.length || 0);
+        console.log('============================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] OSA City Drilldown:', error);
+        res.status(error.message.includes('required') ? 400 : 500)
+            .json({ error: error.message || 'Internal Server Error' });
+    }
+};
+
+/**
  * Get Days of Inventory (DOI) for Availability Overview
  */
 export const getDOI = async (req, res) => {

@@ -1,7 +1,7 @@
 {
-  "platform": "Zepto",
-  "brand": "All",
+  "platform": "All",
+  "brand": "Colgate",
   "location": "All",
-  "startDate": "2026-01-01",
-  "endDate": "2026-01-29"
+  "startDate": "2026-02-01",
+  "endDate": "2026-02-22"
 }

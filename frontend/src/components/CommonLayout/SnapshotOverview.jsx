@@ -13,7 +13,8 @@ import {
     Percent,
     PieChart,
     Wallet,
-    MousePointer2
+    MousePointer2,
+    Truck
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
@@ -87,9 +88,9 @@ function Sparkline({ values, width = 240, height = 80, color = "#6366f1" }) {
         if (pts.length < 2) return "";
         const first = pts[0];
         const last = pts[pts.length - 1];
-        return `${d} L${last.x.toFixed(2)},${(h - pad).toFixed(2)} L${first.x.toFixed(
+        return `${d} L${last.x.toFixed(2)},${((h - pad)).toFixed(2)} L${first.x.toFixed(
             2
-        )},${(h - pad).toFixed(2)} Z`;
+        )},${((h - pad)).toFixed(2)} Z`;
     }, [d, pts, h]);
 
     const lastPt = pts[pts.length - 1];
@@ -138,6 +139,63 @@ function HoverPopover({ open, anchorRect, children, onMouseEnter, onMouseLeave }
     );
 }
 
+// ---------- "Coming Soon" Placeholder component ----------
+
+const ComingSoonPlaceholder = ({ title, showGraph = false, color = "#6366f1" }) => {
+    return (
+        <div className="flex flex-col items-center justify-between h-full bg-white/50 backdrop-blur-sm border-2 border-dashed border-slate-200 rounded-2xl relative group transition-all duration-300 hover:border-slate-300 hover:bg-slate-50/50 overflow-hidden">
+            <div className="w-full text-left p-4 pb-0">
+                <h3 className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">{title}</h3>
+            </div>
+
+            <div className="flex flex-col items-center justify-center space-y-3 py-6 px-4">
+                <div className="p-3.5 bg-slate-50 rounded-2xl text-slate-400 shadow-sm border border-slate-100 transform group-hover:scale-110 transition-transform">
+                    <Truck size={32} strokeWidth={1.5} />
+                </div>
+
+                <div className="px-5 py-2 bg-white rounded-full border border-slate-200 shadow-sm group-hover:shadow-md transition-shadow">
+                    <span className="text-[10px] font-black text-slate-800 tracking-tight uppercase">Coming Soon</span>
+                </div>
+            </div>
+
+            {showGraph ? (
+                <div className="h-16 w-full px-0 mt-auto border-t border-slate-50 flex items-end justify-center overflow-hidden">
+                    <svg width="100%" height="100%" viewBox="0 0 400 64" preserveAspectRatio="none" className="opacity-100">
+                        <defs>
+                            <linearGradient id={`placeholder-grad-${title.replace(/\s+/g, '-').toLowerCase()}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor={color} stopOpacity="0.4" />
+                                <stop offset="100%" stopColor={color} stopOpacity="0" />
+                            </linearGradient>
+                        </defs>
+                        <path
+                            d="M 0 42 C 40 32, 60 52, 100 42 C 140 32, 160 52, 200 42 C 240 32, 260 52, 300 42 C 340 32, 360 52, 400 42"
+                            stroke={color}
+                            strokeWidth="2.5"
+                            fill="none"
+                            className="opacity-60"
+                        />
+                        <path
+                            d="M 0 42 C 40 32, 60 52, 100 42 C 140 32, 160 52, 200 42 C 240 32, 260 52, 300 42 C 340 32, 360 52, 400 42 L 400 64 L 0 64 Z"
+                            fill={`url(#placeholder-grad-${title.replace(/\s+/g, '-').toLowerCase()})`}
+                            className="opacity-30"
+                        />
+                    </svg>
+                </div>
+            ) : (
+                <div className="pb-4" />
+            )}
+        </div>
+    );
+};
+
+// Helper to detection 0.0, 0%, etc.
+const isLiteralZero = (val) => {
+    if (val === undefined || val === null) return false;
+    const s = String(val).toLowerCase().trim();
+    if (s === '0' || s === '0.0' || s === '0%' || s === '0.0%') return true;
+    return false;
+};
+
 /**
  * ActionableMetricCard: Premium styled card for the bottom row (Performance Metrics).
  * NOW WITH HOVER TRENDS!
@@ -183,6 +241,11 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                 </Typography>
             </Card>
         )
+    }
+
+    if (isLiteralZero(kpi.value)) {
+        const hideGraph = kpi.title?.toLowerCase().includes('fill rate');
+        return <ComingSoonPlaceholder title={kpi.title} color={kpi.gradient?.[0] || color} showGraph={!hideGraph} />;
     }
 
     const Icon = kpi.icon || Zap;
@@ -239,6 +302,12 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
         }, 200);
     };
 
+    // Sparkline Area (Matches DetailedSparklineCard)
+    const chartId = `grad-action-${(kpi.id || kpi.title).replace(/\W+/g, '-')}`;
+    const chartData = (kpi.trendSeries && kpi.trendSeries.length > 0)
+        ? kpi.trendSeries
+        : makeSeries(50, 20, 0.2);
+
     return (
         <>
             <Card
@@ -246,6 +315,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                 onMouseLeave={onCardLeave}
                 sx={{
                     p: 2.25,
+                    pb: 0, // No padding at bottom for graph
                     height: "100%",
                     border: "1px solid",
                     borderColor: "#f1f5f9",
@@ -254,9 +324,10 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'center',
+                    justifyContent: 'flex-start',
                     transition: "all 300ms ease",
                     cursor: 'pointer',
+                    overflow: 'hidden',
                     "&:hover": {
                         borderColor: themeColor,
                         transform: "translateY(-2px)",
@@ -264,29 +335,76 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     }
                 }}
             >
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                    <div className="flex items-center gap-1.5">
-                        <Icon size={16} color={themeColor} strokeWidth={2.5} />
-                        <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
-                            {kpi.title}
+                <div className="flex-1 flex flex-col justify-center p-2.25 pt-0">
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                        <div className="flex items-center gap-1.5">
+                            <Icon size={16} color={themeColor} strokeWidth={2.5} />
+                            <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
+                                {kpi.title}
+                            </Typography>
+                        </div>
+                    </Box>
+
+                    <div className="flex items-end justify-between w-full mb-0.5">
+                        <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em" }}>
+                            {kpi.value}
                         </Typography>
-                    </div>
-                </Box>
 
-                <div className="flex items-end justify-between w-full mb-0.5">
-                    <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em" }}>
-                        {kpi.value}
+                        <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
+                            <DeltaIcon size={10} strokeWidth={3} />
+                            <span className="text-[10px] font-bold">{deltaLabel}</span>
+                        </div>
+                    </div>
+
+                    <Typography sx={{ fontSize: "9px", color: "text.disabled", fontWeight: 500, mt: 0.5 }}>
+                        {kpi.subtitle || "Performance Metric"}
                     </Typography>
-
-                    <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
-                        <DeltaIcon size={10} strokeWidth={3} />
-                        <span className="text-[10px] font-bold">{deltaLabel}</span>
-                    </div>
                 </div>
 
-                <Typography sx={{ fontSize: "9px", color: "text.disabled", fontWeight: 500, mt: 0.5 }}>
-                    {kpi.subtitle || "Performance Metric"}
-                </Typography>
+                {/* Sparkline Area */}
+                {!(kpi.title?.toLowerCase().includes('fill rate')) && (
+                    <div className="h-12 w-full px-0 mt-auto opacity-70 group-hover:opacity-100 transition-opacity">
+                        <svg width="100%" height="100%" viewBox="0 0 240 60" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id={chartId} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={themeColor} stopOpacity="0.4" />
+                                    <stop offset="100%" stopColor={themeColor} stopOpacity="0" />
+                                </linearGradient>
+                            </defs>
+                            <path
+                                d={(() => {
+                                    const n = chartData.length;
+                                    const pts = chartData.map((v, i) => ({
+                                        x: (i * 240) / (n - 1 || 1),
+                                        y: (1 - clamp(v, 0, 1)) * 40 + 10
+                                    }));
+                                    if (pts.length < 2) return "";
+                                    const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+                                    return `${line} L240,60 L0,60 Z`;
+                                })()}
+                                fill={`url(#${chartId})`}
+                                className="opacity-30"
+                            />
+                            <path
+                                d={(() => {
+                                    const n = chartData.length;
+                                    const pts = chartData.map((v, i) => ({
+                                        x: (i * 240) / (n - 1 || 1),
+                                        y: (1 - clamp(v, 0, 1)) * 40 + 10
+                                    }));
+                                    if (pts.length < 2) return "";
+                                    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+                                })()}
+                                fill="none"
+                                stroke={themeColor}
+                                strokeWidth="2.5"
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                                className="opacity-60"
+                            />
+                        </svg>
+                    </div>
+                )}
             </Card>
 
             <HoverPopover
@@ -368,6 +486,10 @@ const ComparisonCard = ({ kpi, loading = false }) => {
         )
     }
 
+    if (isLiteralZero(kpi.value)) {
+        return <ComingSoonPlaceholder title={kpi.title} color={kpi.gradient?.[0] || "#6366f1"} showGraph={true} />;
+    }
+
     const Icon = kpi.icon || LayoutGrid
     const color = kpi.gradient?.[0] || "#6366f1"
     const isPositive = (kpi.delta || 0) >= 0;
@@ -421,6 +543,12 @@ const ComparisonCard = ({ kpi, loading = false }) => {
         }, 200);
     };
 
+    // Sparkline Area
+    const chartId = `grad-compare-${(kpi.id || kpi.title).replace(/\W+/g, '-')}`;
+    const chartData = (kpi.trendSeries && kpi.trendSeries.length > 0)
+        ? kpi.trendSeries
+        : makeSeries(50, 20, 0.2);
+
     return (
         <>
             <Card
@@ -428,6 +556,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                 onMouseLeave={onCardLeave}
                 sx={{
                     p: 2.5,
+                    pb: 0,
                     borderRadius: "1.25rem",
                     border: "1px solid #fcfdfe",
                     bgcolor: "white",
@@ -438,39 +567,87 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     alignItems: 'flex-start',
                     transition: "all 400ms cubic-bezier(0.4, 0, 0.2, 1)",
                     cursor: 'pointer',
+                    overflow: 'hidden',
                     "&:hover": {
                         boxShadow: "0 0 35px rgba(0, 0, 0, 0.12), 0 10px 15px -5px rgba(0, 0, 0, 0.06)",
                         transform: "translateY(-4px)"
                     }
                 }}
             >
-                <div className="w-full flex justify-between items-start">
-                    <Box sx={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: "12px",
-                        bgcolor: color,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        mb: 2.5,
-                        boxShadow: `0 4px 10px ${color}40`
-                    }}>
-                        <Icon size={22} color="white" strokeWidth={2.5} />
-                    </Box>
-                    <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
-                        <DeltaIcon size={12} strokeWidth={2.5} />
-                        <span className="text-[11px] font-bold">{deltaLabel}</span>
+                <div className="flex-1 w-full px-2.5 pt-2.5">
+                    <div className="w-full flex justify-between items-start">
+                        <Box sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: "12px",
+                            bgcolor: color,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            mb: 2.5,
+                            boxShadow: `0 4px 10px ${color}40`
+                        }}>
+                            <Icon size={22} color="white" strokeWidth={2.5} />
+                        </Box>
+                        <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
+                            <DeltaIcon size={12} strokeWidth={2.5} />
+                            <span className="text-[11px] font-bold">{deltaLabel}</span>
+                        </div>
                     </div>
+
+                    <Typography sx={{ fontSize: "1.75rem", fontWeight: 700, color: "#111827", lineHeight: 1, mb: 1, tracking: '-0.02em' }}>
+                        {kpi.value}
+                    </Typography>
+
+                    <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
+                        {kpi.title}
+                    </Typography>
                 </div>
 
-                <Typography sx={{ fontSize: "1.75rem", fontWeight: 700, color: "#111827", lineHeight: 1, mb: 1, tracking: '-0.02em' }}>
-                    {kpi.value}
-                </Typography>
-
-                <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
-                    {kpi.title}
-                </Typography>
+                {/* Sparkline Area */}
+                {!(kpi.title?.toLowerCase().includes('fill rate')) && (
+                    <div className="h-16 w-full px-0 mt-auto opacity-70 group-hover:opacity-100 transition-opacity">
+                        <svg width="100%" height="100%" viewBox="0 0 240 60" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id={chartId} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={color} stopOpacity="0.4" />
+                                    <stop offset="100%" stopColor={color} stopOpacity="0" />
+                                </linearGradient>
+                            </defs>
+                            <path
+                                d={(() => {
+                                    const n = chartData.length;
+                                    const pts = chartData.map((v, i) => ({
+                                        x: (i * 240) / (n - 1 || 1),
+                                        y: (1 - clamp(v, 0, 1)) * 40 + 10
+                                    }));
+                                    if (pts.length < 2) return "";
+                                    const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+                                    return `${line} L240,60 L0,60 Z`;
+                                })()}
+                                fill={`url(#${chartId})`}
+                                className="opacity-30"
+                            />
+                            <path
+                                d={(() => {
+                                    const n = chartData.length;
+                                    const pts = chartData.map((v, i) => ({
+                                        x: (i * 240) / (n - 1 || 1),
+                                        y: (1 - clamp(v, 0, 1)) * 40 + 10
+                                    }));
+                                    if (pts.length < 2) return "";
+                                    return pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+                                })()}
+                                fill="none"
+                                stroke={color}
+                                strokeWidth="2.5"
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                                className="opacity-60"
+                            />
+                        </svg>
+                    </div>
+                )}
             </Card>
 
             <HoverPopover
@@ -545,6 +722,10 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
         )
     }
 
+    if (isLiteralZero(kpi.value)) {
+        return <ComingSoonPlaceholder title={kpi.title} color={kpi.gradient?.[0] || "#6366f1"} showGraph={true} />;
+    }
+
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -552,6 +733,12 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
     const extraIsPositive = (kpi.extraDelta || 0) >= 0; // Assuming extraDelta is numeric for color logic, or passed string color
     // If kpi.extraChangeColor is explicit, use it.
     const extraColorClass = kpi.extraChangeColor === 'green' ? "text-emerald-600" : kpi.extraChangeColor === 'red' ? "text-rose-600" : "text-orange-500";
+
+    // Sparkline Area
+    const chartId = `grad-${(kpi.id || kpi.title).replace(/\W+/g, '-')}`;
+    const chartData = (kpi.trendSeries && kpi.trendSeries.length > 0)
+        ? kpi.trendSeries
+        : makeSeries(50, 20, 0.2);
 
     return (
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
@@ -593,26 +780,49 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
             </div>
 
             {/* Sparkline Area */}
-            <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={kpi.trendSeries?.map((v, i) => ({ i, v })) || []} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+            {!(kpi.title?.toLowerCase().includes('fill rate')) && (
+                <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
+                    <svg width="100%" height="100%" viewBox="0 0 240 60" preserveAspectRatio="none">
                         <defs>
-                            <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0.2} />
-                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
+                            <linearGradient id={chartId} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0.4} />
+                                <stop offset="100%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <Area
-                            type="monotone"
-                            dataKey="v"
-                            stroke={kpi.gradient?.[0] || "#6366f1"}
-                            strokeWidth={2}
-                            fill={`url(#grad-${kpi.id})`}
-                            fillOpacity={1}
+                        <path
+                            d={(() => {
+                                const n = chartData.length;
+                                const pts = chartData.map((v, i) => ({
+                                    x: (i * 240) / (n - 1 || 1),
+                                    y: (1 - clamp(v, 0, 1)) * 40 + 10
+                                }));
+                                if (pts.length < 2) return "";
+                                const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+                                return `${line} L240,60 L0,60 Z`;
+                            })()}
+                            fill={`url(#${chartId})`}
+                            className="opacity-30"
                         />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </div>
+                        <path
+                            d={(() => {
+                                const n = chartData.length;
+                                const pts = chartData.map((v, i) => ({
+                                    x: (i * 240) / (n - 1 || 1),
+                                    y: (1 - clamp(v, 0, 1)) * 40 + 10
+                                }));
+                                if (pts.length < 2) return "";
+                                return pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+                            })()}
+                            fill="none"
+                            stroke={kpi.gradient?.[0] || "#6366f1"}
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            className="opacity-60"
+                        />
+                    </svg>
+                </div>
+            )}
         </div>
     )
 }
@@ -764,7 +974,7 @@ const SnapshotOverview = ({
         if (variant === 'watchtower') return [];
         return kpis.map((k, i) => ({
             ...k,
-            trendSeries: k.trendSeries || k.trend || makeSeries(50 + i, 20, 0.2, seed)
+            trendSeries: (k.trendSeries && k.trendSeries.length > 0) ? k.trendSeries : (k.trend && k.trend.length > 0 ? k.trend : makeSeries(50 + i, 20, 0.2, seed))
         }))
     }, [kpis, variant, seed]);
 
