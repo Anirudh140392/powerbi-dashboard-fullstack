@@ -50,6 +50,14 @@ const copy = (title, value) => {
     navigator.clipboard.writeText(`${title}: ${value}`);
 };
 
+// Truncate text to a given number of words, appending "..." if truncated
+const truncateToWords = (text, maxWords = 5) => {
+    if (!text) return '';
+    const words = text.split(/\s+/);
+    if (words.length <= maxWords) return text;
+    return words.slice(0, maxWords).join(' ') + '...';
+};
+
 const cardSize = {
     minW: 'min-w-[125px]',
     py: 'py-2.5',
@@ -170,6 +178,7 @@ const PlatformOverviewNew = ({
         brands: [],
         categories: [],
         platforms: [],
+        skus: [],
         skuName: '',
         skuCode: '',
         dateFrom: '',
@@ -209,14 +218,42 @@ const PlatformOverviewNew = ({
         setApiLoading(true)
         setApiError(null)
         try {
+            // Priority: Local Advanced Filters > Global Context Filters
+            const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
+                : (globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
+
+            const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
+                : (selectedBrand || undefined);
+
+            const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
+                : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
+
+            const reqStartDate = advancedFilters.dateFrom ? advancedFilters.dateFrom
+                : (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
+
+            const reqEndDate = advancedFilters.dateTo ? advancedFilters.dateTo
+                : (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+
+            // Combine SKUs filter mapping specifically
+            let skuNameParam, skuCodeParam;
+            if (advancedFilters.skus?.length > 0) {
+                skuNameParam = advancedFilters.skus.join(',');
+            } else if (advancedFilters.skuName) {
+                skuNameParam = advancedFilters.skuName;
+            }
+            skuCodeParam = advancedFilters.skuCode || undefined;
+
             const params = {
-                platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform),
-                brand: selectedBrand || undefined,
-                category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory),
+                platform: reqPlatform,
+                brand: reqBrand,
+                category: reqCategory,
                 location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
-                startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
-                endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined,
+                startDate: reqStartDate,
+                endDate: reqEndDate,
                 channel: selectedChannel || undefined,
+                skuName: skuNameParam,
+                skuCode: skuCodeParam,
+                filterLogic: advancedFilters.filterLogic || 'OR'
             }
             console.log(`[PlatformOverviewNew] Fetching ${dimension} data from ${endpoint}`, params)
             const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
@@ -235,7 +272,7 @@ const PlatformOverviewNew = ({
         } finally {
             setApiLoading(false)
         }
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel])
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters])
 
     useEffect(() => {
         fetchDimensionData()
@@ -255,11 +292,11 @@ const PlatformOverviewNew = ({
     }
     // Count active dimension filters
     const activeDimensionFilters = [
-        advancedFilters.brands.length > 0,
-        advancedFilters.categories.length > 0,
-        advancedFilters.platforms.length > 0,
-        advancedFilters.skuName.length > 0,
-        advancedFilters.skuCode.length > 0,
+        advancedFilters.brands?.length > 0,
+        advancedFilters.categories?.length > 0,
+        advancedFilters.platforms?.length > 0,
+        advancedFilters.skuName?.length > 0,
+        advancedFilters.skuCode?.length > 0,
     ].filter(Boolean).length
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
@@ -512,7 +549,13 @@ const PlatformOverviewNew = ({
                                                         {e.name.slice(0, 2).toUpperCase()}
                                                     </div>
                                                 )}
-                                                <span className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap" style={{ fontFamily: 'Roboto, sans-serif' }}>{e.name}</span>
+                                                <span
+                                                    className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap overflow-hidden text-ellipsis"
+                                                    style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
+                                                    title={e.name}
+                                                >
+                                                    {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
+                                                </span>
 
                                                 {/* Trend & RCA buttons */}
                                                 <div className="flex items-center gap-1">
