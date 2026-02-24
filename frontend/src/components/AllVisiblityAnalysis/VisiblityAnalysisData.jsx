@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext } from 'react'
+import React, { useMemo, useState, useContext, useCallback } from 'react'
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -38,6 +38,7 @@ import TopSearchTerms from './TopSearchTerms';
 import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
 import MetricCardContainer from '../CommonLayout/MetricCardContainer';
+import ErrorRetryOverlay from '../CommonLayout/ErrorRetryOverlay';
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -438,13 +439,15 @@ const cards = [
   },
 ];
 
-const VisiblityAnalysisData = () => {
+const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters: parentFilters, topSearchFilter: parentTopSearchFilter, setTopSearchFilter: parentSetTopSearchFilter }) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
-  const [topSearchFilter, setTopSearchFilter] = useState("All");
+  // Use parent topSearchFilter if available, else fallback to local
+  const topSearchFilter = parentTopSearchFilter || "All";
+  const setTopSearchFilter = parentSetTopSearchFilter || (() => { });
 
   // const sampleData = [
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
@@ -605,12 +608,42 @@ const VisiblityAnalysisData = () => {
       ['#8b5cf6', '#a855f7']
     ];
 
+    // If API data is available, use real values
+    const overviewCards = apiData?.overview?.cards;
+    if (overviewCards && overviewCards.length > 0) {
+      return overviewCards.map((card, idx) => {
+        // Parse numeric value from string like "19.6%"
+        const numValue = parseFloat(card.value) || 0;
+        // Parse delta from change text like "▲4.3 pts (from 15.3%)"
+        const changeMatch = card.change ? card.change.match(/([▲▼])(\d+\.?\d*)/) : null;
+        const deltaVal = changeMatch ? parseFloat(changeMatch[2]) * (changeMatch[1] === '▲' ? 1 : -1) : 0;
+
+        return {
+          id: `vis-${idx}`,
+          title: card.title,
+          value: card.value,
+          subtitle: card.sub,
+          delta: deltaVal,
+          deltaLabel: card.change || '',
+          icon: icons[idx] || PieChart,
+          gradient: gradients[idx % gradients.length],
+          trend: card.sparklineData || getLogicalKpiTrend('sos', platformContext),
+          isComingSoon: card.isComingSoon || false,
+          extra: card.extra,
+          extraChange: card.extraChange,
+          extraChangeColor: card.extraChangeColor,
+          prevText: card.prevText
+        };
+      });
+    }
+
+    // Fallback to seed-based data
     // Map titles to keys that exist in data center or fall back to defaults
     const titleToKey = {
       "Overall Weighted SOS": "sos",
-      "Sponsored Weighted SOS": "promomybrand", // Approximation for sponsored
-      "Organic Weighted SOS": "market", // Approximation for organic
-      "Display SOS": "dspSales" // Approximation for display
+      "Sponsored Weighted SOS": "promomybrand",
+      "Organic Weighted SOS": "market",
+      "Display SOS": "dspSales"
     };
 
     return cards.map((card, idx) => {
@@ -636,7 +669,7 @@ const VisiblityAnalysisData = () => {
         prevText: card.prevText
       };
     });
-  }, [globalPlatform]);
+  }, [globalPlatform, apiData?.overview]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
@@ -764,7 +797,7 @@ const VisiblityAnalysisData = () => {
     { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
   ];
 
-  const TabbedHeatmapTable = () => {
+  const TabbedHeatmapTable = ({ apiMatrixData }) => {
     const [activeTab, setActiveTab] = useState("platform");
     const {
       selectedChannel,
@@ -825,8 +858,14 @@ const VisiblityAnalysisData = () => {
     const tabs = useMemo(() => {
       const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
 
-      // ---------------- PLATFORM ----------------
-      const platformData = {
+      // Try to use real API matrix data first
+      // Backend response format: { platformData: { columns, rows }, formatData: { columns, rows }, cityData: { columns, rows } }
+      // Each row has: { kpi, PlatformA: val, PlatformB: val, trend: { PlatformA: delta, ... }, series: { PlatformA: [...], ... } }
+      const useApiPlatform = apiMatrixData?.platformData?.rows?.length > 0;
+      const useApiFormat = apiMatrixData?.formatData?.rows?.length > 0;
+      const useApiCity = apiMatrixData?.cityData?.rows?.length > 0;
+
+      const platformData = useApiPlatform ? apiMatrixData.platformData : {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
         rows: buildRows(
           JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.PlatformData])),
@@ -835,8 +874,7 @@ const VisiblityAnalysisData = () => {
         ),
       };
 
-      // ---------------- FORMAT ----------------
-      const formatData = {
+      const formatData = useApiFormat ? apiMatrixData.formatData : {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
         rows: buildRows(
           JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.FormatData])),
@@ -845,8 +883,7 @@ const VisiblityAnalysisData = () => {
         ),
       };
 
-      // ---------------- CITY ----------------
-      const cityData = {
+      const cityData = useApiCity ? apiMatrixData.cityData : {
         columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
         rows: buildRows(
           JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.CityData])),
@@ -860,7 +897,7 @@ const VisiblityAnalysisData = () => {
         { key: "format", label: "Format", data: formatData },
         { key: "city", label: "City", data: cityData },
       ];
-    }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+    }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiMatrixData]);
 
     const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
@@ -928,19 +965,13 @@ const VisiblityAnalysisData = () => {
         kpis={visibilityKpis}
         variant="detailed"
       />
-      {/* MODAL SECTION */}
-      {/* <SnapshotOverview
-        title="Visibility Overview"
-        icon={LayoutGrid}
-        chip="All Platforms"
-        headerRight={
-          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-            vs Previous Period
-          </span>
-        }
-        kpis={visibilityKpis}
-      /> */}
-      <TabbedHeatmapTable />
+      {apiErrors?.overview && (
+        <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
+      )}
+      {apiErrors?.matrix && (
+        <ErrorRetryOverlay onRetry={() => onRetry?.('matrix')} message={apiErrors.matrix} compact />
+      )}
+      <TabbedHeatmapTable apiMatrixData={apiData?.matrix} />
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
@@ -982,7 +1013,7 @@ const VisiblityAnalysisData = () => {
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <VisibilityDrilldownTable />
+        <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} />
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">
@@ -999,7 +1030,7 @@ const VisiblityAnalysisData = () => {
             ))}
           </div>
         </div>
-        <TopSearchTerms filter={topSearchFilter} />
+        <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

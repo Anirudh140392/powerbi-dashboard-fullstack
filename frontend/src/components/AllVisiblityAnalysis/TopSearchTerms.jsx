@@ -204,7 +204,7 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms({ filter = "All" }) {
+export default function TopSearchTerms({ filter = "All", apiData }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [expandedCityRows, setExpandedCityRows] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
@@ -212,14 +212,21 @@ export default function TopSearchTerms({ filter = "All" }) {
     const [selectedBrands, setSelectedBrands] = useState([]);
 
     // Select specific data based on tab filter
+    // Use API data if available, otherwise fall back to hardcoded data
     const activeData = useMemo(() => {
+        // If API data is available, use it directly (already filtered by backend based on filter param)
+        if (apiData?.terms && apiData.terms.length > 0) {
+            return apiData.terms;
+        }
+
+        // Fallback to hardcoded data
         switch (filter) {
             case "Branded": return BRANDED_DATA;
             case "Competitor": return COMPETITOR_DATA;
             case "Generic": return GENERIC_DATA;
             default: return ALL_DATA;
         }
-    }, [filter]);
+    }, [filter, apiData]);
 
     // Reset page when filter changes
     useEffect(() => {
