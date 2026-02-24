@@ -25,6 +25,7 @@ import DateRangeComparePicker from "./DateRangeComparePicker";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
+import axiosInstance from "../../api/axiosInstance";
 
 const Header = ({ title = "Watch Tower", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
@@ -59,6 +60,30 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     selectedCategory,
     setSelectedCategory,
   } = React.useContext(FilterContext);
+
+  const [darkStoreData, setDarkStoreData] = React.useState({ totalCount: 0, byPlatform: {} });
+
+  React.useEffect(() => {
+    const fetchDarkStoreCount = async () => {
+      try {
+        const params = {
+          platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+          location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+          channel: selectedChannel === "All" ? undefined : selectedChannel,
+          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
+          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
+        };
+        const res = await axiosInstance.get("/watchtower/dark-store-count", { params });
+        if (res.data) {
+          setDarkStoreData(res.data);
+        }
+      } catch (err) {
+        console.warn("[Header] Failed to fetch darkstore count:", err.message);
+      }
+    };
+
+    fetchDarkStoreCount();
+  }, [platform, selectedLocation, selectedChannel, timeStart, timeEnd]);
 
   const location = useLocation();
 
@@ -173,7 +198,15 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       color: "#64748b",
                     }}
                   >
-                    Darkstores # (Blinkit - 1860, Instamart - 1210, Zepto - 1250)
+                    {darkStoreData.totalCount > 0 ? (
+                      <>
+                        Darkstores # ({Object.entries(darkStoreData.byPlatform)
+                          .map(([p, c]) => `${p} - ${c}`)
+                          .join(', ')})
+                      </>
+                    ) : (
+                      "0 Active Platforms"
+                    )}
                   </Typography>
                 </Box>
               )}
