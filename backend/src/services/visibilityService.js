@@ -1260,7 +1260,7 @@ class VisibilityService {
 
     async getTopSearchTerms(filters = {}) {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
-        const cacheKey = generateCacheKey('visibility_top_search_terms', filters);
+        const cacheKey = generateCacheKey('visibility_top_search_terms_v2', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -1270,7 +1270,8 @@ class VisibilityService {
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+                const brandFilterCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+                const brandSOSCondition = RB_SOS_CONDITION;
 
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
@@ -1284,11 +1285,21 @@ class VisibilityService {
                     return { terms: [] };
                 }
 
-                let dateCondition = `toDate(created_on) = '${maxDate}'`;
-                if (filters.startDate && filters.endDate) {
-                    dateCondition = `toDate(created_on) BETWEEN '${dayjs(filters.startDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.endDate).format('YYYY-MM-DD')}'`;
-                }
+                let startDate = filters.startDate ? dayjs(filters.startDate).format('YYYY-MM-DD') : maxDate;
+                let endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : maxDate;
+
+                const start = dayjs(startDate);
+                const end = dayjs(endDate);
+                const durationDays = end.diff(start, 'day') + 1;
+                const prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
+                const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                let dateCondition = `toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`;
+                let prevDateCondition = `toDate(created_on) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+
+                // Add rank filter for current and previous dates
                 dateCondition += ` AND keyword_search_rank < 11`;
+                prevDateCondition += ` AND keyword_search_rank < 11`;
 
                 // 2. Aggregate metrics for keywords
                 const typeFilter = filters.filter && filters.filter !== 'All'
@@ -1303,6 +1314,7 @@ class VisibilityService {
                         countIf(${brandSOSCondition}) as rb_results,
                         countIf(${brandSOSCondition} AND toString(spons_flag) != '1') as rb_organic,
                         countIf(${brandSOSCondition} AND toString(spons_flag) = '1') as rb_sponsored,
+                        countIf(${brandFilterCondition}) as brand_filter_results,
                         avgIf(toFloat64(keyword_search_rank), toFloat64(keyword_search_rank) > 0) as avg_overall_pos,
                         avgIf(toFloat64(keyword_search_rank), ${brandSOSCondition} AND toString(spons_flag) != '1' AND toFloat64(keyword_search_rank) > 0) as avg_org_pos,
                         avgIf(toFloat64(keyword_search_rank), ${brandSOSCondition} AND toString(spons_flag) = '1' AND toFloat64(keyword_search_rank) > 0) as avg_ad_pos
@@ -1312,7 +1324,7 @@ class VisibilityService {
                       AND ${locationCondition}
                       ${typeFilter}
                     GROUP BY keyword
-                    ${brand && brand !== 'All' ? 'HAVING rb_results > 0' : ''}
+                    ${brand && brand !== 'All' ? 'HAVING brand_filter_results > 0' : ''}
                     ORDER BY (toFloat64(rb_results) / nullIf(count(), 0)) DESC, total_results DESC
                     LIMIT 50
                 `;
@@ -1321,17 +1333,44 @@ class VisibilityService {
 
                 if (keywordMetrics.length === 0) return { terms: [] };
 
-                // 3. Get leading brand for each keyword (the brand with most shelf share)
                 const keywordList = keywordMetrics.map(k => `'${escapeCH(k.keyword)}'`).join(',');
+
+                // 2b. Aggregate metrics for previous period (for Deltas)
+                const prevMetricsQuery = `
+                    SELECT 
+                        keyword,
+                        count() as total_results,
+                        countIf(${brandSOSCondition}) as rb_results,
+                        countIf(${brandSOSCondition} AND toString(spons_flag) != '1') as rb_organic,
+                        countIf(${brandSOSCondition} AND toString(spons_flag) = '1') as rb_sponsored
+                    FROM rb_kw
+                    WHERE ${prevDateCondition}
+                      AND ${platformCondition}
+                      AND ${locationCondition}
+                      AND keyword IN (${keywordList})
+                    GROUP BY keyword
+                `;
+                const prevKeywordMetrics = await queryClickHouse(prevMetricsQuery);
+
+                const prevMap = {};
+                prevKeywordMetrics.forEach(p => {
+                    const prevTotal = Number(p.total_results) || 1;
+                    prevMap[p.keyword] = {
+                        overallSos: Number(((Number(p.rb_results) / prevTotal) * 100).toFixed(1)),
+                        organicSos: Number(((Number(p.rb_organic) / prevTotal) * 100).toFixed(1)),
+                        paidSos: Number(((Number(p.rb_sponsored) / prevTotal) * 100).toFixed(1)),
+                    };
+                });
+
+                // 3. Get leading brand for each keyword (the brand with most shelf share)
                 const leadingBrandQuery = `
                     SELECT 
                         keyword,
                         brand_name,
                         count() as brand_count
                     FROM rb_kw
-                    WHERE toDate(created_on) = '${maxDate}'
+                    WHERE ${dateCondition}
                       AND keyword IN (${keywordList})
-                      AND keyword_search_rank < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
                     GROUP BY keyword, brand_name
@@ -1355,14 +1394,23 @@ class VisibilityService {
                     const rbOrganic = Number(km.rb_organic) || 0;
                     const rbSponsored = Number(km.rb_sponsored) || 0;
 
+                    const currOverallSos = Number(((rbResults / total) * 100).toFixed(1));
+                    const currOrganicSos = Number(((rbOrganic / total) * 100).toFixed(1));
+                    const currPaidSos = Number(((rbSponsored / total) * 100).toFixed(1));
+
+                    const prev = prevMap[km.keyword] || { overallSos: currOverallSos, organicSos: currOrganicSos, paidSos: currPaidSos };
+
                     return {
                         keyword: km.keyword,
                         topBrand: brandMap[km.keyword] || 'N/A',
-                        overallSos: Number(((rbResults / total) * 100).toFixed(1)),
+                        overallSos: currOverallSos,
+                        overallDelta: Number((currOverallSos - prev.overallSos).toFixed(1)),
                         overallPos: Number(Number(km.avg_overall_pos || 0).toFixed(1)),
-                        organicSos: Number(((rbOrganic / total) * 100).toFixed(1)),
+                        organicSos: currOrganicSos,
+                        organicDelta: Number((currOrganicSos - prev.organicSos).toFixed(1)),
                         organicPos: Number(Number(km.avg_org_pos || 0).toFixed(1)),
-                        paidSos: Number(((rbSponsored / total) * 100).toFixed(1)),
+                        paidSos: currPaidSos,
+                        paidDelta: Number((currPaidSos - prev.paidSos).toFixed(1)),
                         paidPos: Number(Number(km.avg_ad_pos || 0).toFixed(1)),
                     };
                 });
