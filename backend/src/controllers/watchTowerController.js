@@ -56,7 +56,7 @@ export const getTrendData = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching trend data:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -133,7 +133,7 @@ export const getBrandCategories = async (req, res) => {
         res.json(categories);
     } catch (error) {
         console.error('Error fetching brand categories:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -144,7 +144,7 @@ export const getMetrics = async (req, res) => {
         res.json([]);
     } catch (error) {
         console.error('Error fetching metrics:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -171,7 +171,7 @@ export const getOverview = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching overview:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -186,7 +186,7 @@ export const getPerformanceMetrics = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching performance metrics:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -201,7 +201,7 @@ export const getPlatformOverview = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching platform overview:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -216,7 +216,7 @@ export const getMonthOverview = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching month overview:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -231,7 +231,7 @@ export const getCategoryOverview = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching category overview:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -246,7 +246,7 @@ export const getBrandsOverview = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching brands overview:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 
@@ -274,7 +274,7 @@ export const getKpiTrends = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('Error fetching KPI trends:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
 

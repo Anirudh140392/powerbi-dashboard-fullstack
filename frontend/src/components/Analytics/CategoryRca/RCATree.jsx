@@ -14,6 +14,7 @@ import "reactflow/dist/style.css";
 import { motion, useSpring, useMotionValue } from "framer-motion";
 import { Plus, Minus, Activity, Zap } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
+import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import {
   Box,
   Typography,
@@ -1048,35 +1049,37 @@ const RcaTreeInner = ({ context, title }) => {
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const [apiTreeData, setApiTreeData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(null);
   const reactFlowInstance = useReactFlow();
 
   // Fetch RCA tree data from backend
-  useEffect(() => {
-    let cancelled = false;
-    const fetchRcaData = async () => {
-      setLoading(true);
-      try {
-        const params = {};
-        if (context.platform) params.platform = context.platform;
-        if (context.category && context.category !== 'All') params.category = context.category;
-        if (context.brand && context.brand !== 'All Brands' && context.brand !== 'All') params.brand = context.brand;
-        if (context.sku && context.sku !== 'All SKUs' && context.sku !== 'All') params.sku = context.sku;
-        if (context.month) params.month = context.month;
+  const fetchRcaData = useCallback(async () => {
+    setLoading(true);
+    setApiError(null);
+    try {
+      const params = {};
+      if (context.platform) params.platform = context.platform;
+      if (context.category && context.category !== 'All') params.category = context.category;
+      if (context.brand && context.brand !== 'All Brands' && context.brand !== 'All') params.brand = context.brand;
+      if (context.sku && context.sku !== 'All SKUs' && context.sku !== 'All') params.sku = context.sku;
+      if (context.month) params.month = context.month;
 
-        const res = await axiosInstance.get('/category-rca', { params });
-        if (!cancelled && res.data?.tree) {
-          setApiTreeData(res.data.tree);
-        }
-      } catch (err) {
-        console.error('[RCATree] API fetch failed, using fallback:', err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
+      const res = await axiosInstance.get('/category-rca', { params });
+      if (res.data?.tree) {
+        setApiTreeData(res.data.tree);
       }
-    };
-
-    const timer = setTimeout(fetchRcaData, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
+    } catch (err) {
+      console.error('[RCATree] API fetch failed:', err.message);
+      setApiError(err.message || 'Failed to load RCA data');
+    } finally {
+      setLoading(false);
+    }
   }, [context.platform, context.category, context.brand, context.sku, context.month]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchRcaData, 300);
+    return () => clearTimeout(timer);
+  }, [fetchRcaData]);
 
   // Use API data if available, otherwise fall back to hardcoded
   const currentTreeData = useMemo(
@@ -1205,6 +1208,16 @@ const RcaTreeInner = ({ context, title }) => {
                 style={{ width: w, height: 110, borderRadius: 24, backgroundColor: "#e2e8f0", border: "2px solid #cbd5e1" }} />
             ))}
           </Box>
+        </Box>
+      )}
+
+      {!loading && apiError && !apiTreeData && (
+        <Box sx={{
+          position: "absolute", inset: 0, zIndex: 50,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          bgcolor: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)"
+        }}>
+          <ErrorRetryOverlay onRetry={fetchRcaData} message={apiError} />
         </Box>
       )}
 
