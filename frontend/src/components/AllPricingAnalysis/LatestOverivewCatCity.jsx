@@ -37,6 +37,13 @@ const kpiLabels = {
     asp: 'Average Selling Price',
 };
 
+const CITY_TIERS = {
+    T1: ['mumbai', 'delhi', 'bangalore', 'hyderabad', 'ahmedabad'],
+    T2: ['kolkata', 'pune', 'chennai', 'lucknow', 'jaipur'],
+    T3: ['patna', 'indore', 'bhopal', 'chandigarh', 'ranchi'],
+    T4: ['varanasi', 'kanpur', 'meerut', 'agra', 'noida']
+};
+
 const LatestOverivewCatCity = ({
     onViewTrends = () => { },
     onViewRca = () => { },
@@ -59,8 +66,9 @@ const LatestOverivewCatCity = ({
         timeEnd
     } = useContext(FilterContext);
 
-    // ✅ Only 2 tabs: Category + City
+    // ✅ Dimension + Tier State
     const [dimension, setDimension] = useState('category')
+    const [selectedTier, setSelectedTier] = useState('T1')
     const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'rpi', 'asp'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
@@ -93,11 +101,24 @@ const LatestOverivewCatCity = ({
             entities: [
                 { key: 'mumbai', name: 'Mumbai' },
                 { key: 'delhi', name: 'Delhi NCR' },
-                { key: 'bengaluru', name: 'Bengaluru' },
+                { key: 'bangalore', name: 'Bengaluru' },
                 { key: 'kolkata', name: 'Kolkata' },
                 { key: 'hyderabad', name: 'Hyderabad' },
                 { key: 'ahmedabad', name: 'Ahmedabad' },
                 { key: 'pune', name: 'Pune' },
+                { key: 'chennai', name: 'Chennai' },
+                { key: 'lucknow', name: 'Lucknow' },
+                { key: 'jaipur', name: 'Jaipur' },
+                { key: 'patna', name: 'Patna' },
+                { key: 'indore', name: 'Indore' },
+                { key: 'bhopal', name: 'Bhopal' },
+                { key: 'chandigarh', name: 'Chandigarh' },
+                { key: 'ranchi', name: 'Ranchi' },
+                { key: 'varanasi', name: 'Varanasi' },
+                { key: 'kanpur', name: 'Kanpur' },
+                { key: 'meerut', name: 'Meerut' },
+                { key: 'agra', name: 'Agra' },
+                { key: 'noida', name: 'Noida' },
             ]
         },
     }
@@ -181,8 +202,15 @@ const LatestOverivewCatCity = ({
         if (dimension === 'category' && advancedFilters.categories?.length > 0) {
             list = list.filter(e => advancedFilters.categories.includes(e.key))
         }
-        if (dimension === 'city' && advancedFilters.cities?.length > 0) {
-            list = list.filter(e => advancedFilters.cities.includes(e.key))
+        if (dimension === 'city') {
+            // Apply Tier filter first
+            const tierCities = CITY_TIERS[selectedTier] || []
+            list = list.filter(e => tierCities.includes(e.key))
+
+            // Then apply advanced filters if any
+            if (advancedFilters.cities?.length > 0) {
+                list = list.filter(e => advancedFilters.cities.includes(e.key))
+            }
         }
 
         return list.map((e, idx) => ({
@@ -246,27 +274,53 @@ const LatestOverivewCatCity = ({
                     headerRight={
                         <div className="flex items-center gap-3">
                             {/* ✅ Only 2 tabs */}
-                            <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50">
-                                {Object.entries(dimensionData).map(([key, dim]) => {
-                                    const isSelected = dimension === key
-                                    const DimIcon = dim.icon
-                                    return (
-                                        <button
-                                            key={key}
-                                            onClick={() => setDimension(key)}
-                                            className={cn(
-                                                'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all',
-                                                isSelected
-                                                    ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
-                                                    : 'text-slate-500 hover:text-slate-800'
-                                            )}
-                                            style={{ fontFamily: 'Roboto, sans-serif' }}
-                                        >
-                                            <DimIcon size={13} />
-                                            {dim.label}
-                                        </button>
-                                    )
-                                })}
+                            <div className="flex items-center gap-2 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/50">
+                                <div className="flex items-center gap-1 border-r border-slate-200/60 pr-2 mr-1">
+                                    {Object.entries(dimensionData).map(([key, dim]) => {
+                                        const isSelected = dimension === key
+                                        const DimIcon = dim.icon
+                                        return (
+                                            <button
+                                                key={key}
+                                                onClick={() => setDimension(key)}
+                                                className={cn(
+                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all',
+                                                    isSelected
+                                                        ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
+                                                        : 'text-slate-500 hover:text-slate-800'
+                                                )}
+                                                style={{ fontFamily: 'Roboto, sans-serif' }}
+                                            >
+                                                <DimIcon size={14} />
+                                                {dim.label}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+
+                                {/* ✅ T1-T4 Tier Toggle */}
+                                {dimension === 'city' && (
+                                    <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-300">
+                                        {Object.keys(CITY_TIERS).map((tier) => {
+                                            const isSelected = selectedTier === tier
+                                            return (
+                                                <button
+                                                    key={tier}
+                                                    onClick={() => setSelectedTier(tier)}
+                                                    className={cn(
+                                                        'px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all',
+                                                        isSelected
+                                                            ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
+                                                            : 'text-slate-500 hover:text-blue-600'
+                                                    )}
+                                                    style={{ fontFamily: 'Roboto, sans-serif' }}
+                                                >
+                                                    {tier}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Filters */}
