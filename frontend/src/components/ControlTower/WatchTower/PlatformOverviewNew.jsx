@@ -59,10 +59,10 @@ const truncateToWords = (text, maxWords = 5) => {
 };
 
 const cardSize = {
-    minW: 'min-w-[125px]',
-    py: 'py-2.5',
-    text: 'text-[15px]',
-    delta: 'text-[10px]'
+    minW: 'min-w-[100px] sm:min-w-[125px]',
+    py: 'py-2 sm:py-2.5',
+    text: 'text-[13px] sm:text-[15px]',
+    delta: 'text-[9px] sm:text-[10px]'
 };
 
 const kpiLabels = {
@@ -346,14 +346,14 @@ const PlatformOverviewNew = ({
                 transition={{ duration: 0.4 }}
             >
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-100/60">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="px-3 py-3 sm:px-6 sm:py-4 border-b border-slate-100/60">
+                    <div className="flex items-center justify-between flex-wrap gap-2 sm:gap-3">
                         {/* Left: Icon + Title + Chip */}
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                                <Icon size={20} className="text-blue-600" />
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                                <Icon size={18} className="text-blue-600 sm:w-5 sm:h-5" />
                             </div>
-                            <span className="text-[17px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>{title}</span>
+                            <span className="text-[14px] sm:text-[17px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>{title}</span>
                             {/* {chip && (
                                 <span className="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded-full border border-slate-200">
                                     {chip}
@@ -371,7 +371,7 @@ const PlatformOverviewNew = ({
                 </div>
 
                 {/* Content */}
-                <div className="p-6">
+                <div className="p-3 sm:p-6">
                     {children}
                 </div>
             </motion.div>
@@ -386,9 +386,9 @@ const PlatformOverviewNew = ({
                     icon={currentDimension.icon}
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                             {/* Dimension Tabs */}
-                            <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50">
+                            <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50 overflow-x-auto no-scrollbar max-w-full">
                                 {Object.entries(dimensionMeta).map(([key, dim]) => {
                                     const isSelected = dimension === key
                                     const DimIcon = dim.icon
@@ -397,15 +397,15 @@ const PlatformOverviewNew = ({
                                             key={key}
                                             onClick={() => setDimension(key)}
                                             className={cn(
-                                                'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[12px] font-bold transition-all',
+                                                'flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all whitespace-nowrap',
                                                 isSelected
                                                     ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                                                     : 'text-slate-500 hover:text-slate-800'
                                             )}
                                             style={{ fontFamily: 'Roboto, sans-serif' }}
                                         >
-                                            <DimIcon size={13} />
-                                            {dim.label}
+                                            <DimIcon size={13} className="flex-shrink-0" />
+                                            <span className="hidden xs:inline sm:inline">{dim.label}</span>
                                         </button>
                                     )
                                 })}
@@ -415,7 +415,8 @@ const PlatformOverviewNew = ({
                             <motion.button
                                 onClick={() => setIsFilterModalOpen(true)}
                                 className={cn(
-                                    'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border',
+                                    'hidden sm:flex',
+                                    'items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border',
                                     activeDimensionFilters > 0
                                         ? 'bg-slate-900 text-white border-slate-900 shadow-md'
                                         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:shadow-sm'
@@ -435,8 +436,27 @@ const PlatformOverviewNew = ({
                                 </span>
                             </motion.button>
 
+                            {/* Mobile-only compact filter trigger */}
+                            <motion.button
+                                onClick={() => setIsFilterModalOpen(true)}
+                                className={cn(
+                                    'flex sm:hidden items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 border',
+                                    activeDimensionFilters > 0
+                                        ? 'bg-slate-900 text-white border-slate-900'
+                                        : 'bg-white text-slate-600 border-slate-200'
+                                )}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <SlidersHorizontal size={12} />
+                                {activeDimensionFilters > 0 && (
+                                    <span className="bg-emerald-500 text-white text-[9px] px-1 py-0.5 rounded-full">
+                                        {activeDimensionFilters}
+                                    </span>
+                                )}
+                            </motion.button>
+
                             {/* Legend indicators */}
-                            <div className="flex items-center gap-2">
+                            <div className="hidden sm:flex items-center gap-2">
                                 <span className="flex items-center gap-1.5 text-[9px] text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full font-bold border border-emerald-100/50 uppercase tracking-tight">
                                     <span className="w-1 h-1 rounded-full bg-emerald-500"></span> Growth
                                 </span>
@@ -450,10 +470,10 @@ const PlatformOverviewNew = ({
                     {/* Grid Content - Or Error/Loading State */}
                     {apiLoading ? (
                         /* Loading skeleton rows */
-                        <div className="space-y-4 py-4">
+                        <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
                             {[1, 2, 3, 4].map((i) => (
-                                <div key={i} className="flex items-center gap-3 px-2">
-                                    <div className="w-56 flex-shrink-0 flex items-center gap-3">
+                                <div key={i} className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2">
+                                    <div className="w-36 sm:w-56 flex-shrink-0 flex items-center gap-2 sm:gap-3">
                                         <div className="h-9 w-9 rounded-lg bg-slate-100 animate-pulse" />
                                         <div className="h-4 w-24 bg-slate-100 rounded animate-pulse" />
                                     </div>
@@ -512,9 +532,9 @@ const PlatformOverviewNew = ({
                         <div className="overflow-x-auto no-scrollbar pb-2">
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
-                                <div className="flex items-center gap-2 mb-4 px-1">
-                                    <div className="w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
+                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                     </div>
                                     {selectedKpis.map(kpi => (
                                         <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
@@ -526,31 +546,31 @@ const PlatformOverviewNew = ({
                                 </div>
 
                                 {/* Entity Rows */}
-                                <div className="space-y-3 px-1">
+                                <div className="space-y-2 sm:space-y-3 px-1">
                                     {entities.map((e) => (
                                         <motion.div
                                             key={e.key}
-                                            className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
+                                            className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
                                             initial={{ opacity: 0, x: -10 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ duration: 0.3 }}
                                         >
                                             {/* Entity with Trend & RCA buttons - Sticky */}
-                                            <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                            <div className="w-36 sm:w-56 flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
                                                 {e.logoSrc ? (
-                                                    <div className="h-9 w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-9 w-9" imgClassName="h-6 w-6" />
+                                                    <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-7 w-7 sm:h-9 sm:w-9" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
                                                     </div>
                                                 ) : (
                                                     <div
-                                                        className="h-9 w-9 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shadow-sm flex-shrink-0"
+                                                        className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white shadow-sm flex-shrink-0"
                                                         style={{ background: `linear-gradient(135deg, ${e.color || '#6366f1'}, ${e.color || '#6366f1'}dd)` }}
                                                     >
                                                         {e.name.slice(0, 2).toUpperCase()}
                                                     </div>
                                                 )}
                                                 <span
-                                                    className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap overflow-hidden text-ellipsis"
+                                                    className="text-[11px] sm:text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap overflow-hidden text-ellipsis"
                                                     style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
                                                     title={e.name}
                                                 >
@@ -558,7 +578,7 @@ const PlatformOverviewNew = ({
                                                 </span>
 
                                                 {/* Trend & RCA buttons */}
-                                                <div className="flex items-center gap-1">
+                                                <div className="hidden sm:flex items-center gap-1">
                                                     <button
                                                         onClick={(evt) => {
                                                             evt.stopPropagation();
@@ -630,28 +650,28 @@ const PlatformOverviewNew = ({
                     )}
 
                     {/* Footer - Summary Stats */}
-                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="h-6 w-6 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+                        <div className="flex items-center gap-2 sm:gap-4">
+                            <div className="flex items-center gap-1.5 sm:gap-2 bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-lg bg-slate-900 flex items-center justify-center">
                                     <TrendingUp size={14} className="text-white" />
                                 </div>
-                                <span className="text-slate-800 text-sm font-bold">
+                                <span className="text-slate-800 text-xs sm:text-sm font-bold">
                                     {entities.reduce((sum, e) => sum + selectedKpis.filter(k => e.data[k.key]?.delta?.dir === 'up').length, 0)}
                                 </span>
                                 <span className="text-slate-500 text-xs">positive</span>
                             </div>
-                            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="h-6 w-6 rounded-lg bg-slate-400 flex items-center justify-center">
+                            <div className="flex items-center gap-1.5 sm:gap-2 bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-slate-200 shadow-sm">
+                                <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-lg bg-slate-400 flex items-center justify-center">
                                     <TrendingDown size={14} className="text-white" />
                                 </div>
-                                <span className="text-slate-800 text-sm font-bold">
+                                <span className="text-slate-800 text-xs sm:text-sm font-bold">
                                     {entities.reduce((sum, e) => sum + selectedKpis.filter(k => e.data[k.key]?.delta?.dir === 'down').length, 0)}
                                 </span>
                                 <span className="text-slate-500 text-xs">negative</span>
                             </div>
                         </div>
-                        <span className="text-xs text-slate-500 font-medium">Click any card to copy • Select KPIs above</span>
+                        <span className="text-[10px] sm:text-xs text-slate-500 font-medium text-center">Click any card to copy • Select KPIs above</span>
                     </div>
                 </SectionWrapper>
             </div>

@@ -109,107 +109,84 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: "nowrap",
-          gap: 1,
-          alignItems: "center",
-          overflowX: "auto",
-          pb: 0.5, // slightly partial scrolling buffer
+          flexWrap: { xs: "wrap", md: "nowrap" },
+          gap: 1.5,
+          alignItems: { xs: "flex-start", md: "center" },
+          pb: 0.5,
         }}
       >
         {/* LEFT SIDE */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <IconButton
-            onClick={onMenuClick}
-            sx={{ display: { xs: "block", sm: "none" } }}
-          >
-            <MenuIcon />
-          </IconButton>
-
+        <Box sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          width: { xs: "100%", md: "auto" },
+          justifyContent: { xs: "space-between", md: "flex-start" }
+        }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <IconButton
-              size="small"
-              onClick={() => setIsExpanded(!isExpanded)}
-              sx={{
-                bgcolor: "#f1f5f9",
-                "&:hover": { bgcolor: "#e2e8f0" },
-                transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.3s ease",
-              }}
+              onClick={onMenuClick}
+              sx={{ display: { xs: "block", sm: "none" }, p: 0.5 }}
             >
-              <ChevronDown size={18} />
+              <MenuIcon />
             </IconButton>
 
-            <Box sx={{ display: "flex", flexDirection: "column" }}>
-              <Typography
-                fontWeight="600"
-                sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: "1.0rem" }}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <IconButton
+                size="small"
+                onClick={() => setIsExpanded(!isExpanded)}
+                sx={{
+                  bgcolor: "#f1f5f9",
+                  "&:hover": { bgcolor: "#e2e8f0" },
+                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.3s ease",
+                }}
               >
-                {title}
-              </Typography>
-              {title !== "Performance Marketing" && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Box
-                    sx={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      bgcolor: "#22C55E",
-                    }}
-                  />
-                  {/* <Typography
-                    sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "#64748b",
-                    }}
-                  >
-                    {(() => {
-                      const darkStorePlatforms = ["Blinkit", "Zepto", "Instamart"];
-                      const marketplacePlatforms = ["Flipkart", "Amazon"];
+                <ChevronDown size={18} />
+              </IconButton>
 
-                      // Dark store counts per platform
-                      const darkStoreCounts = {
-                        "Blinkit": 1860,
-                        "Zepto": 1250,
-                        "Instamart": 1210,
-                      };
-
-                      const selectedList = platform === "All"
-                        ? [...darkStorePlatforms, ...marketplacePlatforms]
-                        : (Array.isArray(platform) ? platform : [platform]);
-
-                      const darkStoreTotal = selectedList
-                        .filter(p => darkStorePlatforms.includes(p))
-                        .reduce((sum, p) => sum + (darkStoreCounts[p] || 0), 0);
-
-                      const mCount = selectedList.filter(p => marketplacePlatforms.includes(p)).length;
-
-                      const parts = [];
-                      if (darkStoreTotal > 0) parts.push(`${darkStoreTotal.toLocaleString()} Dark Stores`);
-                      if (mCount > 0) parts.push(`${mCount} Active Marketplace${mCount > 1 ? 's' : ''}`);
-
-                      return parts.length > 0 ? parts.join(" & ") : "0 Active Platforms";
-                    })()}
-                  </Typography> */}
-                  <Typography
-                    sx={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "#64748b",
-                    }}
-                  >
-                    {darkStoreData.totalCount > 0 ? (
-                      <>
-                        Darkstores # ({Object.entries(darkStoreData.byPlatform)
-                          .map(([p, c]) => `${p} - ${c}`)
-                          .join(', ')})
-                      </>
-                    ) : (
-                      "0 Active Platforms"
-                    )}
-                  </Typography>
-                </Box>
-              )}
+              <Box sx={{ display: "flex", flexDirection: "column" }}>
+                <Typography
+                  fontWeight="600"
+                  sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: { xs: "0.9rem", sm: "1.0rem" } }}
+                >
+                  {title}
+                </Typography>
+                {title !== "Performance Marketing" && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Box
+                      sx={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        bgcolor: "#22C55E",
+                        flexShrink: 0
+                      }}
+                    />
+                    <Typography
+                      sx={{
+                        fontSize: "0.65rem",
+                        fontWeight: 600,
+                        color: "#64748b",
+                        maxWidth: { xs: "150px", sm: "none" },
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {darkStoreData.totalCount > 0 ? (
+                        <>
+                          DS # ({Object.entries(darkStoreData.byPlatform)
+                            .map(([p, c]) => `${p}-${c}`)
+                            .join(', ')})
+                        </>
+                      ) : (
+                        "0 Active Platforms"
+                      )}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Box>
         </Box>
@@ -224,8 +201,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
               exit={{ opacity: 0, height: 0 }}
               sx={{
                 display: "flex",
-                gap: 0.5,
-                flexWrap: "nowrap",
+                gap: 1.5,
+                flexWrap: { xs: "wrap", md: "nowrap" },
+                width: { xs: "100%", md: "auto" },
                 overflow: "visible",
               }}
             >
@@ -236,7 +214,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={channels}
                 value={selectedChannel}
                 onChange={(newValue) => setSelectedChannel(newValue)}
-                width={130}
+                width={{ xs: "calc(50% - 6px)", sm: 130 }}
               />
 
               {/* PLATFORM SELECTION */}
@@ -245,7 +223,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={platforms}
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
-                width={115}
+                width={{ xs: "calc(50% - 6px)", sm: 115 }}
               />
 
               <CustomHeaderDropdown
@@ -253,7 +231,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
-                width={115}
+                width={{ xs: "calc(50% - 6px)", sm: 115 }}
               />
 
               <CustomHeaderDropdown
@@ -261,7 +239,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 options={locations}
                 value={selectedLocation}
                 onChange={(newValue) => setSelectedLocation(newValue)}
-                width={115}
+                width={{ xs: "calc(50% - 6px)", sm: 115 }}
               />
 
               {location.pathname === "/visibility-anlysis" && (
@@ -270,12 +248,12 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   options={keywords}
                   value={selectedKeyword}
                   onChange={(newValue) => setSelectedKeyword(newValue)}
-                  width={130}
+                  width={{ xs: "calc(100%)", sm: 130 }}
                 />
               )}
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
-              <Box sx={{ width: 200, flexShrink: 0 }}>
+              <Box sx={{ width: { xs: "100%", sm: 200 }, flexShrink: 0 }}>
                 <Typography
                   sx={{
                     fontSize: "0.65rem",

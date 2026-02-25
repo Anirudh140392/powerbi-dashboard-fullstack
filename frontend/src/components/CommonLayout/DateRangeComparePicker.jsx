@@ -304,10 +304,16 @@ export default function DateRangeComparePicker({
             <button
                 type="button"
                 className="flex w-full items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-sm shadow-sm hover:border-blue-500 transition-all"
-                style={{ cursor: 'pointer', textAlign: 'left', height: '34px', minWidth: '190px' }}
+                style={{ cursor: 'pointer', textAlign: 'left', height: '34px' }}
                 onClick={handleOpen}
             >
-                <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', justifyContent: 'center' }}>
+                <Box sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    justifyContent: 'center',
+                    minWidth: { xs: 'auto', sm: '160px' }
+                }}>
                     <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', lineHeight: 1.1, fontFamily: 'Roboto, sans-serif' }}>
                         {primaryLabel}
                     </Typography>
@@ -329,7 +335,8 @@ export default function DateRangeComparePicker({
                 PaperProps={{
                     sx: {
                         mt: 1,
-                        width: { xs: 360, sm: 480 },
+                        width: { xs: "calc(100vw - 32px)", sm: 480 },
+                        maxWidth: 480,
                         borderRadius: 3,
                         boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
                         border: "1px solid #e2e8f0",
