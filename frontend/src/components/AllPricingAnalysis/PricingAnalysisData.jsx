@@ -8,9 +8,6 @@
 // --------------------------------------------------------------
 
 import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
-import SnapshotOverview from "../CommonLayout/SnapshotOverview";
-import SalesGainerDrainerWrapper from "../../pages/Sales/SalesGainerDrainerWrapper";
-import { FilterContext } from "../../utils/FilterContext";
 import {
   Box,
   Grid,
@@ -90,9 +87,14 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
-import DiscountEcpPricing from "./DiscountEcpPricing";
-import { DiscountDrilldownDate } from "./DiscountDrilldownDate";
-import DiscountDrilldownCity from "./DiscountDrilldownCity";
+import LatestOverivewCatCity from "./LatestOverivewCatCity";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
+import { getLogicalKpiTrend, getLogicalKpiValue } from "../AllAvailablityAnalysis/availablityDataCenter";
+import { FilterContext } from "@/utils/FilterContext";
+import InsightsPricingView from "./InsightsPricingView";
+import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import PricingRcaDrawer from "./PricingRcaDrawer";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -2481,769 +2483,167 @@ export default function PricingAnalysisData() {
     return parseFloat(((totalCurr - totalPrev) / totalPrev * 100).toFixed(1));
   }, [ecpData]);
 
+
+  const cards = [
+    {
+      title: "Discount",
+      value: "12.4%",
+      sub: "Average discount across active SKUs",
+      change: "▲2.1% (from 10.3%)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Max discount SKU: 28%",
+      extraChange: "▲1.4%",
+      extraChangeColor: "green",
+    },
+    {
+      title: "Price Per Unit",
+      value: "₹185.50",
+      sub: "Average selling price per unit",
+      change: "▼3.6% (from ₹192.40)",
+      changeColor: "red",
+      prevText: "vs Previous Period",
+      extra: "Price variance across platforms: ₹12",
+      extraChange: "",
+      extraChangeColor: "red",
+    },
+    {
+      title: "RPI",
+      value: "₹142.30",
+      sub: "Revenue generated per impression",
+      change: "▲5.8% (from ₹134.50)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Top performing SKU RPI: ₹188",
+      extraChange: "Above average",
+      extraChangeColor: "orange",
+    },
+    {
+      title: "Average Selling Price",
+      value: "₹198.75",
+      sub: "Overall average selling price",
+      change: "▲1.9% (from ₹195.10)",
+      changeColor: "green",
+      prevText: "vs Previous Period",
+      extra: "Premium SKU contribution: 32%",
+      extraChange: "▲3.2%",
+      extraChangeColor: "green",
+    },
+  ];
+
+  const pricingKpis = useMemo(() => {
+    // User request: restrict Visibility Overview cards to ONLY change on Platform
+    const platformContext = { platform: globalPlatform };
+
+    const icons = [PieChart, Target, TrendingUpLucide, Monitor];
+    const gradients = [
+      ['#6366f1', '#8b5cf6'],
+      ['#14b8a6', '#06b6d4'],
+      ['#f43f5e', '#ec4899'],
+      ['#8b5cf6', '#a855f7']
+    ];
+
+    // Map titles to keys that exist in data center or fall back to defaults
+    const titleToKey = {
+      "Discount": "discount",
+      "Price Per Unit": "priceperunit",
+      "RPI": "rpi",
+      "Average Selling Price": "averagesellingprice"
+    };
+
+    return cards.map((card, idx) => {
+      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
+      const val = getLogicalKpiValue(kpiKey, platformContext);
+      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
+      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
+
+      return {
+        id: `vis-${idx}`,
+        title: card.title,
+        value: `${val.toFixed(1)}%`,
+        subtitle: card.sub,
+        delta: parseFloat(delta),
+        deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
+        icon: icons[idx] || PieChart,
+        gradient: gradients[idx % gradients.length],
+        trend: getLogicalKpiTrend(kpiKey, platformContext),
+
+        extra: card.extra,
+        extraChange: card.extraChange,
+        extraChangeColor: card.extraChangeColor,
+        prevText: card.prevText
+      };
+    });
+  }, [globalPlatform]);
+
+  // ── Drawer state for LatestOverivewCatCity ──────────────────────────────
+  const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
+  const [rcaDrawer, setRcaDrawer] = useState({ open: false, entity: '', dimension: '' });
+
+  const handleViewTrends = (entityName, dimensionLabel) => {
+    setTrendsDrawer({ open: true, entity: entityName, dimension: dimensionLabel });
+  };
+
+  const handleViewRca = (entityName, dimensionLabel) => {
+    setRcaDrawer({ open: true, entity: entityName, dimension: dimensionLabel });
+  };
+
   // MAIN RETURN
   return (
-    <Box sx={{ p: 0, bgcolor: "#f4f6fb", minHeight: "100vh" }} >
-      {/* Top Bar */}
-      {/* <Card
+    <Box sx={{ p: 3, bgcolor: "white", minHeight: "100vh" }}>
+      <SnapshotOverview
+        title="Pricing Overview"
+        icon={LayoutGrid}
+        chip="All Platforms"
+        headerRight={
+          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+            vs Previous Period
+          </span>
+        }
+        kpis={pricingKpis}
+        variant="detailed"
+      />
+      <Card
         sx={{
-          mb: 2,
+          mb: 3,
           p: 2,
-          borderRadius: 3,
+          borderRadius: 8,
           boxShadow: 4,
           background: "linear-gradient(120deg,#ffffff,#f3f5ff)",
         }}
       >
-        <Typography variant="h5" fontWeight={700}>
-          Price & Discount Intelligence
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Cross-platform ECP tracking • Brand comparison • Discount movement
-        </Typography>
-      </Card> */}
-
-      {/* Snapshot Overview - Pricing Metrics */}
-      <SnapshotOverview
-        title="Pricing Overview"
-        chip="Live Metrics"
-        kpis={[
-          {
-            id: 'avg-ecp',
-            title: 'ECP',
-            value: ecpByBrandData.length > 0
-              ? `₹${(ecpByBrandData.reduce((sum, row) => sum + (row.ecp || 0), 0) / ecpByBrandData.length).toFixed(1)}`
-              : '₹0.0',
-            subtitle: 'MTD',
-            delta: overallEcpDelta,
-            deltaLabel: 'vs prev period',
-            icon: MonetizationOn,
-            gradient: ['#10b981', '#059669'],
-            trend: ecpData.slice(0, 8).map(d => d.ecp_curr),
-          },
-          {
-            id: 'rpi',
-            title: 'RPI',
-            value: ecpByBrandData.length > 0 && ecpByBrandData.some(row => row.rpi)
-              ? (ecpByBrandData.reduce((sum, row) => sum + (row.rpi || 0), 0) / ecpByBrandData.length).toFixed(2)
-              : '1.08',
-            subtitle: 'INDEX',
-            delta: 3.1,
-            deltaLabel: 'vs benchmark',
-            icon: TrendingUp,
-            gradient: ['#3b82f6', '#2563eb'],
-            trend: [1.0, 1.05, 1.02, 1.08, 1.12, 1.15, 1.18, 1.20],
-          },
-          {
-            id: 'avg-discount',
-            title: 'Discount',
-            value: ecpByBrandData.length > 0
-              ? `${(ecpByBrandData.reduce((sum, row) => {
-                const discount = ((row.mrp - row.ecp) / row.mrp) * 100;
-                return sum + (isNaN(discount) ? 0 : discount);
-              }, 0) / ecpByBrandData.length).toFixed(1)}%`
-              : '0.0%',
-            subtitle: 'MTD',
-            delta: -2.3,
-            deltaLabel: 'vs last month',
-            icon: Discount,
-            gradient: ['#f59e0b', '#d97706'],
-            trend: [15, 18, 16, 19, 17, 14, 16, 12],
-          },
-        ]}
-      />
-      <SalesGainerDrainerWrapper
-        tabs={pricingGainerDrainerTabs}
-        data={pricingGainerDrainerData}
-        defaultTab="ecp"
-        isPricing={true}
-      />
-      <Box sx={{ pt: 2 }}>
-        <DiscountEcpPricing
-          filters={filters}
-          selectedBrand={selectedBrand}
-          globalPlatform={globalPlatform}
-          selectedLocation={selectedLocation}
-          timeStart={timeStart}
-          timeEnd={timeEnd}
-        />
-      </Box>
-      <Box sx={{ pt: 2 }}>
-        <DiscountDrilldownDate
-          filters={filters}
-          selectedBrand={selectedBrand}
-          globalPlatform={globalPlatform}
-          selectedLocation={selectedLocation}
-          timeStart={timeStart}
-          timeEnd={timeEnd}
-        />
-      </Box>
-      <DiscountDrilldownCity data={ecpByCityData} loading={ecpByCityLoading} />
-
-
-      {/* KPI Row - ECP Comparison from API */}
-      {/* <Grid container spacing={2} mb={2}>
-        {ecpLoading ? (
-          // Skeleton loading state for KPI cards
-          [1, 2, 3].map((i) => (
-            <Grid item xs={12} md={4} key={i}>
-              <Card sx={{ p: 2, borderRadius: 3, boxShadow: 4, height: 160 }}>
-                <Skeleton variant="text" width="60%" height={24} sx={{ mb: 1 }} />
-                <Skeleton variant="rectangular" width="80%" height={40} sx={{ mb: 1, borderRadius: 1 }} />
-                <Skeleton variant="text" width="40%" height={20} sx={{ mb: 2 }} />
-                <Skeleton variant="rounded" width={80} height={24} />
-              </Card>
-            </Grid>
-          ))
-        ) : ecpData.length > 0 ? (
-          // API data
-          ecpData.slice(0, 3).map((row, idx) => (
-            <Grid item xs={12} md={4} key={idx}>
-              <Card
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  boxShadow: 4,
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,240,255,0.9))",
-                  cursor: "pointer",
-                }}
-                onClick={() => applyGlobalBrandSelection(row.brand)}
-              >
-                <Typography variant="subtitle2" color="text.secondary">
-                  {row.brand}
-                </Typography>
-                <Typography variant="h5" fontWeight={700} mt={1}>
-                  ₹{row.ecp_curr?.toFixed(1)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Platform: {row.platform}
-                </Typography>
-                <Box mt={1}>{renderTrendChip(row.trend)}</Box>
-              </Card>
-            </Grid>
-          ))
-        ) : (
-          // Fallback to mock data
-          PRICE_ROWS.slice(0, 3).map((row) => (
-            <Grid item xs={12} md={4} key={row.id}>
-              <Card
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  boxShadow: 4,
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,240,255,0.9))",
-                  cursor: "pointer",
-                }}
-                onClick={() => applyGlobalBrandSelection(row.brand)}
-              >
-                <Typography variant="subtitle2" color="text.secondary">
-                  {row.brand}
-                </Typography>
-                <Typography variant="h5" fontWeight={700} mt={1}>
-                  ₹{row.ecp}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Platform: {row.platform}
-                </Typography>
-                <Box mt={1}>{renderTrendChip(row.trend)}</Box>
-              </Card>
-            </Grid>
-          ))
-        )}
-      </Grid> */}
-
-
-      {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
-      {/* <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={8}>
-          {ecpByBrandLoading ? (
-            <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
-              <Skeleton variant="text" width="200px" height={32} sx={{ mb: 2 }} />
-              <Skeleton variant="rectangular" width="100%" height={300} sx={{ borderRadius: 2 }} />
-            </Card>
-          ) : (
-            <SuperTable
-              title="ECP by Brand"
-              columns={ecpByBrandColumns}
-              rows={filteredEcpBrandRows}
-              initialDensity="comfortable"
-              enableRowExpansion={false}
-              searchPlaceholder="Search by brand"
-              onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-            />   
-          )}
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          {ecpWeekdayWeekendLoading ? (
-            <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2, height: '100%' }}>
-              <Skeleton variant="text" width="80%" height={32} sx={{ mb: 1 }} />
-              <Skeleton variant="text" width="60%" height={20} sx={{ mb: 3 }} />
-              <Skeleton variant="rectangular" width="100%" height={150} sx={{ borderRadius: 2 }} />
-            </Card>
-          ) : (
-            <Card
-              sx={{
-                borderRadius: 3,
-                boxShadow: 4,
-                mb: 3,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <Toolbar
-                sx={{
-                  px: 2,
-                  py: 1,
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                  bgcolor: "rgba(250,250,252,0.9)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Box>
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    ECP by Brand – Weekday / Weekend
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Driven by brand selection from left table / SKU / trend
-                  </Typography>
-                </Box>
-                {activeBrand && (
-                  <Chip
-                    size="small"
-                    label={activeBrand}
-                    variant="outlined"
-                    onDelete={() => applyGlobalBrandSelection(null)}
-                  />
-                )}
-              </Toolbar>
-
-              <TableContainer sx={{ flex: 1 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow
-                      sx={{
-                        "& th": {
-                          bgcolor: "rgba(245,247,252,0.98)",
-                          fontWeight: 600,
-                        },
-                      }}
-                    >
-                      <TableCell>Brand</TableCell>
-                      <TableCell align="right">Weekday</TableCell>
-                      <TableCell align="right">Weekend</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>{weekdayWeekendRow.brand}</TableCell>
-                      <TableCell align="right">
-                        {weekdayWeekendRow.weekday}
-                      </TableCell>
-                      <TableCell align="right">
-                        {weekdayWeekendRow.weekend}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>
-                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                          Total
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        {weekdayWeekendRow.weekday}
-                      </TableCell>
-                      <TableCell align="right">
-                        {weekdayWeekendRow.weekend}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Card>
-          )}
-        </Grid>
-      </Grid> */}
-
-      {/* Discount Trend Drilldown (Power BI-style) */}
-      {/* {discountTrendLoading ? (
-        <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
-          <Skeleton variant="text" width="250px" height={32} sx={{ mb: 1 }} />
-          <Skeleton variant="text" width="200px" height={20} sx={{ mb: 2 }} />
-          <Skeleton variant="rectangular" width="100%" height={300} sx={{ borderRadius: 2 }} />
-        </Card>
-      ) : (
-        <DiscountTrendDrillTable
-          groups={discountTrendGroups}
-          platforms={discountPlatforms}
-          selectedBrand={activeBrand}
-          onBrandClick={applyGlobalBrandSelection}
-          onCategoryExpand={fetchDiscountByBrand}
-        />
-      )} */}
-
-      {/* Tabs + Brand / Own vs Competitors */}
-      {/* <Card
-        sx={{
-          mb: 3,
-          borderRadius: 3,
-          boxShadow: 0,
-          background: "transparent",
-        }}
-        elevation={0}
-      >
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            mb: 1.5,
-            "& .MuiTab-root": { textTransform: "none", fontWeight: 600 },
-          }}
-        >
-          <Tab label="Brand Overview" value="overview" />
-          <Tab label="Own vs Competitors" value="own" />
-        </Tabs>
-      </Card> */}
-
-      {/* {tab === "overview" && (
-        brandPriceOverviewLoading ? (
-          <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
-            <Skeleton variant="text" width="250px" height={32} sx={{ mb: 2 }} />
-            <Skeleton variant="rectangular" width="100%" height={350} sx={{ borderRadius: 2 }} />
-          </Card>
-        ) : (
-          <SuperTable
-            title="Brand Price Overview"
-            columns={brandPriceOverviewColumns}
-            rows={brandPriceOverviewData}
-            initialDensity="comfortable"
-            searchPlaceholder="Search by brand or platform"
-            onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-          />
-        )
-      )} */}
-
-      {/* One View Price Grid Table */}
-      {/* {tab === "overview" && (
-        oneViewPriceGridLoading ? (
-          <Card sx={{ borderRadius: 3, boxShadow: 4, mb: 3, p: 2 }}>
-            <Skeleton variant="text" width="250px" height={32} sx={{ mb: 2 }} />
-            <Skeleton variant="rectangular" width="100%" height={350} sx={{ borderRadius: 2 }} />
-          </Card>
-        ) : (
-          <SuperTable
-            title="One View Price Grid"
-            columns={oneViewPriceGridColumns}
-            rows={oneViewPriceGridData}
-            initialDensity="comfortable"
-            searchPlaceholder="Search by date, platform, brand, or product"
-          />
-        )
-      )} */}
-
-
-      {/* {tab === "own" && (
-        <SuperTable
-          title="Own vs Competition Pricing"
-          columns={ownVsCompColumns}
-          rows={OWN_VS_COMP_ROWS}
-          initialDensity="comfortable"
-          enableRowExpansion
-          onRowClick={(row) => applyGlobalBrandSelection(row.brandOwn)}
-          renderDetail={(row) => (
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Detailed Comparison — {row.product}
-              </Typography>
-
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={3}
-                justifyContent="space-between"
-              >
-                {/* LEFT BLOCK */}
-      {/* <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Own Brand Details
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>{row.brandOwn}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Platform: <strong>{row.platform}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Format: <strong>{row.format}</strong> | ML:{" "}
-                    <strong>{row.ml}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Own MRP: <strong>₹{row.ownMRP}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Own ECP: <strong>₹{row.ownECP}</strong>
-                  </Typography>
-                </Box>
-
-                {/* RIGHT BLOCK */}
-      {/* <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Competitor Details
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>{row.brandComp}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Comp MRP: <strong>₹{row.compMRP}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Comp ECP: <strong>₹{row.compECP}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    ECP Diff:{" "}
-                    <strong
-                      style={{
-                        color:
-                          row.diff < 0 ? "green" : row.diff > 0 ? "red" : "",
-                      }}
-                    >
-                      {row.diff}
-                    </strong>
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-          )}
-        />
-      )} */}
-
-      {/* Trend + RPI Card with Tabs */}
-      {/* <Card
+        <InsightsPricingView />
+      </Card>
+      <Card
         sx={{
           mb: 3,
           p: 2,
-          borderRadius: 3,
+          borderRadius: 8,
           boxShadow: 4,
-          overflow: "hidden",
+          background: "linear-gradient(120deg,#ffffff,#f3f5ff)",
         }}
       >
-        <Box
-          sx={{
-            mb: 1.5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <Box>
-            <Typography fontWeight={600} mb={0.5}>
-              Price Intelligence — Trend & RPI
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Switch between discount trend and RPI view. Brand selection is
-              synced from tables / SKU / drilldown.
-            </Typography>
-          </Box>
+        <LatestOverivewCatCity
+          onViewTrends={handleViewTrends}
+          onViewRca={handleViewRca}
+        />
+      </Card>
 
-          <Tabs
-            value={chartTab}
-            onChange={(_, v) => v && setChartTab(v)}
-            sx={{
-              minHeight: 32,
-              "& .MuiTab-root": {
-                textTransform: "none",
-                fontSize: 12,
-                minHeight: 32,
-              },
-            }}
-          >
-            <Tab label="Discount Trend" value="discount" />
-            <Tab label="RPI View" value="rpi" />
-          </Tabs>
-        </Box>
+      {/* Pricing Trends Drawer */}
+      <TrendsCompetitionDrawer
+        dynamicKey="pricing"
+        open={trendsDrawer.open}
+        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
+        selectedColumn={trendsDrawer.entity}
+        selectedLevel={trendsDrawer.dimension}
+      />
 
-        {chartTab === "discount" && (
-          <>
-            <Box
-              sx={{
-                width: "fit-content",
-                mx: "auto", // center OR remove this for right side
-                mb: 1.5,
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                px: 1.2,
-                py: 0.6,
-                borderRadius: 999,
-                bgcolor: "rgba(15,23,42,0.85)",
-                backdropFilter: "blur(10px)",
-                boxShadow: 4,
-              }}
-            >
-              <ToggleButtonGroup
-                size="small"
-                value={chartType}
-                exclusive
-                onChange={(_, val) => val && setChartType(val)}
-                sx={{
-                  "& .MuiToggleButton-root": {
-                    color: "#e5e7eb",
-                    borderColor: "rgba(148,163,184,0.5)",
-                    px: 0.8,
-                    "&.Mui-selected": {
-                      bgcolor: "rgba(248,250,252,0.15)",
-                      color: "#f9fafb",
-                    },
-                  },
-                }}
-              >
-                <ToggleButton value="line">
-                  <ShowChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-                <ToggleButton value="area">
-                  <StackedBarChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-                <ToggleButton value="bar">
-                  <BarChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-                <ToggleButton value="spline">
-                  <ShowChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-              </ToggleButtonGroup>
-
-              <Divider
-                orientation="vertical"
-                flexItem
-                sx={{ mx: 0.5, borderColor: "rgba(148,163,184,0.6)" }}
-              />
-
-              <Tooltip title="Zoom in">
-                <IconButton size="small" onClick={() => handleChartZoom("in")}>
-                  <ZoomIn sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Zoom out">
-                <IconButton size="small" onClick={() => handleChartZoom("out")}>
-                  <ZoomOut sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Reset zoom">
-                <IconButton size="small" onClick={handleChartResetZoom}>
-                  <RestartAlt sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={chartPanMode ? "Pan mode (on)" : "Pan mode"}>
-                <IconButton
-                  size="small"
-                  onClick={() => setChartPanMode((v) => !v)}
-                  sx={{
-                    bgcolor: chartPanMode
-                      ? "rgba(248,250,252,0.18)"
-                      : "transparent",
-                  }}
-                >
-                  <PanTool sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Divider
-                orientation="vertical"
-                flexItem
-                sx={{ mx: 0.5, borderColor: "rgba(148,163,184,0.6)" }}
-              />
-
-              <Tooltip
-                title={chartPoints ? "Hide data points" : "Show data points"}
-              >
-                <IconButton
-                  size="small"
-                  onClick={() => setChartPoints((v) => !v)}
-                >
-                  {chartPoints ? (
-                    <RadioButtonChecked
-                      sx={{ fontSize: 18, color: "#e5e7eb" }}
-                    />
-                  ) : (
-                    <RadioButtonUnchecked
-                      sx={{ fontSize: 18, color: "#e5e7eb" }}
-                    />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip
-                title={chartGradient ? "Disable gradient" : "Enable gradient"}
-              >
-                <IconButton
-                  size="small"
-                  onClick={() => setChartGradient((v) => !v)}
-                >
-                  <Gradient sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip
-                title={
-                  chartThemeMode === "light"
-                    ? "Dark chart mode"
-                    : "Light chart mode"
-                }
-              >
-                <IconButton
-                  size="small"
-                  onClick={() =>
-                    setChartThemeMode((m) => (m === "light" ? "dark" : "light"))
-                  }
-                >
-                  {chartThemeMode === "light" ? (
-                    <DarkMode sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                  ) : (
-                    <LightMode sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip
-                title={chartLegendVisible ? "Hide legend" : "Show legend"}
-              >
-                <IconButton
-                  size="small"
-                  onClick={() => setChartLegendVisible((visible) => !visible)}
-                >
-                  <LegendToggle sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title="Select series">
-                <IconButton
-                  size="small"
-                  onClick={(e) => setSeriesMenuAnchor(e.currentTarget)}
-                >
-                  <Tune sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title="Download PNG">
-                <IconButton
-                  size="small"
-                  onClick={() => handleDownloadChart("png")}
-                >
-                  <Download sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Download SVG">
-                <IconButton
-                  size="small"
-                  onClick={() => handleDownloadChart("svg")}
-                >
-                  <Download sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
-            <Menu
-              anchorEl={seriesMenuAnchor}
-              open={Boolean(seriesMenuAnchor)}
-              onClose={() => setSeriesMenuAnchor(null)}
-              keepMounted
-              PaperProps={{
-                style: {
-                  maxHeight: 400,
-                  overflowY: 'auto'
-                }
-              }}
-            >
-              {(chartDataSource.series || []).map((s) => (
-                <MenuItem key={s.name} onClick={() => handleToggleSeries(s.name)}>
-                  <ListItemIcon>
-                    <Checkbox size="small" checked={chartSeriesSelection[s.name] || false} />
-                  </ListItemIcon>
-                  <ListItemText primary={s.name} />
-                </MenuItem>
-              ))}
-              <Divider />
-              <MenuItem onClick={handleToggleAllSeries}>
-                <ListItemIcon>
-                  <LegendToggle fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Toggle all" />
-              </MenuItem>
-            </Menu>
-
-            {brandDiscountTrendLoading ? (
-              <Box sx={{ mt: 1, height: 320 }}>
-                <Skeleton variant="rectangular" width="100%" height="100%" sx={{ borderRadius: 2 }} />
-              </Box>
-            ) : (
-              <Box sx={{ mt: 1, height: 320 }}>
-                <EChartsWrapper
-                  option={discountChart}
-                  style={{ height: "100%", width: "100%" }}
-                />
-              </Box>
-            )}
-          </>
-        )}
-
-        {chartTab === "rpi" && (
-          <Box sx={{ mt: 1, height: 320 }}>
-            <Grid container spacing={2} sx={{ height: "100%" }}>
-              <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <EChartsWrapper
-                  option={rpiFormatChart}
-                  style={{ height: "100%", width: "100%" }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <EChartsWrapper
-                  option={rpiBrandChart}
-                  style={{ height: "100%", width: "100%" }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-        )}
-      </Card> */}
-      {/* MODERN FLOATING FILTER DOCK */}
-      {/* <Box
-        sx={{
-          position: "fixed",
-          bottom: 28,
-          right: 28,
-          zIndex: 1000,
-        }}
-      >
-        <Box
-          onClick={() => setOpenPopup(true)}
-          sx={{
-            px: 2.2,
-            py: 1.1,
-            borderRadius: "30px",
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            cursor: "pointer",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
-            background: "rgba(255,255,255,0.75)",
-            backdropFilter: "blur(14px)",
-            border: "1px solid rgba(255,255,255,0.45)",
-            transition: "0.3s",
-            "&:hover": {
-              background: "rgba(255,255,255,0.9)",
-              transform: "translateY(-2px)",
-              boxShadow: "0 12px 32px rgba(0,0,0,0.22)",
-            },
-          }}
-        >
-          <FilterList sx={{ fontSize: 22, color: "#1976d2" }} />
-        </Box>
-      </Box> */}
-
-      {/* POPUP FILTER PANEL */}
-      {/* {FilterPopup} */}
-    </Box >
+      {/* Pricing RCA Drawer */}
+      <PricingRcaDrawer
+        entityName={rcaDrawer.open ? rcaDrawer.entity : null}
+        dimensionType={rcaDrawer.dimension}
+        onClose={() => setRcaDrawer({ open: false, entity: '', dimension: '' })}
+      />
+    </Box>
   );
 }
