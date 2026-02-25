@@ -173,7 +173,8 @@ const CustomHeaderDropdown = ({
                             borderRadius: "12px",
                             boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
                             border: "1px solid #F1F5F9",
-                            width: "280px",
+                            width: { xs: "calc(100vw - 40px)", sm: "280px" },
+                            maxWidth: "280px",
                             overflow: 'visible',
                             p: 2,
                         }
