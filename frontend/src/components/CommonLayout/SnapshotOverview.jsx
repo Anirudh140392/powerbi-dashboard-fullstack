@@ -394,16 +394,18 @@ const ComparisonCard = ({ kpi, loading = false }) => {
     const displayDelta = kpi.delta !== undefined ? kpi.delta : deltaVal;
     const deltaLabel = kpi.deltaLabel || (displayDelta >= 0 ? `+${displayDelta.toFixed(1)} pp` : `${displayDelta.toFixed(1)} pp`);
 
-    // Calculate dynamic hover deltas based on sliceSeries
-    const hoverStart = sliceSeries.length >= 2 ? sliceSeries[0] : 0;
-    const hoverEnd = sliceSeries.length >= 2 ? sliceSeries[sliceSeries.length - 1] : 0;
+    // Calculate dynamic hover deltas based on kpi.delta and period
+    // Use kpi.delta as the base (30D value) and scale proportionally for shorter periods
+    const baseDelta = kpi.delta || 0;
+    const periodScale = { 7: 0.3, 14: 0.55, 30: 1.0 };
+    const scaledDelta = (baseDelta * (periodScale[period] || 1.0));
+    const hoverDeltaPct = scaledDelta.toFixed(1);
 
     // Extract suffix from original deltaLabel (e.g '%', 'pp', 'Cr') to keep formatting consistent
     const suffixMatch = (deltaLabel || '').match(/[^0-9.\-+]+$/);
     const suffix = suffixMatch ? suffixMatch[0] : '%';
 
-    const hoverDeltaPct = hoverStart !== 0 ? (((hoverEnd - hoverStart) / hoverStart) * 100).toFixed(1) : '0.0';
-    const hoverDeltaStr = `${hoverDeltaPct > 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
+    const hoverDeltaStr = `${scaledDelta >= 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);

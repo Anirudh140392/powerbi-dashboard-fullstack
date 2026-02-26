@@ -7243,14 +7243,15 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
 
-        // Query for dark store count grouped by platform
+        // Query for dark store count grouped by platform (refined as per user request)
         const query = `
             SELECT 
                 platform,
-                count(DISTINCT merchant_name) as store_count
+                count(DISTINCT(merchant_name)) as store_count
             FROM rb_location_darkstore
             ${whereClause}
-            GROUP BY platform
+            GROUP BY 1
+            LIMIT 100
         `;
 
         console.log('[getDarkStoreCount] Query:', query);
