@@ -13,6 +13,8 @@ const clickhouse = createClient({
     request_timeout: 60000,
 });
 
+
+
 async function inspect() {
     try {
         console.log("Connecting to ClickHouse...");
