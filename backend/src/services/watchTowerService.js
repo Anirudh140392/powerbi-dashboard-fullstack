@@ -3632,10 +3632,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
     }
 };
 
-const getPlatforms = async () => {
+const getPlatforms = async (source = null) => {
     try {
         // ClickHouse query
-        const query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        let query;
+        if (source === 'pricing') {
+            query = `SELECT DISTINCT Platform AS platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
+        } else {
+            query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        }
+
         const results = await queryClickHouse(query);
         return results.map(p => p.platform).filter(Boolean).sort();
     } catch (error) {
@@ -3686,21 +3692,29 @@ const getKeywords = async (brand) => {
     }
 };
 
-const getLocations = async (platform, brand, includeCompetitors = false) => {
+const getLocations = async (platform, brand, includeCompetitors = false, source = null) => {
     try {
         // ClickHouse query
-        const conditions = [`location IS NOT NULL`, `location != ''`];
+        const isPricing = source === 'pricing';
+        const table = isPricing ? 'rb_pdp_olap' : 'rca_sku_dim';
+        const locCol = isPricing ? 'Location' : 'location';
+        const platCol = isPricing ? 'Platform' : 'platform';
+        const brandCol = isPricing ? 'Brand' : 'brand_name';
+        const compCol = isPricing ? 'Comp_flag' : 'comp_flag';
+
+        const conditions = [`${locCol} IS NOT NULL`, `${locCol} != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            conditions.push(`${platCol} = '${platform.replace(/'/g, "''")}'`);
         }
         if (brand && brand !== 'All') {
-            conditions.push(`brand_name = '${brand.replace(/'/g, "''")}'`);
+            conditions.push(`${brandCol} = '${brand.replace(/'/g, "''")}'`);
         }
+        // only filter competitors if it's the default behaviour
         if (!includeCompetitors) {
-            conditions.push(`comp_flag = 0`);
+            conditions.push(`toString(${compCol}) = '0'`);
         }
 
-        const query = `SELECT DISTINCT location FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY location`;
+        const query = `SELECT DISTINCT ${locCol} AS location FROM ${table} WHERE ${conditions.join(' AND ')} ORDER BY ${locCol}`;
         const results = await queryClickHouse(query);
         return results.map(l => l.location).filter(Boolean);
     } catch (error) {
@@ -4032,15 +4046,21 @@ const getTrendData = async (filters) => {
     return await computeTrendData(filters);
 };
 
-const getBrandCategories = async (platform) => {
+const getBrandCategories = async (platform, source = null) => {
     try {
         // ClickHouse query
-        const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
+        const isPricing = source === 'pricing';
+        const table = isPricing ? 'rb_pdp_olap' : 'rca_sku_dim';
+        const catCol = isPricing ? 'Category' : 'category';
+        const platCol = isPricing ? 'Platform' : 'platform';
+
+        const conditions = [`${catCol} IS NOT NULL`, `${catCol} != ''`];
+        if (!isPricing) conditions.push(`status = 1`);
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            conditions.push(`${platCol} = '${platform.replace(/'/g, "''")}'`);
         }
 
-        const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+        const query = `SELECT DISTINCT ${catCol} AS category FROM ${table} WHERE ${conditions.join(' AND ')} ORDER BY ${catCol}`;
         const results = await queryClickHouse(query);
         return results.map(c => c.category).filter(Boolean);
     } catch (error) {

@@ -1,4 +1,5 @@
-import { PriceAndDiscountIntelligence, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity } from '../controllers/pricingAnalysisController.js';
+import { PriceAndDiscountIntelligence, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity, getPricingOverviewKpis, getCategoryOverviewKpis, getPricingInsights, getKpiTrends, getTrendsFilterOptions } from '../controllers/pricingAnalysisController.js';
+
 import { getOneViewPriceGrid } from '../controllers/oneViewPriceGridController.js';
 
 export default (app) => {
@@ -19,6 +20,9 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/pricing-analysis', PriceAndDiscountIntelligence);
+
+    app.get('/api/pricing-analysis/kpi-trends', getKpiTrends);
+    app.get('/api/pricing-analysis/trends-filter-options', getTrendsFilterOptions);
 
     /**
      * @swagger
@@ -372,4 +376,103 @@ export default (app) => {
      *         description: Successful response with ECP by city data
      */
     app.get('/api/pricing-analysis/ecp-by-city', getEcpByCity);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/overview-kpis:
+     *   get:
+     *     summary: Get Pricing Overview KPIs
+     *     description: Returns Discount, Price Per Unit, RPI, and Average Selling Price KPIs from rb_pdp_olap, with current vs previous period comparison.
+     *     parameters:
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: location
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: category
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *       - in: query
+     *         name: compareStartDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *       - in: query
+     *         name: compareEndDate
+     *         schema:
+     *           type: string
+     *           format: date
+     *     responses:
+     *       200:
+     *         description: Successful response with pricing overview KPIs
+     */
+    app.get('/api/pricing-analysis/overview-kpis', getPricingOverviewKpis);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/category-overview-kpis:
+     *   get:
+     *     summary: Get KPIs grouped by Category or City
+     *     parameters:
+     *       - in: query
+     *         name: dimension
+     *         schema:
+     *           type: string
+     *           enum: [category, city]
+     *       - in: query
+     *         name: platform
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: startDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: endDate
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: filterCategories
+     *         schema:
+     *           type: string
+     *       - in: query
+     *         name: filterCities
+     *         schema:
+     *           type: string
+     *     responses:
+     *       200:
+     *         description: KPIs grouped by Category or City
+     */
+    app.get('/api/pricing-analysis/category-overview-kpis', getCategoryOverviewKpis);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/insights:
+     *   get:
+     *     summary: Get pricing insights (price drop/increase for own and competitor SKUs)
+     *     parameters:
+     *       - in: query
+     *         name: type
+     *         schema:
+     *           type: string
+     *           enum: [pd_my, pi_my, pd_comp, pi_comp]
+     *         description: pd_my=price drop own, pi_my=price increase own, pd_comp=price drop comp, pi_comp=price increase comp
+     */
+    app.get('/api/pricing-analysis/insights', getPricingInsights);
 };
+
+

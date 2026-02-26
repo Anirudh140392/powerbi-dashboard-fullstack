@@ -81,13 +81,17 @@ export const getLatestAvailableMonth = async (req, res) => {
 
 export const getPlatforms = async (req, res) => {
     try {
-        const platforms = await watchTowerService.getPlatforms();
+        const { source } = req.query;
+        const platforms = await watchTowerService.getPlatforms(source);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching platforms:', error);
         res.json([]);
     }
 };
+
+// ... (skipping other functions unchanged, but no I can just replace the whole block)
+
 
 export const getBrands = async (req, res) => {
     try {
@@ -115,10 +119,10 @@ export const getKeywords = async (req, res) => {
 
 export const getLocations = async (req, res) => {
     try {
-        const { platform, brand, includeCompetitors } = req.query;
+        const { platform, brand, includeCompetitors, source } = req.query;
         // Convert string 'true' to boolean true
         const shouldIncludeCompetitors = includeCompetitors === 'true';
-        const locations = await watchTowerService.getLocations(platform, brand, shouldIncludeCompetitors);
+        const locations = await watchTowerService.getLocations(platform, brand, shouldIncludeCompetitors, source);
         res.json(locations);
     } catch (error) {
         console.error('Error fetching locations:', error);
@@ -128,8 +132,8 @@ export const getLocations = async (req, res) => {
 
 export const getBrandCategories = async (req, res) => {
     try {
-        const { platform } = req.query;
-        const categories = await watchTowerService.getBrandCategories(platform);
+        const { platform, source } = req.query;
+        const categories = await watchTowerService.getBrandCategories(platform, source);
         res.json(categories);
     } catch (error) {
         console.error('Error fetching brand categories:', error);

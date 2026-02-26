@@ -4,6 +4,10 @@ import discountTrendService from '../services/discountTrendService.js';
 import brandPriceOverviewService from '../services/brandPriceOverviewService.js';
 import brandDiscountTrendService from '../services/brandDiscountTrendService.js';
 import ecpByCityService from '../services/ecpByCityService.js';
+import pricingOverviewKpiService from '../services/pricingOverviewKpiService.js';
+import categoryOverviewKpiService from '../services/categoryOverviewKpiService.js';
+import pricingInsightsService from '../services/pricingInsightsService.js';
+import pricingKpiTrendsService from '../services/pricingKpiTrendsService.js';
 
 
 /**
@@ -270,5 +274,136 @@ export const getBrandDiscountTrend = async (req, res) => {
             error: 'Internal Server Error',
             message: error.message
         });
+    }
+};
+
+/**
+ * Get Pricing Overview KPIs (Discount, Price Per Unit, RPI, Average Selling Price)
+ * Endpoint: GET /api/pricing-analysis/overview-kpis
+ * Query params: platform, location, category, startDate, endDate, compareStartDate, compareEndDate
+ */
+export const getPricingOverviewKpis = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform,
+            location: req.query.location,
+            category: req.query.category,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
+        };
+
+        console.log("[PricingAnalysisController] getPricingOverviewKpis called with filters:", filters);
+
+        const result = await pricingOverviewKpiService.getPricingOverviewKpis(filters);
+
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getPricingOverviewKpis:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * GET /api/pricing-analysis/category-overview-kpis
+ * Query params: dimension (category|city), platform, location, category,
+ *               startDate, endDate, compareStartDate, compareEndDate,
+ *               filterCategories, filterCities
+ */
+export const getCategoryOverviewKpis = async (req, res) => {
+    try {
+        const filters = {
+            dimension: req.query.dimension || 'category',
+            platform: req.query.platform,
+            location: req.query.location,
+            category: req.query.category,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
+            filterCategories: req.query.filterCategories,
+            filterCities: req.query.filterCities,
+        };
+
+        console.log('[PricingAnalysisController] getCategoryOverviewKpis:', filters);
+        const result = await categoryOverviewKpiService.getCategoryOverviewKpis(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] getCategoryOverviewKpis error:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * GET /api/pricing-analysis/insights
+ * Query params: type (pd_my|pi_my|pd_comp|pi_comp), platform, location,
+ *               category, startDate, endDate, compareStartDate, compareEndDate, limit
+ */
+export const getPricingInsights = async (req, res) => {
+    try {
+        const filters = {
+            type: req.query.type || 'pi_my',
+            platform: req.query.platform,
+            location: req.query.location,
+            category: req.query.category,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
+            limit: req.query.limit || 10,
+        };
+        console.log('[PricingAnalysisController] getPricingInsights:', filters);
+        const result = await pricingInsightsService.getPricingInsights(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] getPricingInsights error:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * GET /api/pricing-analysis/kpi-trends
+ */
+export const getKpiTrends = async (req, res) => {
+    try {
+        const filters = {
+            platform: req.query.platform || "All",
+            location: req.query.location || "All",
+            brand: req.query.brand || "All",
+            category: req.query.category || "All",
+            channel: req.query.channel,
+            period: req.query.period,
+            timeStep: req.query.timeStep,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            skuName: req.query.skuName,
+            skuCode: req.query.skuCode
+        };
+        console.log('[PricingAnalysisController] getKpiTrends:', filters);
+        const result = await pricingKpiTrendsService.getKpiTrends(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] getKpiTrends error:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * GET /api/pricing-analysis/trends-filter-options
+ */
+export const getTrendsFilterOptions = async (req, res) => {
+    try {
+        const { filterType, platform, brand } = req.query;
+        console.log('[PricingAnalysisController] getTrendsFilterOptions:', { filterType, platform, brand });
+        const result = await pricingKpiTrendsService.getTrendsFilterOptions({ filterType, platform, brand });
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] getTrendsFilterOptions error:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
     }
 };

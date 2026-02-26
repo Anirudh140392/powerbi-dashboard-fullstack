@@ -422,8 +422,9 @@ export default function TrendsCompetitionDrawer({
   const [showPlatformPills, setShowPlatformPills] = useState(false);
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
+  const [showAllOptions, setShowAllOptions] = useState(false);
 
-  // ===================== API STATE =====================
+  // ================== API STATE =====================
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
@@ -457,12 +458,14 @@ export default function TrendsCompetitionDrawer({
     const fetchFilterOptions = async () => {
       try {
         console.log("[TrendsDrawer] Fetching filter options");
+        const baseUrl = dynamicKey === "pricing" ? '/pricing-analysis' : '/watchtower';
+
         const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'platforms' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'cities' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } })
+          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'platforms' } }),
+          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'categories' } }),
+          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'cities' } }),
+          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'brands' } }),
+          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'skus' } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
@@ -513,7 +516,8 @@ export default function TrendsCompetitionDrawer({
       else if (audience === "Brand") params.brand = selectedPlatform || 'All';
       else params.platform = selectedPlatform || 'All';
 
-      const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+      const endpoint = dynamicKey === "pricing" ? '/pricing-analysis/kpi-trends' : '/watchtower/kpi-trends';
+      const response = await axiosInstance.get(endpoint, { params });
 
       if (response.data?.timeSeries?.length > 0) {
         setChartData(response.data.timeSeries);
@@ -1677,6 +1681,8 @@ export default function TrendsCompetitionDrawer({
       context: { ...prev.context, audience: newAudience },
     }));
 
+    setShowAllOptions(false);
+
     // Auto-select first item of the new group
     let firstOption = "";
     if (newAudience === "Platform") firstOption = PLATFORM_OPTIONS[0];
@@ -1796,41 +1802,70 @@ export default function TrendsCompetitionDrawer({
 
 
                 {/* DYNAMIC PILLS */}
-                {/* DYNAMIC PILLS */}
                 {showPlatformPills && (
-                  <Box display="flex" gap={0.5}>
-                    {(allTrendMeta.context.audience === "Platform"
-                      ? PLATFORM_OPTIONS
-                      : allTrendMeta.context.audience === "Format"
-                        ? FORMAT_OPTIONS
-                        : allTrendMeta.context.audience === "City"
-                          ? CITY_OPTIONS
-                          : allTrendMeta.context.audience === "Brand"
-                            ? BRAND_OPTIONS
-                            : []
-                    ).map((p) => (
-                      <Box
-                        key={p}
-                        onClick={() => {
-                          setSelectedPlatform(p); // only select the pill
-                          // ❌ DO NOT toggle or force open here
-                        }}
-                        sx={{
-                          px: 1.5,
-                          py: 0.7,
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          border: "1px solid #E5E7EB",
-                          backgroundColor:
-                            selectedPlatform === p ? "#0ea5e9" : "white",
-                          color: selectedPlatform === p ? "white" : "#0f172a",
-                        }}
-                      >
-                        {p}
-                      </Box>
-                    ))}
+                  <Box display="flex" gap={0.5} flexWrap="wrap">
+                    {(() => {
+                      const options = allTrendMeta.context.audience === "Platform"
+                        ? PLATFORM_OPTIONS
+                        : allTrendMeta.context.audience === "Format"
+                          ? FORMAT_OPTIONS
+                          : allTrendMeta.context.audience === "City"
+                            ? CITY_OPTIONS
+                            : allTrendMeta.context.audience === "Brand"
+                              ? BRAND_OPTIONS
+                              : [];
+
+                      const showAll = showAllOptions || options.length <= 7;
+                      const visibleOptions = showAll ? options : options.slice(0, 7);
+
+                      return (
+                        <>
+                          {visibleOptions.map((p) => (
+                            <Box
+                              key={p}
+                              onClick={() => {
+                                setSelectedPlatform(p); // only select the pill
+                              }}
+                              sx={{
+                                px: 1.5,
+                                py: 0.7,
+                                borderRadius: "999px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                border: "1px solid #E5E7EB",
+                                backgroundColor:
+                                  selectedPlatform === p ? "#0ea5e9" : "white",
+                                color: selectedPlatform === p ? "white" : "#0f172a",
+                              }}
+                            >
+                              {p}
+                            </Box>
+                          ))}
+                          {options.length > 7 && (
+                            <Box
+                              onClick={() => setShowAllOptions(!showAllOptions)}
+                              sx={{
+                                px: 1.5,
+                                py: 0.7,
+                                borderRadius: "999px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                border: "1px dashed #0f172a",
+                                backgroundColor: "transparent",
+                                color: "#0f172a",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center"
+                              }}
+                            >
+                              {showAllOptions ? "Show Less" : `+${options.length - 7} More`}
+                            </Box>
+                          )}
+                        </>
+                      );
+                    })()}
                   </Box>
                 )}
               </Box>

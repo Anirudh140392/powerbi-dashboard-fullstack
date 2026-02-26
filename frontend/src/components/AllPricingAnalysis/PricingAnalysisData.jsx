@@ -90,7 +90,6 @@ import axiosInstance from "../../api/axiosInstance";
 import LatestOverivewCatCity from "./LatestOverivewCatCity";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
-import { getLogicalKpiTrend, getLogicalKpiValue } from "../AllAvailablityAnalysis/availablityDataCenter";
 import { FilterContext } from "@/utils/FilterContext";
 import InsightsPricingView from "./InsightsPricingView";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
@@ -1151,12 +1150,17 @@ export default function PricingAnalysisData() {
   const {
     platform: globalPlatform,
     selectedLocation,
+    selectedCategory,
     timeStart,
     timeEnd,
     compareStart,
     compareEnd,
     datesInitialized,
   } = useContext(FilterContext);
+
+  // Pricing Overview KPI state
+  const [pricingOverviewKpis, setPricingOverviewKpis] = useState([]);
+  const [pricingKpisLoading, setPricingKpisLoading] = useState(true);
 
   const [filters, setFilters] = useState(defaultFilters);
   const [selectedBrand, setSelectedBrand] = useState(null);
@@ -1420,6 +1424,52 @@ export default function PricingAnalysisData() {
 
     fetchEcpByCity();
   }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized, selectedBrand, filters.brand]);
+
+  // Fetch Pricing Overview KPIs when filters change
+  useEffect(() => {
+    if (!datesInitialized) return;
+
+    const fetchPricingOverviewKpis = async () => {
+      setPricingKpisLoading(true);
+      try {
+        const params = {
+          startDate: timeStart?.format('YYYY-MM-DD'),
+          endDate: timeEnd?.format('YYYY-MM-DD'),
+          compareStartDate: compareStart?.format('YYYY-MM-DD'),
+          compareEndDate: compareEnd?.format('YYYY-MM-DD'),
+        };
+
+        if (globalPlatform && globalPlatform !== 'All') {
+          params.platform = Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform;
+        }
+        if (selectedLocation && selectedLocation !== 'All') {
+          params.location = Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation;
+        }
+        if (selectedCategory && selectedCategory !== 'All') {
+          params.category = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
+        }
+
+        console.log('[PricingAnalysisData] Fetching overview KPIs with params:', params);
+        const response = await axiosInstance.get('/pricing-analysis/overview-kpis', {
+          params: { ...params, _t: Date.now() }
+        });
+
+        if (response.data?.success && response.data?.kpis) {
+          console.log('[PricingAnalysisData] Overview KPIs received:', response.data.kpis.length, 'KPIs');
+          setPricingOverviewKpis(response.data.kpis);
+        } else {
+          setPricingOverviewKpis([]);
+        }
+      } catch (error) {
+        console.error('Error fetching pricing overview KPIs:', error);
+        setPricingOverviewKpis([]);
+      } finally {
+        setPricingKpisLoading(false);
+      }
+    };
+
+    fetchPricingOverviewKpis();
+  }, [globalPlatform, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, datesInitialized]);
 
   // Discount Trend state
   const [discountTrendData, setDiscountTrendData] = useState([]);
@@ -2484,97 +2534,45 @@ export default function PricingAnalysisData() {
   }, [ecpData]);
 
 
-  const cards = [
-    {
-      title: "Discount",
-      value: "12.4%",
-      sub: "Average discount across active SKUs",
-      change: "▲2.1% (from 10.3%)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Max discount SKU: 28%",
-      extraChange: "▲1.4%",
-      extraChangeColor: "green",
-    },
-    {
-      title: "Price Per Unit",
-      value: "₹185.50",
-      sub: "Average selling price per unit",
-      change: "▼3.6% (from ₹192.40)",
-      changeColor: "red",
-      prevText: "vs Previous Period",
-      extra: "Price variance across platforms: ₹12",
-      extraChange: "",
-      extraChangeColor: "red",
-    },
-    {
-      title: "RPI",
-      value: "₹142.30",
-      sub: "Revenue generated per impression",
-      change: "▲5.8% (from ₹134.50)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Top performing SKU RPI: ₹188",
-      extraChange: "Above average",
-      extraChangeColor: "orange",
-    },
-    {
-      title: "Average Selling Price",
-      value: "₹198.75",
-      sub: "Overall average selling price",
-      change: "▲1.9% (from ₹195.10)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Premium SKU contribution: 32%",
-      extraChange: "▲3.2%",
-      extraChangeColor: "green",
-    },
-  ];
-
+  // Map API pricing overview KPIs to SnapshotOverview KPI format
   const pricingKpis = useMemo(() => {
-    // User request: restrict Visibility Overview cards to ONLY change on Platform
-    const platformContext = { platform: globalPlatform };
-
     const icons = [PieChart, Target, TrendingUpLucide, Monitor];
     const gradients = [
-      ['#6366f1', '#8b5cf6'],
-      ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899'],
-      ['#8b5cf6', '#a855f7']
+      ['#7c3aed', '#a78bfa'],  // Discount — purple
+      ['#0891b2', '#22d3ee'],  // Price Per Unit — cyan
+      ['#db2777', '#f9a8d4'],  // RPI — pink
+      ['#059669', '#34d399'],  // ASP — green
     ];
 
-    // Map titles to keys that exist in data center or fall back to defaults
-    const titleToKey = {
-      "Discount": "discount",
-      "Price Per Unit": "priceperunit",
-      "RPI": "rpi",
-      "Average Selling Price": "averagesellingprice"
-    };
-
-    return cards.map((card, idx) => {
-      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
-      const val = getLogicalKpiValue(kpiKey, platformContext);
-      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
-      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
-
-      return {
-        id: `vis-${idx}`,
-        title: card.title,
-        value: `${val.toFixed(1)}%`,
-        subtitle: card.sub,
-        delta: parseFloat(delta),
-        deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
+    if (pricingOverviewKpis.length === 0) {
+      // Fallback skeleton kpis while loading
+      return ["Discount", "Price Per Unit", "RPI", "Average Selling Price"].map((title, idx) => ({
+        id: `pricing-kpi-${idx}`,
+        title,
+        value: '—',
+        subtitle: 'Loading...',
+        delta: 0,
+        deltaLabel: '0%',
         icon: icons[idx] || PieChart,
         gradient: gradients[idx % gradients.length],
-        trend: getLogicalKpiTrend(kpiKey, platformContext),
+      }));
+    }
 
-        extra: card.extra,
-        extraChange: card.extraChange,
-        extraChangeColor: card.extraChangeColor,
-        prevText: card.prevText
-      };
-    });
-  }, [globalPlatform]);
+    return pricingOverviewKpis.map((kpi, idx) => ({
+      id: kpi.id || `pricing-kpi-${idx}`,
+      title: kpi.title,
+      value: kpi.value,
+      subtitle: kpi.subtitle,
+      delta: kpi.delta || 0,
+      deltaLabel: kpi.delta !== undefined
+        ? `${kpi.delta >= 0 ? '▲' : '▼'} ${Math.abs(kpi.delta).toFixed(1)}%`
+        : '0%',
+      icon: icons[idx] || PieChart,
+      gradient: kpi.gradient || gradients[idx % gradients.length],
+      extra: kpi.extra,
+      prevText: 'vs Previous Period',
+    }));
+  }, [pricingOverviewKpis]);
 
   // ── Drawer state for LatestOverivewCatCity ──────────────────────────────
   const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
@@ -2594,13 +2592,14 @@ export default function PricingAnalysisData() {
       <SnapshotOverview
         title="Pricing Overview"
         icon={LayoutGrid}
-        chip="All Platforms"
+        chip="ALL PLATFORMS"
         headerRight={
           <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-            vs Previous Period
+            VS PREVIOUS PERIOD
           </span>
         }
         kpis={pricingKpis}
+        loading={pricingKpisLoading}
         variant="detailed"
       />
       <Card
