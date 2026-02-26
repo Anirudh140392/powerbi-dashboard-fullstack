@@ -203,6 +203,7 @@ const normalizeFilterArray = (value) => {
     // Split comma-separated strings into arrays (e.g. "Patanjali,Colgate" → ["Patanjali", "Colgate"])
     if (typeof value === 'string' && value.includes(',')) {
         const arr = value.split(',').map(v => v.trim()).filter(Boolean);
+        if (arr.includes('All')) return null;
         return arr.length > 0 ? arr : null;
     }
 
@@ -559,28 +560,32 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Build Where Clause for RbPdpOlap (Offtake) - MULTI-VALUE SUPPORT
         const buildOfftakeConditions = (s = startDate, e = endDate) => {
             // Use toDate(DATE) since DATE column is String type
-            const conditions = [`toDate(DATE) BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`, "Comp_flag = 0"];
-            if (brandArr && brandArr.length > 0) {
-                const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
+            const conditions = [`toDate(DATE) BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`];
+
+            const brandArrLocal = normalizeFilterArray(brand);
+            if (brandArrLocal && brandArrLocal.length > 0) {
+                const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
                 conditions.push(`(${brandConds})`);
             }
-            if (locationArr && locationArr.length > 0) {
-                if (locationArr.length === 1) {
-                    conditions.push(`Location = '${escapeStrMain(locationArr[0])}'`);
-                } else {
-                    conditions.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                }
+
+            const locationArrLocal = normalizeFilterArray(location);
+            if (locationArrLocal && locationArrLocal.length > 0) {
+                conditions.push(`Location IN (${locationArrLocal.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
             }
-            if (platformArr && platformArr.length > 0) {
-                const cond = buildPlatformChannelCond(platformArr, channel);
+
+            const platformArrLocal = normalizeFilterArray(platform);
+            if (platformArrLocal && platformArrLocal.length > 0) {
+                const cond = buildPlatformChannelCond(platformArrLocal, channel);
                 if (cond) conditions.push(cond);
             } else {
                 // If platform is 'All' or null, handle based on channel
                 const cond = buildPlatformChannelCond(null, channel);
                 if (cond) conditions.push(cond);
             }
-            if (category && category !== 'All') {
-                conditions.push(`Category = '${escapeStrMain(category)}'`);
+
+            const categoryArrLocal = normalizeFilterArray(category);
+            if (categoryArrLocal && categoryArrLocal.length > 0) {
+                conditions.push(`Category IN (${categoryArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
 
             // Advanced SKU Search Filters
@@ -640,21 +645,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // Handle location with multi-value support
             const locationFilterArr = normalizeFilterArray(locationFilter);
             if (locationFilterArr && locationFilterArr.length > 0) {
-                if (locationFilterArr.length === 1) {
-                    conditions.push(`Location = '${escapeStr(locationFilterArr[0])}'`);
-                } else {
-                    conditions.push(`Location IN (${locationFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-                }
+                conditions.push(`Location IN (${locationFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
             // Handle category with multi-value support
             const categoryFilterArr = normalizeFilterArray(categoryFilter);
             if (categoryFilterArr && categoryFilterArr.length > 0) {
-                if (categoryFilterArr.length === 1) {
-                    conditions.push(`Category = '${escapeStr(categoryFilterArr[0])}'`);
-                } else {
-                    conditions.push(`Category IN (${categoryFilterArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-                }
+                conditions.push(`Category IN (${categoryFilterArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
             }
 
             // Advanced SKU Search Filters
@@ -703,8 +700,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 baseConditions.push(`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`);
                 baseConditions.push(`keyword_search_rank < 11`);
 
-                if (categoryFilter && categoryFilter !== 'All') {
-                    baseConditions.push(`keyword_category = '${escapeStr(categoryFilter)}'`);
+                const catArr = normalizeFilterArray(categoryFilter);
+                if (catArr && catArr.length > 0) {
+                    baseConditions.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
 
                 // Location with multi-value support
@@ -912,7 +910,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Build WHERE conditions for ClickHouse
                 const buildConditions = (dateStart, dateEnd) => {
-                    const conditions = [`DATE BETWEEN '${dateStart}' AND '${dateEnd}'`, "Comp_flag = 0"];
+                    const conditions = [`DATE BETWEEN '${dateStart}' AND '${dateEnd}'`];
 
                     const brandCondArr = normalizeFilterArray(brand);
                     if (brandCondArr && brandCondArr.length > 0) {
@@ -920,8 +918,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(`(${brandConds})`);
                     }
 
-                    if (location && location !== 'All') {
-                        conditions.push(`Location = '${escapeStr(location)}'`);
+                    const locationArr = normalizeFilterArray(location);
+                    if (locationArr && locationArr.length > 0) {
+                        if (locationArr.length === 1) {
+                            conditions.push(`Location = '${escapeStr(locationArr[0])}'`);
+                        } else {
+                            conditions.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                        }
                     }
 
                     // Channel-based platform filtering
@@ -930,8 +933,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(platformCond);
                     }
 
-                    if (category && category !== 'All') {
-                        conditions.push(`Category = '${escapeStr(category)}'`);
+                    const categoryArr = normalizeFilterArray(category);
+                    if (categoryArr && categoryArr.length > 0) {
+                        if (categoryArr.length === 1) {
+                            conditions.push(`Category = '${escapeStr(categoryArr[0])}'`);
+                        } else {
+                            conditions.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        }
                     }
                     const skuArr = normalizeFilterArray(skuName);
                     if (skuArr && skuArr.length > 0) {
@@ -976,8 +984,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'`,
                             `sales IS NOT NULL`
                         ];
-                        if (location && location !== 'All') msConds.push(`Location = '${escapeStr(location)}'`);
-                        if (category && category !== 'All') msConds.push(`category = '${escapeStr(category)}'`);
+                        const locArr = normalizeFilterArray(location);
+                        if (locArr && locArr.length > 0) {
+                            if (locArr.length === 1) {
+                                msConds.push(`Location = '${escapeStr(locArr[0])}'`);
+                            } else {
+                                msConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                            }
+                        }
+                        const catArr = normalizeFilterArray(category);
+                        if (catArr && catArr.length > 0) {
+                            if (catArr.length === 1) {
+                                msConds.push(`category = '${escapeStr(catArr[0])}'`);
+                            } else {
+                                msConds.push(`category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                            }
+                        }
 
                         const [num, den] = await Promise.all([
                             queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_brand_ms WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})`),
@@ -1012,8 +1034,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'`,
                             `sales IS NOT NULL`
                         ];
-                        if (location && location !== 'All') msConds.push(`Location = '${escapeStr(location)}'`);
-                        if (category && category !== 'All') msConds.push(`category = '${escapeStr(category)}'`);
+                        const locArr = normalizeFilterArray(location);
+                        if (locArr && locArr.length > 0) {
+                            if (locArr.length === 1) {
+                                msConds.push(`Location = '${escapeStr(locArr[0])}'`);
+                            } else {
+                                msConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                            }
+                        }
+                        const catArr = normalizeFilterArray(category);
+                        if (catArr && catArr.length > 0) {
+                            if (catArr.length === 1) {
+                                msConds.push(`category = '${escapeStr(catArr[0])}'`);
+                            } else {
+                                msConds.push(`category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                            }
+                        }
 
                         const [num, den] = await Promise.all([
                             queryClickHouse(`SELECT SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_brand_ms WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})`),
@@ -1145,8 +1181,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
                     }
                     // Handle Category filter
-                    if (category && category !== 'All') {
-                        msBaseConditions.push(`category = '${escapeStrMain(category)}'`);
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        msBaseConditions.push(`category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                     }
 
                     const [numeratorData, denominatorData] = await Promise.all([
@@ -1210,8 +1247,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
                     }
                     // Handle Category filter
-                    if (category && category !== 'All') {
-                        msBaseConditions.push(`category = '${escapeStrMain(category)}'`);
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        msBaseConditions.push(`category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                     }
 
                     const [ourSalesResult, totalSalesResult] = await Promise.all([
@@ -1277,7 +1315,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             (async () => {
                 try {
                     const kwBaseConditions = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-                    if (category) kwBaseConditions.push(`lower(keyword_category) = '${escapeStrMain(category.toLowerCase())}'`);
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        kwBaseConditions.push(`lower(keyword_category) IN (${catArrLocal.map(c => `'${escapeStrMain(c.toLowerCase())}'`).join(', ')})`);
+                    }
                     if (locationArr && locationArr.length > 0) {
                         if (locationArr.length === 1) {
                             kwBaseConditions.push(`lower(location_name) = '${escapeStrMain(locationArr[0].toLowerCase())}'`);
@@ -1352,8 +1393,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const cond = buildPlatformChannelCond(null, channel);
                         if (cond) prevConditions.push(cond);
                     }
-                    if (category && category !== 'All') {
-                        prevConditions.push(`Category = '${escapeStrMain(category)}'`);
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        prevConditions.push(`Category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                     }
                     // Advanced SKU Search Filters
                     const skuArr = normalizeFilterArray(skuName);
@@ -1410,8 +1452,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
                     }
                     // Handle Category filter
-                    if (category && category !== 'All') {
-                        conditions.push(`category = '${escapeStrMain(category)}'`);
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        conditions.push(`category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                     }
 
                     const [ourSalesResult, totalSalesResult] = await Promise.all([
@@ -1680,12 +1723,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         "Comp_flag = 0"
                     ];
 
-                    const locArr = Array.isArray(location) ? location : (location && location !== 'All' ? [location] : null);
+                    const locArr = normalizeFilterArray(location);
                     if (locArr && locArr.length > 0) {
                         conditions.push(`Location IN (${locArr.map(l => `'${escapeStrLocal(l)}'`).join(', ')})`);
                     }
 
-                    const platArr = Array.isArray(platform) ? platform : (platform && platform !== 'All' ? [platform] : null);
+                    const platArr = normalizeFilterArray(platform);
                     if (platArr && platArr.length > 0) {
                         conditions.push(`Platform IN (${platArr.map(p => `'${escapeStrLocal(p)}'`).join(', ')})`);
                     } else {
@@ -1693,7 +1736,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         if (platformCond) conditions.push(platformCond);
                     }
 
-                    const brandArrLocal = Array.isArray(brand) ? brand : (brand && brand !== 'All' ? [brand] : null);
+                    const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
                         const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStrLocal(b)}%'`).join(' OR ');
                         conditions.push(`(${brandConds})`);
@@ -1795,23 +1838,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         ];
 
                         // Add location filter (multi-value support)
-                        const locArr = Array.isArray(location) ? location : (location && location !== 'All' ? [location] : null);
+                        const locArr = normalizeFilterArray(location);
                         if (locArr && locArr.length > 0) {
-                            if (locArr.length === 1) {
-                                conditions.push(`Location = '${escapeStr(locArr[0])}'`);
-                            } else {
-                                conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-                            }
+                            conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                         }
 
                         // Add platform filter (multi-value support)
-                        const platArr = Array.isArray(platform) ? platform : (platform && platform !== 'All' ? [platform] : null);
+                        const platArr = normalizeFilterArray(platform);
                         if (platArr && platArr.length > 0) {
-                            if (platArr.length === 1) {
-                                conditions.push(`Platform = '${escapeStr(platArr[0])}'`);
-                            } else {
-                                conditions.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                            }
+                            conditions.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                         } else {
                             // Handle All platform based on channel
                             const platformCond = buildPlatformChannelCond(null, channel);
@@ -1821,7 +1856,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
 
                         // Add brand filter (multi-value support with LIKE)
-                        const brandArrLocal = Array.isArray(brand) ? brand : (brand && brand !== 'All' ? [brand] : null);
+                        const brandArrLocal = normalizeFilterArray(brand);
                         if (brandArrLocal && brandArrLocal.length > 0) {
                             const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                             conditions.push(`(${brandConds})`);
@@ -1979,18 +2014,31 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         `toDate(created_on) BETWEEN '${sosStartDate.format('YYYY-MM-DD')}' AND '${sosEndDate.format('YYYY-MM-DD')}'`,
                         `keyword_search_rank < 11`
                     ];
-                    if (platform && platform !== 'All') sosBaseConds.push(`platform_name = '${sosEscapeStr(platform)}'`);
-                    if (location && location !== 'All') sosBaseConds.push(`location_name = '${sosEscapeStr(location)}'`);
-                    if (category && category !== 'All') sosBaseConds.push(`keyword_category = '${sosEscapeStr(category)}'`);
+                    const platArrSos = normalizeFilterArray(platform);
+                    if (platArrSos && platArrSos.length > 0) {
+                        sosBaseConds.push(`platform_name IN (${platArrSos.map(p => `'${sosEscapeStr(p)}'`).join(', ')})`);
+                    }
+                    const locArr = normalizeFilterArray(location);
+                    if (locArr && locArr.length > 0) {
+                        if (locArr.length === 1) {
+                            sosBaseConds.push(`location_name = '${sosEscapeStr(locArr[0])}'`);
+                        } else {
+                            sosBaseConds.push(`location_name IN (${locArr.map(l => `'${sosEscapeStr(l)}'`).join(', ')})`);
+                        }
+                    }
+                    const catArr = normalizeFilterArray(category);
+                    if (catArr && catArr.length > 0) {
+                        if (catArr.length === 1) {
+                            sosBaseConds.push(`keyword_category = '${sosEscapeStr(catArr[0])}'`);
+                        } else {
+                            sosBaseConds.push(`keyword_category IN (${catArr.map(c => `'${sosEscapeStr(c)}'`).join(', ')})`);
+                        }
+                    }
 
                     const sosNumConds = [...sosBaseConds];
-                    const brandArrLocal = Array.isArray(brand) ? brand : (brand && brand !== 'All' ? [brand] : null);
+                    const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
-                        if (brandArrLocal.length === 1) {
-                            sosNumConds.push(`brand_name = '${sosEscapeStr(brandArrLocal[0])}'`);
-                        } else {
-                            sosNumConds.push(`brand_name IN (${brandArrLocal.map(b => `'${sosEscapeStr(b)}'`).join(', ')})`);
-                        }
+                        sosNumConds.push(`brand_name IN (${brandArrLocal.map(b => `'${sosEscapeStr(b)}'`).join(', ')})`);
                     } else {
                         sosNumConds.push(`toString(keyword_is_rb_product) = '1'`);
                     }
@@ -2040,14 +2088,31 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const osaConds = [
                         `toDate(DATE) BETWEEN '${osaStartDate.format('YYYY-MM-DD')}' AND '${osaEndDate.format('YYYY-MM-DD')}'`
                     ];
-                    const brandArrOsa = Array.isArray(brand) ? brand : (brand && brand !== 'All' ? [brand] : null);
+                    const brandArrOsa = normalizeFilterArray(brand);
                     if (brandArrOsa && brandArrOsa.length > 0) {
                         const brandConds = brandArrOsa.map(b => `Brand LIKE '%${osaEscapeStr(b)}%'`).join(' OR ');
                         osaConds.push(`(${brandConds})`);
                     }
-                    if (platform && platform !== 'All') osaConds.push(`Platform = '${osaEscapeStr(platform)}'`);
-                    if (location && location !== 'All') osaConds.push(`Location = '${osaEscapeStr(location)}'`);
-                    if (category && category !== 'All') osaConds.push(`Category = '${osaEscapeStr(category)}'`);
+                    const platArrOsa = normalizeFilterArray(platform);
+                    if (platArrOsa && platArrOsa.length > 0) {
+                        osaConds.push(`Platform IN (${platArrOsa.map(p => `'${osaEscapeStr(p)}'`).join(', ')})`);
+                    }
+                    const locArr = normalizeFilterArray(location);
+                    if (locArr && locArr.length > 0) {
+                        if (locArr.length === 1) {
+                            osaConds.push(`Location = '${osaEscapeStr(locArr[0])}'`);
+                        } else {
+                            osaConds.push(`Location IN (${locArr.map(l => `'${osaEscapeStr(l)}'`).join(', ')})`);
+                        }
+                    }
+                    const catArr = normalizeFilterArray(category);
+                    if (catArr && catArr.length > 0) {
+                        if (catArr.length === 1) {
+                            osaConds.push(`Category = '${osaEscapeStr(catArr[0])}'`);
+                        } else {
+                            osaConds.push(`Category IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);
+                        }
+                    }
 
                     // 1 query instead of 7
                     const osaByMonth = await queryClickHouse(`
@@ -2234,10 +2299,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             }
 
             // Filter platform definitions based on channel AFTER cache block
-            if (channel === 'Ecommerce' || channel === 'E-commerce') {
-                platformDefinitions = platformDefinitions.filter(p => p.label.toLowerCase().includes('blinkit'));
-            } else if (channel === 'Modern Trades') {
-                platformDefinitions = platformDefinitions.filter(p => !p.label.toLowerCase().includes('blinkit'));
+            if (channel === 'Ecommerce' || channel === 'E-commerce' || channel === 'Ecom') {
+                const ecomPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'amazon', 'flipkart', 'bigbasket', 'jiomart'];
+                platformDefinitions = platformDefinitions.filter(p => ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
+            } else if (channel === 'Modern Trades' || channel === 'ModernTrade') {
+                const ecomPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'amazon', 'flipkart', 'bigbasket', 'jiomart'];
+                platformDefinitions = platformDefinitions.filter(p => !ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
             }
         } catch (err) {
             console.error("Error fetching platforms from database:", err);
@@ -2410,7 +2477,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         try {
             // Helper to escape strings for ClickHouse
-            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+            const escapeStr = (str) => (str && typeof str === 'string') ? str.replace(/'/g, "''") : (str || '');
 
             // Build ClickHouse conditions for current period
             const buildAllConditions = (startDt, endDt) => {
@@ -2419,9 +2486,71 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
                     conditions.push(`(${brandConds})`);
                 }
-                if (location && location !== 'All') conditions.push(`Location = '${escapeStr(location)}'`);
-                if (category && category !== 'All') conditions.push(`Category = '${escapeStr(category)}'`);
+                const locArr = normalizeFilterArray(location);
+                if (locArr && locArr.length > 0) {
+                    if (locArr.length === 1) {
+                        conditions.push(`Location = '${escapeStr(locArr[0])}'`);
+                    } else {
+                        conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    }
+                }
+                const catArr = normalizeFilterArray(category);
+                if (catArr && catArr.length > 0) {
+                    if (catArr.length === 1) {
+                        conditions.push(`Category = '${escapeStr(catArr[0])}'`);
+                    } else {
+                        conditions.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    }
+                }
                 return conditions.join(' AND ');
+            };
+
+            // Helper for Promo Depth via ClickHouse
+            const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
+                const dayjsStart = dayjs(startDt);
+                const dayjsEnd = dayjs(endDt);
+                const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
+                if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
+                if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
+
+                // Handle category with multi-value support
+                const categoryArr = normalizeFilterArray(category);
+                if (categoryArr && categoryArr.length > 0) {
+                    const catConds = categoryArr.map(c => `Category = '${escapeStr(c)}'`).join(' OR ');
+                    conds.push(`(${catConds})`);
+                } else if (category && category !== 'All') {
+                    conds.push(`Category = '${escapeStr(category)}'`);
+                }
+
+                if (isCompete) {
+                    conds.push(`Comp_flag = '1'`);
+                    if (targetBrand && targetBrand !== 'All') {
+                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                        const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
+                        conds.push(`(${bNotConds})`);
+                    }
+                } else {
+                    conds.push(`Comp_flag = '0'`);
+                    if (targetBrand && targetBrand !== 'All') {
+                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                        const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                        conds.push(`(${bConds})`);
+                    }
+                }
+
+                const q = `
+                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
+                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
+                    FROM rb_pdp_olap
+                    WHERE ${conds.join(' AND ')}
+                `;
+                try {
+                    const res = await queryClickHouse(q);
+                    return parseFloat(res?.[0]?.avg_depth || 0) * 100;
+                } catch (e) {
+                    console.error("Promo Depth CH Error:", e);
+                    return 0;
+                }
             };
 
             const currConditions = buildAllConditions(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
@@ -2512,8 +2641,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     `sales IS NOT NULL`
                 ];
                 if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
-                if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
-                if (category && category !== 'All') conds.push(`category = '${escapeStr(category)}'`);
+                const locArr = normalizeFilterArray(location);
+                if (locArr && locArr.length > 0) {
+                    if (locArr.length === 1) {
+                        conds.push(`Location = '${escapeStr(locArr[0])}'`);
+                    } else {
+                        conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    }
+                }
+                const catArr = normalizeFilterArray(category);
+                if (catArr && catArr.length > 0) {
+                    if (catArr.length === 1) {
+                        conds.push(`category = '${escapeStr(catArr[0])}'`);
+                    } else {
+                        conds.push(`category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    }
+                }
                 return conds.join(' AND ');
             };
 
@@ -2540,54 +2683,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             allMarketShare = currTotal > 0 ? (currOur / currTotal) * 100 : 0;
             prevAllMarketShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : 0;
 
-            // Helper for Promo Depth via ClickHouse
-            const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
-                const dayjsStart = dayjs(startDt);
-                const dayjsEnd = dayjs(endDt);
-                const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
-                if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
-                if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
 
-                // Handle category with multi-value support
-                const categoryArr = normalizeFilterArray(category);
-                if (categoryArr && categoryArr.length > 0) {
-                    const lc = categoryArr.map(c => c.toLowerCase());
-                    const catConds = lc.map(c => `lower(Category) = '${escapeStr(c)}'`).join(' OR ');
-                    conds.push(`(${catConds})`);
-                } else if (category && category !== 'All') {
-                    conds.push(`lower(Category) = '${escapeStr(category.toLowerCase())}'`);
-                }
-
-                if (isCompete) {
-                    conds.push(`Comp_flag = '1'`);
-                    if (targetBrand && targetBrand !== 'All') {
-                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
-                        const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
-                        conds.push(`(${bNotConds})`);
-                    }
-                } else {
-                    conds.push(`Comp_flag = '0'`);
-                    if (targetBrand && targetBrand !== 'All') {
-                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
-                        const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
-                        conds.push(`(${bConds})`);
-                    }
-                }
-
-                const q = `
-                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
-                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
-                    FROM rb_pdp_olap
-                    WHERE ${conds.join(' AND ')}
-                `;
-                try {
-                    const res = await queryClickHouse(q);
-                    return parseFloat(res?.[0]?.avg_depth || 0) * 100;
-                } catch (e) {
-                    console.error("Promo Depth CH Error:", e);
-                    return 0;
-                }
-            };
 
             // Calculate Promo Metrics for "All" platforms concurrently
             const [allMyPromo, allCompetePromo, prevMyPromo, prevCompetePromo] = await Promise.all([
@@ -2670,7 +2766,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const totalAdSales = metrics.curr.adSales;
                 const totalClicks = metrics.curr.clicks;
                 const totalImpressions = metrics.curr.impressions;
-                const marketShare = metrics.curr.ms;
+
+                // Hardcode Market Share values as requested by user
+                let marketShare = metrics.curr.ms || 0;
+                const platformLabel = (p.label || '').toLowerCase();
+                if (platformLabel.includes('blinkit')) marketShare = 3.88;
+                else if (platformLabel.includes('zepto')) marketShare = 5.69;
+                else if (platformLabel.includes('instamart')) marketShare = 5.36;
+
                 const sos = sosData.current;
 
                 // Availability calculation (in-memory)
@@ -2798,7 +2901,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             console.log(`[Month Overview] OPTIMIZED: Fetching all months in ${monthBuckets.length} bulk queries`);
 
             // Helper to escape strings for ClickHouse
-            const escapeStrMo = (str) => str ? str.replace(/'/g, "''") : '';
+            const escapeStrMo = (str) => (str && typeof str === 'string') ? str.replace(/'/g, "''") : (str || '');
 
             // Build base conditions for rb_pdp_olap
             const buildPdpConditions = () => {
@@ -3891,8 +3994,22 @@ const computeTrendData = async (filters) => {
         const buildMsConds = (includeBrandFilter = false) => {
             const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
-            if (category && category !== 'All') conds.push(`category = '${escapeStr(category)}'`);
-            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
+            const catArr = normalizeFilterArray(category);
+            if (catArr && catArr.length > 0) {
+                if (catArr.length === 1) {
+                    conds.push(`category = '${escapeStr(catArr[0])}'`);
+                } else {
+                    conds.push(`category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
+            }
+            const locArr = normalizeFilterArray(location);
+            if (locArr && locArr.length > 0) {
+                if (locArr.length === 1) {
+                    conds.push(`Location = '${escapeStr(locArr[0])}'`);
+                } else {
+                    conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                }
+            }
             if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
             if (includeBrandFilter && validBrandNamesForMs.length > 0) {
                 const brandList = validBrandNamesForMs.map(b => `'${escapeStr(b)}'`).join(', ');
@@ -3934,8 +4051,22 @@ const computeTrendData = async (filters) => {
         // Platform Overview formula: No spons_flag filter, uses keyword_is_rb_product=1 for our brands
         const buildSosConds = () => {
             const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-            if (category && category !== 'All') conds.push(`keyword_category = '${escapeStr(category)}'`);
-            if (location && location !== 'All') conds.push(`location_name = '${escapeStr(location)}'`);
+            const catArr = normalizeFilterArray(category);
+            if (catArr && catArr.length > 0) {
+                if (catArr.length === 1) {
+                    conds.push(`keyword_category = '${escapeStr(catArr[0])}'`);
+                } else {
+                    conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
+            }
+            const locArr = normalizeFilterArray(location);
+            if (locArr && locArr.length > 0) {
+                if (locArr.length === 1) {
+                    conds.push(`location_name = '${escapeStr(locArr[0])}'`);
+                } else {
+                    conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                }
+            }
             if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
             return conds.join(' AND ');
         };
@@ -4099,15 +4230,13 @@ const getPlatformOverview = async (filters) => {
     const rawCategory = filters['category[]'] || filters.category;
     const rawPlatform = filters['platform[]'] || filters.platform;
 
-    // Helper to split comma-separated strings
-    const splitIfString = (val) => (typeof val === 'string' && val.includes(',')) ? val.split(',') : val;
+    // Normalize multi-value filters using the core helper
+    const brandArr = normalizeFilterArray(rawBrand);
+    const locationArr = normalizeFilterArray(rawLocation);
+    const categoryArr = normalizeFilterArray(rawCategory);
+    const platformArr = normalizeFilterArray(rawPlatform);
 
-    // Normalize multi-value filters
-    const brandArr = normalizeFilterArray(splitIfString(rawBrand))?.map(b => b.trim());
-    const locationArr = normalizeFilterArray(splitIfString(rawLocation))?.map(l => l.trim());
-    const categoryArr = normalizeFilterArray(splitIfString(rawCategory))?.map(c => c.trim());
-    const platformArr = normalizeFilterArray(splitIfString(rawPlatform))?.map(p => p.trim());
-
+    // Keep single values for backward compatibility and specific use cases
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
     const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null;
@@ -4178,10 +4307,12 @@ const getPlatformOverview = async (filters) => {
     }
 
     // Filter platform definitions based on channel AFTER cache block
-    if (channel === 'Ecommerce' || channel === 'E-commerce') {
-        platformDefinitions = platformDefinitions.filter(p => p.label.toLowerCase().includes('blinkit'));
-    } else if (channel === 'Modern Trades') {
-        platformDefinitions = platformDefinitions.filter(p => !p.label.toLowerCase().includes('blinkit'));
+    if (channel === 'Ecommerce' || channel === 'E-commerce' || channel === 'Ecom') {
+        const ecomPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'amazon', 'flipkart', 'bigbasket', 'jiomart'];
+        platformDefinitions = platformDefinitions.filter(p => ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
+    } else if (channel === 'Modern Trades' || channel === 'ModernTrade') {
+        const ecomPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'amazon', 'flipkart', 'bigbasket', 'jiomart'];
+        platformDefinitions = platformDefinitions.filter(p => !ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
     }
 
     // Calculate MoM dates or use provided comparison dates
@@ -4198,23 +4329,16 @@ const getPlatformOverview = async (filters) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     // Build base conditions for rb_pdp_olap
-    const buildOfftakeConds = (start, end, includeComp = false) => {
+    const buildOfftakeConds = (start, end) => {
         const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
-        if (!includeComp) {
-            conds.push("Comp_flag = 0");
-        }
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `lower(Brand) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            if (categoryArr.length === 1) {
-                conds.push(`lower(Category) = '${escapeStr(categoryArr[0].toLowerCase())}'`);
-            } else {
-                conds.push(`lower(Category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
-            }
+            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Channel-based platform filtering
@@ -4243,14 +4367,10 @@ const getPlatformOverview = async (filters) => {
     const buildSosConds = (start, end) => {
         const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            if (categoryArr.length === 1) {
-                conds.push(`lower(keyword_category) = '${escapeStr(categoryArr[0].toLowerCase())}'`);
-            } else {
-                conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
-            }
+            conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         return conds.join(' AND ');
     };
@@ -4260,17 +4380,13 @@ const getPlatformOverview = async (filters) => {
         const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
         if (brandsFilter && brandsFilter.length > 0) {
-            conds.push(`lower(brand) IN (${brandsFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+            conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            if (categoryArr.length === 1) {
-                conds.push(`lower(category) = '${escapeStr(categoryArr[0].toLowerCase())}'`);
-            } else {
-                conds.push(`lower(category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
-            }
+            conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Add platform/channel filter - for denominator we want all platforms in that channel
@@ -4282,8 +4398,8 @@ const getPlatformOverview = async (filters) => {
         return conds.join(' AND ');
     };
 
-    const currOfftakeConds = buildOfftakeConds(startDate, endDate, true);
-    const prevOfftakeConds = buildOfftakeConds(momStart, momEnd, true);
+    const currOfftakeConds = buildOfftakeConds(startDate, endDate);
+    const prevOfftakeConds = buildOfftakeConds(momStart, momEnd);
     const currSosConds = buildSosConds(startDate, endDate);
     const prevSosConds = buildSosConds(momStart, momEnd);
 
@@ -4309,7 +4425,7 @@ const getPlatformOverview = async (filters) => {
         // Query 1: Current period offtake metrics by platform
         queryClickHouse(`
                     SELECT Platform,
-                        SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as qty,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as spend,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_sales)), 0) ELSE 0 END) as ad_sales,
@@ -4329,7 +4445,7 @@ const getPlatformOverview = async (filters) => {
         // Query 2: Previous period offtake metrics by platform
         queryClickHouse(`
                     SELECT Platform,
-                        SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as qty,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as spend,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_sales)), 0) ELSE 0 END) as ad_sales,
@@ -4527,7 +4643,7 @@ const getPlatformOverview = async (filters) => {
     const [allMetricsResult, prevAllMetricsResult] = await Promise.all([
         queryClickHouse(`
                     SELECT 
-                        SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as total_qty,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as total_spend,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_sales)), 0) ELSE 0 END) as total_ad_sales,
@@ -4545,7 +4661,7 @@ const getPlatformOverview = async (filters) => {
                 `),
         queryClickHouse(`
                     SELECT 
-                        SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as total_qty,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as total_spend,
                         SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_sales)), 0) ELSE 0 END) as total_ad_sales,
@@ -4672,7 +4788,14 @@ const getPlatformOverview = async (filters) => {
         const totalClicks = metrics.curr.clicks || 0;
         const totalImpressions = metrics.curr.impressions || 0;
         const totalOrders = metrics.curr.orders || 0;
-        const marketShare = metrics.curr.ms || 0;
+
+        // Hardcode Market Share values as requested by user
+        let marketShare = metrics.curr.ms || 0;
+        const platformLabel = (p.label || '').toLowerCase();
+        if (platformLabel.includes('blinkit')) marketShare = 3.88;
+        else if (platformLabel.includes('zepto')) marketShare = 5.69;
+        else if (platformLabel.includes('instamart')) marketShare = 5.36;
+
         const sos = metrics.curr.sos || 0;
 
         const availability = metrics.curr.deno > 0 ? (metrics.curr.neno / metrics.curr.deno) * 100 : 0;
@@ -7622,6 +7745,11 @@ const getRcaData = async (filters = {}) => {
             WHERE ${conds}
         `;
 
+        const brandArrForMs = normalizeFilterArray(brand);
+        const brandCaseWhen = brandArrForMs && brandArrForMs.length > 0
+            ? `brand IN (${brandArrForMs.map(b => `'${escapeStr(b)}'`).join(', ')})`
+            : `brand = '${escapeStr(brand)}'`;
+
         // Execute all queries in parallel
         const [currOlap, prevOlap, currKw, prevKw, currMs] = await Promise.all([
             queryClickHouse(olapQuery(currOlapConds)),
@@ -7631,7 +7759,7 @@ const getRcaData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT 
                     SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as total_sales,
-                    SUM(CASE WHEN brand = '${escapeStr(brand)}' THEN ifNull(toFloat64OrZero(toString(sales)), 0) ELSE 0 END) as brand_sales
+                    SUM(CASE WHEN ${brandCaseWhen} THEN ifNull(toFloat64OrZero(toString(sales)), 0) ELSE 0 END) as brand_sales
                 FROM rb_brand_ms
                 WHERE ${currMsConds}
             `)
