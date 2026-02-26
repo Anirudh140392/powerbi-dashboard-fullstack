@@ -31,7 +31,8 @@ import {
   PieChart,
   Target,
   TrendingUp,
-  Monitor
+  Monitor,
+  Inbox
 } from "lucide-react";
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
 import TopSearchTerms from './TopSearchTerms';
@@ -39,6 +40,21 @@ import { SignalLabVisibility } from './SignalLabVisibility';
 import VisibilityLayoutOne from './VisibilityLayoutOne';
 import MetricCardContainer from '../CommonLayout/MetricCardContainer';
 import ErrorRetryOverlay from '../CommonLayout/ErrorRetryOverlay';
+import {
+  VisibilityOverviewSkeleton,
+  TabbedHeatmapTableSkeleton,
+  VisibilityDrilldownSkeleton,
+  TopSearchTermsSkeleton
+} from './VisibilitySkeletons';
+
+// Reusable "No Data Available" component
+const NoDataAvailable = ({ title = 'No data available' }) => (
+  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+    <Inbox size={48} strokeWidth={1.2} className="mb-3 text-slate-300" />
+    <p className="text-sm font-semibold text-slate-500">{title}</p>
+    <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or check back later.</p>
+  </div>
+);
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -953,25 +969,37 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
           </div> */}
       </div>
 
-      <SnapshotOverview
-        title="Visibility Overview"
-        icon={LayoutGrid}
-        chip="All Platforms"
-        headerRight={
-          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-            vs Previous Period
-          </span>
-        }
-        kpis={visibilityKpis}
-        variant="detailed"
-      />
-      {apiErrors?.overview && (
+      {/* Section 1: Visibility Overview */}
+      {apiErrors?.overview ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
+      ) : apiData?.overview === undefined ? (
+        <VisibilityOverviewSkeleton />
+      ) : apiData?.overview?.cards?.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <NoDataAvailable title="No visibility overview data available" />
+        </div>
+      ) : (
+        <SnapshotOverview
+          title="Visibility Overview"
+          icon={LayoutGrid}
+          chip="All Platforms"
+          headerRight={
+            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+              vs Previous Period
+            </span>
+          }
+          kpis={visibilityKpis}
+          variant="detailed"
+        />
       )}
-      {apiErrors?.matrix && (
+      {/* Section 2: Platform KPI Matrix */}
+      {apiErrors?.matrix ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('matrix')} message={apiErrors.matrix} compact />
+      ) : apiData?.matrix === undefined ? (
+        <TabbedHeatmapTableSkeleton />
+      ) : (
+        <TabbedHeatmapTable apiMatrixData={apiData?.matrix} />
       )}
-      <TabbedHeatmapTable apiMatrixData={apiData?.matrix} />
       {/* PULSEBOARD */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
@@ -1012,9 +1040,19 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
 
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
+      {/* Section 3: Keywords at a Glance */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} />
+        {apiErrors?.keywords ? (
+          <ErrorRetryOverlay onRetry={() => onRetry?.('keywords')} message={apiErrors.keywords} compact />
+        ) : apiData?.keywords === undefined ? (
+          <VisibilityDrilldownSkeleton />
+        ) : !apiData?.keywords?.hierarchy || apiData?.keywords?.hierarchy?.length === 0 ? (
+          <NoDataAvailable title="No keywords data available" />
+        ) : (
+          <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} />
+        )}
       </div>
+      {/* Section 4: Top Search Terms */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
@@ -1030,7 +1068,15 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
             ))}
           </div>
         </div>
-        <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
+        {apiErrors?.searchTerms ? (
+          <ErrorRetryOverlay onRetry={() => onRetry?.('searchTerms')} message={apiErrors.searchTerms} compact />
+        ) : apiData?.searchTerms === undefined ? (
+          <TopSearchTermsSkeleton />
+        ) : apiData?.searchTerms?.terms?.length === 0 ? (
+          <NoDataAvailable title="No search terms data available" />
+        ) : (
+          <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
+        )}
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
