@@ -198,15 +198,44 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                       color: "#64748b",
                     }}
                   >
-                    {darkStoreData.totalCount > 0 ? (
-                      <>
-                        Darkstores # ({Object.entries(darkStoreData.byPlatform)
-                          .map(([p, c]) => `${p} - ${c}`)
-                          .join(', ')})
-                      </>
-                    ) : (
-                      "0 Active Platforms"
-                    )}
+                    {(() => {
+                      // Hardcoded values as requested by user
+                      const hardcodedCounts = {
+                        "Blinkit": 1260,
+                        "Zepto": 708,
+                        "Instamart": 1176
+                      };
+
+                      let displayCount = 0;
+                      const selectedPlatforms = Array.isArray(platform) ? platform : [platform];
+
+                      if (platform === "All") {
+                        // Calculate total: override hardcoded ones, take API values for others
+                        displayCount = Object.keys(darkStoreData.byPlatform).reduce((sum, p) => {
+                          return sum + (hardcodedCounts[p] || darkStoreData.byPlatform[p] || 0);
+                        }, 0);
+
+                        // Ensure we count platforms that are hardcoded but might not be in API results yet
+                        Object.keys(hardcodedCounts).forEach(p => {
+                          if (darkStoreData.byPlatform[p] === undefined) {
+                            displayCount += hardcodedCounts[p];
+                          }
+                        });
+                      } else {
+                        // Sum up for selected platforms
+                        selectedPlatforms.forEach(p => {
+                          displayCount += (hardcodedCounts[p] || darkStoreData.byPlatform[p] || 0);
+                        });
+                      }
+
+                      return displayCount > 0 ? (
+                        <>
+                          Darkstores # {displayCount.toLocaleString()}
+                        </>
+                      ) : (
+                        "0 Active Platforms"
+                      );
+                    })()}
                   </Typography>
                 </Box>
               )}
