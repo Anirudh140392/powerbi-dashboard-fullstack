@@ -203,7 +203,7 @@ export const downloadReport = async (req, res) => {
                 WITH daily_agg AS (
                     SELECT 
                         toDate(DATE) as DATE, Platform, Brand, Location as City, Category as Format, Product,
-                        SUM(toFloat64OrZero(Sales)) as daily_sales,
+                        SUM(toFloat64(Sales)) as daily_sales,
                         SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
                     WHERE toDate(DATE) BETWEEN '${widerStartDate}' AND '${endDate}'
@@ -250,17 +250,17 @@ export const downloadReport = async (req, res) => {
                 WITH category_stats AS (
                     SELECT 
                         toDate(DATE) as JoinDate, Location, Category,
-                        avg(toFloat64OrZero(Selling_Price)) as Cat_Avg_Price
+                        avg(toFloat64(Selling_Price)) as Cat_Avg_Price
                     FROM rb_pdp_olap
                     ${whereClause}
                     GROUP BY JoinDate, Location, Category
                 )
                 SELECT 
                     toDate(t.DATE) as DATE, t.Platform, t.Brand, t.Location as City, t.Category as Format, t.Product,
-                    round(avg(toFloat64OrZero(t.Selling_Price)), 2) as ECP,
-                    round(avg(toFloat64OrZero(t.MRP)), 2) as MRP,
-                    round((1 - (SUM(toFloat64OrZero(t.Sales)) / nullIf(SUM(toFloat64OrZero(t.MRP) * assumeNotNull(t.Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
-                    round(avg(toFloat64OrZero(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
+                    round(avg(toFloat64(t.Selling_Price)), 2) as ECP,
+                    round(avg(toFloat64(t.MRP)), 2) as MRP,
+                    round((1 - (SUM(toFloat64(t.Sales)) / nullIf(SUM(toFloat64(t.MRP) * assumeNotNull(t.Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
+                    round(avg(toFloat64(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
                 FROM rb_pdp_olap t
                 LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.Location = c.Location AND t.Category = c.Category
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, 't.$1')}
@@ -271,13 +271,13 @@ export const downloadReport = async (req, res) => {
             query = `
                 SELECT 
                     DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    SUM(toFloat64OrZero(Ad_Impressions)) as Impressions,
-                    SUM(toFloat64OrZero(Ad_Clicks)) as Clicks,
-                    SUM(toFloat64OrZero(Ad_Spend)) as Spend,
-                    round(SUM(toFloat64OrZero(Ad_sales)) / nullIf(SUM(toFloat64OrZero(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64OrZero(Ad_Quanity_sold)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
-                    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Impressions)), 0)) * 1000, 2) as CPM,
-                    round(SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0), 2) as CPC
+                    SUM(toFloat64(Ad_Impressions)) as Impressions,
+                    SUM(toFloat64(Ad_Clicks)) as Clicks,
+                    SUM(toFloat64(Ad_Spend)) as Spend,
+                    round(SUM(toFloat64(Ad_sales)) / nullIf(SUM(toFloat64(Ad_Spend)), 0), 2) as ROAS,
+                    round((SUM(toFloat64(Ad_Quanity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
+                    round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Impressions)), 0)) * 1000, 2) as CPM,
+                    round(SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0), 2) as CPC
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
@@ -317,10 +317,10 @@ export const downloadReport = async (req, res) => {
             query = `
                 SELECT 
                     DATE, Platform, Category as Format, Location as City,
-                    SUM(toFloat64OrZero(Sales)) as Offtake_Sales,
+                    SUM(toFloat64(Sales)) as Offtake_Sales,
                     SUM(assumeNotNull(Qty_Sold)) as Units,
-                    round(SUM(toFloat64OrZero(Sales)) / nullIf(SUM(SUM(toFloat64OrZero(Sales))) OVER (PARTITION BY DATE, Platform, Location), 0) * 100, 2) as Category_Share,
-                    SUM(SUM(toFloat64OrZero(Sales))) OVER (PARTITION BY DATE, Platform, Location) as Cat_Size
+                    round(SUM(toFloat64(Sales)) / nullIf(SUM(SUM(toFloat64(Sales))) OVER (PARTITION BY DATE, Platform, Location), 0) * 100, 2) as Category_Share,
+                    SUM(SUM(toFloat64(Sales))) OVER (PARTITION BY DATE, Platform, Location) as Cat_Size
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Category, Location
@@ -330,10 +330,10 @@ export const downloadReport = async (req, res) => {
             query = `
                 SELECT 
                     DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    round(SUM(toFloat64OrZero(Sales)) / nullIf(SUM(assumeNotNull(Qty_Sold)), 0), 2) as ASP,
-                    round((1 - (SUM(toFloat64OrZero(Sales)) / nullIf(SUM(toFloat64OrZero(MRP) * assumeNotNull(Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
+                    round(SUM(toFloat64(Sales)) / nullIf(SUM(assumeNotNull(Qty_Sold)), 0), 2) as ASP,
+                    round((1 - (SUM(toFloat64(Sales)) / nullIf(SUM(toFloat64(MRP) * assumeNotNull(Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
                     SUM(assumeNotNull(Qty_Sold)) as Volume,
-                    SUM(if(toFloat64OrZero(Discount) > 0, assumeNotNull(Qty_Sold), 0)) as Promo_Volume,
+                    SUM(if(toFloat64(Discount) > 0, assumeNotNull(Qty_Sold), 0)) as Promo_Volume,
                     round(Promo_Volume / nullIf(Volume, 0) * 100, 2) as Promo_Volume_Percentage
                 FROM rb_pdp_olap
                 ${whereClause}
@@ -345,24 +345,24 @@ export const downloadReport = async (req, res) => {
                 SELECT 
                     DATE, Platform, Brand, Location as City, Category as Format, Product,
                     -- Core Metrics
-                    SUM(toFloat64OrZero(Sales)) as Offtake,
+                    SUM(toFloat64(Sales)) as Offtake,
                     SUM(assumeNotNull(Qty_Sold)) as Units_Sold,
-                    round(SUM(toFloat64OrZero(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as Stock_Availability,
-                    round(avg(toFloat64OrZero(DIH)), 2) as DOI,
+                    round(SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as Stock_Availability,
+                    round(avg(toFloat64(DIH)), 2) as DOI,
                     
                     -- Performance Marketing Metrics
-                    SUM(toFloat64OrZero(Ad_sales)) as Inorganic_Sales,
-                    SUM(toFloat64OrZero(Ad_Spend)) as Spend,
-                    round(SUM(toFloat64OrZero(Ad_sales)) / nullIf(SUM(toFloat64OrZero(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64OrZero(Ad_Quanity_sold)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0)) * 100, 2) as Conversion,
-                    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Impressions)), 0)) * 1000, 2) as CPM,
-                    round(SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Ad_Clicks)), 0), 2) as CPC,
+                    SUM(toFloat64(Ad_sales)) as Inorganic_Sales,
+                    SUM(toFloat64(Ad_Spend)) as Spend,
+                    round(SUM(toFloat64(Ad_sales)) / nullIf(SUM(toFloat64(Ad_Spend)), 0), 2) as ROAS,
+                    round((SUM(toFloat64(Ad_Quanity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion,
+                    round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Impressions)), 0)) * 1000, 2) as CPM,
+                    round(SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0), 2) as CPC,
                     
                     -- Ad Spend over Sales
-                    round((SUM(toFloat64OrZero(Ad_Spend)) / nullIf(SUM(toFloat64OrZero(Sales)), 0)) * 100, 2) as BMI_Sales_Ratio,
+                    round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Sales)), 0)) * 100, 2) as BMI_Sales_Ratio,
                     
                     -- Promo Metrics
-                    round(avg(toFloat64OrZero(Discount)), 2) as Promo_Percentage
+                    round(avg(toFloat64(Discount)), 2) as Promo_Percentage
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
@@ -373,10 +373,10 @@ export const downloadReport = async (req, res) => {
             query = `
                 SELECT 
                     DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    SUM(toFloat64OrZero(Sales)) as Sales,
+                    SUM(toFloat64(Sales)) as Sales,
                     SUM(assumeNotNull(Qty_Sold)) as Qty,
-                    round(SUM(toFloat64OrZero(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as OSA,
-                    round(avg(toFloat64OrZero(DIH)), 2) as DOI
+                    round(SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as OSA,
+                    round(avg(toFloat64(DIH)), 2) as DOI
                 FROM rb_pdp_olap
                 ${whereClause}
                 GROUP BY DATE, Platform, Brand, Location, Category, Product
