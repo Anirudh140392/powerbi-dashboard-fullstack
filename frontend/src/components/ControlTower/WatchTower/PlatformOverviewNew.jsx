@@ -223,7 +223,7 @@ const PlatformOverviewNew = ({
                 : (globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
 
             const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
-                : (selectedBrand || undefined);
+                : undefined;
 
             const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
                 : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
@@ -272,7 +272,7 @@ const PlatformOverviewNew = ({
         } finally {
             setApiLoading(false)
         }
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters])
+    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters])
 
     useEffect(() => {
         fetchDimensionData()

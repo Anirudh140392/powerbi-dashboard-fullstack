@@ -340,7 +340,6 @@ export default function WatchTower() {
     setFilters((prev) => ({
       ...prev,
       platform: platform,
-      brand: selectedBrand,
       category: selectedCategory,
       keyword: selectedKeyword,
       location: selectedLocation,
@@ -350,7 +349,6 @@ export default function WatchTower() {
       compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
     }));
   }, [
-    selectedBrand,
     selectedCategory,
     timeStart,
     timeEnd,
@@ -371,6 +369,7 @@ export default function WatchTower() {
         platform: filters.platform === "All" ? undefined : (Array.isArray(filters.platform) ? filters.platform.join(",") : filters.platform),
         category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
         location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
+        brand: filters.brand === "All" ? undefined : (Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand),
       };
       const response = await axiosInstance.get("/watchtower", {
         params,
