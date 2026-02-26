@@ -303,7 +303,7 @@ export const downloadReport = async (req, res) => {
             query = `
                 SELECT 
                     DATE, Platform, Brand, Location as City, Category as Format, Product,
-                    round(argMax(toFloat64OrZero(Inventory), DATE), 2) as Current_Inventory,
+                    round(argMax(toFloat64(Inventory), DATE), 2) as Current_Inventory,
                     round(SUM(ifNull(Qty_Sold, 0)) / 30, 2) as DRR,
                     round(if(DRR > 0, Current_Inventory / DRR, 0), 2) as DOH,
                     round(if(8 > DOH, (8 - DOH) * DRR, 0), 2) as Req_PO_Quantity,
