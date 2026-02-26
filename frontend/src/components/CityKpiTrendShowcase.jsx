@@ -661,6 +661,7 @@ function MatrixVariant({
   dynamicKey,
   data,
   title,
+  loading = false,
   showPagination = true,
   kpiFilterOptions,
   firstColLabel = "KPI",
@@ -668,7 +669,28 @@ function MatrixVariant({
   onFiltersChange
 }) {
   console.log("dynamicKey", dynamicKey);
-  if (!data?.columns || !data?.rows) return null;
+
+  // Return skeleton if loading
+  if (loading) {
+    return (
+      <Card className="border-slate-200 bg-white shadow-sm p-5 animate-pulse">
+        <div className="h-6 w-1/4 bg-slate-200 rounded-md mb-2"></div>
+        <div className="h-4 w-1/3 bg-slate-200 rounded-md mb-6"></div>
+        <div className="space-y-4">
+          <div className="h-8 w-full bg-slate-200 rounded-md"></div>
+          <div className="h-10 w-full bg-slate-100 rounded-md"></div>
+          <div className="h-10 w-full bg-slate-100 rounded-md"></div>
+          <div className="h-10 w-full bg-slate-100 rounded-md"></div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Extract columns/rows only after loading check
+  const columns = data?.columns || [];
+  const rows = data?.rows || [];
+
+  if (!columns.length) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
   const isColumnPagination = dynamicKey === "availability" || dynamicKey === "visibility";
 
@@ -683,7 +705,6 @@ function MatrixVariant({
   const [openTrend, setOpenTrend] = useState(false);
   const [selectedColumn, setSelectedColumn] = useState(null);
   const [compMetaForDrawer, setCompMetaForDrawer] = useState(null);
-  const { columns, rows } = data;
 
   // Filter states
   const [showValue, setShowValue] = useState(true);
@@ -793,14 +814,33 @@ function MatrixVariant({
   const totalColPages = Math.ceil(allDataColumns.length / colPageSize);
 
   const visibleColumns = React.useMemo(() => {
+    let filteredCols = allDataColumns;
+
+    // Apply local filters if any exist for the current dynamicKey type (platform, format, city, etc)
+    if (localFilters && Object.keys(localFilters).length > 0) {
+      // Find any filter that matches our column names (e.g. 'platform' filter array matches column names)
+      // Since columns can be platforms, formats, or cities depending on the active tab,
+      // we check all localFilters arrays to see if they contain our columns.
+      const activeFilterValues = Object.values(localFilters)
+        .filter(arr => Array.isArray(arr) && arr.length > 0)
+        .flat()
+        .map(v => typeof v === 'string' ? v.toLowerCase() : String(v));
+
+      if (activeFilterValues.length > 0) {
+        filteredCols = allDataColumns.filter(col =>
+          activeFilterValues.includes(col.toLowerCase())
+        );
+      }
+    }
+
     if (isColumnPagination) {
       // Logic: Cumulative columns (Page 1: 0-5, Page 2: 0-10, etc.)
       const startIndex = 0;
       const endIndex = currentColPage * colPageSize;
-      return allDataColumns.slice(startIndex, endIndex);
+      return filteredCols.slice(startIndex, endIndex);
     }
-    return allDataColumns;
-  }, [allDataColumns, currentColPage, colPageSize, isColumnPagination]);
+    return filteredCols;
+  }, [allDataColumns, currentColPage, colPageSize, isColumnPagination, localFilters]);
 
   // Reset page when filters change
   React.useEffect(() => {
@@ -971,86 +1011,94 @@ function MatrixVariant({
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody className="bg-white">
-                {paginatedRows.map((row) => (
-                  <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
-
-                    {/* Sticky KPI Column */}
-                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
-                                     text-xs font-bold text-slate-900 border-b border-slate-100 
-                                     shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                      {row.kpi.toUpperCase()}
+                {paginatedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={visibleColumns.length + 1} className="py-12 text-center text-slate-500 bg-slate-50/50">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="text-sm font-medium">No Data Available</span>
+                      </div>
                     </td>
+                  </tr>
+                ) : (
+                  paginatedRows.map((row) => (
+                    <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
+                      {/* Sticky KPI Column */}
+                      <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
+                                       text-xs font-bold text-slate-900 border-b border-slate-100 
+                                       shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
+                        {row.kpi.toUpperCase()}
+                      </td>
 
-                    {visibleColumns.map((col) => {
-                      const value = row[col];
-                      const trend = row.trend?.[col];
+                      {visibleColumns.map((col) => {
+                        const value = row[col];
+                        const trend = row.trend?.[col];
 
-                      const cellClasses = getCellClasses(value);
-                      const trendMeta = getTrendMeta(trend);
-                      const Icon = trendMeta.icon;
+                        const cellClasses = getCellClasses(value);
+                        const trendMeta = getTrendMeta(trend);
+                        const Icon = trendMeta.icon;
 
-                      return (
-                        <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
-                          <Popover>
-                            <PopoverTrigger asChild>
-
-                              {/* CITY-STYLE CELL BUTTON */}
-                              <button
-                                className={`flex w-max mx-auto items-center justify-center gap-2 
-                                           rounded-md border border-transparent px-2 py-1.5 
+                        return (
+                          <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                {/* CITY-STYLE CELL BUTTON */}
+                                <button
+                                  className={`flex w-max mx-auto items-center justify-center gap-2 
+                                             rounded-md border border-transparent px-2 py-1.5 
                                            text-xs font-semibold 
                                            transition-all duration-200
                                            hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
                                            ${cellClasses}`}
-                              >
-                                <span className="font-mono tabular-nums tracking-tight">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : "–"}
-                                </span>
-
-                                <span
-                                  className={`inline-flex items-center gap-[1px] rounded-full border 
-                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
                                 >
-                                  {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trendMeta.display}</span>
-                                </span>
-                              </button>
-                            </PopoverTrigger>
-
-                            {/* POPUP CONTENT */}
-                            <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
-                              <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                                <span className="font-semibold text-xs text-slate-900">
-                                  {row.kpi} · {col}
-                                </span>
-                                {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
-                              </div>
-
-                              <div className="p-4 space-y-3">
-                                <div className="flex items-baseline justify-between">
-                                  <span className="text-2xl font-bold tracking-tight text-slate-900">{formatKpiValue(row.kpi, value)}</span>
-                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                    {trendMeta.display}
+                                  <span className="font-mono tabular-nums tracking-tight">
+                                    {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : "–"}
                                   </span>
+
+                                  <span
+                                    className={`inline-flex items-center gap-[1px] rounded-full border 
+                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
+                                  >
+                                    {Icon && <Icon className="h-2 w-2" />}
+                                    <span className="font-medium text-[9px]">{trendMeta.display}</span>
+                                  </span>
+                                </button>
+                              </PopoverTrigger>
+
+                              {/* POPUP CONTENT */}
+                              <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
+                                <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                                  <span className="font-semibold text-xs text-slate-900">
+                                    {row.kpi} · {col}
+                                  </span>
+                                  {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
                                 </div>
 
-                                <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
-                                    <span>Last 4 periods</span>
-                                    <span>Trend</span>
+                                <div className="p-4 space-y-3">
+                                  <div className="flex items-baseline justify-between">
+                                    <span className="text-2xl font-bold tracking-tight text-slate-900">{formatKpiValue(row.kpi, value)}</span>
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
+                                      {trendMeta.display}
+                                    </span>
                                   </div>
-                                  <div className="h-12 w-full pt-1">
-                                    <TrendSparkline series={row.series?.[col] || []} />
+
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] uppercase tracking-wider text-slate-500 font-medium">
+                                      <span>Last 4 periods</span>
+                                      <span>Trend</span>
+                                    </div>
+                                    <div className="h-12 w-full pt-1">
+                                      <TrendSparkline series={row.series?.[col] || []} />
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                              </PopoverContent>
+                            </Popover>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
               </tbody>
 
             </table>
@@ -1369,20 +1417,17 @@ export default function CityKpiTrendShowcase({
   title,
   showPagination = true,
   kpiFilterOptions,
+  loading = false,
   firstColLabel,
   filters = {},
   onFiltersChange
 }) {
-  console.log("eee")
-  if (!data || !data.columns || !data.rows) {
-    console.warn("MatrixVariant blocked render because data invalid:", data);
-    return null; // Prevents crash
-  }
   return (
     <MatrixVariant
       dynamicKey={dynamicKey}
       data={data}
       title={title}
+      loading={loading}
       showPagination={showPagination}
       kpiFilterOptions={kpiFilterOptions}
       firstColLabel={firstColLabel}

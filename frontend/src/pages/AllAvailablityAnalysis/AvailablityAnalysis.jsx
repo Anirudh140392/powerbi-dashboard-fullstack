@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import AvailablityAnalysisData from "../../components/AllAvailablityAnalysis/AvailablityAnalysisData";
 import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 import dayjs from "dayjs";
 
 export default function AvailablityAnalysis() {
@@ -146,57 +147,50 @@ export default function AvailablityAnalysis() {
   // Segment fetchers
   const fetchOverview = async (qp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${qp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, overview: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/availability-overview?${qp}`);
+      setApiData(prev => ({ ...prev, overview: res.data }));
     } catch (e) { console.error(e); }
   };
 
   const fetchPlatformKpi = async (qp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${qp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, platformKpi: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${qp}`);
+      setApiData(prev => ({ ...prev, platformKpi: res.data }));
     } catch (e) { console.error(e); }
   };
 
   const fetchFormatKpi = async (qp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${qp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, formatKpi: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${qp}`);
+      setApiData(prev => ({ ...prev, formatKpi: res.data }));
     } catch (e) { console.error(e); }
   };
 
   const fetchCityKpi = async (qp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${qp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, cityKpi: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${qp}`);
+      setApiData(prev => ({ ...prev, cityKpi: res.data }));
     } catch (e) { console.error(e); }
   };
 
   const fetchDoi = async (qp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${qp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, doi: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/doi?${qp}`);
+      setApiData(prev => ({ ...prev, doi: res.data }));
     } catch (e) { console.error(e); }
   };
 
   const fetchMetroCity = async (qp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${qp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, metroCity: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/metro-city-stock-availability?${qp}`);
+      setApiData(prev => ({ ...prev, metroCity: res.data }));
     } catch (e) { console.error(e); }
   };
 
   const fetchOsaDetail = async (dp) => {
     try {
-      const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${dp}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, osaDetail: data }));
+      const res = await axiosInstance.get(`/availability-analysis/absolute-osa/osa-percentage-detail?${dp}`);
+      setApiData(prev => ({ ...prev, osaDetail: res.data }));
     } catch (e) { console.error(e); }
   };
 

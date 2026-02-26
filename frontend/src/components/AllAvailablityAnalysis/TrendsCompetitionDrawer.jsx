@@ -458,14 +458,20 @@ export default function TrendsCompetitionDrawer({
     const fetchFilterOptions = async () => {
       try {
         console.log("[TrendsDrawer] Fetching filter options");
-        const baseUrl = dynamicKey === "pricing" ? '/pricing-analysis' : '/watchtower';
+        const baseUrl = dynamicKey === "pricing"
+          ? '/pricing-analysis'
+          : dynamicKey === "availability"
+            ? '/availability-analysis'
+            : '/watchtower';
+
+        const filterOptionsPath = dynamicKey === 'availability' ? 'filter-options' : 'trends-filter-options';
 
         const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
-          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'platforms' } }),
-          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'categories' } }),
-          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'cities' } }),
-          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'brands' } }),
-          axiosInstance.get(`${baseUrl}/trends-filter-options`, { params: { filterType: 'skus' } })
+          axiosInstance.get(`${baseUrl}/${filterOptionsPath}`, { params: { filterType: 'platforms' } }),
+          axiosInstance.get(`${baseUrl}/${filterOptionsPath}`, { params: { filterType: 'categories' } }),
+          axiosInstance.get(`${baseUrl}/${filterOptionsPath}`, { params: { filterType: 'cities' } }),
+          axiosInstance.get(`${baseUrl}/${filterOptionsPath}`, { params: { filterType: 'brands' } }),
+          axiosInstance.get(`${baseUrl}/${filterOptionsPath}`, { params: { filterType: 'skus' } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
@@ -516,7 +522,11 @@ export default function TrendsCompetitionDrawer({
       else if (audience === "Brand") params.brand = selectedPlatform || 'All';
       else params.platform = selectedPlatform || 'All';
 
-      const endpoint = dynamicKey === "pricing" ? '/pricing-analysis/kpi-trends' : '/watchtower/kpi-trends';
+      const endpoint = dynamicKey === "pricing"
+        ? '/pricing-analysis/kpi-trends'
+        : dynamicKey === "availability"
+          ? '/availability-analysis/kpi-trends'
+          : '/watchtower/kpi-trends';
       const response = await axiosInstance.get(endpoint, { params });
 
       if (response.data?.timeSeries?.length > 0) {
@@ -551,7 +561,10 @@ export default function TrendsCompetitionDrawer({
         platform: platformToUse,
       };
 
-      const response = await axiosInstance.get('/watchtower/competition', { params });
+      const competitionEndpoint = dynamicKey === "availability"
+        ? '/availability-analysis/competition'
+        : '/watchtower/competition';
+      const response = await axiosInstance.get(competitionEndpoint, { params });
 
       if (response.data) {
         setCompetitionData({

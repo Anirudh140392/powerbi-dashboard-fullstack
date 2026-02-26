@@ -3660,7 +3660,8 @@ const getBrands = async (platform, includeCompetitors = false) => {
         // ClickHouse query - build conditions
         const conditions = [`brand_name IS NOT NULL`, `brand_name != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            const platformList = platform.split(',').map(p => `'${p.trim().replace(/'/g, "''")}'`).join(', ');
+            conditions.push(`platform IN (${platformList})`);
         }
         if (!includeCompetitors) {
             conditions.push(`comp_flag = 0`);
@@ -3704,7 +3705,8 @@ const getLocations = async (platform, brand, includeCompetitors = false, source 
 
         const conditions = [`${locCol} IS NOT NULL`, `${locCol} != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`${platCol} = '${platform.replace(/'/g, "''")}'`);
+            const platformList = platform.split(',').map(p => `'${p.trim().replace(/'/g, "''")}'`).join(', ');
+            conditions.push(`${platCol} IN (${platformList})`);
         }
         if (brand && brand !== 'All') {
             conditions.push(`${brandCol} = '${brand.replace(/'/g, "''")}'`);
@@ -4055,9 +4057,13 @@ const getBrandCategories = async (platform, source = null) => {
         const platCol = isPricing ? 'Platform' : 'platform';
 
         const conditions = [`${catCol} IS NOT NULL`, `${catCol} != ''`];
-        if (!isPricing) conditions.push(`status = 1`);
+        if (!isPricing) {
+            conditions.push(`status = 1`);
+            conditions.push(`comp_flag = 0`); // ONLY fetch Colpal categories, not competitors
+        }
         if (platform && platform !== 'All') {
-            conditions.push(`${platCol} = '${platform.replace(/'/g, "''")}'`);
+            const platformList = platform.split(',').map(p => `'${p.trim().replace(/'/g, "''")}'`).join(', ');
+            conditions.push(`${platCol} IN (${platformList})`);
         }
 
         const query = `SELECT DISTINCT ${catCol} AS category FROM ${table} WHERE ${conditions.join(' AND ')} ORDER BY ${catCol}`;

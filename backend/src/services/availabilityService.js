@@ -1353,7 +1353,7 @@ const getAvailabilityKpiTrends = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd } = filters;
+            const { platform, brand, location, category, period = '1M', timeStep = 'Daily', startDate: filterStart, endDate: filterEnd } = filters;
 
             const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
             const days = periodDays[period] || 30;
@@ -1376,11 +1376,25 @@ const getAvailabilityKpiTrends = async (filters) => {
                 endDate: currentEndDate
             });
 
-            console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')}`);
+            console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')} with timeStep=${timeStep}`);
+
+            // Determine GROUP BY expression based on timeStep
+            // toYearWeek(DATE, 1) returns an integer like 202508 (not a string)
+            // We also select MAX(DATE) AS ref_date so weekly rows have a readable date label
+            const normalizedStep = (timeStep || 'Daily').toLowerCase();
+            let groupExpression;
+            if (normalizedStep === 'weekly') {
+                groupExpression = 'toYearWeek(toDate(DATE), 1)';
+            } else if (normalizedStep === 'monthly') {
+                groupExpression = 'toStartOfMonth(toDate(DATE))';
+            } else {
+                groupExpression = 'toDate(DATE)';
+            }
 
             const query = `
                 SELECT 
-                    DATE as ref_date,
+                    ${groupExpression} AS date_group,
+                    MAX(toDate(DATE)) AS ref_date,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
@@ -1388,8 +1402,8 @@ const getAvailabilityKpiTrends = async (filters) => {
                     COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
-                GROUP BY DATE
-                ORDER BY DATE ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `;
 
             const results = await queryClickHouse(query);
@@ -1419,8 +1433,25 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
                 const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
 
+                // Format date label based on timeStep
+                let formattedDate;
+                if (normalizedStep === 'weekly') {
+                    // toYearWeek() returns an integer (e.g. 202508) — NOT a string!
+                    // Use ref_date (the MAX date in the week bucket) for a readable label
+                    if (row.ref_date) {
+                        formattedDate = dayjs(row.ref_date).format("DD MMM'YY");
+                    } else {
+                        // Fallback: parse the YYYYWW integer manually
+                        const weekStr = String(row.date_group);
+                        formattedDate = 'W' + weekStr.substring(4);
+                    }
+                } else {
+                    // Daily and Monthly both have a proper date in ref_date
+                    formattedDate = dayjs(row.ref_date).format("DD MMM'YY");
+                }
+
                 return {
-                    date: dayjs(row.ref_date).format("DD MMM'YY"),
+                    date: formattedDate,
                     Osa: parseFloat(osa.toFixed(1)),
                     Listing: parseFloat(listing.toFixed(1)),
                     Assortment: dailyUniquePids
@@ -1435,6 +1466,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                 ],
                 timeSeries,
                 period,
+                timeStep,
                 dateRange: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') }
             };
         } catch (error) {

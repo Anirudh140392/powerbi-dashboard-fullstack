@@ -204,7 +204,7 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms({ filter = "All", apiData }) {
+export default function TopSearchTerms({ filter = "All", apiData, loading = false }) {
     const [selectedKeyword, setSelectedKeyword] = useState(null);
     const [expandedCityRows, setExpandedCityRows] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
@@ -212,20 +212,13 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     const [selectedBrands, setSelectedBrands] = useState([]);
 
     // Select specific data based on tab filter
-    // Use API data if available, otherwise fall back to hardcoded data
+    // User requested to remove hardcoded data and show "No Data Available" instead
     const activeData = useMemo(() => {
-        // If API data is available, use it directly (already filtered by backend based on filter param)
         if (apiData?.terms && apiData.terms.length > 0) {
             return apiData.terms;
         }
 
-        // Fallback to hardcoded data
-        switch (filter) {
-            case "Branded": return BRANDED_DATA;
-            case "Competitor": return COMPETITOR_DATA;
-            case "Generic": return GENERIC_DATA;
-            default: return ALL_DATA;
-        }
+        return [];
     }, [filter, apiData]);
 
     // Reset page when filter changes
@@ -320,103 +313,123 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {activeData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => {
-                            const isExpanded = expandedCityRows.has(row.keyword);
-                            return (
-                                <React.Fragment key={idx}>
-                                    <motion.tr
-                                        variants={itemVariants}
-                                        className={`transition-colors ${isExpanded ? 'bg-slate-50/40' : 'hover:bg-slate-50/80'}`}
-                                    >
-                                        <td className="px-6 py-2.5 text-xs text-slate-700 font-semibold capitalize">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => toggleCityDrilldown(row.keyword)}
-                                                    className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                        {loading ? (
+                            <tr>
+                                <td colSpan={5} className="py-8">
+                                    <div className="flex flex-col gap-4 animate-pulse px-6">
+                                        <div className="h-6 w-full bg-slate-100 rounded-md"></div>
+                                        <div className="h-6 w-full bg-slate-100 rounded-md"></div>
+                                        <div className="h-6 w-full bg-slate-100 rounded-md"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : activeData.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="py-12 text-center text-slate-500 bg-slate-50/50">
+                                    <div className="flex flex-col items-center justify-center gap-2">
+                                        <span className="text-sm font-medium">No Data Available</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                            activeData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => {
+                                const isExpanded = expandedCityRows.has(row.keyword);
+                                return (
+                                    <React.Fragment key={idx}>
+                                        <motion.tr
+                                            variants={itemVariants}
+                                            className={`transition-colors ${isExpanded ? 'bg-slate-50/40' : 'hover:bg-slate-50/80'}`}
+                                        >
+                                            <td className="px-6 py-2.5 text-xs text-slate-700 font-semibold capitalize">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => toggleCityDrilldown(row.keyword)}
+                                                        className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                                                    >
+                                                        {isExpanded ? (
+                                                            <ChevronDown className="h-4 w-4" />
+                                                        ) : (
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleCityDrilldown(row.keyword)}
+                                                        className="hover:text-blue-600 transition-colors text-left"
+                                                    >
+                                                        {row.keyword}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-2.5 text-[10px]">
+                                                <motion.button
+                                                    onClick={() => handleBrandClick(row.keyword)}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    className="pill underline-slide"
                                                 >
-                                                    {isExpanded ? (
-                                                        <ChevronDown className="h-4 w-4" />
-                                                    ) : (
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    )}
-                                                </button>
-                                                <button
-                                                    onClick={() => toggleCityDrilldown(row.keyword)}
-                                                    className="hover:text-blue-600 transition-colors text-left"
-                                                >
-                                                    {row.keyword}
-                                                </button>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-2.5 text-[10px]">
-                                            <motion.button
-                                                onClick={() => handleBrandClick(row.keyword)}
-                                                whileTap={{ scale: 0.95 }}
-                                                className="pill underline-slide"
-                                            >
-                                                {row.topBrand}
-                                            </motion.button>
-                                        </td>
-                                        <td className="px-6 py-2.5 text-center">
-                                            <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
-                                                <span className="text-xs font-bold text-emerald-900">{row.overallSos}%</span>
-                                                <DeltaIndicator value={row.overallDelta} />
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-2.5 text-center">
-                                            <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
-                                                <span className="text-xs font-bold text-emerald-900">{row.organicSos}%</span>
-                                                <DeltaIndicator value={row.organicDelta} />
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-2.5 text-center">
-                                            <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
-                                                <span className="text-xs font-bold text-emerald-900">{row.paidSos}%</span>
-                                                <DeltaIndicator value={row.paidDelta} />
-                                            </div>
-                                        </td>
-                                    </motion.tr>
+                                                    {row.topBrand}
+                                                </motion.button>
+                                            </td>
+                                            <td className="px-6 py-2.5 text-center">
+                                                <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
+                                                    <span className="text-xs font-bold text-emerald-900">{row.overallSos}%</span>
+                                                    <DeltaIndicator value={row.overallDelta} />
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-2.5 text-center">
+                                                <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
+                                                    <span className="text-xs font-bold text-emerald-900">{row.organicSos}%</span>
+                                                    <DeltaIndicator value={row.organicDelta} />
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-2.5 text-center">
+                                                <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
+                                                    <span className="text-xs font-bold text-emerald-900">{row.paidSos}%</span>
+                                                    <DeltaIndicator value={row.paidDelta} />
+                                                </div>
+                                            </td>
+                                        </motion.tr>
 
-                                    {/* Inline City Drilldown Rows */}
-                                    <AnimatePresence>
-                                        {isExpanded && getCityData(row).map((city, cIdx) => (
-                                            <motion.tr
-                                                key={`city-${cIdx}`}
-                                                initial={{ opacity: 0, y: -5 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -5 }}
-                                                className="bg-slate-50/30 border-b border-white"
-                                            >
-                                                <td className="px-6 py-1.5 pl-[52px] text-[11px] font-medium text-slate-500">
-                                                    {city.city}
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center text-[11px] text-slate-400">
-                                                    —
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.overallSos}%</span>
-                                                        <DeltaIndicator value={city.overallDelta} />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.organicSos}%</span>
-                                                        <DeltaIndicator value={city.organicDelta} />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.paidSos}%</span>
-                                                        <DeltaIndicator value={city.paidDelta} />
-                                                    </div>
-                                                </td>
-                                            </motion.tr>
-                                        ))}
-                                    </AnimatePresence>
-                                </React.Fragment>
-                            );
-                        })}
+                                        {/* Inline City Drilldown Rows */}
+                                        <AnimatePresence>
+                                            {isExpanded && getCityData(row).map((city, cIdx) => (
+                                                <motion.tr
+                                                    key={`city-${cIdx}`}
+                                                    initial={{ opacity: 0, y: -5 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -5 }}
+                                                    className="bg-slate-50/30 border-b border-white"
+                                                >
+                                                    <td className="px-6 py-1.5 pl-[52px] text-[11px] font-medium text-slate-500">
+                                                        {city.city}
+                                                    </td>
+                                                    <td className="px-6 py-1.5 text-center text-[11px] text-slate-400">
+                                                        —
+                                                    </td>
+                                                    <td className="px-6 py-1.5 text-center">
+                                                        <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                            <span className="text-[11px] font-bold text-slate-600">{city.overallSos}%</span>
+                                                            <DeltaIndicator value={city.overallDelta} />
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-1.5 text-center">
+                                                        <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                            <span className="text-[11px] font-bold text-slate-600">{city.organicSos}%</span>
+                                                            <DeltaIndicator value={city.organicDelta} />
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-1.5 text-center">
+                                                        <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                            <span className="text-[11px] font-bold text-slate-600">{city.paidSos}%</span>
+                                                            <DeltaIndicator value={city.paidDelta} />
+                                                        </div>
+                                                    </td>
+                                                </motion.tr>
+                                            ))}
+                                        </AnimatePresence>
+                                    </React.Fragment>
+                                );
+                            })
+                        )}
                     </motion.tbody>
                 </table>
             </div>
@@ -424,9 +437,9 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
             {/* Footer / Pagination */}
             <div className="border-t border-slate-100 bg-slate-50/50">
                 <PaginationFooter
-                    isVisible={activeData.length > 0}
+                    isVisible={activeData.length > 0 && !loading}
                     currentPage={currentPage}
-                    totalPages={Math.ceil(activeData.length / pageSize)}
+                    totalPages={Math.ceil(activeData.length / pageSize) || 1}
                     onPageChange={setCurrentPage}
                     pageSize={pageSize}
                     onPageSizeChange={setPageSize}

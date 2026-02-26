@@ -550,7 +550,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
           params.append('brand', value.brands.join(','));
         }
 
-        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
+        const response = await axiosInstance.get(`/availability-analysis/competition-filter-options?${params.toString()}`);
 
         if (response.data) {
           setFilterOptions({

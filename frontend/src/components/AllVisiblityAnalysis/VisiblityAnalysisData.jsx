@@ -439,7 +439,7 @@ const cards = [
   },
 ];
 
-const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters: parentFilters, topSearchFilter: parentTopSearchFilter, setTopSearchFilter: parentSetTopSearchFilter }) => {
+const VisiblityAnalysisData = ({ apiData = {}, apiLoading = {}, apiErrors = {}, onRetry, filters: parentFilters, topSearchFilter: parentTopSearchFilter, setTopSearchFilter: parentSetTopSearchFilter }) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
@@ -637,38 +637,9 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       });
     }
 
-    // Fallback to seed-based data
-    // Map titles to keys that exist in data center or fall back to defaults
-    const titleToKey = {
-      "Overall Weighted SOS": "sos",
-      "Sponsored Weighted SOS": "promomybrand",
-      "Organic Weighted SOS": "market",
-      "Display SOS": "dspSales"
-    };
-
-    return cards.map((card, idx) => {
-      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
-      const val = getLogicalKpiValue(kpiKey, platformContext);
-      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
-      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
-
-      return {
-        id: `vis-${idx}`,
-        title: card.title,
-        value: `${val.toFixed(1)}%`,
-        subtitle: card.sub,
-        delta: parseFloat(delta),
-        deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
-        icon: icons[idx] || PieChart,
-        gradient: gradients[idx % gradients.length],
-        trend: getLogicalKpiTrend(kpiKey, platformContext),
-
-        extra: card.extra,
-        extraChange: card.extraChange,
-        extraChangeColor: card.extraChangeColor,
-        prevText: card.prevText
-      };
-    });
+    // Fallback: The user requested to show "No Data Available" instead of hardcoded data.
+    // By returning an empty array here, SnapshotOverview will display the empty state.
+    return [];
   }, [globalPlatform, apiData?.overview]);
 
   const cellHeat = (value) => {
@@ -866,30 +837,18 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       const useApiCity = apiMatrixData?.cityData?.rows?.length > 0;
 
       const platformData = useApiPlatform ? apiMatrixData.platformData : {
-        columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.PlatformData])),
-          FORMAT_MATRIX_Visibility.PlatformColumns,
-          context
-        ),
+        columns: [],
+        rows: []
       };
 
       const formatData = useApiFormat ? apiMatrixData.formatData : {
-        columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.FormatData])),
-          FORMAT_MATRIX_Visibility.formatColumns,
-          context
-        ),
+        columns: [],
+        rows: []
       };
 
       const cityData = useApiCity ? apiMatrixData.cityData : {
-        columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.CityData])),
-          FORMAT_MATRIX_Visibility.CityColumns,
-          context
-        ),
+        columns: [],
+        rows: []
       };
 
       return [
@@ -926,6 +885,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
           dynamicKey="visibility"
           data={active.data}
           title={active.label}
+          loading={apiLoading?.matrix}
           showPagination={true}
           kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
         />
@@ -964,6 +924,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
         }
         kpis={visibilityKpis}
         variant="detailed"
+        loading={apiLoading?.overview}
       />
       {apiErrors?.overview && (
         <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
@@ -1013,7 +974,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} />
+        <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} loading={apiLoading?.keywords} />
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">
@@ -1030,7 +991,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
             ))}
           </div>
         </div>
-        <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
+        <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} loading={apiLoading?.searchTerms} />
       </div>
       {/* <SignalLabVisibility type="visibility" /> */}
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

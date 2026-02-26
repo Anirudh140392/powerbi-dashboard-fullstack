@@ -4,6 +4,7 @@ import { KpiFilterPanel } from '../KpiFilterPanel'
 import { SlidersHorizontal, X } from 'lucide-react'
 import PaginationFooter from '../CommonLayout/PaginationFooter'
 import axiosInstance from '../../api/axiosInstance'
+import { VisibilityDrilldownSkeleton } from './VisibilitySkeletons'
 
 const KPI_LABELS = {
     adSos: 'Ad Sos',
@@ -392,7 +393,8 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
         const fetchFilterOptions = async () => {
             try {
                 // Fetch all filter types in parallel from visibility API
-                const [monthsRes, platformsRes, formatsRes, citiesRes, pincodesRes, productNamesRes] = await Promise.all([
+                const [datesRes, monthsRes, platformsRes, formatsRes, citiesRes, pincodesRes, productNamesRes] = await Promise.all([
+                    axiosInstance.get('/visibility-analysis/filter-options?filterType=dates'),
                     axiosInstance.get('/visibility-analysis/filter-options?filterType=months'),
                     axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
                     axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
@@ -408,7 +410,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                 ]
 
                 const dynamicOptions = [
-                    { id: "date", label: "Date", options: [] },
+                    { id: "date", label: "Date", options: toOptions(datesRes.data?.options) },
                     { id: "month", label: "Month", options: toOptions(monthsRes.data?.options) },
                     { id: "platform", label: "Platform", options: toOptions(platformsRes.data?.options) },
                     { id: "productName", label: "Product Name", options: toOptions(productNamesRes.data?.options) },
@@ -665,6 +667,10 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                 </span>
             </motion.div>
         )
+    }
+
+    if (loading) {
+        return <VisibilityDrilldownSkeleton />;
     }
 
     return (
@@ -945,161 +951,171 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {pageRows.map((row) => (
-                                        <motion.tr
-                                            key={row.id}
-                                            layout
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
-                                        >
-                                            <td
-                                                className="px-3 py-2"
-                                                style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
-                                            >
-                                                <div className="flex flex-row items-center justify-start text-left gap-2">
-                                                    {(row.level === 'keyword-type' || row.depth === 0) && row.hasChildren && (
-                                                        <button
-                                                            onClick={() => toggleExpand(row.id)}
-                                                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 font-bold"
-                                                        >
-                                                            {expandedRows.has(row.id) ? '−' : '+'}
-                                                        </button>
-                                                    )}
-                                                    {(row.level === 'keyword-type' || row.depth === 0) && !row.hasChildren && (
-                                                        <div className="w-5 h-5 shrink-0" />
-                                                    )}
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold text-slate-900">{row.level === 'keyword-type' ? row.label : (row.level === 'sku' && activeView === 'skus' ? row.label : '')}</span>
-                                                        {row.subtitle && <span className="text-[10px] text-slate-500">{row.subtitle}</span>}
-                                                    </div>
+                                    {pageRows.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={100} className="py-12 text-center text-slate-500 bg-slate-50/50">
+                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                    <span className="text-sm font-medium">No Data Available</span>
                                                 </div>
                                             </td>
-
-                                            {showKeywordColumn && (
+                                        </tr>
+                                    ) : (
+                                        pageRows.map((row) => (
+                                            <motion.tr
+                                                key={row.id}
+                                                layout
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group"
+                                            >
                                                 <td
-                                                    className="px-2 py-2 text-left"
-                                                    style={{ position: 'sticky', left: LEFT_KEYWORD, background: '#ffffff', minWidth: FROZEN_WIDTHS.keyword }}
+                                                    className="px-3 py-2"
+                                                    style={{ position: 'sticky', left: 0, background: '#ffffff', minWidth: FROZEN_WIDTHS.keywordType }}
                                                 >
-                                                    <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
-                                                        <div className="shrink-0 w-4 h-4 flex items-center justify-center">
-                                                            {row.level === 'keyword' && row.hasChildren && (
-                                                                <button
-                                                                    onClick={() => toggleExpand(row.id)}
-                                                                    className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
-                                                                >
-                                                                    {expandedRows.has(row.id) ? '−' : '+'}
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        <span>{row.level === 'keyword' ? row.label : ''}</span>
-                                                    </div>
-                                                </td>
-                                            )}
-
-                                            {showBrandColumn && (
-                                                <td
-                                                    className="px-2 py-2 text-left"
-                                                    style={{ position: 'sticky', left: LEFT_BRAND, background: '#ffffff', minWidth: FROZEN_WIDTHS.brand }}
-                                                >
-                                                    <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
-                                                        <div className="shrink-0 w-4 h-4 flex items-center justify-center">
-                                                            {row.level === 'brand' && row.hasChildren && (
-                                                                <button
-                                                                    onClick={() => toggleExpand(row.id)}
-                                                                    className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
-                                                                >
-                                                                    {expandedRows.has(row.id) ? '−' : '+'}
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        <span>{row.level === 'brand' ? row.label : ''}</span>
-                                                    </div>
-                                                </td>
-                                            )}
-
-                                            {showSkuColumn && (
-                                                <td
-                                                    className="px-2 py-2 text-left"
-                                                    style={{ position: 'sticky', left: showKeywordColumn ? LEFT_SKU : LEFT_KEYWORD, background: '#ffffff', minWidth: FROZEN_WIDTHS.sku }}
-                                                >
-                                                    <div className="flex items-start">
-                                                        {row.hasChildren && (row.level === 'sku' || (row.depth > 0 && activeView === 'skus')) && (
+                                                    <div className="flex flex-row items-center justify-start text-left gap-2">
+                                                        {(row.level === 'keyword-type' || row.depth === 0) && row.hasChildren && (
                                                             <button
                                                                 onClick={() => toggleExpand(row.id)}
-                                                                className="mr-2 flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                                                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 font-bold"
                                                             >
                                                                 {expandedRows.has(row.id) ? '−' : '+'}
                                                             </button>
                                                         )}
-                                                        <div>
-                                                            {row.level === 'sku' && <div className="text-slate-600">{row.label}</div>}
+                                                        {(row.level === 'keyword-type' || row.depth === 0) && !row.hasChildren && (
+                                                            <div className="w-5 h-5 shrink-0" />
+                                                        )}
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold text-slate-900">{row.level === 'keyword-type' ? row.label : (row.level === 'sku' && activeView === 'skus' ? row.label : '')}</span>
+                                                            {row.subtitle && <span className="text-[10px] text-slate-500">{row.subtitle}</span>}
                                                         </div>
                                                     </div>
                                                 </td>
-                                            )}
 
-                                            {showCityColumn && (
+                                                {showKeywordColumn && (
+                                                    <td
+                                                        className="px-2 py-2 text-left"
+                                                        style={{ position: 'sticky', left: LEFT_KEYWORD, background: '#ffffff', minWidth: FROZEN_WIDTHS.keyword }}
+                                                    >
+                                                        <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
+                                                            <div className="shrink-0 w-4 h-4 flex items-center justify-center">
+                                                                {row.level === 'keyword' && row.hasChildren && (
+                                                                    <button
+                                                                        onClick={() => toggleExpand(row.id)}
+                                                                        className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
+                                                                    >
+                                                                        {expandedRows.has(row.id) ? '−' : '+'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <span>{row.level === 'keyword' ? row.label : ''}</span>
+                                                        </div>
+                                                    </td>
+                                                )}
+
+                                                {showBrandColumn && (
+                                                    <td
+                                                        className="px-2 py-2 text-left"
+                                                        style={{ position: 'sticky', left: LEFT_BRAND, background: '#ffffff', minWidth: FROZEN_WIDTHS.brand }}
+                                                    >
+                                                        <div className="flex flex-row items-center justify-start text-left gap-2 text-slate-600">
+                                                            <div className="shrink-0 w-4 h-4 flex items-center justify-center">
+                                                                {row.level === 'brand' && row.hasChildren && (
+                                                                    <button
+                                                                        onClick={() => toggleExpand(row.id)}
+                                                                        className="flex h-4 w-4 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700 text-[10px]"
+                                                                    >
+                                                                        {expandedRows.has(row.id) ? '−' : '+'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <span>{row.level === 'brand' ? row.label : ''}</span>
+                                                        </div>
+                                                    </td>
+                                                )}
+
+                                                {showSkuColumn && (
+                                                    <td
+                                                        className="px-2 py-2 text-left"
+                                                        style={{ position: 'sticky', left: showKeywordColumn ? LEFT_SKU : LEFT_KEYWORD, background: '#ffffff', minWidth: FROZEN_WIDTHS.sku }}
+                                                    >
+                                                        <div className="flex items-start">
+                                                            {row.hasChildren && (row.level === 'sku' || (row.depth > 0 && activeView === 'skus')) && (
+                                                                <button
+                                                                    onClick={() => toggleExpand(row.id)}
+                                                                    className="mr-2 flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                                                                >
+                                                                    {expandedRows.has(row.id) ? '−' : '+'}
+                                                                </button>
+                                                            )}
+                                                            <div>
+                                                                {row.level === 'sku' && <div className="text-slate-600">{row.label}</div>}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                )}
+
+                                                {showCityColumn && (
+                                                    <td
+                                                        className="px-2 py-2"
+                                                        style={{
+                                                            position: 'sticky',
+                                                            left: showSkuColumn ? (showKeywordColumn ? LEFT_CITY : LEFT_SKU) : (showKeywordColumn ? LEFT_SKU : LEFT_KEYWORD),
+                                                            background: '#ffffff',
+                                                            minWidth: FROZEN_WIDTHS.city,
+                                                        }}
+                                                    >
+                                                        {row.level === 'city' && <div className="font-semibold text-slate-900">Pan India</div>}
+                                                    </td>
+                                                )}
                                                 <td
                                                     className="px-2 py-2"
                                                     style={{
                                                         position: 'sticky',
-                                                        left: showSkuColumn ? (showKeywordColumn ? LEFT_CITY : LEFT_SKU) : (showKeywordColumn ? LEFT_SKU : LEFT_KEYWORD),
+                                                        left: showCityColumn
+                                                            ? (showSkuColumn ? (showKeywordColumn ? LEFT_SPACER : LEFT_CITY) : (showKeywordColumn ? LEFT_CITY : LEFT_SKU))
+                                                            : showSkuColumn
+                                                                ? (showKeywordColumn ? LEFT_CITY : LEFT_SKU)
+                                                                : showKeywordColumn
+                                                                    ? LEFT_SKU
+                                                                    : LEFT_KEYWORD,
                                                         background: '#ffffff',
-                                                        minWidth: FROZEN_WIDTHS.city,
+                                                        width: showKeywordColumn || showSkuColumn || showCityColumn ? FROZEN_WIDTHS.spacer : 0,
+                                                        minWidth: showKeywordColumn || showSkuColumn || showCityColumn ? FROZEN_WIDTHS.spacer : 0,
                                                     }}
-                                                >
-                                                    {row.level === 'city' && <div className="font-semibold text-slate-900">Pan India</div>}
-                                                </td>
-                                            )}
-                                            <td
-                                                className="px-2 py-2"
-                                                style={{
-                                                    position: 'sticky',
-                                                    left: showCityColumn
-                                                        ? (showSkuColumn ? (showKeywordColumn ? LEFT_SPACER : LEFT_CITY) : (showKeywordColumn ? LEFT_CITY : LEFT_SKU))
-                                                        : showSkuColumn
-                                                            ? (showKeywordColumn ? LEFT_CITY : LEFT_SKU)
-                                                            : showKeywordColumn
-                                                                ? LEFT_SKU
-                                                                : LEFT_KEYWORD,
-                                                    background: '#ffffff',
-                                                    width: showKeywordColumn || showSkuColumn || showCityColumn ? FROZEN_WIDTHS.spacer : 0,
-                                                    minWidth: showKeywordColumn || showSkuColumn || showCityColumn ? FROZEN_WIDTHS.spacer : 0,
-                                                }}
-                                            />
+                                                />
 
-                                            <AnimatePresence>
-                                                {allKpis.flatMap((kpi) =>
-                                                    activeView === 'platforms' && expandedKpis.has(kpi)
-                                                        ? visiblePlatforms.map((p) => (
-                                                            <motion.td
-                                                                key={`${row.id}-${kpi}-${p}`}
-                                                                layout
-                                                                initial={{ opacity: 0, scale: 0.95 }}
-                                                                animate={{ opacity: 1, scale: 1 }}
-                                                                exit={{ opacity: 0, scale: 0.95 }}
-                                                                className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
-                                                            >
-                                                                {renderValueCell(row.platforms[p] ?? {}, kpi)}
-                                                            </motion.td>
-                                                        ))
-                                                        : (
-                                                            <motion.td
-                                                                key={`${row.id}-${kpi}`}
-                                                                layout
-                                                                initial={{ opacity: 0, scale: 0.95 }}
-                                                                animate={{ opacity: 1, scale: 1 }}
-                                                                exit={{ opacity: 0, scale: 0.95 }}
-                                                                className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
-                                                            >
-                                                                {renderValueCell(row.metrics, kpi)}
-                                                            </motion.td>
-                                                        )
-                                                )}
-                                            </AnimatePresence>
-                                        </motion.tr>
-                                    ))}
+                                                <AnimatePresence>
+                                                    {allKpis.flatMap((kpi) =>
+                                                        activeView === 'platforms' && expandedKpis.has(kpi)
+                                                            ? visiblePlatforms.map((p) => (
+                                                                <motion.td
+                                                                    key={`${row.id}-${kpi}-${p}`}
+                                                                    layout
+                                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                                    animate={{ opacity: 1, scale: 1 }}
+                                                                    exit={{ opacity: 0, scale: 0.95 }}
+                                                                    className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
+                                                                >
+                                                                    {renderValueCell(row.platforms[p] ?? {}, kpi)}
+                                                                </motion.td>
+                                                            ))
+                                                            : (
+                                                                <motion.td
+                                                                    key={`${row.id}-${kpi}`}
+                                                                    layout
+                                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                                    animate={{ opacity: 1, scale: 1 }}
+                                                                    exit={{ opacity: 0, scale: 0.95 }}
+                                                                    className="px-3 py-2.5 text-center align-middle border-l border-slate-100 overflow-hidden whitespace-nowrap"
+                                                                >
+                                                                    {renderValueCell(row.metrics, kpi)}
+                                                                </motion.td>
+                                                            )
+                                                    )}
+                                                </AnimatePresence>
+                                            </motion.tr>
+                                        ))
+                                    )}
                                 </tbody>
                             </table>
                         </div>

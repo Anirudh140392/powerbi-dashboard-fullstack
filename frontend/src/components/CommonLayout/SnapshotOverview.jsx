@@ -1084,7 +1084,7 @@ const SnapshotOverview = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {loading ? (
                             [1, 2, 3, 4].map((i) => <DetailedSparklineCard key={i} loading={true} />)
-                        ) : (
+                        ) : detailedKpis.length > 0 ? (
                             detailedKpis.map((kpi, idx) => (
                                 <motion.div
                                     key={kpi.id || idx}
@@ -1096,6 +1096,10 @@ const SnapshotOverview = ({
                                     <DetailedSparklineCard kpi={kpi} />
                                 </motion.div>
                             ))
+                        ) : (
+                            <div className="col-span-full py-12 flex flex-col items-center justify-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                <span className="text-slate-400 font-medium">No Data Available</span>
+                            </div>
                         )}
                     </div>
                 </div>

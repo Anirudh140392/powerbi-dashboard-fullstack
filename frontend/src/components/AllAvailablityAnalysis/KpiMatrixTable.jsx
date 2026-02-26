@@ -391,7 +391,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         return { value: val !== undefined ? val : 0, delta: 0 };
     };
 
-    if (isLoading && !apiData) {
+    if (isLoading) {
         return <PlatformKpiMatrixSkeleton />;
     }
 
