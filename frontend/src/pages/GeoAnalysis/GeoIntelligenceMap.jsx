@@ -36,40 +36,114 @@ export default function GeoIntelligenceMap() {
     const [platform, setPlatform] = useState("Blinkit");
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
+    const [apiData, setApiData] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [platforms, setPlatforms] = useState([]);
 
-    // Filter Handling (Demo)
+    // --- Fetch Platforms from DB ---
+    useEffect(() => {
+        const fetchPlatforms = async () => {
+            try {
+                const response = await fetch('/api/watchtower/platforms');
+                if (response.ok) {
+                    const data = await response.json();
+                    setPlatforms(data || []);
+                    if (data && data.length > 0 && !data.includes(platform)) {
+                        setPlatform(data[0]);
+                    }
+                }
+            } catch (error) {
+                console.error('[MapIntellect] Failed to fetch platforms:', error);
+                setPlatforms(['Blinkit', 'Zepto', 'Instamart']);
+            }
+        };
+        fetchPlatforms();
+    }, []);
+
+    // Filter Handling
     const [importanceFilter, setImportanceFilter] = useState("All");
 
-    // --- Data Generation (Mock) ---
+    // --- Fetch Real Data from Backend ---
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // Build time period params
+                let params = `platform=${encodeURIComponent(platform)}`;
+                if (timePeriod === "MTD") {
+                    params += `&months=1`;
+                } else if (timePeriod === "7D") {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 7);
+                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                } else if (timePeriod === "14D") {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 14);
+                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                } else if (timePeriod === "31D") {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 31);
+                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                }
+
+                const response = await fetch(`/api/map-intellect/data?${params}`);
+                if (!response.ok) throw new Error(`API error: ${response.status}`);
+                const result = await response.json();
+                setApiData(result.cities || []);
+            } catch (error) {
+                console.error('[MapIntellect] Failed to fetch data:', error);
+                setApiData([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [platform, timePeriod]);
+
+    // --- Build coordinate-mapped data from API response ---
     const mapData = useMemo(() => {
-        // Combine STATES/CITIES with mock values based on metric/platform
-        const source = [...STATES, ...CITIES];
+        // Build a lookup from city/state name -> coordinates
+        const coordsLookup = {};
+        CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });
+        STATES.forEach(s => { coordsLookup[s.name.toLowerCase()] = { lat: s.center[1], lng: s.center[0], type: "State" }; });
 
-        return source.map((item, index) => {
-            // Deterministic value generation
-            const seed = (item.name.charCodeAt(0) + metric.length + platform.length) * 13;
-            const rawVal = (seed % 60) + 40; // 40-100 range
-            let color = COLORS.Red;
-            if (rawVal > 85) color = COLORS.Green;
-            else if (rawVal > 70) color = COLORS.Blue;
-            else if (rawVal > 55) color = COLORS.Orange;
-            // Orders and Listing_purchase derived deterministically
-            const frac = (seed % 100) / 100; // 0-0.99
-            const listingPurchase = 70 + frac * 15; // 70-85%
-            const orders = Math.max(1, Math.floor(rawVal * 12)); // simple scalar for demo
+        return apiData
+            .filter(city => coordsLookup[city.name.toLowerCase()])
+            .map(city => {
+                const coords = coordsLookup[city.name.toLowerCase()];
+                // Pick the value based on the selected metric
+                let value = 0;
+                if (metric === "Wt. OSA %") value = city.osa || 0;
+                else if (metric === "Market Share") value = city.marketShare || 0;
+                else if (metric === "Sales") value = city.sales || 0;
+                else if (metric === "Orders") value = city.orders || 0;
 
-            return {
-                ...item,
-                value: rawVal,
-                color: color,
-                lat: item.center ? item.center[1] : item.coords[1],
-                lng: item.center ? item.center[0] : item.coords[0],
-                type: item.center ? "State" : "City",
-                orders,
-                listingPurchase: Number(listingPurchase.toFixed(1))
-            };
-        });
-    }, [metric, platform, timePeriod]);
+                // Color coding based on OSA value for consistency
+                const osaVal = city.osa || 0;
+                let color = COLORS.Red;
+                if (osaVal > 85) color = COLORS.Green;
+                else if (osaVal > 70) color = COLORS.Blue;
+                else if (osaVal > 55) color = COLORS.Orange;
+
+                return {
+                    name: city.name,
+                    value,
+                    osa: city.osa || 0,
+                    marketShare: city.marketShare || 0,
+                    sales: city.sales || 0,
+                    salesFormatted: city.salesFormatted || "₹0",
+                    orders: city.orders || 0,
+                    color,
+                    lat: coords.lat,
+                    lng: coords.lng,
+                    type: coords.type,
+                    listingPurchase: city.osa || 0,
+                };
+            });
+    }, [apiData, metric]);
 
     // --- Map Initialization ---
     useEffect(() => {
@@ -145,10 +219,10 @@ export default function GeoIntelligenceMap() {
         // Filter logic
         const filteredData = mapData.filter(d => {
             if (importanceFilter === "All") return true;
-            // Mock importance mapping
-            return (d.value > 80 && importanceFilter === "High") ||
-                (d.value <= 80 && d.value > 60 && importanceFilter === "Medium") ||
-                (d.value <= 60 && importanceFilter === "Low");
+            const osaVal = d.osa || 0;
+            return (osaVal > 80 && importanceFilter === "High") ||
+                (osaVal <= 80 && osaVal > 60 && importanceFilter === "Medium") ||
+                (osaVal <= 60 && importanceFilter === "Low");
         });
 
         filteredData.forEach(d => {
@@ -158,26 +232,31 @@ export default function GeoIntelligenceMap() {
             // Determine pin display text based on selected metric
             let pinText = '';
             if (metric === 'Sales') {
-                pinText = `${((d.value * 1200) / 100000).toFixed(2)}L`;
+                pinText = d.salesFormatted || '₹0';
             } else if (metric === 'Orders') {
                 pinText = `${d.orders}`;
+            } else if (metric === 'Market Share') {
+                pinText = `${d.marketShare}%`;
             } else {
-                pinText = `${d.value}%`;
+                pinText = `${d.osa}%`;
             }
             el.innerHTML = getPinSvg(d.color, pinText);
             el.style.width = '46px';
             el.style.height = '56px';
             el.style.cursor = 'pointer';
 
-            // Popup content varies by metric
+            // Popup content with real values
             let mainLabel = 'Wt. OSA %';
-            let mainValue = `${d.value}%`;
+            let mainValue = `${d.osa}%`;
             if (metric === 'Sales') {
                 mainLabel = 'Sales';
-                mainValue = `₹${((d.value * 1200) / 100000).toFixed(2)}L`;
+                mainValue = d.salesFormatted || '₹0';
             } else if (metric === 'Orders') {
                 mainLabel = 'Orders';
                 mainValue = `${d.orders}`;
+            } else if (metric === 'Market Share') {
+                mainLabel = 'Market Share';
+                mainValue = `${d.marketShare}%`;
             }
 
             const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
@@ -187,10 +266,10 @@ export default function GeoIntelligenceMap() {
                     <span>${mainLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${mainValue}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>Market Share:</span> <span style="font-weight: 600; color: #1e293b;">${Math.floor(d.value / 2)}%</span>
+                    <span>Market Share:</span> <span style="font-weight: 600; color: #1e293b;">${d.marketShare}%</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>Listing Percent:</span> <span style="font-weight: 600; color: #1e293b;">${d.listingPurchase}%</span>
+                    <span>Wt. OSA %:</span> <span style="font-weight: 600; color: #1e293b;">${d.osa}%</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b;">
                     <span>Orders:</span> <span style="font-weight: 600; color: #1e293b;">${d.orders}</span>
@@ -273,11 +352,9 @@ export default function GeoIntelligenceMap() {
                                             minWidth: "120px"
                                         }}
                                     >
-                                        <option value="Blinkit">Blinkit</option>
-                                        <option value="Instamart">Instamart</option>
-                                        <option value="Zepto">Zepto</option>
-                                        <option value="Flipkart">Flipkart</option>
-                                        <option value="Amazon">Amazon</option>
+                                        {platforms.map(p => (
+                                            <option key={p} value={p}>{p}</option>
+                                        ))}
                                     </select>
                                     <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
                                         <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>

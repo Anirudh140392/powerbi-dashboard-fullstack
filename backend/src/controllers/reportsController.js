@@ -189,7 +189,7 @@ export const downloadReport = async (req, res) => {
                     toDate(created_on) as DATE, brand as Brand, category as Category, Location as City,
                     SUM(sales) as Sales_Value,
                     ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER (PARTITION BY DATE, category, Location), 0) * 100, 2) as Market_Share_Percentage
-                FROM test_brand_MS
+                FROM rb_brand_ms
                 WHERE toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'
                 ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND brand = '${brand.replace(/'/g, "''")}'` : ''}
                 ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
