@@ -308,9 +308,10 @@ const PlatformOverviewNew = ({
     const entities = useMemo(() => {
         const rawApiEntities = apiData[dimension]
 
+        let result = []
         if (rawApiEntities && rawApiEntities.length > 0) {
             // Use real API data
-            return rawApiEntities.map((apiEntity, idx) => {
+            result = rawApiEntities.map((apiEntity, idx) => {
                 const key = (apiEntity.key || apiEntity.label || `entity-${idx}`).toLowerCase()
                 const name = apiEntity.label || apiEntity.key || `Entity ${idx + 1}`
                 const logoSrc = apiEntity.logo || platformLogos[key] || null
@@ -325,9 +326,25 @@ const PlatformOverviewNew = ({
             })
         }
 
-        // No fallback — return empty array
-        return []
-    }, [apiData, dimension])
+        // When dimension is 'platform' and a specific platform is selected,
+        // only show the 'All' row + selected platform rows (remove unselected 0-value rows)
+        if (dimension === 'platform' && globalPlatform && globalPlatform !== 'All') {
+            const selectedPlatforms = Array.isArray(globalPlatform)
+                ? globalPlatform.map(p => p.toLowerCase())
+                : globalPlatform.split(',').map(p => p.trim().toLowerCase())
+
+            result = result.filter(e => {
+                const entityKey = e.key.toLowerCase()
+                const entityName = e.name.toLowerCase()
+                // Always keep the 'All' row
+                if (entityKey === 'all' || entityName === 'all') return true
+                // Keep rows matching selected platforms
+                return selectedPlatforms.some(p => entityKey.includes(p) || entityName.includes(p) || p.includes(entityKey))
+            })
+        }
+
+        return result
+    }, [apiData, dimension, globalPlatform])
 
     const SectionWrapper = ({
         title,

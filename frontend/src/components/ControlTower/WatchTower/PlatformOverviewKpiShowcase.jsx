@@ -1306,7 +1306,7 @@ const CHART_COLORS = [
   "#EC4899", // pink
 ];
 
-const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi }) => {
+const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi, period, timeStep }) => {
   const [activeMetric, setActiveMetric] = useState("osa");
   const isBrandMode = mode === "brand";
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -1347,7 +1347,8 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
         brands: isBrandMode ? visibleIds.join(",") : "All",
         skus: isBrandMode ? "All" : visibleIds.join(","),
         category: filters.categories.length > 0 ? filters.categories.join(",") : "All",
-        period: "1M",
+        period: period || "1M",
+        timeStep: timeStep || "Weekly",
       };
 
       const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
@@ -1358,7 +1359,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     } finally {
       setTrendLoading(false);
     }
-  }, [visibleIds, city, platform, isBrandMode, filters.categories]);
+  }, [visibleIds, city, platform, isBrandMode, filters.categories, period, timeStep]);
 
   useEffect(() => {
     fetchTrendData();
@@ -1638,7 +1639,7 @@ const KPI_KEYS = [
   },
 ];
 
-const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTrend }) => {
+const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTrend, period, timeStep }) => {
   const isBrandMode = mode === "brand";
 
   const selectedIds = useMemo(() => {
@@ -1670,7 +1671,8 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
         brands: isBrandMode ? selectedIds.join(",") : "All",
         skus: isBrandMode ? "All" : selectedIds.join(","),
         category: filters?.categories?.length > 0 ? filters.categories.join(",") : "All",
-        period: "1M",
+        period: period || "1M",
+        timeStep: timeStep || "Weekly",
       };
 
       const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
@@ -1681,7 +1683,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
     } finally {
       setLoading(false);
     }
-  }, [selectedIds, city, platform, isBrandMode, filters]);
+  }, [selectedIds, city, platform, isBrandMode, filters, period, timeStep]);
 
   useEffect(() => {
     fetchCompareTrendData();
@@ -2103,7 +2105,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionData, loading, filterOptions }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep }) => {
   // Use filterOptions if provided, otherwise fallback to static constants
   const dynamicCities = filterOptions?.cities?.length > 0 ? filterOptions.cities : CITIES;
 
@@ -2116,6 +2118,37 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
     skus: [],
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
+  const [apiBrandData, setApiBrandData] = useState([]);
+  const [apiSkuData, setApiSkuData] = useState([]);
+  const [apiLoading, setApiLoading] = useState(false);
+
+  // Fetch local Competition Data on filter changes
+  useEffect(() => {
+    const fetchCompetitionData = async () => {
+      setApiLoading(true);
+      try {
+        const params = {
+          platform: selectedItem || 'All',
+          location: city !== 'All India' ? city : 'All',
+          category: filters.categories.length > 0 ? filters.categories[0] : 'All',
+          brand: filters.brands.length > 0 ? filters.brands[0] : 'All',
+          sku: filters.skus.length > 0 ? filters.skus[0] : 'All',
+          period: period || '1M'
+        };
+
+        const res = await axiosInstance.get('/watchtower/competition', { params });
+        if (res.data) {
+          setApiBrandData(res.data.brands || []);
+          setApiSkuData(res.data.skus || []);
+        }
+      } catch (err) {
+        console.error('[PlatformOverviewKpiShowcase] Failed to fetch competition data:', err);
+      } finally {
+        setApiLoading(false);
+      }
+    };
+    fetchCompetitionData();
+  }, [selectedItem, city, filters.categories, filters.brands, filters.skus, period]);
 
   // Update city if dynamicCities changes
   useEffect(() => {
@@ -2128,44 +2161,12 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
     filters.categories.length + filters.brands.length + filters.skus.length;
 
   const brandRows = useMemo(() => {
-    const allRows = competitionData?.brands || [];
-    let rows = allRows;
-
-    if (filters.categories.length) {
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    }
-    if (filters.brands.length) {
-      rows = rows.filter((r) => filters.brands.includes(r.name));
-    }
-    // if SKUs selected, show only brands that have any selected SKU
-    if (filters.skus.length) {
-      const brandIdsWithSelectedSkus = new Set(
-        (competitionData?.skus || [])
-          .filter((s) => filters.skus.includes(s.name))
-          .map((s) => s.brandId)
-      );
-      rows = rows.filter((r) => brandIdsWithSelectedSkus.has(r.id));
-    }
-
-    return rows;
-  }, [city, filters, competitionData]);
+    return apiBrandData;
+  }, [apiBrandData]);
 
   const skuRows = useMemo(() => {
-    const allRows = competitionData?.skus || [];
-    let rows = allRows;
-
-    if (filters.categories.length) {
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    }
-    if (filters.brands.length) {
-      rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    }
-    if (filters.skus.length) {
-      rows = rows.filter((r) => filters.skus.includes(r.name));
-    }
-
-    return rows;
-  }, [city, filters, competitionData]);
+    return apiSkuData;
+  }, [apiSkuData]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -2256,7 +2257,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} loading={loading} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -2267,6 +2268,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
               skuRows={skuRows}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              period={period}
+              timeStep={timeStep}
             />
           )}
           {viewMode === "kpi" && (
@@ -2278,13 +2281,15 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
               brandRows={brandRows}
               skuRows={skuRows}
               onBackToTrend={() => setViewMode("trend")}
+              period={period}
+              timeStep={timeStep}
             />
           )}
         </TabsContent>
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} loading={loading} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -2295,6 +2300,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
               skuRows={skuRows}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              period={period}
+              timeStep={timeStep}
             />
           )}
           {viewMode === "kpi" && (
@@ -2306,6 +2313,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, competitionD
               brandRows={brandRows}
               skuRows={skuRows}
               onBackToTrend={() => setViewMode("trend")}
+              period={period}
+              timeStep={timeStep}
             />
           )}
         </TabsContent>
