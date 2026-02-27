@@ -8,7 +8,7 @@ export const watchTowerOverview = async (req, res) => {
         const data = await watchTowerService.getSummaryMetrics(filters);
         res.json(data);
     } catch (error) {
-        console.error('Error fetching summary metrics:', error);
+        console.error('Error fetching summary metrics:', error.message, error.stack);
         // Return safe default data on database error to prevent frontend crash
         res.json({
             topMetrics: [

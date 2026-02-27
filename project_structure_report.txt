@@ -1,0 +1,236 @@
+Dashboard Project Structure Report
+
+Introduction:
+This dashboard is a comprehensive e-commerce performance management system designed to provide real-time insights into retail metrics across multiple platforms such as Blinkit, Zepto, Amazon, and Instamart. It enables stakeholders to track sales performance, visibility through Share of Search (SOS), availability (OSA), marketing efficiency (ROAS), and pricing strategies.
+
+Technical Stack:
+- Frontend: Built using React 18 and Vite for high performance. The user interface is crafted with Tailwind CSS and Material UI (MUI), featuring interactive charts powered by Recharts and ECharts.
+- Backend: A Node.js and Express.js REST API provides the business logic and data orchestration.
+- Data & Analytics: Utilizes a high-performance ClickHouse-backed analytics engine to handle high-volume retail data. Redis is integrated for low-latency caching of complex analytics results.
+- Infrastructure: Supports granular tracking down to city and SKU levels across various e-commerce channels.
+
+---
+Hierarchical Project Structure:
+
+1. Watch Tower (Overview)
+   - Meaning: This is the central monitoring hub specifically designed to track our brand's health and market positioning in real-time.
+   - KPI: Offtakes
+     - Formula: SUM(Sales) where Comp_flag = 0
+     - Table: rb_pdp_olap
+     - Columns: Sales, Comp_flag, DATE
+   - KPI: Spend
+     - Formula: SUM(Ad_Spend)
+     - Table: rb_pdp_olap
+     - Columns: Ad_Spend, DATE
+   - KPI: Category size
+     - Formula: SUM(sales) for all brands in category
+     - Table: rb_brand_ms
+     - Columns: sales, category, created_on
+   - KPI: Inorg Sales (Inorganic Sales)
+     - Formula: SUM(Ad_Sales)
+     - Table: rb_pdp_olap
+     - Columns: Ad_Sales, DATE
+   - KPI: DSP Sales
+     - Formula: Placeholder (Currently set to 0 in backend logic)
+     - Table: N/A
+     - Columns: N/A
+   - KPI: Conversion
+     - Formula: (SUM(Ad_Quanity_sold) / SUM(Ad_Clicks)) * 100
+     - Table: rb_pdp_olap
+     - Columns: Ad_Quanity_sold, Ad_Clicks, DATE
+   - KPI: Availability (OSA)
+     - Formula: (SUM(neno_osa) / SUM(deno_osa)) * 100
+     - Table: rb_pdp_olap
+     - Columns: neno_osa, deno_osa, DATE
+   - KPI: Share of Volume
+     - Formula: (Brand Qty Sold / Total Category Qty Sold) * 100
+     - Table: rb_brand_ms / rb_pdp_olap (Calculated by aggregating brand units vs category units)
+     - Columns: Qty_Sold, brand, category
+   - KPI: Ad SOV (Share of Voice - Paid)
+     - Formula: (countIf(brand_name = Selected AND spons_flag = 1) / countIf(spons_flag = 1)) * 100
+     - Table: rb_kw
+     - Columns: brand_name, spons_flag, keyword_search_rank
+   - KPI: Organic SOV (Share of Voice - Organic)
+     - Formula: (countIf(brand_name = Selected AND spons_flag = 0) / countIf(spons_flag = 0)) * 100
+     - Table: rb_kw
+     - Columns: brand_name, spons_flag, keyword_search_rank
+   - KPI: Market share
+     - Formula: (Brand Sales / Total Category Sales) * 100
+     - Table: rb_brand_ms
+     - Columns: sales, brand, category, created_on
+   - KPI: Promo (My)
+     - Formula: AVG((1 - (Selling_Price / MRP)) * 100) for RB brands
+     - Table: rb_pdp_olap
+     - Columns: Selling_Price, MRP, Brand, Comp_flag
+   - KPI: Promo (Comp)
+     - Formula: AVG((1 - (Selling_Price / MRP)) * 100) for Competitor brands
+     - Table: rb_pdp_olap
+     - Columns: Selling_Price, MRP, Brand, Comp_flag
+   - KPI: CPM
+     - Formula: (SUM(Ad_Spend) / SUM(Ad_Impressions)) * 1000
+     - Table: rb_pdp_olap
+     - Columns: Ad_Spend, Ad_Impressions
+   - KPI: CPC
+     - Formula: SUM(Ad_Spend) / SUM(Ad_Clicks)
+     - Table: rb_pdp_olap
+     - Columns: Ad_Spend, Ad_Clicks
+   - KPI: ASP (Average Selling Price)
+     - Formula: SUM(Sales) / SUM(Qty_Sold)
+     - Table: rb_pdp_olap
+     - Columns: Sales, Qty_Sold
+
+2. Visibility Analysis
+   - Meaning: Focuses on tracking the 'Digital Shelf' performance, measuring how visible our products are in search results compared to competitors.
+   - KPI: Overall SOS
+     - Formula: (countIf(keyword_is_rb_product = 1) / count()) * 100
+     - Table: rb_kw
+     - Columns: keyword_is_rb_product
+   - KPI: Sponsored SOS
+     - Formula: (countIf(keyword_is_rb_product = 1 AND spons_flag = 1) / countIf(spons_flag = 1)) * 100
+     - Table: rb_kw
+     - Columns: keyword_is_rb_product, spons_flag
+   - KPI: Organic SOS
+     - Formula: (countIf(keyword_is_rb_product = 1 AND spons_flag = 0) / countIf(spons_flag = 0)) * 100
+     - Table: rb_kw
+     - Columns: keyword_is_rb_product, spons_flag
+   - KPI: Average POS (Ad/Organic)
+     - Formula: AVG(keyword_search_rank)
+     - Table: rb_kw
+     - Columns: keyword_search_rank, spons_flag
+
+3. Performance Marketing
+   - Meaning: Dedicated to monitoring the efficiency of paid advertising spend and its direct impact on sales and conversion.
+   - KPI: ROAS (Return on Ad Spend)
+     - Formula: SUM(Ad_sales) / SUM(Ad_Spend)
+     - Table: rb_pdp_olap
+     - Columns: Ad_sales, Ad_Spend
+   - KPI: Conversion Rate
+     - Formula: (SUM(Ad_Quanity_sold) / SUM(Ad_Clicks)) * 100
+     - Table: rb_pdp_olap
+     - Columns: Ad_Quanity_sold, Ad_Clicks
+   - KPI: CPM
+     - Formula: (SUM(Ad_Spend) / SUM(Ad_Impressions)) * 1000
+     - Table: rb_pdp_olap
+     - Columns: Ad_Spend, Ad_Impressions
+   - KPI: CPC
+     - Formula: SUM(Ad_Spend) / SUM(Ad_Clicks)
+     - Table: rb_pdp_olap
+     - Columns: Ad_Spend, Ad_Clicks
+
+4. Availability Analysis
+   - Meaning: Analyzes supply chain reliability and stock health to ensure products are available for consumers across all platforms.
+   - KPI: OSA (On-Shelf Availability)
+     - Formula: (SUM(neno_osa) / SUM(deno_osa)) * 100
+     - Table: rb_pdp_olap
+     - Columns: neno_osa, deno_osa
+   - KPI: DOI (Days of Inventory)
+     - Formula: AVG(DIH)
+     - Table: rb_pdp_olap
+     - Columns: DIH
+   - KPI: Fill Rate
+     - Formula: (SUM(buy_box_neno_osa) / SUM(deno_osa)) * 100
+     - Table: rb_pdp_olap
+     - Columns: buy_box_neno_osa, deno_osa
+   - KPI: PSL (Product Service Level)
+     - Formula: (SUM(Inventory) / SUM(MSL)) * 100
+     - Table: rb_pdp_olap
+     - Columns: Inventory, MSL
+
+5. Pricing Analysis
+   - Meaning: Benchmarks our pricing strategy and discount depth against market averages and competitor price points.
+   - KPI: ECP (Estimated Cost Price)
+     - Formula: AVG(Selling_Price)
+     - Table: rb_pdp_olap
+     - Columns: Selling_Price
+   - KPI: MRP (Maximum Retail Price)
+     - Formula: AVG(MRP)
+     - Table: rb_pdp_olap
+     - Columns: MRP
+   - KPI: Discount %
+     - Formula: (1 - AVG(Selling_Price) / AVG(MRP)) * 100
+     - Table: rb_pdp_olap
+     - Columns: Selling_Price, MRP
+   - KPI: RPI (Relative Price Index)
+     - Formula: AVG(Selling_Price) / AVG(Category AVG Selling_Price)
+     - Table: rb_pdp_olap
+     - Columns: Selling_Price, Category, Location
+
+6. Geo Intelligence (Map Intellect)
+   - Meaning: Provides a geographical breakdown of performance to identify high-growth cities and regional market share gaps.
+   - KPI: City-wise Sales
+     - Formula: SUM(Sales) grouped by Location
+     - Table: rb_pdp_olap
+     - Columns: Sales, Location
+   - KPI: City-wise Market Share
+     - Formula: (City Sales / City Market Size) * 100
+     - Table: rb_pdp_olap, rb_brand_ms
+     - Columns: Sales (rb_pdp_olap), sales (rb_brand_ms), Location
+
+7. Inventory Analysis
+   - Meaning: Optimizes warehouse and stock management by tracking stock rotation (DOH) and calculating replenishment requirements.
+   - KPI: DOH (Days On Hand)
+     - Formula: Inventory / DRR
+     - Table: rb_pdp_olap
+     - Columns: Inventory, Qty_Sold
+   - KPI: DRR (Daily Run Rate)
+     - Formula: SUM(Qty_Sold) / Days in Period
+     - Table: rb_pdp_olap
+     - Columns: Qty_Sold
+   - KPI: Total Boxes Required
+     - Formula: SUM((Target DOH - Actual DOH) * DRR) / Units Per Box (24)
+     - Table: rb_pdp_olap
+     - Columns: Inventory, Qty_Sold
+
+8. Category RCA
+   - Meaning: Performs Root Cause Analysis at the category level to understand if growth/decline is driven by pricing (ASP) or volume shifts.
+   - KPI: Offtake Growth
+     - Formula: Current Sales - Previous Sales
+     - Table: rb_pdp_olap
+     - Columns: Sales
+   - KPI: ASP Impact
+     - Formula: Current (Sales / Qty) - Previous (Sales / Qty)
+     - Table: rb_pdp_olap
+     - Columns: Sales, Qty
+   - KPI: Volume Share
+     - Formula: SUM(Qty) / SUM(Category Qty)
+     - Table: rb_pdp_olap
+     - Columns: Qty, Category
+
+9. Portfolio Analysis (Volume Cohort)
+   - Meaning: A strategic view of the entire product portfolio to evaluate how promotional strategies affect overall volume distribution.
+   - KPI: Promo Volume %
+     - Formula: (SUM(Qty where Discount > 0) / Total Qty) * 100
+     - Table: rb_pdp_olap
+     - Columns: Qty, Discount
+   - KPI: Average Discount
+     - Formula: (1 - SUM(Sales) / SUM(MRP * Qty)) * 100
+     - Table: rb_pdp_olap
+     - Columns: Sales, MRP, Qty
+
+10. Content Score Dashboard
+    - Meaning: Audits the quality of product listings (titles, images, descriptions) to ensure maximum engagement and conversion potential.
+    - KPI: Overall Score
+      - Formula: Numerical weightage of Title, Image, and Description scores
+      - Table: tb_content_score_data
+      - Columns: product_platform_total
+    - KPI: Content Health
+      - Formula: individual scores for title, media, and product descriptions
+      - Table: tb_content_score_data
+      - Columns: title_length_score, thumbnail_media_score, prod_desc_score
+
+11. Sales (Signal Lab)
+    - Meaning: Provides a high-level snapshot of current month sales targets and real-time revenue projections.
+    - KPI: MTD Sales
+      - Formula: SUM(Sales) from 1st of current month
+      - Table: rb_pdp_olap
+      - Columns: Sales, DATE
+    - KPI: Projected Sales
+      - Formula: (MTD Sales / Days Elapsed) * Total Days in Month
+      - Table: rb_pdp_olap
+      - Columns: Sales, DATE
+
+12. Scheduled Reports
+    - Meaning: A cross-functional data extraction tool that allows users to pull customized reports across all system modules.
+    - Feature: Custom report generation across all modules
+    - Logic: Aggregates row-level data from rb_pdp_olap and rb_kw based on user-selected filters
+    - Tables: rb_pdp_olap, rb_kw, rb_brand_ms, tb_content_score_data
