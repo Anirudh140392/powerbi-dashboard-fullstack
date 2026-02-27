@@ -10,8 +10,8 @@ export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFe
 
 // Static fallback data (used if API is unreachable)
 const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"];
-const FALLBACK_CATEGORIES = ["All", "Cassata", "Core Tub", "Cup", "Sandwich"];
-const FALLBACK_LOCATIONS = ["All"];
+const FALLBACK_CATEGORIES = ["Cassata", "Core Tub", "Cup", "Sandwich"];
+const FALLBACK_LOCATIONS = [];
 const FALLBACK_BRANDS = ["Colgate", "Palmolive", "Halo"];
 
 // Channel → platform mapping (static, channels are not in rca_sku_dim)
@@ -23,7 +23,7 @@ const channelPlatformMap = {
 
 export const FilterProvider = ({ children }) => {
     // Channel state
-    const [channels] = useState(["All", "Ecom", "ModernTrade"]);
+    const [channels] = useState(["Ecom", "ModernTrade"]);
     const [selectedChannel, setSelectedChannel] = useState("Ecom");
 
     // Platform state
@@ -199,7 +199,7 @@ export const FilterProvider = ({ children }) => {
                 });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched categories from DB:", res.data);
-                    const cats = ["All", ...res.data.filter(c => c !== "All")];
+                    const cats = [...res.data.filter(c => c !== "All")];
                     setCategories(cats);
                     // Keep current selection if still valid, otherwise reset to "All"
                     if (selectedCategory !== "All") {
@@ -233,7 +233,7 @@ export const FilterProvider = ({ children }) => {
                 });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched locations from DB:", res.data);
-                    const locs = ["All", ...res.data.filter(l => l !== "All")];
+                    const locs = [...res.data.filter(l => l !== "All")];
                     setLocations(locs);
                     // Keep current selection if still valid, otherwise reset to "All"
                     if (selectedLocation !== "All") {

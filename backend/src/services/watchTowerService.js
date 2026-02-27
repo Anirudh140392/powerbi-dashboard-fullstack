@@ -452,22 +452,31 @@ const computeSummaryMetrics = async (filters, options = {}) => {
     try {
         console.log("Processing Watch Tower request with filters:", filters);
 
-        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, category, channel, skuName, skuCode } = filters;
+        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel } = filters;
 
         // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
         const rawBrand = filters['brand[]'] || filters.brand;
         const rawLocation = filters['location[]'] || filters.location;
         const rawPlatform = filters['platform[]'] || filters.platform;
+        const rawCategory = filters['category[]'] || filters.category;
+        const rawSkuName = filters['skuName[]'] || filters.skuName;
+        const rawSkuCode = filters['skuCode[]'] || filters.skuCode;
 
         // Normalize multi-value filters
         const platformArr = normalizeFilterArray(rawPlatform);
         const brandArr = normalizeFilterArray(rawBrand);
         const locationArr = normalizeFilterArray(rawLocation);
+        const categoryArr = normalizeFilterArray(rawCategory);
+        const skuNameArr = normalizeFilterArray(rawSkuName);
+        const skuCodeArr = normalizeFilterArray(rawSkuCode);
 
-        // For backward compatibility, keep single values for string comparisons
+        // For backward compatibility, keep single/normalized values for string comparisons or passed to sub-functions
         const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
         const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
         const platform = platformArr ? (platformArr.length === 1 ? platformArr[0] : platformArr) : null;
+        const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null;
+        const skuName = skuNameArr ? (skuNameArr.length === 1 ? skuNameArr[0] : skuNameArr) : null;
+        const skuCode = skuCodeArr ? (skuCodeArr.length === 1 ? skuCodeArr[0] : skuCodeArr) : null;
 
         const monthsBack = parseInt(months, 10) || 1;
 
@@ -583,10 +592,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (cond) conditions.push(cond);
             }
 
-            const categoryArrLocal = normalizeFilterArray(category);
-            if (categoryArrLocal && categoryArrLocal.length > 0) {
-                conditions.push(`Category IN (${categoryArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
-            }
+            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
 
             // Advanced SKU Search Filters
             const skuArr = normalizeFilterArray(skuName);
@@ -648,11 +656,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 conditions.push(`Location IN (${locationFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
-            // Handle category with multi-value support
-            const categoryFilterArr = normalizeFilterArray(categoryFilter);
-            if (categoryFilterArr && categoryFilterArr.length > 0) {
-                conditions.push(`Category IN (${categoryFilterArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-            }
+            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
 
             // Advanced SKU Search Filters
             const skuArr = normalizeFilterArray(skuNameFilter);
@@ -782,15 +788,26 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const buildBaseConditions = () => {
                     const conditions = [];
                     conditions.push(`keyword_search_rank < 11`);
-                    if (categoryFilter) {
-                        conditions.push(`lower(keyword_category) = '${escapeStr(categoryFilter.toLowerCase())}'`);
+
+                    const catArr = normalizeFilterArray(categoryFilter);
+                    if (catArr && catArr.length > 0) {
+                        conditions.push(`LOWER(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                     }
-                    if (locationFilter && locationFilter !== 'All') {
-                        conditions.push(`lower(location_name) = '${escapeStr(locationFilter.toLowerCase())}'`);
+
+                    const locArr = normalizeFilterArray(locationFilter);
+                    if (locArr && locArr.length > 0) {
+                        conditions.push(`LOWER(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
                     }
-                    if (platformFilter && platformFilter !== 'All') {
-                        conditions.push(`lower(platform_name) = '${escapeStr(platformFilter.toLowerCase())}'`);
+
+                    const platArr = normalizeFilterArray(platformFilter);
+                    if (platArr && platArr.length > 0) {
+                        const platCond = buildPlatformChannelCond(platArr, channel, 'platform_name');
+                        if (platCond) conditions.push(platCond);
+                    } else {
+                        const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
+                        if (pCond) conditions.push(pCond);
                     }
+
                     return conditions;
                 };
 
@@ -933,14 +950,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(platformCond);
                     }
 
-                    const categoryArr = normalizeFilterArray(category);
-                    if (categoryArr && categoryArr.length > 0) {
-                        if (categoryArr.length === 1) {
-                            conditions.push(`Category = '${escapeStr(categoryArr[0])}'`);
-                        } else {
-                            conditions.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-                        }
-                    }
+                    // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+                    // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+                    // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
                     const skuArr = normalizeFilterArray(skuName);
                     if (skuArr && skuArr.length > 0) {
                         const skuConds = skuArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
@@ -1393,10 +1405,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const cond = buildPlatformChannelCond(null, channel);
                         if (cond) prevConditions.push(cond);
                     }
-                    const catArrLocal = normalizeFilterArray(category);
-                    if (catArrLocal && catArrLocal.length > 0) {
-                        prevConditions.push(`Category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
-                    }
+                    // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+                    // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+                    // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
                     // Advanced SKU Search Filters
                     const skuArr = normalizeFilterArray(skuName);
                     if (skuArr && skuArr.length > 0) {
@@ -2495,14 +2506,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     }
                 }
-                const catArr = normalizeFilterArray(category);
-                if (catArr && catArr.length > 0) {
-                    if (catArr.length === 1) {
-                        conditions.push(`Category = '${escapeStr(catArr[0])}'`);
-                    } else {
-                        conditions.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-                    }
-                }
+                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
                 return conditions.join(' AND ');
             };
 
@@ -2514,14 +2520,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
                 if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
 
-                // Handle category with multi-value support
-                const categoryArr = normalizeFilterArray(category);
-                if (categoryArr && categoryArr.length > 0) {
-                    const catConds = categoryArr.map(c => `Category = '${escapeStr(c)}'`).join(' OR ');
-                    conds.push(`(${catConds})`);
-                } else if (category && category !== 'All') {
-                    conds.push(`Category = '${escapeStr(category)}'`);
-                }
+                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+
 
                 if (isCompete) {
                     conds.push(`Comp_flag = '1'`);
@@ -2919,7 +2921,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conds.push(`Location IN (${locationArr.map(l => `'${escapeStrMo(l)}'`).join(', ')})`);
                     }
                 }
-                if (category && category !== 'All') conds.push(`Category = '${escapeStrMo(category)}'`);
+                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
 
                 // Advanced SKU Search Filters
                 const skuArr = normalizeFilterArray(filters.skuName);
@@ -2972,7 +2976,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `keyword_search_rank < 11`,
                             `platform_name = '${escapeStrMo(moPlatform)}'`
                         ];
-                        if (category && category !== 'All') sosBaseConds.push(`keyword_category = '${escapeStrMo(category)}'`);
+                        const localCatArr = normalizeFilterArray(category);
+                        if (localCatArr && localCatArr.length > 0) {
+                            if (localCatArr.length === 1) {
+                                sosBaseConds.push(`keyword_category = '${escapeStrMo(localCatArr[0])}'`);
+                            } else {
+                                sosBaseConds.push(`keyword_category IN (${localCatArr.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
+                            }
+                        }
                         if (locationArr && locationArr.length > 0) {
                             if (locationArr.length === 1) {
                                 sosBaseConds.push(`location_name = '${escapeStrMo(locationArr[0])}'`);
@@ -3019,7 +3030,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `Platform = '${escapeStrMo(moPlatform)}'`
                         ];
                         if (location && location !== 'All') msBaseConds.push(`Location = '${escapeStrMo(location)}'`);
-                        if (category && category !== 'All') msBaseConds.push(`category = '${escapeStrMo(category)}'`);
+                        const localCatArr = normalizeFilterArray(category);
+                        if (localCatArr && localCatArr.length > 0) {
+                            if (localCatArr.length === 1) {
+                                msBaseConds.push(`category = '${escapeStrMo(localCatArr[0])}'`);
+                            } else {
+                                msBaseConds.push(`category IN (${localCatArr.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
+                            }
+                        }
 
                         const [numByMonth, denByMonth] = await Promise.all([
                             queryClickHouse(`
@@ -3345,19 +3363,20 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         // 14. Brands Overview Logic
         const brandsOverviewPlatform = filters.brandsOverviewPlatform || filters.platform || 'All';
-        const brandsOverviewCategory = filters.brandsOverviewCategory || filters.category || 'All';
+        const rawBrandsOverviewCategory = filters.brandsOverviewCategory || filters.category || 'All';
+        // Normalize the category filter to handle multi-select and "All"
+        const brandsOverviewCategoryArr = normalizeFilterArray(rawBrandsOverviewCategory);
 
         // Define Where Clauses
         const boBrandWhere = {};
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') boBrandWhere.platform = brandsOverviewPlatform;
-        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') boBrandWhere.Category = brandsOverviewCategory;
+        // brandsOverviewCategory where clause handled via normalized array below
         if (location && location !== 'All') boBrandWhere.location = location;
 
         const boOfftakeWhere = {
             DATE: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
             Comp_flag: 0, // Only our brands
             ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: brandsOverviewCategory }),
             ...(location && location !== 'All' && { Location: location })
         };
 
@@ -3368,7 +3387,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             DATE: { [Op.between]: [boPrevStartDate.toDate(), boPrevEndDate.toDate()] },
             Comp_flag: 0, // Only our brands
             ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { Category: brandsOverviewCategory }),
             ...(location && location !== 'All' && { Location: location })
         };
 
@@ -3376,14 +3394,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const boMsWhere = {
             created_on: { [Op.between]: [startDate.toDate(), endDate.toDate()] },
             ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { category: brandsOverviewCategory }),
             ...(location && location !== 'All' && { Location: location })
         };
 
         const boPrevMsWhere = {
             created_on: { [Op.between]: [boPrevStartDate.toDate(), boPrevEndDate.toDate()] },
             ...(brandsOverviewPlatform && brandsOverviewPlatform !== 'All' && { Platform: brandsOverviewPlatform }),
-            ...(brandsOverviewCategory && brandsOverviewCategory !== 'All' && { category: brandsOverviewCategory }),
             ...(location && location !== 'All' && { Location: location })
         };
 
@@ -3393,9 +3409,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
             rcaBrandWhere.platform = brandsOverviewPlatform;
         }
-        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
-            rcaBrandWhere.Category = brandsOverviewCategory;
-        }
+        // Category filter handled via normalized array in ClickHouse conditions below
 
 
 
@@ -3412,8 +3426,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (location && location !== 'All') {
             boOfftakeConds.push(`Location = '${escapeStrMain(location)}'`);
         }
-        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
-            boOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategory)}'`);
+        if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
+            if (brandsOverviewCategoryArr.length === 1) {
+                boOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+            } else {
+                boOfftakeConds.push(`Category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+            }
         }
 
         const boOfftakePromise = queryClickHouse(`
@@ -3441,8 +3459,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
             boPrevOfftakeConds.push(`Platform = '${escapeStrMain(brandsOverviewPlatform)}'`);
         }
-        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
-            boPrevOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategory)}'`);
+        if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
+            if (brandsOverviewCategoryArr.length === 1) {
+                boPrevOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+            } else {
+                boPrevOfftakeConds.push(`Category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+            }
         }
         if (location && location !== 'All') {
             boPrevOfftakeConds.push(`Location = '${escapeStrMain(location)}'`);
@@ -3453,8 +3475,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
             rcaBrandConds.push(`platform = '${escapeStrMain(brandsOverviewPlatform)}'`);
         }
-        if (brandsOverviewCategory && brandsOverviewCategory !== 'All') {
-            rcaBrandConds.push(`Category = '${escapeStrMain(brandsOverviewCategory)}'`);
+        if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
+            if (brandsOverviewCategoryArr.length === 1) {
+                rcaBrandConds.push(`category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+            } else {
+                rcaBrandConds.push(`category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+            }
         }
 
         const [
@@ -3491,7 +3517,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 ];
                 if (platformArr && platformArr.length > 0) baseMsConds.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
                 if (locationArr && locationArr.length > 0) baseMsConds.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                if (category && category !== 'All') baseMsConds.push(`category = '${escapeStrMain(category)}'`);
+                const bmsCatArr = normalizeFilterArray(category);
+                if (bmsCatArr && bmsCatArr.length > 0) {
+                    if (bmsCatArr.length === 1) {
+                        baseMsConds.push(`category = '${escapeStrMain(bmsCatArr[0])}'`);
+                    } else {
+                        baseMsConds.push(`category IN (${bmsCatArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                    }
+                }
 
                 const [bSales, tSales] = await Promise.all([
                     queryClickHouse(`SELECT brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales FROM rb_brand_ms WHERE ${baseMsConds.join(' AND ')} GROUP BY brand`),
@@ -3508,7 +3541,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 ];
                 if (platformArr && platformArr.length > 0) baseMsConds.push(`Platform IN (${platformArr.map(p => `'${escapeStrMain(p)}'`).join(', ')})`);
                 if (locationArr && locationArr.length > 0) baseMsConds.push(`Location IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                if (category && category !== 'All') baseMsConds.push(`category = '${escapeStrMain(category)}'`);
+                const bmsCatArrPrev = normalizeFilterArray(category);
+                if (bmsCatArrPrev && bmsCatArrPrev.length > 0) {
+                    if (bmsCatArrPrev.length === 1) {
+                        baseMsConds.push(`category = '${escapeStrMain(bmsCatArrPrev[0])}'`);
+                    } else {
+                        baseMsConds.push(`category IN (${bmsCatArrPrev.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                    }
+                }
 
                 const [bSales, tSales] = await Promise.all([
                     queryClickHouse(`SELECT brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales FROM rb_brand_ms WHERE ${baseMsConds.join(' AND ')} GROUP BY brand`),
@@ -3941,12 +3981,31 @@ const computeTrendData = async (filters) => {
         // 3. Build WHERE conditions for rb_pdp_olap
         const buildPdpConds = () => {
             const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-            if (category && category !== 'All') conds.push(`Category = '${escapeStr(category)}'`);
-            if (brand && brand !== 'All') conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
-            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
+            const trendCatArr = normalizeFilterArray(category);
+            if (trendCatArr && trendCatArr.length > 0) {
+                if (trendCatArr.length === 1) {
+                    conds.push(`Category = '${escapeStr(trendCatArr[0])}'`);
+                } else {
+                    conds.push(`Category IN (${trendCatArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
+            }
+            const trendBrandArr = normalizeFilterArray(brand);
+            if (trendBrandArr && trendBrandArr.length > 0) {
+                const brandConds = trendBrandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                conds.push(`(${brandConds})`);
+            }
+            const trendLocArr = normalizeFilterArray(location);
+            if (trendLocArr && trendLocArr.length > 0) {
+                if (trendLocArr.length === 1) {
+                    conds.push(`Location = '${escapeStr(trendLocArr[0])}'`);
+                } else {
+                    conds.push(`Location IN (${trendLocArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                }
+            }
 
             // Channel-based platform filtering
-            const platformCond = buildPlatformChannelCond(platform, channel);
+            const trendPlatArr = normalizeFilterArray(platform);
+            const platformCond = buildPlatformChannelCond(trendPlatArr, channel);
             if (platformCond) conds.push(platformCond);
 
             // Advanced SKU Search Filters
@@ -4011,7 +4070,14 @@ const computeTrendData = async (filters) => {
                     conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
             }
-            if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
+            const trendPlatArrMs = normalizeFilterArray(platform);
+            if (trendPlatArrMs && trendPlatArrMs.length > 0) {
+                if (trendPlatArrMs.length === 1) {
+                    conds.push(`Platform = '${escapeStr(trendPlatArrMs[0])}'`);
+                } else {
+                    conds.push(`Platform IN (${trendPlatArrMs.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                }
+            }
             if (includeBrandFilter && validBrandNamesForMs.length > 0) {
                 const brandList = validBrandNamesForMs.map(b => `'${escapeStr(b)}'`).join(', ');
                 conds.push(`brand IN (${brandList})`);
@@ -4068,7 +4134,14 @@ const computeTrendData = async (filters) => {
                     conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
             }
-            if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
+            const trendPlatArrSos = normalizeFilterArray(platform);
+            if (trendPlatArrSos && trendPlatArrSos.length > 0) {
+                const pCond = buildPlatformChannelCond(trendPlatArrSos, channel, 'platform_name');
+                if (pCond) conds.push(pCond);
+            } else {
+                const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
+                if (pCond) conds.push(pCond);
+            }
             return conds.join(' AND ');
         };
 
@@ -5783,25 +5856,31 @@ const getKpiTrends = async (filters) => {
     // Helper to escape strings for ClickHouse
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
+    // Normalize incoming effective filters array or strings
+    const catArr = normalizeFilterArray(category);
+    const locArr = normalizeFilterArray(location);
+    const brandArr = normalizeFilterArray(brand);
+    const platArr = normalizeFilterArray(platform);
+
     // 3. Build WHERE conditions for rb_pdp_olap
     const buildKpiConds = () => {
         const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
 
-        const catArr = normalizeFilterArray(category);
         if (catArr && catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
-        const brandArr = normalizeFilterArray(brand);
         if (brandArr && brandArr.length > 0) {
             const brandConditions = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
             conds.push(`(${brandConditions})`);
         }
 
-        const locArr = normalizeFilterArray(location);
         if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
-        // Channel-based platform filtering
-        const platformCond = buildPlatformChannelCond(platform, channel);
-        if (platformCond) conds.push(platformCond);
+        if (platArr && platArr.length > 0) {
+           conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        } else {
+           const platformCond = buildPlatformChannelCond(null, channel);
+           if (platformCond) conds.push(platformCond);
+        }
 
         // Advanced SKU Search Filters
         const skuArrArr = normalizeFilterArray(skuName);
@@ -5845,9 +5924,11 @@ const getKpiTrends = async (filters) => {
     // Build SOS base conditions (matching Platform Overview - no spons_flag filter)
     const buildSosConds = () => {
         const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-        if (category && category !== 'All') conds.push(`keyword_category = '${escapeStr(category)}'`);
-        if (location && location !== 'All') conds.push(`location_name = '${escapeStr(location)}'`);
-        if (platform && platform !== 'All') conds.push(`platform_name = '${escapeStr(platform)}'`);
+        
+        if (catArr && catArr.length > 0) conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (platArr && platArr.length > 0) conds.push(`platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        
         return conds;
     };
 
@@ -5871,21 +5952,23 @@ const getKpiTrends = async (filters) => {
     const buildMsBaseConds = (catFilter = null) => {
         const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
-        if (platform && platform !== 'All') {
-            const platArr = normalizeFilterArray(platform);
-            if (platArr.length > 0) conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        
+        if (platArr && platArr.length > 0) {
+            conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
         }
-        if (location && location !== 'All') {
-            const locArr = normalizeFilterArray(location);
-            if (locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) {
+            conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
-        if (catFilter && catFilter !== 'All') {
-            const catArr = (normalizeFilterArray(catFilter) || []).map(c => c.toLowerCase());
-            if (catArr.length > 0) {
-                const catEscaped = catArr.map(c => `'${escapeStr(c)}'`).join(', ');
-                conds.push(`(lower(category) IN (${catEscaped}) OR lower(sub_category) IN (${catEscaped}))`);
-            }
+
+        // Apply global category filter from effective filters if no parameter passed,
+        // or the custom provided filter (used below for Category Share)
+        const categoriesToUse = catFilter ? normalizeFilterArray(catFilter) : catArr;
+        
+        if (categoriesToUse && categoriesToUse.length > 0) {
+             const catEscapedLower = categoriesToUse.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ');
+             conds.push(`(lower(category) IN (${catEscapedLower}) OR lower(sub_category) IN (${catEscapedLower}))`);
         }
+        
         return conds.join(' AND ');
     };
 
@@ -6157,30 +6240,33 @@ const getCompetitionData = async (filters = {}) => {
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
+        // Safely destructure keeping array or string format
+        const catArr = normalizeFilterArray(category);
+        const locArr = normalizeFilterArray(location);
+        const brandArr = normalizeFilterArray(brand);
+        const platArr = normalizeFilterArray(platform);
+        const skuArr = normalizeFilterArray(sku);
+
         // Build base conditions for ClickHouse
         const buildCompConds = (startDt, endDt) => {
             const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
-            const platArr = normalizeFilterArray(platform);
+            
             if (platArr && platArr.length > 0) {
                 conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
 
-            const locArr = normalizeFilterArray(location);
             if (locArr && locArr.length > 0) {
                 conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
             }
 
-            const catArr = normalizeFilterArray(category);
             if (catArr && catArr.length > 0) {
                 conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
 
-            const brandArr = normalizeFilterArray(brand);
             if (brandArr && brandArr.length > 0) {
                 conds.push(`lower(Brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
             }
 
-            const skuArr = normalizeFilterArray(sku);
             if (skuArr && skuArr.length > 0) {
                 conds.push(`lower(Product) IN (${skuArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
             }
@@ -6206,8 +6292,12 @@ const getCompetitionData = async (filters = {}) => {
         const buildMsConds = (includeBrandFilter = false) => {
             const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
-            if (platform && platform !== 'All') conds.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
-            if (location && location !== 'All') conds.push(`lower(Location) = '${escapeStr(location.toLowerCase())}'`);
+            if (platArr && platArr.length > 0) {
+                conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (locArr && locArr.length > 0) {
+                conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
             if (includeBrandFilter && validBrandNames.length > 0) {
                 const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
                 conds.push(`lower(brand) IN (${brandList})`);
@@ -6219,9 +6309,15 @@ const getCompetitionData = async (filters = {}) => {
         const buildCategoryConds = (includeBrandFilter = false) => {
             const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
-            if (platform && platform !== 'All') conds.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
-            if (location && location !== 'All') conds.push(`lower(Location) = '${escapeStr(location.toLowerCase())}'`);
-            if (category && category !== 'All') conds.push(`lower(category) = '${escapeStr(category.toLowerCase())}'`);
+            if (platArr && platArr.length > 0) {
+                conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (locArr && locArr.length > 0) {
+                conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
             if (includeBrandFilter && validBrandNames.length > 0) {
                 const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
                 conds.push(`lower(brand) IN (${brandList})`);
@@ -6458,9 +6554,8 @@ const getCompetitionData = async (filters = {}) => {
             const prevBrand = prevMap.get(brand.Brand) || {};
 
             // Offtakes, Spend, ROAS
-            // Replaced rb_pdp_olap's total_offtakes with rb_brand_ms brandSalesMap because competitor sales are 0 in olap
-            const offtakes = brandSalesMap.get(brand.Brand?.toLowerCase()) || 0;
-            const prevOfftakes = brandSalesMapPrev.get(brand.Brand?.toLowerCase()) || 0;
+            const offtakes = parseFloat(brand.total_offtakes || 0);
+            const prevOfftakes = parseFloat(prevBrand.total_offtakes || 0);
             const offtakesDelta = calcChange(offtakes, prevOfftakes);
 
             const spend = parseFloat(brand.total_spend || 0);
@@ -6611,9 +6706,8 @@ const getCompetitionData = async (filters = {}) => {
             const prevSku = skuOsaMapPrev.get(sku.Product) || {};
 
             // Offtakes, Spend, ROAS
-            // Replaced rb_pdp_olap's total_sales with rb_brand_ms skuSalesMap because competitor sales are 0 in olap
-            const offtakes = skuSalesMap.get(sku.Product?.toLowerCase()) || 0;
-            const prevOfftakes = skuSalesMapPrev.get(sku.Product?.toLowerCase()) || 0;
+            const offtakes = parseFloat(sku.total_offtakes || 0);
+            const prevOfftakes = parseFloat(prevSku.total_offtakes || 0);
             const offtakesDelta = calcChange(offtakes, prevOfftakes);
 
             const skuAgg = skuOsaMap.get(sku.Product) || {};

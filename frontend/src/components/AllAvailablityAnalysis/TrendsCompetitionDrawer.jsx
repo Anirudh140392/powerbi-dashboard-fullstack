@@ -29,7 +29,7 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
@@ -386,6 +386,30 @@ const MetricChip = ({ label, color, active, onClick }) => {
 };
 
 
+const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => (
+  <Box
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 1,
+      px: 1.5,
+      py: 0.5,
+      borderRadius: "999px",
+      border: "1px solid #E2E8F0",
+      backgroundColor: "#F8FAFC",
+      fontSize: "12px",
+      fontWeight: 500,
+    }}
+  >
+    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600 }}>
+      {label}:
+    </Typography>
+    <Typography variant="caption" sx={{ color: color, fontWeight: 700 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
 /**
  * ---------------------------------------------------------------------------
  * MAIN COMPONENT
@@ -423,11 +447,32 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
+  // Drawer-specific filters for the Effective Filters bar
+  const [drawerFilters, setDrawerFilters] = useState({
+    Platform: "All",
+    Format: "All",
+    Brand: "All",
+    City: "All"
+  });
+
+  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
+  useEffect(() => {
+    if (selectedColumn && open) {
+      setSelectedPlatform(selectedColumn);
+
+      // Initialize ONLY the current audience type filter
+      const currentAudience = allTrendMeta.context.audience;
+      setDrawerFilters(prev => ({
+        ...prev,
+        [currentAudience]: selectedColumn
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColumn, open]);
+
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
-  const [competitionLoading, setCompetitionLoading] = useState(true);
 
   // ===================== DYNAMIC FILTER OPTIONS STATE =====================
   const [filterOptions, setFilterOptions] = useState({
@@ -491,7 +536,6 @@ export default function TrendsCompetitionDrawer({
   }, [open]);
 
   const [trendError, setTrendError] = useState(null);
-  const [competitionError, setCompetitionError] = useState(null);
 
   // ===================== FETCH TREND DATA =====================
   const fetchTrendData = useCallback(async () => {
@@ -504,14 +548,11 @@ export default function TrendsCompetitionDrawer({
         timeStep: timeStep,
         startDate: range === "Custom" && customStart ? customStart : undefined,
         endDate: range === "Custom" && customEnd ? customEnd : undefined,
+        platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+        location: drawerFilters.City !== 'All' ? drawerFilters.City : undefined,
+        brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+        category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
       };
-
-      const audience = allTrendMeta.context.audience;
-      if (audience === "Platform") params.platform = selectedPlatform || 'All';
-      else if (audience === "Format") params.category = selectedPlatform || 'All';
-      else if (audience === "City") params.location = selectedPlatform || 'All';
-      else if (audience === "Brand") params.brand = selectedPlatform || 'All';
-      else params.platform = selectedPlatform || 'All';
 
       const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
 
@@ -527,47 +568,13 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, selectedPlatform, timeStep, customStart, customEnd, allTrendMeta.context.audience, open]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
     const timeoutId = setTimeout(fetchTrendData, 300);
     return () => clearTimeout(timeoutId);
   }, [fetchTrendData]);
-
-  // ===================== FETCH COMPETITION DATA =====================
-  const fetchCompetitionData = useCallback(async () => {
-    if (!open || filterOptions.loading) return;
-    setCompetitionLoading(true);
-    setCompetitionError(null);
-    try {
-      const platformToUse = selectedColumn || 'All';
-      const params = {
-        period: '1M',
-        platform: platformToUse,
-      };
-
-      const response = await axiosInstance.get('/watchtower/competition', { params });
-
-      if (response.data) {
-        setCompetitionData({
-          brands: response.data.brands || [],
-          skus: response.data.skus || []
-        });
-      }
-    } catch (error) {
-      console.error("[TrendsDrawer] Error fetching competition:", error);
-      setCompetitionError(error.message || "Failed to load competition data");
-    } finally {
-      setCompetitionLoading(false);
-    }
-  }, [open, filterOptions.loading, selectedColumn]);
-
-  useEffect(() => {
-    if (!open || filterOptions.loading) return;
-    const timeoutId = setTimeout(fetchCompetitionData, 300);
-    return () => clearTimeout(timeoutId);
-  }, [fetchCompetitionData]);
 
   /* ---------------------------------------------------------------------------
    * HELPERS FOR DYNAMIC DATA
@@ -1511,20 +1518,6 @@ export default function TrendsCompetitionDrawer({
       series,
     };
   }, [trendMeta, activeMetrics, trendPoints, chartData]);
-
-  const competitionRows = useMemo(() => {
-    const hasApiData = competitionData.brands.length > 0 || competitionData.skus.length > 0;
-    const baseRows = hasApiData
-      ? (compTab === "Brands" ? competitionData.brands : competitionData.skus)
-      : (compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands);
-
-    return baseRows.filter((r) =>
-      search.trim()
-        ? r.brand.toLowerCase().includes(search.toLowerCase())
-        : true
-    );
-  }, [compMeta, compTab, search, competitionData]);
-
   // Compare SKUs chart option (multi-KPI, multi-SKU)
   const compareOption = useMemo(() => {
     const x = compareMeta.x;
@@ -1587,6 +1580,13 @@ export default function TrendsCompetitionDrawer({
     else if (newAudience === "Brand") firstOption = BRAND_OPTIONS[0];
 
     setSelectedPlatform(firstOption);
+    
+    // Sync with drawerFilters
+    setDrawerFilters(prev => ({
+      ...prev,
+      [newAudience]: firstOption
+    }));
+    
     setShowPlatformPills(true);
   };
 
@@ -1656,6 +1656,71 @@ export default function TrendsCompetitionDrawer({
           </IconButton>
         </Box>
 
+        {/* EFFECTIVE FILTERS SUMMARY BAR */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+            py: 1.2,
+            px: 2,
+            borderRadius: "12px",
+            backgroundColor: "#F8FAFC",
+            border: "1px solid #E2E8F0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1}>
+            <Filter size={14} color="#64748B" />
+            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Effective Filters:
+            </Typography>
+          </Box>
+
+          <SelectedFilterChip
+            label="Platform"
+            value={drawerFilters.Platform}
+            color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Brand"
+            value={drawerFilters.Brand}
+            color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Format"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Date"
+            value={range}
+          />
+
+          {/* Clear All Drawer Filters */}
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+            <Button
+              size="small"
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              sx={{
+                ml: 'auto',
+                fontSize: '11px',
+                textTransform: 'none',
+                color: '#ef4444',
+                '&:hover': { backgroundColor: '#fef2f2' }
+              }}
+            >
+              Clear Drawer Filters
+            </Button>
+          )}
+        </Box>
+
         {/* TRENDS VIEW */}
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
@@ -1715,7 +1780,11 @@ export default function TrendsCompetitionDrawer({
                         key={p}
                         onClick={() => {
                           setSelectedPlatform(p); // only select the pill
-                          // ❌ DO NOT toggle or force open here
+                          // Sync with drawerFilters
+                          setDrawerFilters(prev => ({
+                            ...prev,
+                            [allTrendMeta.context.audience]: p
+                          }));
                         }}
                         sx={{
                           px: 1.5,
@@ -1864,19 +1933,21 @@ export default function TrendsCompetitionDrawer({
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
           <>
-            {competitionError && !competitionLoading ? (
-              <ErrorRetryOverlay onRetry={fetchCompetitionData} message={competitionError} />
-            ) : dynamicKey === "platform_overview_tower" ? (
+            {dynamicKey === "platform_overview_tower" ? (
               <PlatformOverviewKpiShowcase
                 dynamicKey={dynamicKey}
-                selectedItem={selectedColumn}
+                selectedItem={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : 'All'}
                 selectedLevel={selectedLevel}
-                competitionData={competitionData}
-                loading={competitionLoading}
                 filterOptions={filterOptions}
+                period={range}
+                timeStep={timeStep}
               />
             ) : (
-              <KpiTrendShowcase dynamicKey={dynamicKey} />
+              <KpiTrendShowcase 
+                dynamicKey={dynamicKey}
+                period={range}
+                timeStep={timeStep}
+              />
             )}
           </>
         )}
