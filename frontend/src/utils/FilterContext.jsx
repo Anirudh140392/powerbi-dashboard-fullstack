@@ -202,8 +202,16 @@ export const FilterProvider = ({ children }) => {
                     const cats = ["All", ...res.data.filter(c => c !== "All")];
                     setCategories(cats);
                     // Keep current selection if still valid, otherwise reset to "All"
-                    if (selectedCategory !== "All" && !cats.includes(selectedCategory)) {
-                        setSelectedCategory("All");
+                    if (selectedCategory !== "All") {
+                        const currentList = Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory];
+                        const validList = currentList.filter(c => cats.includes(c));
+                        if (validList.length === 0) {
+                            setSelectedCategory("All");
+                        } else if (validList.length === cats.length - 1) { // all except "All"
+                            setSelectedCategory("All");
+                        } else {
+                            setSelectedCategory(validList.length === 1 ? validList[0] : validList);
+                        }
                     }
                 } else {
                     setCategories(FALLBACK_CATEGORIES);
@@ -228,8 +236,16 @@ export const FilterProvider = ({ children }) => {
                     const locs = ["All", ...res.data.filter(l => l !== "All")];
                     setLocations(locs);
                     // Keep current selection if still valid, otherwise reset to "All"
-                    if (selectedLocation !== "All" && !locs.includes(selectedLocation)) {
-                        setSelectedLocation("All");
+                    if (selectedLocation !== "All") {
+                        const currentList = Array.isArray(selectedLocation) ? selectedLocation : [selectedLocation];
+                        const validList = currentList.filter(l => locs.includes(l));
+                        if (validList.length === 0) {
+                            setSelectedLocation("All");
+                        } else if (validList.length === locs.length - 1) {
+                            setSelectedLocation("All");
+                        } else {
+                            setSelectedLocation(validList.length === 1 ? validList[0] : validList);
+                        }
                     }
                 } else {
                     setLocations(FALLBACK_LOCATIONS);
@@ -255,8 +271,14 @@ export const FilterProvider = ({ children }) => {
                     console.log("[FilterContext] Fetched brands from DB:", res.data);
                     setBrands(res.data);
                     // Auto-select first brand if current not in list
-                    if (!res.data.includes(selectedBrand)) {
-                        setSelectedBrand(res.data[0]);
+                    if (selectedBrand !== "All") {
+                        const currentList = Array.isArray(selectedBrand) ? selectedBrand : [selectedBrand];
+                        const validList = currentList.filter(b => res.data.includes(b));
+                        if (validList.length === 0) {
+                            setSelectedBrand(res.data[0]); // fallback to first valid brand
+                        } else {
+                            setSelectedBrand(validList.length === 1 ? validList[0] : validList);
+                        }
                     }
                 } else {
                     setBrands(FALLBACK_BRANDS);
