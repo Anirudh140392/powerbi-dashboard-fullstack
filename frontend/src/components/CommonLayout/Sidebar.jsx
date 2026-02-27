@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
 const trailyticsLogo = "/Trailytics.jpg";
+import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
   Typography,
@@ -10,6 +11,7 @@ import {
   useMediaQuery,
   useTheme,
   List,
+  Button,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -40,6 +42,7 @@ import {
   LocalShipping as LocalShippingIcon,
   Description as DescriptionIcon,
   Public as PublicIcon,
+  Logout as LogoutIcon,
 } from "@mui/icons-material";
 
 
@@ -55,6 +58,7 @@ const Sidebar = ({
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
@@ -359,6 +363,39 @@ const Sidebar = ({
             >
               trailytics
             </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                logout();
+                navigate("/login");
+              }}
+              startIcon={<LogoutIcon sx={{ fontSize: "1rem" }} />}
+              sx={{
+                ml: "auto",
+                minWidth: 0,
+                color: "#ef4444",
+                borderColor: "rgba(239, 68, 68, 0.2)",
+                textTransform: "none",
+                fontSize: "0.65rem",
+                fontWeight: 600,
+                borderRadius: "8px",
+                px: 1,
+                py: 0.2,
+                bgcolor: "rgba(239, 68, 68, 0.02)",
+                "&:hover": {
+                  bgcolor: "#ef4444",
+                  color: "#fff",
+                  borderColor: "#ef4444",
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)",
+                },
+                transition: "all 0.2s ease",
+              }}
+            >
+              SignOut
+            </Button>
           </Box>
         )}
       </Box>
