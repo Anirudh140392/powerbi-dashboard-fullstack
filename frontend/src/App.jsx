@@ -25,6 +25,22 @@ import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMain
 import ScheduledReports from "./pages/Reports/ScheduledReports";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
+import AdminPanel from "./pages/Admin/AdminPanel";
+import { useAuth } from "./utils/AuthContext";
+
+const RootPath = () => {
+  const { isLoggedIn, user } = useAuth();
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <Navigate to="/watch-tower" replace />;
+};
 
 export default function App() {
   return (
@@ -35,7 +51,13 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
 
-              <Route path="/" element={<Navigate to="/watch-tower" replace />} />
+              <Route path="/" element={<RootPath />} />
+
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <AdminPanel />
+                </ProtectedRoute>
+              } />
 
               <Route path="/watch-tower" element={
                 <ProtectedRoute>

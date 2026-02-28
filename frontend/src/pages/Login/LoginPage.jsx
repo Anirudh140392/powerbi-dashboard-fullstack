@@ -74,9 +74,9 @@ const LoginPage = () => {
         if (success) {
             // Wait for the timer to finish before navigating
             await timer;
-            navigate("/watch-tower", { replace: true });
+            navigate("/", { replace: true });
         } else {
-            setError("Invalid email or password. Use admin@trailytics.com / admin123");
+            setError("Invalid credentials. Use admin@trailytics.com / admin123 (Admin) or shubham@trailytics.com / shubham123 (User)");
             setLoading(false);
         }
     };
