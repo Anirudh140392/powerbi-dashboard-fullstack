@@ -6,9 +6,11 @@ import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import AllRoutes from "./routes.js";
 import { connectDB } from "./config/db.js";
-import { connectClickHouse } from "./config/clickhouse.js";
+import { connectClickHouse, asyncStorageMiddleware } from "./config/clickhouse.js";
 import redisClient from "./config/redis.js";
 import cacheRoutes from "./routes/cache.js";
+import authRoutes from "./routes/auth.js";
+import { authMiddleware } from "./helper/authMiddleware.js";
 import "./models/associations.js";
 
 // Set ENABLE_DEBUG_LOGS=true in .env to enable logs (default is suppressed in production)
@@ -73,6 +75,13 @@ app.use("/api", (req, res, next) => {
     next();
 });
 
+// AsyncLocalStorage middleware - wraps every request in a storage context
+// This MUST be before any routes that use queryClickHouse
+app.use(asyncStorageMiddleware);
+
+// Auth routes (PUBLIC - no JWT required)
+app.use("/api/auth", authRoutes);
+
 
 // MySQL connection disabled - using ClickHouse only
 // connectDB()
@@ -107,7 +116,10 @@ redisClient.connect()
 // Cache management routes
 app.use("/api/cache", cacheRoutes);
 
-// all Routes
+// JWT Authentication middleware - protects all /api/* routes below this point
+app.use("/api", authMiddleware);
+
+// all Routes (PROTECTED - JWT required)
 AllRoutes(app);
 
 
@@ -122,4 +134,4 @@ app.listen(port, () => {
 });
 
 export default app; // ESM export
-// restart trigger 7
+// restart trigger 8

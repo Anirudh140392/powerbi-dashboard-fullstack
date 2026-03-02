@@ -1,7 +1,7 @@
 {
   "platform": "All",
-  "brand": "Boomer",
+  "brand": "Colgate",
   "location": "All",
   "startDate": "2026-02-01",
-  "endDate": "2026-02-22"
+  "endDate": "2026-02-28"
 }
