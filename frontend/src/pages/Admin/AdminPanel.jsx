@@ -24,7 +24,7 @@ const AdminPanel = () => {
     const menuItems = [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
         { id: "users", label: "User Management", icon: Users },
-        // { id: "roles", label: "Roles & Permissions", icon: ShieldAlert },
+        // { id: "roles", label: "Permissions", icon: ShieldAlert },
         // { id: "access", label: "Access Mapping", icon: Network },
     ];
 
