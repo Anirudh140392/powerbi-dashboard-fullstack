@@ -2487,10 +2487,54 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         let prevAllCpm = 0;
         let prevAllCpc = 0;
 
-        try {
-            // Helper to escape strings for ClickHouse
-            const escapeStr = (str) => (str && typeof str === 'string') ? str.replace(/'/g, "''") : (str || '');
+        // Helper to escape strings for ClickHouse (needed by both "All" metrics and per-platform promo calculations)
+        const escapeStr = (str) => (str && typeof str === 'string') ? str.replace(/'/g, "''") : (str || '');
 
+        // Helper for Promo Depth via ClickHouse (needed by both "All" metrics and per-platform loop)
+        const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
+            const dayjsStart = dayjs(startDt);
+            const dayjsEnd = dayjs(endDt);
+            const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
+            if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
+            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
+
+            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+
+
+            if (isCompete) {
+                conds.push(`Comp_flag = '1'`);
+                if (targetBrand && targetBrand !== 'All') {
+                    const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                    const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
+                    conds.push(`(${bNotConds})`);
+                }
+            } else {
+                conds.push(`Comp_flag = '0'`);
+                if (targetBrand && targetBrand !== 'All') {
+                    const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                    const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                    conds.push(`(${bConds})`);
+                }
+            }
+
+            const q = `
+                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
+                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
+                    FROM rb_pdp_olap
+                    WHERE ${conds.join(' AND ')}
+                `;
+            try {
+                const res = await queryClickHouse(q);
+                return parseFloat(res?.[0]?.avg_depth || 0) * 100;
+            } catch (e) {
+                console.error("Promo Depth CH Error:", e);
+                return 0;
+            }
+        };
+
+        try {
             // Build ClickHouse conditions for current period
             const buildAllConditions = (startDt, endDt) => {
                 const conditions = [`DATE BETWEEN '${startDt}' AND '${endDt}'`];
@@ -2521,51 +2565,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 return conditions.join(' AND ');
             };
-
-            // Helper for Promo Depth via ClickHouse
-            const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
-                const dayjsStart = dayjs(startDt);
-                const dayjsEnd = dayjs(endDt);
-                const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
-                if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
-                if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
-
-                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
-
-
-                if (isCompete) {
-                    conds.push(`Comp_flag = '1'`);
-                    if (targetBrand && targetBrand !== 'All') {
-                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
-                        const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
-                        conds.push(`(${bNotConds})`);
-                    }
-                } else {
-                    conds.push(`Comp_flag = '0'`);
-                    if (targetBrand && targetBrand !== 'All') {
-                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
-                        const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
-                        conds.push(`(${bConds})`);
-                    }
-                }
-
-                const q = `
-                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
-                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
-                    FROM rb_pdp_olap
-                    WHERE ${conds.join(' AND ')}
-                `;
-                try {
-                    const res = await queryClickHouse(q);
-                    return parseFloat(res?.[0]?.avg_depth || 0) * 100;
-                } catch (e) {
-                    console.error("Promo Depth CH Error:", e);
-                    return 0;
-                }
-            };
-
             const currConditions = buildAllConditions(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
             const prevConditions = buildAllConditions(allMomStart.format('YYYY-MM-DD'), allMomEnd.format('YYYY-MM-DD'));
 

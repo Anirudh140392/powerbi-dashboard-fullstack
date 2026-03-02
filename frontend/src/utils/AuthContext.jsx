@@ -1,30 +1,59 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
+import axios from "axios";
 
 const AuthContext = createContext(null);
 
+// API base URL for auth requests
+const API_BASE = "/api";
+
 export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => {
-        // Check localStorage on initial load
         return localStorage.getItem("isLoggedIn") === "true";
     });
 
-    const login = (credentials) => {
-        // Basic mock login - in a real app, this would verify with backend
-        if (credentials.email === "admin@trailytics.com" && credentials.password === "admin123") {
-            setIsLoggedIn(true);
-            localStorage.setItem("isLoggedIn", "true");
-            return true;
+    const [user, setUser] = useState(() => {
+        const stored = localStorage.getItem("user");
+        return stored ? JSON.parse(stored) : null;
+    });
+
+    const login = async (credentials) => {
+        try {
+            const response = await axios.post(`${API_BASE}/auth/login`, {
+                email: credentials.email,
+                password: credentials.password,
+            });
+
+            if (response.data.success) {
+                const { token, user: userData } = response.data;
+
+                // Store auth data
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(userData));
+
+                setIsLoggedIn(true);
+                setUser(userData);
+                return { success: true };
+            }
+
+            return { success: false, error: response.data.error || "Login failed" };
+        } catch (error) {
+            const errorMsg =
+                error.response?.data?.error || "Invalid email or password";
+            return { success: false, error: errorMsg };
         }
-        return false;
     };
 
     const logout = () => {
         setIsLoggedIn(false);
+        setUser(null);
         localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
     };
 
     return (
-        <AuthContext.Provider value={{ isLoggedIn, login, logout }}>
+        <AuthContext.Provider value={{ isLoggedIn, user, login, logout }}>
             {children}
         </AuthContext.Provider>
     );
