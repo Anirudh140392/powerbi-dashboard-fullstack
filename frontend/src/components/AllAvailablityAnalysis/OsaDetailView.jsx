@@ -92,7 +92,7 @@ function SortIcon({ dir }) {
     );
 }
 
-export default function OsaDetailTableLight() {
+export default function OsaDetailTableLight({ apiData, loading }) {
     const [query, setQuery] = useState("");
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
@@ -117,20 +117,6 @@ export default function OsaDetailTableLight() {
         });
     };
 
-    const METRO_CITIES = ["Delhi", "Mumbai", "Bangalore", "Chennai", "Kolkata", "Hyderabad"];
-
-    const getCityData = (sku, cityName, baseVal) => {
-        const seed = sku.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + cityName.length;
-        const rnd = seededRandom(seed);
-        const values = DAYS.map((d) => {
-            const drift = (rnd() - 0.5) * 8;
-            const v = clamp(Math.round(baseVal + drift), 50, 98);
-            return v;
-        });
-        const avg31 = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-        return { name: cityName, values, avg31 };
-    };
-
     const [statusFilter, setStatusFilter] = useState([]);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [filterRules, setFilterRules] = useState(null);
@@ -152,10 +138,30 @@ export default function OsaDetailTableLight() {
     }, []);
 
     const filtered = useMemo(() => {
-        const q = query.trim().toLowerCase();
-        if (!q && statusFilter.length === 0) return SAMPLE_ROWS;
+        // Map backend data if it exists
+        let baseRows = SAMPLE_ROWS;
 
-        let res = SAMPLE_ROWS;
+        if (apiData?.osaDetail && apiData.osaDetail.length > 0) {
+            baseRows = apiData.osaDetail.map(row => {
+                // Ensure values array exists
+                const values = row.values || DAYS.map(d => row[String(d)] || 0);
+
+                return {
+                    name: row.name || row.productName || "Unknown Product",
+                    sku: row.sku || "N/A",
+                    values: values,
+                    avg7: row.avg7 || 0,
+                    avg31: row.avg31 || 0,
+                    status: row.status || "Healthy",
+                    cities: row.cities || []
+                };
+            });
+        }
+
+        const q = query.trim().toLowerCase();
+        if (!q && statusFilter.length === 0) return baseRows;
+
+        let res = baseRows;
         if (q) {
             res = res.filter(
                 (r) => r.name.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q)
@@ -165,7 +171,7 @@ export default function OsaDetailTableLight() {
             res = res.filter((r) => statusFilter.includes(r.status));
         }
         return res;
-    }, [query, statusFilter]);
+    }, [query, statusFilter, apiData]);
 
     const sorted = useMemo(() => {
         const dirMul = sortDir === "asc" ? 1 : -1;
@@ -385,21 +391,20 @@ export default function OsaDetailTableLight() {
                                                         })}
                                                     </tr>
                                                     {expandedRows.has(r.sku) &&
-                                                        METRO_CITIES.map((city) => {
-                                                            const cityData = getCityData(r.sku, city, r.avg31);
+                                                        (r.cities || []).map((cityData) => {
                                                             const cityAvgND =
                                                                 visibleDays === 31
                                                                     ? cityData.avg31
                                                                     : Math.round(cityData.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
 
                                                             return (
-                                                                <tr key={`${r.sku}-${city}`} className="bg-slate-50/50">
+                                                                <tr key={`${r.sku}-${cityData.name}`} className="bg-slate-50/50">
                                                                     <td
                                                                         className="sticky left-0 z-10 bg-slate-50/50 px-3 py-1.5 border-b border-slate-100 pl-10"
                                                                         style={{ minWidth: 280 }}
                                                                     >
                                                                         <div className="text-[11px] font-medium text-slate-600">
-                                                                            {city}
+                                                                            {cityData.name}
                                                                         </div>
                                                                     </td>
                                                                     <td className="px-3 py-1.5 border-b border-slate-100 text-[10px] text-slate-500 text-center">
@@ -416,7 +421,7 @@ export default function OsaDetailTableLight() {
                                                                                 className="px-2 py-1.5 border-b border-slate-100 text-center"
                                                                             >
                                                                                 <span className="text-[10px] text-slate-500 font-medium">
-                                                                                    {v}%
+                                                                                    {v !== undefined ? `${v}%` : '-'}
                                                                                 </span>
                                                                             </td>
                                                                         );

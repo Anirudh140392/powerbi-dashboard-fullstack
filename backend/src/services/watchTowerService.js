@@ -2455,9 +2455,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // But if the user selected "Zepto", the "All" column in a table comparing Zepto vs Blinkit vs Swiggy usually represents the Total of those rows.
         // Let's assume "All" means "All Platforms" (ignoring the platform filter for this specific column calculation).
 
-        // Calculate MoM dates for All row comparison
-        const allMomStart = startDate.clone().subtract(1, 'month');
-        const allMomEnd = endDate.clone().subtract(1, 'month');
+        // Use the same MoM dates as Watch Tower Overview (respects frontend-supplied compare dates)
+        const allMomStart = momStartDate;
+        const allMomEnd = momEndDate;
 
         let allOfftake = 0;
         let allAvailability = 0;
@@ -2509,6 +2509,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
                 // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
                 // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+
+                // Apply channel-based platform filter (matching Watch Tower Overview logic)
+                if (platformArr && platformArr.length > 0) {
+                    const cond = buildPlatformChannelCond(platformArr, channel);
+                    if (cond) conditions.push(cond);
+                } else {
+                    const cond = buildPlatformChannelCond(null, channel);
+                    if (cond) conditions.push(cond);
+                }
+
                 return conditions.join(' AND ');
             };
 
@@ -5876,10 +5886,10 @@ const getKpiTrends = async (filters) => {
         if (locArr && locArr.length > 0) conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
-           conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
         } else {
-           const platformCond = buildPlatformChannelCond(null, channel);
-           if (platformCond) conds.push(platformCond);
+            const platformCond = buildPlatformChannelCond(null, channel);
+            if (platformCond) conds.push(platformCond);
         }
 
         // Advanced SKU Search Filters
@@ -5924,11 +5934,11 @@ const getKpiTrends = async (filters) => {
     // Build SOS base conditions (matching Platform Overview - no spons_flag filter)
     const buildSosConds = () => {
         const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-        
+
         if (catArr && catArr.length > 0) conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         if (locArr && locArr.length > 0) conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         if (platArr && platArr.length > 0) conds.push(`platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-        
+
         return conds;
     };
 
@@ -5952,7 +5962,7 @@ const getKpiTrends = async (filters) => {
     const buildMsBaseConds = (catFilter = null) => {
         const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
-        
+
         if (platArr && platArr.length > 0) {
             conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
         }
@@ -5963,12 +5973,12 @@ const getKpiTrends = async (filters) => {
         // Apply global category filter from effective filters if no parameter passed,
         // or the custom provided filter (used below for Category Share)
         const categoriesToUse = catFilter ? normalizeFilterArray(catFilter) : catArr;
-        
+
         if (categoriesToUse && categoriesToUse.length > 0) {
-             const catEscapedLower = categoriesToUse.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ');
-             conds.push(`(lower(category) IN (${catEscapedLower}) OR lower(sub_category) IN (${catEscapedLower}))`);
+            const catEscapedLower = categoriesToUse.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ');
+            conds.push(`(lower(category) IN (${catEscapedLower}) OR lower(sub_category) IN (${catEscapedLower}))`);
         }
-        
+
         return conds.join(' AND ');
     };
 
@@ -6250,7 +6260,7 @@ const getCompetitionData = async (filters = {}) => {
         // Build base conditions for ClickHouse
         const buildCompConds = (startDt, endDt) => {
             const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
-            
+
             if (platArr && platArr.length > 0) {
                 conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
