@@ -103,7 +103,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) => {
   const [activeTab, setActiveTab] = useState("platform");
   const {
     selectedChannel,
@@ -160,10 +160,50 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false }) => {
   // ---------------- TABS ----------------
   const tabs = useMemo(() => {
     const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
-    const platformData = {
-      columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
-      rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns, context),
-    };
+
+    // If API provides platform matrix, format it.
+    let platformData = null;
+    if (apiData?.platformKpi) {
+      // Convert { columns: ["KPI", ...cols], rows: { osa: { kpi: "OSA", Blinkit: 90, ...}, doi: {...} } }
+      // To { columns: ["kpi", ...cols], rows: [{kpi: "OSA", Blinkit: 90, ...}, ...] }
+
+      const { columns: origColumns, rows: origRowsArray } = apiData.platformKpi;
+
+      // Standardize the first column to "kpi" (lowercase) which Showcase expects
+      const normalizedColumns = origColumns.map((col, idx) => idx === 0 ? "kpi" : col);
+
+      // Convert array elements
+      const mappedRows = [];
+      if (Array.isArray(origRowsArray)) {
+        const kpiNames = ["OSA", "DOI", "Fillrate", "Assortment", "PSL"];
+        origRowsArray.forEach((rowData, idx) => {
+          if (!rowData) return;
+          const newRow = { ...rowData };
+
+          // Backend does not return a "kpi" field in the objects.
+          // Since we know the order is [osa, doi, fillrate, assortment, psl], we assign it by index.
+          newRow.kpi = kpiNames[idx] || 'Unknown';
+
+          // Also add trend and series objects if missing, to prevent Showcase from crashing
+          if (!newRow.trend) newRow.trend = {};
+          if (!newRow.series) newRow.series = {};
+
+          mappedRows.push(newRow);
+        });
+      }
+
+      platformData = {
+        columns: normalizedColumns,
+        rows: mappedRows
+      };
+    } else {
+      // Fallback to mock data
+      platformData = {
+        columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
+        rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns, context),
+      };
+    }
+
     const formatData = {
       columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
       rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns, context),
@@ -173,12 +213,15 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false }) => {
       rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns, context),
     };
 
+    // Debug log to trace what data we are passing into CityKpiTrendShowcase
+    console.log("TabbedHeatmapTable platformData:", platformData);
+
     return [
       { key: "platform", label: "Platform", data: platformData },
       { key: "format", label: "Format", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
-  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
 
   const active = tabs.find((t) => t.key === activeTab);
 
@@ -1163,10 +1206,10 @@ const getAvailabilityKpis = (type, context = {}) => {
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = () => {
+export const AvailablityAnalysisData = ({ apiData, isLoading: parentLoading, apiErrors, onRetry }) => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
-  const [isLoading, setIsLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
 
   const {
     selectedBrand,
@@ -1180,17 +1223,81 @@ export const AvailablityAnalysisData = () => {
 
   // Simulated loading delay on filter change
   useEffect(() => {
-    setIsLoading(true);
+    setLocalLoading(true);
     const timer = setTimeout(() => {
-      setIsLoading(false);
+      setLocalLoading(false);
     }, 800);
     return () => clearTimeout(timer);
   }, [globalPlatform, selectedBrand, selectedLocation, selectedChannel, selectedCategory, timeStart, timeEnd, availability]);
 
+  const isLoading = parentLoading || localLoading || !apiData;
+
   // User request: restrict Availability Overview cards to ONLY change on Platform
   const platformContext = { platform: globalPlatform };
 
-  const availabilityKpis = useMemo(() => getAvailabilityKpis(availability, platformContext), [availability, globalPlatform]);
+  const availabilityKpis = useMemo(() => {
+    // Determine if we have real API data to use
+    if (apiData?.overview && apiData?.doi && apiData?.metroCity) {
+      const overview = apiData.overview;
+      const doiData = apiData.doi;
+      const metroData = apiData.metroCity;
+
+      const deltaStock = overview.stockAvailability - overview.prevStockAvailability;
+      const deltaDoi = doiData.doi - doiData.prevDoi;
+      const deltaFillRate = overview.fillRate - overview.prevFillRate;
+      const deltaMetro = metroData.stockAvailability - metroData.prevStockAvailability;
+
+      return [
+        {
+          id: `avail-api-osa`,
+          title: "Stock Availability",
+          value: `${overview.stockAvailability.toFixed(1)}%`,
+          subtitle: "MTD on-shelf coverage",
+          delta: parseFloat(deltaStock.toFixed(1)),
+          deltaLabel: `${deltaStock > 0 ? '▲' : '▼'} ${Math.abs(deltaStock).toFixed(1)} pp`,
+          icon: Layers,
+          gradient: ['#6366f1', '#8b5cf6'],
+          trend: getLogicalKpiTrend('osa', platformContext) // Keep mock trend for now as API doesn't return time series for cards
+        },
+        {
+          id: `avail-api-doi`,
+          title: "Days of Inventory (DOI)",
+          value: doiData.doi.toFixed(1),
+          subtitle: "Network average days of cover",
+          delta: parseFloat(deltaDoi.toFixed(1)),
+          deltaLabel: `${deltaDoi > 0 ? '▲' : '▼'} ${Math.abs(deltaDoi).toFixed(1)} days`,
+          icon: Package,
+          gradient: ['#14b8a6', '#06b6d4'],
+          trend: getLogicalKpiTrend('doi', platformContext)
+        },
+        {
+          id: `avail-api-fillrate`,
+          title: "Fill Rate",
+          value: `${overview.fillRate.toFixed(1)}%`,
+          subtitle: "Supplier fulfillment rate",
+          delta: parseFloat(deltaFillRate.toFixed(1)),
+          deltaLabel: `${deltaFillRate > 0 ? '▲' : '▼'} ${Math.abs(deltaFillRate).toFixed(1)} pp`,
+          icon: Zap,
+          gradient: ['#f43f5e', '#ec4899'],
+          trend: getLogicalKpiTrend('fillrate', platformContext)
+        },
+        {
+          id: `avail-api-metro`,
+          title: "Metro City Stock Availability",
+          value: `${metroData.stockAvailability.toFixed(1)}%`,
+          subtitle: "MTD availability across metro cities",
+          delta: parseFloat(deltaMetro.toFixed(1)),
+          deltaLabel: `${deltaMetro > 0 ? '▲' : '▼'} ${Math.abs(deltaMetro).toFixed(1)} pp`,
+          icon: MapPin,
+          gradient: ['#8b5cf6', '#a855f7'],
+          trend: getLogicalKpiTrend('availability', platformContext)
+        }
+      ];
+    }
+
+    // Fallback to mock data if API data is missing
+    return getAvailabilityKpis(availability, platformContext);
+  }, [availability, globalPlatform, apiData]);
 
   return (
 
@@ -1251,8 +1358,8 @@ export const AvailablityAnalysisData = () => {
           <SignalLabVisibility type="availability" />
         </div>
 
-        <TabbedHeatmapTable olaMode={availability} loading={isLoading} />
-        <OsaHeatmapTable olaMode={availability} loading={isLoading} />
+        <TabbedHeatmapTable olaMode={availability} loading={isLoading} apiData={apiData} />
+        <OsaHeatmapTable olaMode={availability} loading={isLoading} apiData={apiData} />
 
       </div>
     </div>
