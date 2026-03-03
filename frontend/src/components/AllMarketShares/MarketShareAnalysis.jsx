@@ -18,6 +18,10 @@ import { LayoutGrid, Layers, TrendingUp, PieChart } from "lucide-react";
 import { DualAxisDrillMatrix } from "./PowerBiDashboard";
 import axiosInstance from "../../api/axiosInstance";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import MarketCatOverview from "./MarketCatOverview";
+import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import MarketShareDrilldown from "./MarketShareDrilldown";
+import SubCategoryMarket from "./SubCategoryMarket";
 
 const marketShareKpis = [
   {
@@ -279,6 +283,17 @@ export default function MarketShareAnalysis() {
   const [marketMode, setMarketMode] = useState("geographical");
   const calledOnce = useRef(false);
 
+  // ── Drawer state for MarketCatOverview trends ──────────────────────────────
+  const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
+
+  const handleViewTrends = (entityName, dimensionLabel) => {
+    setTrendsDrawer({ open: true, entity: entityName, dimension: dimensionLabel });
+  };
+
+  const handleViewRca = (entityName, dimensionLabel) => {
+    // RCA drawer placeholder — can be wired later
+  };
+
   useEffect(() => {
     if (calledOnce.current) return;
     calledOnce.current = true;
@@ -298,7 +313,7 @@ export default function MarketShareAnalysis() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-3 md:gap-5">
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-1 md:gap-5">
       {/* <HeaderStats /> */}
       <SnapshotOverview
         title="Market Share Overview"
@@ -312,6 +327,25 @@ export default function MarketShareAnalysis() {
         kpis={marketShareKpis}
         variant="detailed"
       />
+
+      <MarketCatOverview
+        onViewTrends={handleViewTrends}
+        onViewRca={handleViewRca}
+      />
+
+      <MarketShareDrilldown />
+      <SubCategoryMarket />
+
+      {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
+        <div className="text-sm font-semibold">
+          Dual-axis drill (platform × months)
+        </div>
+        <div className="text-[11px] text-slate-500">
+          Collapse/expand quarters, drill rows down to city.
+        </div>
+        <DualAxisDrillMatrix />
+      </div> */}
+
       <div className="space-y-4">
         <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
           <div className="flex justify-center">
@@ -375,21 +409,11 @@ export default function MarketShareAnalysis() {
           )}
         </div>
 
-        <CategoryTables />
+        {/* <CategoryTables /> */}
 
-        <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
-          <div className="text-sm font-semibold">
-            Dual-axis drill (platform × months)
-          </div>
-          <div className="text-[11px] text-slate-500">
-            Collapse/expand quarters, drill rows down to city.
-          </div>
-          <DualAxisDrillMatrix />
-        </div>
-
-        <SkuTables />
-        <TrendCharts />
-        <LocationStack />
+        {/* <SkuTables /> */}
+        {/* <TrendCharts /> */}
+        {/* <LocationStack /> */}
       </div>
 
       <button
@@ -424,6 +448,15 @@ export default function MarketShareAnalysis() {
           </div>
         </div>
       )}
+
+      {/* Market Share Trends Drawer */}
+      <TrendsCompetitionDrawer
+        dynamicKey="marketshare"
+        open={trendsDrawer.open}
+        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
+        selectedColumn={trendsDrawer.entity}
+        selectedLevel={trendsDrawer.dimension}
+      />
     </div>
   );
 }
@@ -571,7 +604,7 @@ function TwoUp() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Market share
+            Trends
           </div>
           <div className="text-sm font-semibold text-slate-800">
             Platforms + Brands

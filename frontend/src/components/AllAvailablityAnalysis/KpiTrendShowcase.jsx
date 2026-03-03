@@ -999,6 +999,39 @@ const PRICING_KPI_KEYS = [
   },
 ];
 
+const MARKET_SHARE_KPI_KEYS = [
+  {
+    key: "CategorySize",
+    label: "CATEGORY SIZE",
+    color: "#6366F1",
+    unit: " Cr",
+  },
+  {
+    key: "MWMarketShare",
+    label: "MW MARKET SHARE%",
+    color: "#14B8A6",
+    unit: "%",
+  },
+  {
+    key: "MWSales",
+    label: "MW SALES (Cr)",
+    color: "#F43F5E",
+    unit: " Cr",
+  },
+  {
+    key: "MLMarketShare",
+    label: "ML MARKET SHARE%",
+    color: "#8B5CF6",
+    unit: "%",
+  },
+  {
+    key: "MLSales",
+    label: "ML SALES (Cr)",
+    color: "#F97316",
+    unit: " Cr",
+  },
+];
+
 
 const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS }) => {
   const isBrandMode = mode === "brand";
@@ -1176,9 +1209,9 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="w-[40%] px-3 py-2 text-left">Brand</th>
+                <th className="w-[40%] px-3 py-2 text-left whitespace-nowrap">Brand</th>
                 {kpiKeys.map((k) => (
-                  <th key={k.key} className="px-3 py-2 text-center" style={{ width: `${60 / kpiKeys.length}%` }}>{k.label}</th>
+                  <th key={k.key} className="px-3 py-2 text-center whitespace-nowrap" style={{ width: `${60 / kpiKeys.length}%` }}>{k.label}</th>
                 ))}
               </tr>
             </thead>
@@ -1262,10 +1295,10 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="w-[30%] px-3 py-2 text-left">SKU</th>
-                <th className="w-[25%] px-3 py-2 text-left">Brand</th>
+                <th className="w-[30%] px-3 py-2 text-left whitespace-nowrap">SKU</th>
+                <th className="w-[25%] px-3 py-2 text-left whitespace-nowrap">Brand</th>
                 {kpiKeys.map((k) => (
-                  <th key={k.key} className="px-3 py-2 text-center">{k.label}</th>
+                  <th key={k.key} className="px-3 py-2 text-center whitespace-nowrap">{k.label}</th>
                 ))}
               </tr>
             </thead>
@@ -1346,7 +1379,11 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
     timeEnd,
   } = useContext(FilterContext);
 
-  const kpiKeys = dynamicKey === 'pricing' ? PRICING_KPI_KEYS : KPI_KEYS;
+  const kpiKeys = useMemo(() => {
+    if (dynamicKey === 'pricing') return PRICING_KPI_KEYS;
+    if (dynamicKey === 'marketshare') return MARKET_SHARE_KPI_KEYS;
+    return KPI_KEYS;
+  }, [dynamicKey]);
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);

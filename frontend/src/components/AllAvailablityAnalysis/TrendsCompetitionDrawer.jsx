@@ -1094,6 +1094,115 @@ export default function TrendsCompetitionDrawer({
           })),
         },
       };
+    } else if (dynamicKey === "marketshare") {
+      return {
+        trends: {
+          context: {
+            level: "MRP",
+            audience: "Platform",
+          },
+          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+          defaultRange: "1M",
+          timeSteps: ["Daily", "Weekly", "Monthly"],
+          defaultTimeStep: "Daily",
+          metrics: [
+            {
+              id: "CategorySize",
+              label: "Category Size (Cr)",
+              color: "#6366F1",
+              axis: "left",
+              default: true,
+            },
+            {
+              id: "MWMarketShare",
+              label: "MW Market Share%",
+              color: "#14B8A6",
+              axis: "right",
+              default: true,
+            },
+            {
+              id: "MWSales",
+              label: "MW Sales (Cr)",
+              color: "#F43F5E",
+              axis: "left",
+              default: false,
+            },
+            {
+              id: "MLMarketShare",
+              label: "ML Market Share%",
+              color: "#8B5CF6",
+              axis: "right",
+              default: false,
+            },
+            {
+              id: "MLSales",
+              label: "ML Sales (Cr)",
+              color: "#F97316",
+              axis: "left",
+              default: false,
+            },
+          ],
+          points: [
+            { date: "06 Sep'25", CategorySize: 210, MWMarketShare: 3.2, MWSales: 6.7, MLMarketShare: 35.0, MLSales: 73.5 },
+            { date: "10 Sep'25", CategorySize: 215, MWMarketShare: 3.1, MWSales: 6.5, MLMarketShare: 34.5, MLSales: 74.2 },
+            { date: "15 Sep'25", CategorySize: 218, MWMarketShare: 3.3, MWSales: 7.2, MLMarketShare: 35.2, MLSales: 76.8 },
+            { date: "20 Sep'25", CategorySize: 220, MWMarketShare: 3.1, MWSales: 6.9, MLMarketShare: 35.1, MLSales: 77.5 },
+            { date: "25 Sep'25", CategorySize: 225, MWMarketShare: 3.4, MWSales: 7.6, MLMarketShare: 34.8, MLSales: 78.4 },
+            { date: "30 Sep'25", CategorySize: 228, MWMarketShare: 3.2, MWSales: 7.3, MLMarketShare: 35.5, MLSales: 80.9 },
+            { date: "04 Oct'25", CategorySize: 232, MWMarketShare: 3.5, MWSales: 8.1, MLMarketShare: 36.0, MLSales: 83.5 },
+          ].map((p, idx) => ({
+            ...p,
+            CategorySize: applyVar(p.CategorySize, idx),
+            MWMarketShare: applyVar(p.MWMarketShare, idx),
+            MWSales: applyVar(p.MWSales, idx),
+            MLMarketShare: applyVar(p.MLMarketShare, idx),
+            MLSales: applyVar(p.MLSales, idx),
+          })),
+        },
+
+        compareSkus: {
+          context: { level: "MRP" },
+          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+          defaultRange: "1M",
+          timeSteps: ["Daily", "Weekly", "Monthly"],
+          defaultTimeStep: "Daily",
+          metrics: [
+            { id: "CategorySize", label: "Category Size (Cr)", color: "#6366F1", default: true },
+            { id: "MWMarketShare", label: "MW Market Share%", color: "#14B8A6", default: true },
+            { id: "MWSales", label: "MW Sales (Cr)", color: "#F43F5E", default: false },
+            { id: "MLMarketShare", label: "ML Market Share%", color: "#8B5CF6", default: false },
+            { id: "MLSales", label: "ML Sales (Cr)", color: "#F97316", default: false },
+          ],
+          x: COMPARE_X,
+          trendsBySku: {
+            1: COMPARE_X.map(x => ({ x, CategorySize: applyVar(220, x), MWMarketShare: applyVar(3.1, x), MWSales: applyVar(6.9, x), MLMarketShare: applyVar(35.2, x), MLSales: applyVar(77.5, x) })),
+            2: COMPARE_X.map(x => ({ x, CategorySize: applyVar(190, x), MWMarketShare: applyVar(2.8, x), MWSales: applyVar(5.3, x), MLMarketShare: applyVar(33.8, x), MLSales: applyVar(64.2, x) })),
+            3: COMPARE_X.map(x => ({ x, CategorySize: applyVar(250, x), MWMarketShare: applyVar(3.6, x), MWSales: applyVar(9.0, x), MLMarketShare: applyVar(36.1, x), MLSales: applyVar(90.2, x) })),
+          },
+        },
+
+        competition: {
+          context: { level: "MRP", region: "All × Platforms" },
+          tabs: ["Brands", "SKUs"],
+          periodToggle: { primary: "MTD", compare: "Previous Month" },
+          columns: [
+            { id: "brand", label: "Brand", type: "text" },
+            { id: "CategorySize", label: "Category Size (Cr)", type: "metric" },
+            { id: "MWMarketShare", label: "MW Market Share%", type: "metric" },
+            { id: "MWSales", label: "MW Sales (Cr)", type: "metric" },
+            { id: "MLMarketShare", label: "ML Market Share%", type: "metric" },
+            { id: "MLSales", label: "ML Sales (Cr)", type: "metric" },
+          ],
+          brands: BRAND_OPTIONS.map((b, i) => ({
+            brand: b,
+            CategorySize: { value: applyVar(180 + i * 20), delta: i % 2 === 0 ? 12.5 : -8.3 },
+            MWMarketShare: { value: applyVar(2.5 + i * 0.4), delta: i % 2 === 0 ? 0.3 : -0.5 },
+            MWSales: { value: applyVar(5.0 + i * 1.2), delta: i % 2 === 0 ? 1.8 : -1.1 },
+            MLMarketShare: { value: applyVar(30 + i * 2), delta: i % 2 === 0 ? 2.1 : -1.6 },
+            MLSales: { value: applyVar(60 + i * 10), delta: i % 2 === 0 ? 8.5 : -5.2 },
+          })),
+        },
+      };
     } else {
       return {
         /* =====================================================================
@@ -1565,7 +1674,7 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const trendOption = useMemo(() => {
-    const dataSource = chartData;
+    const dataSource = (chartData && chartData.length > 0) ? chartData : trendPoints;
     const xData = dataSource.map((p) => p.date);
 
     const series = trendMeta.metrics
@@ -1678,13 +1787,13 @@ export default function TrendsCompetitionDrawer({
     else if (newAudience === "Brand") firstOption = BRAND_OPTIONS[0];
 
     setSelectedPlatform(firstOption);
-    
+
     // Sync with drawerFilters
     setDrawerFilters(prev => ({
       ...prev,
       [newAudience]: firstOption
     }));
-    
+
     setShowPlatformPills(true);
   };
 
@@ -2041,7 +2150,7 @@ export default function TrendsCompetitionDrawer({
                 timeStep={timeStep}
               />
             ) : (
-              <KpiTrendShowcase 
+              <KpiTrendShowcase
                 dynamicKey={dynamicKey}
                 period={range}
                 timeStep={timeStep}

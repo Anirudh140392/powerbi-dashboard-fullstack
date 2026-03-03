@@ -68,7 +68,7 @@ const Sidebar = ({
   const menuSections = {
     "MAIN MENU": [
       { label: "Watch Tower", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
-      { label: "Map Intellect", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },

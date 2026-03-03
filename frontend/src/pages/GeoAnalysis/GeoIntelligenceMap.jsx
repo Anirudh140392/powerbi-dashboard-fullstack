@@ -293,7 +293,7 @@ export default function GeoIntelligenceMap() {
 
     // --- Render ---
     return (
-        <CommonContainer title="Map Intellect" filters={filters} onFiltersChange={setFilters}>
+        <CommonContainer title="India Overview" filters={filters} onFiltersChange={setFilters}>
             <div style={{ padding: "20px 24px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
 
                 {/* Header removed per request (Map Intellect panel & analysis period) */}
