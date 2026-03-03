@@ -4250,12 +4250,12 @@ const getTrendData = async (filters) => {
 const getBrandCategories = async (platform) => {
     try {
         // ClickHouse query
-        const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
+        const conditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
         if (platform && platform !== 'All') {
             conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
         }
 
-        const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+        const query = `SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
         const results = await queryClickHouse(query);
         return results.map(c => c.category).filter(Boolean);
     } catch (error) {
@@ -5921,7 +5921,12 @@ const getKpiTrends = async (filters) => {
                 SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks,
                 SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions,
                 SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno_osa,
-                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno_osa
+                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno_osa,
+                AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_selling_price,
+                AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_mrp,
+                AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
+                SUM(ifNull(toFloat64OrZero(toString(Weight)), 0)) as sum_weight
             FROM rb_pdp_olap
             WHERE ${kpiConds}
             GROUP BY ${groupExpression}
@@ -6048,6 +6053,18 @@ const getKpiTrends = async (filters) => {
         const adOrders = parseFloat(row.total_ad_orders || 0);
         const adClicks = parseFloat(row.total_ad_clicks || 0);
 
+        // Calculate Pricing KPIs
+        const avgSellingPrice = parseFloat(row.avg_selling_price || 0);
+        const avgMrp = parseFloat(row.avg_mrp || 0);
+        const avgDiscount = parseFloat(row.avg_discount || 0);
+        const sumSellingPrice = parseFloat(row.sum_selling_price || 0);
+        const sumWeight = parseFloat(row.sum_weight || 0);
+
+        const discount = avgDiscount;
+        const pricePerUnit = sumWeight > 0 ? sumSellingPrice / sumWeight : 0;
+        const asp = avgSellingPrice;
+        const rpi = avgMrp > 0 ? (avgSellingPrice / avgMrp) : 0; // Relative Price Index baseline
+
         // Calculate KPIs
         // 1. Share of Search
         const sosNum = sosNumerator.find(s => String(s.date_group) === String(bucket.groupKey));
@@ -6111,6 +6128,11 @@ const getKpiTrends = async (filters) => {
             Availability: parseFloat(availability.toFixed(2)),
             CPM: parseFloat(cpm.toFixed(2)),
             CPC: parseFloat(cpc.toFixed(2)),
+            // Pricing KPIs
+            Discount: parseFloat(discount.toFixed(2)),
+            PricePerUnit: parseFloat(pricePerUnit.toFixed(2)),
+            ASP: parseFloat(asp.toFixed(2)),
+            RPI: parseFloat(rpi.toFixed(2)),
             // Mapped aliases for frontend compatibility
             ROAS: parseFloat(roas.toFixed(2)),
             SOS: parseFloat(shareOfSearch.toFixed(2)),
@@ -6163,12 +6185,12 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
 
         if (filterType === 'categories') {
             // Fetch unique categories (category) from rca_sku_dim (status=1)
-            const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
+            const conditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
             if (platform && platform !== 'All') {
                 conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
             }
 
-            const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+            const query = `SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
             const results = await queryClickHouse(query);
             const categoryList = results.map(c => c.category).filter(c => c && c.trim()).sort();
             return { options: [...categoryList] };
@@ -6345,7 +6367,11 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Spend), '[^0-9.-]', '')), 0)) as total_spend,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_sales), '[^0-9.-]', '')), 0)) as total_ad_sales,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
-                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
+                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_mrp,
+                    AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_selling_price,
+                    AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                    SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
+                    SUM(ifNull(toFloat64OrZero(toString(Weight)), 0)) as sum_weight,
                     count() as record_count
                 FROM rb_pdp_olap
                 WHERE ${currConds}
@@ -6358,7 +6384,11 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Spend), '[^0-9.-]', '')), 0)) as total_spend,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_sales), '[^0-9.-]', '')), 0)) as total_ad_sales,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
-                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
+                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_mrp,
+                    AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_selling_price,
+                    AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                    SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
+                    SUM(ifNull(toFloat64OrZero(toString(Weight)), 0)) as sum_weight,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno_osa,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa
                 FROM rb_pdp_olap
@@ -6559,7 +6589,6 @@ const getCompetitionData = async (filters = {}) => {
 
         const brandMetrics = currentBrands.map(brand => {
             const impressions = parseFloat(brand.total_impressions || 0);
-            const avgPrice = parseFloat(brand.avg_price || 0);
             const brandCategory = brand.brand_category || '';
             const prevBrand = prevMap.get(brand.Brand) || {};
 
@@ -6592,9 +6621,29 @@ const getCompetitionData = async (filters = {}) => {
             const sosPrev = totalImpressionsPrev > 0 ? (prevImpressions / totalImpressionsPrev) * 100 : 0;
             const sosDelta = calcPPChange(sos, sosPrev);
 
-            // Price Change
-            const prevAvgPrice = parseFloat(prevBrand.avg_price || 0);
-            const priceDelta = calcChange(avgPrice, prevAvgPrice);
+            // Pricing Metrics
+            const discount = parseFloat(brand.avg_discount || 0);
+            const prevDiscount = parseFloat(prevBrand.avg_discount || 0);
+            const discountDelta = calcPPChange(discount, prevDiscount);
+
+            const sumSellingPrice = parseFloat(brand.sum_selling_price || 0);
+            const sumWeight = parseFloat(brand.sum_weight || 0);
+            const pricePerUnit = sumWeight > 0 ? sumSellingPrice / sumWeight : 0;
+
+            const prevSumSellingPrice = parseFloat(prevBrand.sum_selling_price || 0);
+            const prevSumWeight = parseFloat(prevBrand.sum_weight || 0);
+            const prevPricePerUnit = prevSumWeight > 0 ? prevSumSellingPrice / prevSumWeight : 0;
+            const pricePerUnitDelta = calcChange(pricePerUnit, prevPricePerUnit);
+
+            const avgSellingPrice = parseFloat(brand.avg_selling_price || 0);
+            const prevAvgSellingPrice = parseFloat(prevBrand.avg_selling_price || 0);
+            const aspDelta = calcChange(avgSellingPrice, prevAvgSellingPrice);
+
+            const avgMrp = parseFloat(brand.avg_mrp || 0);
+            const rpi = avgMrp > 0 ? (avgSellingPrice / avgMrp) : 0;
+            const prevAvgMrp = parseFloat(prevBrand.avg_mrp || 0);
+            const prevRpi = prevAvgMrp > 0 ? (prevAvgSellingPrice / prevAvgMrp) : 0;
+            const rpiDelta = calcPPChange(rpi, prevRpi);
 
             // Market Share: Individual brand's share = brand's sales / total platform sales
             const brandSales = brandSalesMap.get(brand.Brand?.toLowerCase()) || 0;
@@ -6619,7 +6668,12 @@ const getCompetitionData = async (filters = {}) => {
                 ROAS: { value: parseFloat(roas.toFixed(2)), delta: parseFloat(roasDelta.toFixed(1)) },
                 OSA: { value: parseFloat(osa.toFixed(1)), delta: parseFloat(osaDelta.toFixed(1)) },
                 SOS: { value: parseFloat(sos.toFixed(1)), delta: parseFloat(sosDelta.toFixed(1)) },
-                Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(1)) },
+                Discount: { value: parseFloat(discount.toFixed(1)), delta: parseFloat(discountDelta.toFixed(1)) },
+                PricePerUnit: { value: parseFloat(pricePerUnit.toFixed(1)), delta: parseFloat(pricePerUnitDelta.toFixed(1)) },
+                ASP: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
+                RPI: { value: parseFloat(rpi.toFixed(2)), delta: parseFloat(rpiDelta.toFixed(1)) },
+                // Legacy key for compat if needed
+                Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(1)), delta: parseFloat(categoryShareDelta.toFixed(1)) },
                 MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) }
             };
@@ -6844,8 +6898,8 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct categories filtered by platform/location
             (() => {
                 const conds = buildBaseConds();
-                conds.push(`category IS NOT NULL`, `category != ''`);
-                return queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
+                conds.push(`Category IS NOT NULL`, `Category != ''`);
+                return queryClickHouse(`SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
             })(),
 
             // Fetch distinct brands filtered by platform/location + category

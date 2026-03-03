@@ -125,7 +125,9 @@ export const FilterProvider = ({ children }) => {
     // Update platforms list when channel changes (filter the DB platforms by channel mapping)
     useEffect(() => {
         const filterPlatformsByChannel = async () => {
-            if (selectedChannel === "All") {
+            const selectedChannels = Array.isArray(selectedChannel) ? selectedChannel : [selectedChannel];
+
+            if (selectedChannels.includes("All")) {
                 // Fetch all platforms from DB
                 try {
                     const res = await axiosInstance.get("/watchtower/platforms");
@@ -143,7 +145,7 @@ export const FilterProvider = ({ children }) => {
                     console.warn("[FilterContext] Failed to fetch platforms on channel change:", err.message);
                 }
                 // Fallback
-                const allFallback = [...channelPlatformMap["Ecom"], ...channelPlatformMap["ModernTrade"]];
+                const allFallback = [...new Set([...channelPlatformMap["Ecom"], ...channelPlatformMap["ModernTrade"]])];
                 setPlatforms(allFallback);
                 if (platform !== "All") {
                     const currentList = Array.isArray(platform) ? platform : [platform];
@@ -151,7 +153,9 @@ export const FilterProvider = ({ children }) => {
                     if (validPlatforms.length === 0) setPlatform("All");
                 }
             } else {
-                const channelFallback = channelPlatformMap[selectedChannel] || [];
+                // Merge platforms from all selected channels
+                const channelFallback = [...new Set(selectedChannels.flatMap(ch => channelPlatformMap[ch] || []))];
+
                 // Fetch from DB and filter by channel mapping
                 try {
                     const res = await axiosInstance.get("/watchtower/platforms");

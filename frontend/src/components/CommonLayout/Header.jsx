@@ -215,6 +215,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={selectedChannel}
                 onChange={(newValue) => setSelectedChannel(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 130 }}
+                multiSelect={true}
               />
 
               {/* PLATFORM SELECTION */}
@@ -224,6 +225,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
               <CustomHeaderDropdown
@@ -232,6 +234,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
               <CustomHeaderDropdown
@@ -240,6 +243,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={selectedLocation}
                 onChange={(newValue) => setSelectedLocation(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
               {location.pathname === "/visibility-anlysis" && (

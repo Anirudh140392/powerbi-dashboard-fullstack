@@ -1,4 +1,6 @@
-import { useState, useMemo, useContext } from 'react'
+import { useState, useMemo, useContext, useEffect } from 'react'
+import axiosInstance from '../../api/axiosInstance'
+import { Skeleton } from '@mui/material'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../utils/FilterContext'
 import {
@@ -38,16 +40,17 @@ const kpiLabels = {
 };
 
 const CITY_TIERS = {
-    T1: ['mumbai', 'delhi', 'bangalore', 'hyderabad', 'ahmedabad'],
-    T2: ['kolkata', 'pune', 'chennai', 'lucknow', 'jaipur'],
-    T3: ['patna', 'indore', 'bhopal', 'chandigarh', 'ranchi'],
-    T4: ['varanasi', 'kanpur', 'meerut', 'agra', 'noida']
+    T1: ['mumbai', 'delhi', 'bengaluru', 'hyderabad', 'ahmedabad', 'kolkata', 'chennai', 'pune', 'gurugram', 'noida', 'faridabad', 'ghaziabad'],
+    T2: ['lucknow', 'jaipur', 'surat', 'nagpur', 'indore', 'bhopal', 'chandigarh', 'patna', 'kochi', 'coimbatore', 'rajkot', 'ludhiana', 'jalandhar', 'guwahati', 'bhubaneswar', 'nashik'],
+    T3: ['agra', 'meerut', 'kanpur', 'varanasi', 'vijayawada', 'visakhapatnam', 'jodhpur', 'ranchi', 'amritsar', 'dehradun', 'hubballi', 'madurai', 'warangal', 'gwalior', 'prayagraj', 'bareilly'],
+    T4: ['ajmer', 'alwar', 'asansol', 'bathinda', 'bhagalpur', 'bhiwadi', 'hapur', 'haridwar', 'hisar', 'jhansi', 'kanchipuram', 'karnal', 'khammam', 'kota', 'kottayam', 'mathura', 'muzaffarpur', 'panchkula', 'patiala', 'pondicherry', 'rewari', 'roorkee', 'rudrapur', 'saharanpur', 'shillong', 'sonipat', 'udaipur', 'ujjain', 'vapi', 'vellore', 'vizianagaram', 'zirakpur', 'durg', 'eluru', 'gorakhpur', 'guntur']
 };
 
 const LatestOverivewCatCity = ({
     onViewTrends = () => { },
     onViewRca = () => { },
     kpis: propKpis = [],
+    loading = false,
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount' },
@@ -63,7 +66,12 @@ const LatestOverivewCatCity = ({
         selectedCategory,
         selectedLocation,
         timeStart,
-        timeEnd
+        timeEnd,
+        datesInitialized,
+        brands: contextBrands,
+        platforms: contextPlatforms,
+        categories: contextCategories,
+        locations: contextLocations,
     } = useContext(FilterContext);
 
     // ✅ Dimension + Tier State
@@ -81,103 +89,82 @@ const LatestOverivewCatCity = ({
         filterLogic: 'OR',
     })
 
-    // ✅ Entity list — ice cream categories & brands
-    const dimensionData = {
+    // ✅ Entity list — dynamically built from FilterContext
+    const dimensionData = useMemo(() => ({
         category: {
             label: 'Category',
             icon: Grid3X3,
-            entities: [
-                { key: 'cassata', name: 'Cassata' },
-                { key: 'core_tubs', name: 'Core Tubs' },
-                { key: 'cup', name: 'Cup' },
-                { key: 'sandwich', name: 'Sandwich' },
-                { key: 'stick', name: 'Stick / Bar' },
-                // { key: 'cone', name: 'Cone' },
-            ]
+            entities: (contextCategories || []).filter(c => c && c !== 'All').map(c => ({
+                key: c.toLowerCase().replace(/\s+/g, '_'),
+                name: c,
+            })),
         },
         city: {
             label: 'City',
             icon: MapPin,
-            entities: [
-                { key: 'mumbai', name: 'Mumbai' },
-                { key: 'delhi', name: 'Delhi NCR' },
-                { key: 'bangalore', name: 'Bengaluru' },
-                { key: 'kolkata', name: 'Kolkata' },
-                { key: 'hyderabad', name: 'Hyderabad' },
-                { key: 'ahmedabad', name: 'Ahmedabad' },
-                { key: 'pune', name: 'Pune' },
-                { key: 'chennai', name: 'Chennai' },
-                { key: 'lucknow', name: 'Lucknow' },
-                { key: 'jaipur', name: 'Jaipur' },
-                { key: 'patna', name: 'Patna' },
-                { key: 'indore', name: 'Indore' },
-                { key: 'bhopal', name: 'Bhopal' },
-                { key: 'chandigarh', name: 'Chandigarh' },
-                { key: 'ranchi', name: 'Ranchi' },
-                { key: 'varanasi', name: 'Varanasi' },
-                { key: 'kanpur', name: 'Kanpur' },
-                { key: 'meerut', name: 'Meerut' },
-                { key: 'agra', name: 'Agra' },
-                { key: 'noida', name: 'Noida' },
-            ]
+            entities: (contextLocations || []).filter(l => l && l !== 'All').map(l => ({
+                key: l.toLowerCase().replace(/\s+/g, '_'),
+                name: l,
+            })),
         },
-    }
+    }), [contextCategories, contextLocations]);
+
+    // Dynamic options for AdvancedFilterModal dropdowns
+    const brandOptions = useMemo(() =>
+        (contextBrands || []).filter(b => b && b !== 'All').map(b => ({ id: b.toLowerCase().replace(/\s+/g, '_'), name: b })),
+        [contextBrands]
+    );
+    const platformOptions = useMemo(() =>
+        (contextPlatforms || []).filter(p => p && p !== 'All').map(p => ({ id: p.toLowerCase().replace(/\s+/g, '_'), name: p })),
+        [contextPlatforms]
+    );
 
 
-    // ✅ Mock generator (same pattern as your existing logic)
-    function generateEntityData(entityKey, entityIdx, context, currentDimensionKey) {
-        const data = {}
+    const [apiData, setApiData] = useState([])
+    const [isLoading, setIsLoading] = useState(true)
+    const skuOptions = useMemo(() =>
+        apiData.map(item => ({ id: item.key, name: item.name })).filter(s => s.name),
+        [apiData]
+    );
 
-        kpis.forEach((kpi) => {
-            const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
-            const base = getLogicalKpiValue(kpi.key, seed);
-            const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
+    useEffect(() => {
+        if (!datesInitialized) return;
+        let isMounted = true;
+        const toParam = (val) => {
+            if (!val) return null;
+            if (Array.isArray(val)) return val.length > 0 ? val.join(',') : null;
+            return val; // already a string
+        };
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const params = new URLSearchParams();
+                // Note: skip channel filter - rb_pdp_olap.CHANNEL values differ from global filter values
+                const pl = toParam(globalPlatform); if (pl) params.append('platform', pl);
+                const br = toParam(selectedBrand); if (br) params.append('brand', br);
+                const ca = toParam(selectedCategory); if (ca) params.append('category', ca);
+                const lo = toParam(selectedLocation); if (lo) params.append('location', lo);
 
-            let value, deltaVal;
+                params.append('dimension', dimension);
+                if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
+                if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
 
-            switch (kpi.key) {
-                case 'discount': {
-                    // 5% - 30%
-                    const v = 5 + (base % 26);
-                    value = `${v.toFixed(1)}%`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break;
+                const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
+                console.log('[CategoryOverview] Fetching:', url);
+                const response = await axiosInstance.get(url);
+                console.log('[CategoryOverview] Response:', response.data?.success, 'rows:', response.data?.data?.length);
+                if (isMounted && response.data?.success) {
+                    setApiData(response.data.data);
                 }
-                case 'pricePerUnit': {
-                    // ₹80 - ₹399
-                    const v = 80 + (base % 320);
-                    value = `₹${v.toFixed(2)}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break;
-                }
-                case 'rpi': {
-                    // 1.5 - 7.5
-                    const v = 1.5 + ((base % 61) / 10);
-                    value = `${v.toFixed(1)}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}%`
-                    break;
-                }
-                case 'asp': {
-                    // ₹60 - ₹349
-                    const v = 60 + (base % 290);
-                    value = `₹${v.toFixed(2)}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break;
-                }
-                default: {
-                    value = `${base}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                }
+            } catch (error) {
+                console.error("[CategoryOverview] Failed to fetch:", error);
+            } finally {
+                if (isMounted) setIsLoading(false);
             }
-
-            data[kpi.key] = {
-                value,
-                delta: { value: deltaVal, dir: isUp ? 'up' : 'down' }
-            }
-        })
-
-        return data
-    }
+        };
+        fetchData();
+        return () => { isMounted = false; };
+    }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized]);
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -194,35 +181,57 @@ const LatestOverivewCatCity = ({
     const kpiCount = selectedKpis.length
 
     const entities = useMemo(() => {
-        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
+        let list = [...apiData];
 
-        let list = currentDimension.entities.slice()
-
-        // Apply dimension-specific advanced filters
+        // Apply dimension-specific advanced filters locally
         if (dimension === 'category' && advancedFilters.categories?.length > 0) {
-            list = list.filter(e => advancedFilters.categories.includes(e.key))
+            list = list.filter(e => advancedFilters.categories.includes(e.key));
         }
         if (dimension === 'city') {
-            // Apply Tier filter first
-            const tierCities = CITY_TIERS[selectedTier] || []
-            list = list.filter(e => tierCities.includes(e.key))
+            // Apply Tier filter first (using lowercase for robust comparison)
+            const tierCities = CITY_TIERS[selectedTier] || [];
+            list = list.filter(e => tierCities.includes(e.key));
 
             // Then apply advanced filters if any
             if (advancedFilters.cities?.length > 0) {
-                list = list.filter(e => advancedFilters.cities.includes(e.key))
+                list = list.filter(e => advancedFilters.cities.includes(e.key));
             }
         }
 
-        return list.map((e, idx) => ({
-            ...e,
-            data: generateEntityData(e.key, idx, context, dimension)
-        }))
-    }, [
-        currentDimension,
-        selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd,
-        advancedFilters,
-        dimension
-    ])
+        // Format to match the component's expected display formatting
+        return list.map((e) => {
+            const formattedData = {};
+            kpis.forEach(kpi => {
+                const cell = e.data[kpi.key];
+                if (cell) {
+                    let valStr = cell.value;
+                    let deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`;
+
+                    if (kpi.key === 'discount') {
+                        valStr = `${cell.value.toFixed(1)}%`;
+                    } else if (kpi.key === 'pricePerUnit' || kpi.key === 'asp') {
+                        valStr = `₹${cell.value.toFixed(2)}`;
+                    } else if (kpi.key === 'rpi') {
+                        valStr = `${cell.value.toFixed(1)}`;
+                        deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%`;
+                    } else {
+                        valStr = cell.value.toFixed(2);
+                    }
+
+                    formattedData[kpi.key] = {
+                        value: valStr,
+                        delta: { value: deltaStr, dir: cell.dir }
+                    };
+                } else {
+                    formattedData[kpi.key] = { value: '-', delta: { value: '-', dir: 'neutral' } };
+                }
+            });
+            return {
+                ...e,
+                data: formattedData
+            };
+        });
+    }, [apiData, dimension, advancedFilters, selectedTier, kpis]);
 
     const SectionWrapper = ({
         title,
@@ -383,7 +392,25 @@ const LatestOverivewCatCity = ({
 
                             {/* Rows */}
                             <div className="space-y-3 px-1">
-                                {entities.map((e) => (
+                                {isLoading ? (
+                                    Array(5).fill(0).map((_, i) => (
+                                        <div key={i} className="flex items-center gap-2 p-2 rounded-xl">
+                                            <div className="w-56 flex-shrink-0 flex items-center gap-2 h-10 pr-4">
+                                                <Skeleton variant="text" width="80%" height={24} />
+                                            </div>
+                                            {selectedKpis.map(kpi => (
+                                                <div key={kpi.key} className={cn("flex-1 px-3", cardSize.minW, cardSize.py)}>
+                                                    <Skeleton variant="rounded" width="100%" height={48} className="rounded-xl" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))
+                                ) : entities.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center p-8 text-slate-500">
+                                        <Grid3X3 size={32} className="text-slate-300 mb-2" />
+                                        <p className="text-sm font-medium">No data available for the selected filters.</p>
+                                    </div>
+                                ) : entities.map((e) => (
                                     <motion.div
                                         key={e.key}
                                         className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
@@ -404,7 +431,7 @@ const LatestOverivewCatCity = ({
                                                 <button
                                                     onClick={(evt) => {
                                                         evt.stopPropagation();
-                                                        onViewTrends(e.name, dimensionData[dimension].label);
+                                                        onViewTrends(e.name, dimensionData[dimension].label, dimension);
                                                     }}
                                                     className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
                                                     title={`View ${e.name} Trend`}
@@ -495,27 +522,19 @@ const LatestOverivewCatCity = ({
                 </SectionWrapper>
             </div>
 
-            {/* AdvancedFilterModal (kept same; just pass category+city options) */}
-            {(() => {
-                const categoryOptions = (dimensionData.category?.entities || []).map(e => ({ id: e.key, name: e.name }))
-                const cityOptions = (dimensionData.city?.entities || []).map(e => ({ id: e.key, name: e.name }))
-
-                return (
-                    <AdvancedFilterModal
-                        isOpen={isFilterModalOpen}
-                        onClose={() => setIsFilterModalOpen(false)}
-                        filters={advancedFilters}
-                        onApply={handleApplyFilters}
-                        currentDimension={dimension}
-                        brands={[]}               // not used now
-                        categories={categoryOptions}
-                        platforms={[]}            // not used now
-                        skus={[]}                 // not used now
-                        cities={cityOptions}      // ✅ if your modal supports cities
-                        kpiOptions={kpis}
-                    />
-                )
-            })()}
+            {/* AdvancedFilterModal — fully dynamic from FilterContext + API */}
+            <AdvancedFilterModal
+                isOpen={isFilterModalOpen}
+                onClose={() => setIsFilterModalOpen(false)}
+                filters={advancedFilters}
+                onApply={handleApplyFilters}
+                currentDimension={dimension}
+                brands={brandOptions}
+                categories={(dimensionData.category?.entities || []).map(e => ({ id: e.key, name: e.name }))}
+                platforms={platformOptions}
+                skus={skuOptions}
+                kpiOptions={kpis}
+            />
         </>
     )
 }
