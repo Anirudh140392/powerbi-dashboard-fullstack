@@ -151,7 +151,9 @@ const PlatformOverviewNew = ({
         timeStart,
         timeEnd,
         compareStart,
-        compareEnd
+        compareEnd,
+        datesFetched,
+        platformsFetched
     } = useContext(FilterContext);
 
     const kpis = [
@@ -279,8 +281,17 @@ const PlatformOverviewNew = ({
     }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, advancedFilters])
 
     useEffect(() => {
-        fetchDimensionData()
-    }, [fetchDimensionData])
+        if (!datesFetched || !platformsFetched) {
+            console.log("[PlatformOverviewNew] Waiting for context to initialize dates/platforms...");
+            return;
+        }
+
+        const debounceTimer = setTimeout(() => {
+            fetchDimensionData()
+        }, 500);
+
+        return () => clearTimeout(debounceTimer);
+    }, [fetchDimensionData, datesFetched, platformsFetched])
 
     // Retry function for error state
     const retryFetch = async () => {

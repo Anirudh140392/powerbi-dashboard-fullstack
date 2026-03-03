@@ -48,11 +48,17 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         return values;
     };
 
-    const sparklineData = data?.trend?.map(t => t.value) || generateDefaultSparkline(overallValue / 100000);
-    const sparklineMonths = data?.trend?.map(t => t.date) || defaultMonths;
+    const sparklineData = (data?.trend?.length >= 1) ? data.trend.map(t => t.value) : generateDefaultSparkline(overallValue / 100000);
+    const sparklineMonths = (data?.trend?.length >= 1) ? data.trend.map(t => t.date) : defaultMonths;
 
-    const mtdSparklineData = data?.mtdTrend?.map(t => t.value) || generateDefaultSparkline(mtdValue / 100000, 0.12);
-    const mtdSparklineMonths = data?.mtdTrend?.map(t => t.date) || defaultMonths;
+    const mtdSparklineData = (data?.mtdTrend?.length >= 1) ? data.mtdTrend.map(t => t.value) : generateDefaultSparkline(mtdValue / 100000, 0.12);
+    const mtdSparklineMonths = (data?.mtdTrend?.length >= 1) ? data.mtdTrend.map(t => t.date) : defaultMonths;
+
+    const drrSparklineData = (data?.drrTrend?.length >= 1) ? data.drrTrend.map(t => t.value) : generateDefaultSparkline(drrValue / 100000, 0.08);
+    const drrSparklineMonths = (data?.drrTrend?.length >= 1) ? data.drrTrend.map(t => t.date) : defaultMonths;
+
+    const projSparklineData = (data?.projectedTrend?.length >= 1) ? data.projectedTrend.map(t => t.value) : generateDefaultSparkline(projectedValue / 100000, 0.1);
+    const projSparklineMonths = (data?.projectedTrend?.length >= 1) ? data.projectedTrend.map(t => t.date) : defaultMonths;
 
     // Helper for formatting large numbers in Indian system (Lakh/Crore)
     const formatValue = (val) => {
@@ -104,6 +110,7 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
             change: changeText,
             changeColor: changeColor,
             prevText: changePerc !== null ? "vs Prev Period" : "",
+            extra: data?.actualDataDays ? `${data.actualDataDays} days with data` : "",
             sparklineData: sparklineData,
             months: sparklineMonths
         },
@@ -113,7 +120,7 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
             loading: loading,
             change: mtdChangeText,
             changeColor: mtdChangeColor,
-            prevText: mtdChangePerc !== null ? "vs Last Month" : "",
+            prevText: mtdChangePerc !== null ? "vs Prev Period" : "",
             extra: `Daily Average: ₹${formatValue(drrValue)}`,
             extraChange: "",
             extraChangeColor: "",
@@ -127,11 +134,13 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
             change: drrChangeText,
             changeColor: drrChangeColor,
             prevText: drrChangePerc !== null ? "vs Prev Period" : "",
-            extra: "Req. Run Rate: ₹80 Cr",
-            extraChange: "▼5%",
-            extraChangeColor: "#dc3545",
-            sparklineData: sparklineData,
-            months: sparklineMonths
+            extra: data?.reqRunRate ? `Req. Run Rate: ₹${formatValue(data.reqRunRate)}` : "",
+            extraChange: data?.reqRunRateGap !== null && data?.reqRunRateGap !== undefined
+                ? `${data.reqRunRateGap >= 0 ? '▲' : '▼'}${Math.abs(data.reqRunRateGap).toFixed(0)}%`
+                : "",
+            extraChangeColor: data?.reqRunRateGap >= 0 ? "#dc3545" : "#28a745",
+            sparklineData: drrSparklineData,
+            months: drrSparklineMonths
         },
         {
             title: "Projected Sales",
@@ -141,10 +150,12 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
             changeColor: projChangeColor,
             prevText: projChangePerc !== null ? "vs Last Month" : "",
             extra: "Forecast Accuracy",
-            extraChange: "98%",
-            extraChangeColor: "#28a745",
-            sparklineData: mtdSparklineData,
-            months: mtdSparklineMonths
+            extraChange: data?.forecastAccuracy !== null && data?.forecastAccuracy !== undefined
+                ? `${data.forecastAccuracy.toFixed(0)}%`
+                : "",
+            extraChangeColor: data?.forecastAccuracy >= 90 && data?.forecastAccuracy <= 110 ? "#28a745" : "#dc3545",
+            sparklineData: projSparklineData,
+            months: projSparklineMonths
         }
     ];
 
