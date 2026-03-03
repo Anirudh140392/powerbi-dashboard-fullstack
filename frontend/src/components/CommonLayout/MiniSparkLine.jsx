@@ -1,8 +1,22 @@
 import { Box, Typography } from "@mui/material";
 import { useState, useMemo } from "react";
 
-export default function MiniSparkline({ months, values, color, title = "" }) {
+export default function MiniSparkline({ months: rawMonths, values: rawValues, color, title = "" }) {
   const [hover, setHover] = useState(null);
+
+  // Pad single/double-point sparklines with a flat line so they don't look weird
+  const { months, values } = useMemo(() => {
+    if (!rawValues || rawValues.length === 0) return { months: rawMonths, values: rawValues };
+    if (rawValues.length >= 3) return { months: rawMonths, values: rawValues };
+
+    if (rawValues.length === 1) {
+      return {
+        months: ['', rawMonths?.[0] || '', ''],
+        values: [rawValues[0], rawValues[0], rawValues[0]]
+      };
+    }
+    return { months: rawMonths, values: rawValues };
+  }, [rawMonths, rawValues]);
 
   // Helper to format values in Indian format (K, Lacs, Cr) or with units
   const formatTooltipValue = (val) => {
@@ -89,13 +103,13 @@ export default function MiniSparkline({ months, values, color, title = "" }) {
       </Box>
 
       {/* Dots Layer */}
-      {normalizedValues.length <= 40 && normalizedValues.map((v, i) => {
+      {normalizedValues.map((v, i) => {
         const x = (i / (normalizedValues.length - 1 || 1)) * 100;
         const y = 100 - v;
 
         return (
           <Box key={i}>
-            {hover === i && (
+            {hover === i && months[i] && (
               <Box
                 sx={{
                   position: "absolute",
@@ -123,8 +137,8 @@ export default function MiniSparkline({ months, values, color, title = "" }) {
                 position: "absolute",
                 left: `${x}%`,
                 top: `${y}%`,
-                width: hover === i ? 8 : 6,
-                height: hover === i ? 8 : 6,
+                width: hover === i ? 8 : (normalizedValues.length > 30 ? 4 : 6),
+                height: hover === i ? 8 : (normalizedValues.length > 30 ? 4 : 6),
                 borderRadius: "50%",
                 backgroundColor: hover === i ? color : "white",
                 border: `2px solid ${color}`,

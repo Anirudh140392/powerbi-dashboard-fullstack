@@ -77,7 +77,7 @@ const METRIC_HEADERS = [
 ];
 
 // -------------- COMPONENT -----------------
-export default function DrillDownSalesTable({ startDate, endDate, brand }) {
+export default function DrillDownSalesTable({ startDate, endDate, compareStartDate, compareEndDate, platform: globalPlatform, brand, location: globalLocation }) {
     const { refreshFilters } = React.useContext(FilterContext);
     const [hierarchyData, setHierarchyData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -94,7 +94,7 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
         setLoading(true);
         setApiError(null);
         try {
-            const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand });
+            const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand, platform: globalPlatform, location: globalLocation });
             const formatted = data.map(item => ({
                 id: item.name.toLowerCase(),
                 name: item.name,
@@ -123,7 +123,8 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
 
     React.useEffect(() => {
         loadPlatforms();
-    }, [startDate, endDate, brand]);
+        setExpanded(new Set()); // Reset expanded nodes when filters change
+    }, [startDate, endDate, brand, globalPlatform, globalLocation]);
 
     const toggleExpand = async (key, row) => {
         const isCurrentlyExpanded = expanded.has(key);
@@ -139,11 +140,11 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
 
                     if (row.type === 'platform') {
                         levelToFetch = 'region';
-                        params = { level: 'region', platform: row.name, startDate, endDate, brand };
+                        params = { level: 'region', platform: row.name, startDate, endDate, brand, location: globalLocation };
                     } else if (row.type === 'region') {
                         levelToFetch = 'city';
                         const platformName = row.path[0];
-                        params = { level: 'city', platform: platformName, region: row.name, startDate, endDate, brand };
+                        params = { level: 'city', platform: platformName, region: row.name, startDate, endDate, brand, location: globalLocation };
                     } else if (row.type === 'city') {
                         levelToFetch = 'category';
                         const platformName = row.path[0];
