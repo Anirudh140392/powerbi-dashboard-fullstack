@@ -4,7 +4,7 @@ import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Cale
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
-const AUTH_TOKEN_KEY = "adsauto_auth_token";
+const AUTH_TOKEN_KEY = "token";
 
 const ThemeContext = createContext({ darkMode: false });
 const FiltersContext = createContext({ filters: { platform: [] } });
@@ -27,9 +27,10 @@ function buildUrl(endpoint) {
     return `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
 }
 function handleUnauthorized() {
+    localStorage.removeItem("isLoggedIn");
     localStorage.removeItem(AUTH_TOKEN_KEY);
-    const p = window.location.pathname;
-    if (p !== "/login") window.location.href = `/login?redirect=${encodeURIComponent(p)}`;
+    localStorage.removeItem("user");
+    window.location.hash = "#/login";
 }
 async function authFetch(endpoint, options = {}) {
     const { skipContentType, skipAuth, ...fetchOptions } = options;
