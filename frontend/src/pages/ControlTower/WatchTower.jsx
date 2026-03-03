@@ -544,7 +544,7 @@ export default function WatchTower() {
             />
           </Box>
         </Box> */}
-        <Box
+        {/* <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 2,
@@ -553,7 +553,7 @@ export default function WatchTower() {
           }}
         >
           <TopActionsLayoutsShowcase />
-        </Box>
+        </Box> */}
         {/* Category / SKU Tabs */}
         <Box
           sx={{
