@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useCallback } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import { Box, Typography } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import SalesSummaryCards from "./SalesSummaryCards";
@@ -98,21 +99,27 @@ export default function SalesMainPage() {
       setApiErrors(prev => ({ ...prev, overview: null }));
       setLoading(true);
 
-      const queryParams = buildQueryParams();
-      const response = await fetch(`/api/sales/overview?${queryParams}`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      setSummaryData(data);
+      const params = {
+        platform: formatFilter(platform),
+        brand: formatFilter(selectedBrand),
+        location: formatFilter(selectedLocation),
+        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
+        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
+        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
+        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
+      };
+      const response = await axiosInstance.get("/sales/overview", { params, signal });
+      setSummaryData(response.data);
       return true;
     } catch (error) {
-      if (error.name === 'AbortError') return false;
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return false;
       console.error("Error fetching sales overview:", error);
       setApiErrors(prev => ({ ...prev, overview: error.message }));
       return false;
     } finally {
       setLoading(false);
     }
-  }, [buildQueryParams]);
+  }, [buildQueryParams, platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, formatFilter]);
 
   // Retry handler for overview segment
   const retrySegment = useCallback(async (segmentKey) => {
