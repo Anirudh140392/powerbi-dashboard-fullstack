@@ -282,7 +282,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
                     <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
                         <DeltaIcon size={10} strokeWidth={3} />
-                        <span className="text-[10px] font-bold">{deltaLabel}</span>
+                        <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
                 </div>
 
@@ -820,7 +820,7 @@ const SnapshotOverview = ({
                                     <Box sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: 'white', display: 'flex', alignItems: 'center', justifyItems: 'center', pl: 0.6, border: '1px solid #cffafe' }}>
                                         <Zap size={16} className="text-orange-500 fill-orange-500/20" />
                                     </Box>
-                                    <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Actionable Intelligence</h3>
+                                    <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     {performanceLoading ? (
