@@ -13,6 +13,16 @@ const formatParams = (params) => {
     return formatted;
 };
 
+export const fetchSalesOverview = async (params) => {
+    try {
+        const response = await axiosInstance.get("/sales/overview", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchSalesOverview error:", error);
+        throw error;
+    }
+};
+
 export const fetchSalesDrilldown = async (params) => {
     try {
         const response = await axiosInstance.get("/sales/drilldown", { params: formatParams(params) });

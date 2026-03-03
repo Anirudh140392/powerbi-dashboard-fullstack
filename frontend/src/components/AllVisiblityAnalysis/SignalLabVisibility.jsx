@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useContext, useEffect } from "react";
+import React, { useState, useMemo, useContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import { fetchVisibilitySignals } from "../../api/signalLabService";
 import {
     X,
     SlidersHorizontal,
@@ -1276,59 +1277,100 @@ function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [apiSignals, setApiSignals] = useState([]);
+    const [apiError, setApiError] = useState(null);
 
     const {
         platform: globalPlatform,
         selectedCategory,
-        selectedLocation
+        selectedLocation,
+        timeStart,
+        timeEnd,
+        compareStart,
+        compareEnd
     } = useContext(FilterContext);
 
     const [rowsPerPage, setRowsPerPage] = useState(4);
     const [page, setPage] = useState(1);
 
-    // Simulated loading delay on filter change
+    // Helper: normalize "All" / empty / array platform to clean value
+    const normalizePlatform = useCallback((val) => {
+        if (!val || val === 'All') return '';
+        if (Array.isArray(val)) {
+            const filtered = val.filter(v => v && v !== 'All');
+            return filtered.length > 0 ? filtered.join(',') : '';
+        }
+        return val;
+    }, []);
+
+    const normalizeLocation = useCallback((val) => {
+        if (!val || val === 'All') return '';
+        if (Array.isArray(val)) {
+            const filtered = val.filter(v => v && v !== 'All');
+            return filtered.length > 0 ? filtered.join(',') : '';
+        }
+        return val;
+    }, []);
+
+    /**
+     * Map backend signal to the card format expected by SignalCard
+     */
+    const mapSignalToCard = useCallback((signal) => {
+        return {
+            id: signal.id,
+            type: signal.type,
+            metricType: 'visibility',
+            skuCode: signal.keyword || signal.skuCode || signal.id,
+            skuName: signal.keyword || signal.skuName || 'Unknown',
+            packSize: signal.level === 'keyword' ? 'Keyword' : 'SKU',
+            platform: signal.platform || 'All',
+            categoryTag: signal.level === 'keyword' ? 'Keyword' : 'SKU',
+            offtakeValue: signal.kpis?.overallSos || '0%',
+            impact: signal.impact || '0%',
+            kpis: signal.kpis || {},
+            topCities: (signal.cities || []).map(c => ({
+                city: c.city,
+                metric: c.metric,
+                change: c.change
+            }))
+        };
+    }, []);
+
+    // Fetch live data from backend for ALL tabs
     useEffect(() => {
         setIsLoading(true);
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 600);
-        return () => clearTimeout(timer);
-    }, [globalPlatform, selectedCategory, selectedLocation, signalType]);
+        setApiError(null);
+        setPage(1);
 
+        const loadSignals = async () => {
+            try {
+                const data = await fetchVisibilitySignals({
+                    level: 'keyword',
+                    signalType: signalType,
+                    platform: normalizePlatform(globalPlatform),
+                    location: normalizeLocation(selectedLocation),
+                    startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
+                    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
+                    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
+                    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : ''
+                });
+                const signals = (data.signals || []).map(s => mapSignalToCard(s));
+                setApiSignals(signals);
+            } catch (err) {
+                console.error('Failed to fetch signals:', err);
+                setApiError(err.message || 'Failed to load signals');
+                setApiSignals([]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadSignals();
+    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, normalizePlatform, normalizeLocation, mapSignalToCard]);
+
+    // Use API data for all tabs
     const filtered = useMemo(() => {
-        return SAMPLE_SKUS.filter((sku) => {
-            const matchesMetric = sku.metricType === metricType;
-            const matchesSignal = sku.type === signalType;
-
-            // Platform Filter
-            const matchesPlatform = !globalPlatform || (
-                Array.isArray(globalPlatform)
-                    ? globalPlatform.some(p => sku.platform.toLowerCase() === String(p).toLowerCase())
-                    : sku.platform.toLowerCase() === String(globalPlatform).toLowerCase()
-            );
-
-            // Category Filter (with mapping)
-            const catMap = { "Core Tub": "Tub" };
-            const matchesCategory = !selectedCategory || selectedCategory === "All" || (
-                Array.isArray(selectedCategory)
-                    ? selectedCategory.some(cat => (catMap[cat] || String(cat)).toLowerCase() === sku.categoryTag.toLowerCase())
-                    : (catMap[selectedCategory] || String(selectedCategory)).toLowerCase() === sku.categoryTag.toLowerCase()
-            );
-
-            // Location Filter: Only filter if selectedLocation is NOT "All" and NOT null/undefined
-            const matchesLocation = !selectedLocation || selectedLocation === "All" || (
-                Array.isArray(selectedLocation)
-                    ? selectedLocation.some(loc => sku.topCities.some(c => c.city.toLowerCase() === String(loc).toLowerCase()))
-                    : sku.topCities.some(c => c.city.toLowerCase() === String(selectedLocation).toLowerCase())
-            );
-
-            // Platform and Category filters are already safe. 
-            // We want to make sure if no category matches, we are not empty if the user didn't explicitly select something other than default.
-            // But actually fixing the data is better.
-
-            return matchesMetric && matchesSignal && matchesPlatform && matchesCategory && matchesLocation;
-        });
-    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation]);
+        return apiSignals;
+    }, [apiSignals]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
