@@ -149,7 +149,9 @@ const PlatformOverviewNew = ({
         selectedLocation,
         platforms: globalPlatforms,
         timeStart,
-        timeEnd
+        timeEnd,
+        compareStart,
+        compareEnd
     } = useContext(FilterContext);
 
     const kpis = [
@@ -250,6 +252,8 @@ const PlatformOverviewNew = ({
                 location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
                 startDate: reqStartDate,
                 endDate: reqEndDate,
+                compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+                compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
                 channel: selectedChannel || undefined,
                 skuName: skuNameParam,
                 skuCode: skuCodeParam,
@@ -272,7 +276,7 @@ const PlatformOverviewNew = ({
         } finally {
             setApiLoading(false)
         }
-    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters])
+    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, advancedFilters])
 
     useEffect(() => {
         fetchDimensionData()
