@@ -69,14 +69,14 @@ const LoginPage = () => {
         // Start a 2-second timer
         const timer = new Promise((resolve) => setTimeout(resolve, 2000));
 
-        const success = await login({ email, password });
+        const result = await login({ email, password });
 
-        if (success) {
+        if (result.success) {
             // Wait for the timer to finish before navigating
             await timer;
             navigate("/watch-tower", { replace: true });
         } else {
-            setError("Invalid email or password. Use admin@trailytics.com / admin123");
+            setError(result.error || "Invalid email or password");
             setLoading(false);
         }
     };

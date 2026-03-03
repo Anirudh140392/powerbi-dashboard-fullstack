@@ -3,6 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coords
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import axiosInstance from "../../api/axiosInstance";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -44,13 +45,11 @@ export default function GeoIntelligenceMap() {
     useEffect(() => {
         const fetchPlatforms = async () => {
             try {
-                const response = await fetch('/api/watchtower/platforms');
-                if (response.ok) {
-                    const data = await response.json();
-                    setPlatforms(data || []);
-                    if (data && data.length > 0 && !data.includes(platform)) {
-                        setPlatform(data[0]);
-                    }
+                const res = await axiosInstance.get('/watchtower/platforms');
+                const data = res.data;
+                setPlatforms(data || []);
+                if (data && data.length > 0 && !data.includes(platform)) {
+                    setPlatform(data[0]);
                 }
             } catch (error) {
                 console.error('[MapIntellect] Failed to fetch platforms:', error);
@@ -89,10 +88,8 @@ export default function GeoIntelligenceMap() {
                     params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
                 }
 
-                const response = await fetch(`/api/map-intellect/data?${params}`);
-                if (!response.ok) throw new Error(`API error: ${response.status}`);
-                const result = await response.json();
-                setApiData(result.cities || []);
+                const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
+                setApiData(res.data?.cities || []);
             } catch (error) {
                 console.error('[MapIntellect] Failed to fetch data:', error);
                 setApiData([]);

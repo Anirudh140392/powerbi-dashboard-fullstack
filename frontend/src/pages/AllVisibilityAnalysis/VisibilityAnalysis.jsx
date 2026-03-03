@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import VisiblityAnalysisData from "../../components/AllVisiblityAnalysis/VisiblityAnalysisData";
 import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 import dayjs from "dayjs";
 
 export default function VisibilityAnalysis() {
@@ -43,8 +44,8 @@ export default function VisibilityAnalysis() {
     const fetchVisibilityDates = async () => {
       try {
         console.log('🗓️ [Visibility] Fetching latest available dates from rb_kw table...');
-        const response = await fetch('/api/visibility-analysis/latest-available-dates');
-        const data = await response.json();
+        const response = await axiosInstance.get('/visibility-analysis/latest-available-dates');
+        const data = response.data;
 
         let startDate, endDate;
         if (data.available) {
@@ -138,9 +139,8 @@ export default function VisibilityAnalysis() {
   const fetchVisibilityOverview = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, overview: null }));
-      const res = await fetch(`/api/visibility-analysis/visibility-overview?${queryParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/visibility-overview?${queryParams}`);
+      const data = res.data;
       setApiData(prev => ({ ...prev, overview: data }));
       return true;
     } catch (err) {
@@ -153,9 +153,8 @@ export default function VisibilityAnalysis() {
   const fetchVisibilityMatrix = async (matrixParams) => {
     try {
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      const res = await fetch(`/api/visibility-analysis/platform-kpi-matrix?${matrixParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`);
+      const data = res.data;
       setApiData(prev => ({ ...prev, matrix: data }));
       return true;
     } catch (err) {
@@ -168,9 +167,8 @@ export default function VisibilityAnalysis() {
   const fetchVisibilityKeywords = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, keywords: null }));
-      const res = await fetch(`/api/visibility-analysis/keywords-at-glance?${queryParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/keywords-at-glance?${queryParams}`);
+      const data = res.data;
       setApiData(prev => ({ ...prev, keywords: data }));
       return true;
     } catch (err) {
@@ -183,9 +181,8 @@ export default function VisibilityAnalysis() {
   const fetchVisibilitySearchTerms = async (termsParams) => {
     try {
       setApiErrors(prev => ({ ...prev, searchTerms: null }));
-      const res = await fetch(`/api/visibility-analysis/top-search-terms?${termsParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/top-search-terms?${termsParams}`);
+      const data = res.data;
       setApiData(prev => ({ ...prev, searchTerms: data }));
       return true;
     } catch (err) {
