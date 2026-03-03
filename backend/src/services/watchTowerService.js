@@ -4859,6 +4859,72 @@ const getPlatformOverview = async (filters) => {
         })
     });
 
+    // ===== SYNC All row % changes with Watch Tower Overview =====
+    // The Watch Tower Overview (computeSummaryMetrics) and Platform Overview compute
+    // metrics via separate queries. To guarantee the "All" row shows identical % changes,
+    // call computeSummaryMetrics and overlay its change values onto the All row's columns.
+    try {
+        console.log('[getPlatformOverview] Syncing All row % changes with Watch Tower Overview...');
+        const overviewResult = await computeSummaryMetrics(filters, { onlyOverview: true, skipPerformanceKpis: true });
+        const topMetrics = overviewResult.topMetrics || [];
+
+        // Build a map from metric name -> { trend, trendType }
+        const overviewChangeMap = {};
+        topMetrics.forEach(m => {
+            overviewChangeMap[m.name] = { trend: m.trend, trendType: m.trendType };
+        });
+
+        // Map Watch Tower Overview metric names to Platform Overview column titles
+        const nameToTitle = {
+            'Offtake': 'Offtakes',
+            'Availability': 'Availability',
+            'Share of Search': 'SOS',
+            'Market Share': 'Market Share',
+            'Promo': 'Promo My Brand'
+        };
+
+        // Override the "All" row's change values
+        const allRow = platformOverview[0];
+        if (allRow && allRow.key === 'all' && allRow.columns) {
+            for (const [overviewName, colTitle] of Object.entries(nameToTitle)) {
+                const overviewMetric = overviewChangeMap[overviewName];
+                if (!overviewMetric) continue;
+
+                const col = allRow.columns.find(c => c.title === colTitle);
+                if (col && col.change) {
+                    col.change.text = overviewMetric.trend;
+                    col.change.positive = overviewMetric.trendType === 'positive';
+                }
+            }
+
+            // Also sync the Actionable Intelligence KPIs (Inorganic Sales, Conversion, ROAS, Orders)
+            // from the performanceMetricsKpis if available
+            const summaryMetrics = overviewResult.summaryMetrics || {};
+            // Update the All row's main values to also match the overview values
+            const offtakeCol = allRow.columns.find(c => c.title === 'Offtakes');
+            if (offtakeCol && summaryMetrics.offtakes) {
+                offtakeCol.value = summaryMetrics.offtakes;
+            }
+            const availCol = allRow.columns.find(c => c.title === 'Availability');
+            if (availCol && summaryMetrics.stockAvailability) {
+                availCol.value = summaryMetrics.stockAvailability;
+            }
+            const sosCol = allRow.columns.find(c => c.title === 'SOS');
+            if (sosCol && summaryMetrics.shareOfSearch) {
+                sosCol.value = summaryMetrics.shareOfSearch;
+            }
+            const msCol = allRow.columns.find(c => c.title === 'Market Share');
+            if (msCol && summaryMetrics.marketShare) {
+                msCol.value = summaryMetrics.marketShare;
+            }
+
+            console.log('[getPlatformOverview] All row synced with Watch Tower Overview successfully');
+        }
+    } catch (syncError) {
+        console.error('[getPlatformOverview] Failed to sync All row with Overview (non-fatal):', syncError.message);
+        // Non-fatal: the All row keeps its independently computed values
+    }
+
     // Process each platform from bulk data
     for (const p of platformDefinitions) {
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
