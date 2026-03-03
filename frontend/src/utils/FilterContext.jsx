@@ -22,6 +22,9 @@ const channelPlatformMap = {
 
 
 export const FilterProvider = ({ children }) => {
+    // Check if user is logged in (has a valid token) before making API calls
+    const isAuthenticated = !!localStorage.getItem('token');
+
     // Channel state
     const [channels] = useState(["Ecom", "ModernTrade"]);
     const [selectedChannel, setSelectedChannel] = useState("Ecom");
@@ -62,6 +65,10 @@ export const FilterProvider = ({ children }) => {
     // ====== FETCH LATEST DATES FROM DB (on mount) ======
     useEffect(() => {
         const fetchDates = async () => {
+            if (!isAuthenticated) {
+                setDatesFetched(true);
+                return;
+            }
             try {
                 const res = await axiosInstance.get('/watchtower/latest-available-month');
                 if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
@@ -88,6 +95,10 @@ export const FilterProvider = ({ children }) => {
 
     // ====== FETCH PLATFORMS FROM DB (on mount) ======
     const fetchPlatformsFromDb = useCallback(async () => {
+        if (!isAuthenticated) {
+            setPlatformsFetched(true);
+            return;
+        }
         try {
             const res = await axiosInstance.get("/watchtower/platforms");
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -125,9 +136,8 @@ export const FilterProvider = ({ children }) => {
     // Update platforms list when channel changes (filter the DB platforms by channel mapping)
     useEffect(() => {
         const filterPlatformsByChannel = async () => {
-            const selectedChannels = Array.isArray(selectedChannel) ? selectedChannel : [selectedChannel];
-
-            if (selectedChannels.includes("All")) {
+            if (!isAuthenticated) return;
+            if (selectedChannel === "All") {
                 // Fetch all platforms from DB
                 try {
                     const res = await axiosInstance.get("/watchtower/platforms");
@@ -197,6 +207,7 @@ export const FilterProvider = ({ children }) => {
     // ====== FETCH CATEGORIES FROM DB (when platform changes) ======
     useEffect(() => {
         const fetchCategories = async () => {
+            if (!isAuthenticated) return;
             try {
                 const res = await axiosInstance.get("/watchtower/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -231,6 +242,7 @@ export const FilterProvider = ({ children }) => {
     // ====== FETCH LOCATIONS FROM DB (when platform changes) ======
     useEffect(() => {
         const fetchLocations = async () => {
+            if (!isAuthenticated) return;
             try {
                 const res = await axiosInstance.get("/watchtower/locations", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -267,6 +279,7 @@ export const FilterProvider = ({ children }) => {
     // ====== FETCH BRANDS FROM DB (when platform changes) ======
     useEffect(() => {
         const fetchBrands = async () => {
+            if (!isAuthenticated) return;
             try {
                 const res = await axiosInstance.get("/watchtower/brands", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }

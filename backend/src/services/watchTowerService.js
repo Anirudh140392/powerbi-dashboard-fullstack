@@ -2487,10 +2487,54 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         let prevAllCpm = 0;
         let prevAllCpc = 0;
 
-        try {
-            // Helper to escape strings for ClickHouse
-            const escapeStr = (str) => (str && typeof str === 'string') ? str.replace(/'/g, "''") : (str || '');
+        // Helper to escape strings for ClickHouse (needed by both "All" metrics and per-platform promo calculations)
+        const escapeStr = (str) => (str && typeof str === 'string') ? str.replace(/'/g, "''") : (str || '');
 
+        // Helper for Promo Depth via ClickHouse (needed by both "All" metrics and per-platform loop)
+        const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
+            const dayjsStart = dayjs(startDt);
+            const dayjsEnd = dayjs(endDt);
+            const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
+            if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
+            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
+
+            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
+            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
+            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+
+
+            if (isCompete) {
+                conds.push(`Comp_flag = '1'`);
+                if (targetBrand && targetBrand !== 'All') {
+                    const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                    const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
+                    conds.push(`(${bNotConds})`);
+                }
+            } else {
+                conds.push(`Comp_flag = '0'`);
+                if (targetBrand && targetBrand !== 'All') {
+                    const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
+                    const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                    conds.push(`(${bConds})`);
+                }
+            }
+
+            const q = `
+                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
+                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
+                    FROM rb_pdp_olap
+                    WHERE ${conds.join(' AND ')}
+                `;
+            try {
+                const res = await queryClickHouse(q);
+                return parseFloat(res?.[0]?.avg_depth || 0) * 100;
+            } catch (e) {
+                console.error("Promo Depth CH Error:", e);
+                return 0;
+            }
+        };
+
+        try {
             // Build ClickHouse conditions for current period
             const buildAllConditions = (startDt, endDt) => {
                 const conditions = [`DATE BETWEEN '${startDt}' AND '${endDt}'`];
@@ -2521,51 +2565,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 return conditions.join(' AND ');
             };
-
-            // Helper for Promo Depth via ClickHouse
-            const getPromoDepthCH = async (startDt, endDt, targetBrand, isCompete = false, plat = null) => {
-                const dayjsStart = dayjs(startDt);
-                const dayjsEnd = dayjs(endDt);
-                const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
-                if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
-                if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
-
-                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
-
-
-                if (isCompete) {
-                    conds.push(`Comp_flag = '1'`);
-                    if (targetBrand && targetBrand !== 'All') {
-                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
-                        const bNotConds = bnds.map(b => `Brand NOT LIKE '%${escapeStr(b)}%'`).join(' AND ');
-                        conds.push(`(${bNotConds})`);
-                    }
-                } else {
-                    conds.push(`Comp_flag = '0'`);
-                    if (targetBrand && targetBrand !== 'All') {
-                        const bnds = Array.isArray(targetBrand) ? targetBrand : [targetBrand];
-                        const bConds = bnds.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
-                        conds.push(`(${bConds})`);
-                    }
-                }
-
-                const q = `
-                    SELECT avg(if(toFloat64OrZero(toString(MRP)) > 0, 
-                        (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) as avg_depth
-                    FROM rb_pdp_olap
-                    WHERE ${conds.join(' AND ')}
-                `;
-                try {
-                    const res = await queryClickHouse(q);
-                    return parseFloat(res?.[0]?.avg_depth || 0) * 100;
-                } catch (e) {
-                    console.error("Promo Depth CH Error:", e);
-                    return 0;
-                }
-            };
-
             const currConditions = buildAllConditions(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
             const prevConditions = buildAllConditions(allMomStart.format('YYYY-MM-DD'), allMomEnd.format('YYYY-MM-DD'));
 
@@ -4859,6 +4858,72 @@ const getPlatformOverview = async (filters) => {
             offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
         })
     });
+
+    // ===== SYNC All row % changes with Watch Tower Overview =====
+    // The Watch Tower Overview (computeSummaryMetrics) and Platform Overview compute
+    // metrics via separate queries. To guarantee the "All" row shows identical % changes,
+    // call computeSummaryMetrics and overlay its change values onto the All row's columns.
+    try {
+        console.log('[getPlatformOverview] Syncing All row % changes with Watch Tower Overview...');
+        const overviewResult = await computeSummaryMetrics(filters, { onlyOverview: true, skipPerformanceKpis: true });
+        const topMetrics = overviewResult.topMetrics || [];
+
+        // Build a map from metric name -> { trend, trendType }
+        const overviewChangeMap = {};
+        topMetrics.forEach(m => {
+            overviewChangeMap[m.name] = { trend: m.trend, trendType: m.trendType };
+        });
+
+        // Map Watch Tower Overview metric names to Platform Overview column titles
+        const nameToTitle = {
+            'Offtake': 'Offtakes',
+            'Availability': 'Availability',
+            'Share of Search': 'SOS',
+            'Market Share': 'Market Share',
+            'Promo': 'Promo My Brand'
+        };
+
+        // Override the "All" row's change values
+        const allRow = platformOverview[0];
+        if (allRow && allRow.key === 'all' && allRow.columns) {
+            for (const [overviewName, colTitle] of Object.entries(nameToTitle)) {
+                const overviewMetric = overviewChangeMap[overviewName];
+                if (!overviewMetric) continue;
+
+                const col = allRow.columns.find(c => c.title === colTitle);
+                if (col && col.change) {
+                    col.change.text = overviewMetric.trend;
+                    col.change.positive = overviewMetric.trendType === 'positive';
+                }
+            }
+
+            // Also sync the Actionable Intelligence KPIs (Inorganic Sales, Conversion, ROAS, Orders)
+            // from the performanceMetricsKpis if available
+            const summaryMetrics = overviewResult.summaryMetrics || {};
+            // Update the All row's main values to also match the overview values
+            const offtakeCol = allRow.columns.find(c => c.title === 'Offtakes');
+            if (offtakeCol && summaryMetrics.offtakes) {
+                offtakeCol.value = summaryMetrics.offtakes;
+            }
+            const availCol = allRow.columns.find(c => c.title === 'Availability');
+            if (availCol && summaryMetrics.stockAvailability) {
+                availCol.value = summaryMetrics.stockAvailability;
+            }
+            const sosCol = allRow.columns.find(c => c.title === 'SOS');
+            if (sosCol && summaryMetrics.shareOfSearch) {
+                sosCol.value = summaryMetrics.shareOfSearch;
+            }
+            const msCol = allRow.columns.find(c => c.title === 'Market Share');
+            if (msCol && summaryMetrics.marketShare) {
+                msCol.value = summaryMetrics.marketShare;
+            }
+
+            console.log('[getPlatformOverview] All row synced with Watch Tower Overview successfully');
+        }
+    } catch (syncError) {
+        console.error('[getPlatformOverview] Failed to sync All row with Overview (non-fatal):', syncError.message);
+        // Non-fatal: the All row keeps its independently computed values
+    }
 
     // Process each platform from bulk data
     for (const p of platformDefinitions) {
