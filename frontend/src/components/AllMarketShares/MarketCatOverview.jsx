@@ -93,50 +93,51 @@ const MarketCatOverview = ({
             const base = getLogicalKpiValue(kpi.key, seed);
             const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
 
-            let value, deltaVal;
+            let value, deltaVal, rawValue;
 
             switch (kpi.key) {
                 case 'categorySize': {
-                    const v = 50 + (base % 451);
-                    value = `₹ ${v.toFixed(2)} Cr`;
+                    rawValue = 50 + (base % 451);
+                    value = `₹ ${rawValue.toFixed(2)} Cr`;
                     const absChange = (getLogicalKpiValue(kpi.key + 'abs', seed) % 250) + 10;
                     const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
                     deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (₹${absChange.toFixed(2)} Cr)`;
                     break;
                 }
                 case 'mwMarketShare': {
-                    const v = 2 + (base % 34) / 10;
-                    value = `${v.toFixed(2)}%`;
+                    rawValue = 2 + (base % 34) / 10;
+                    value = `${rawValue.toFixed(2)}%`;
                     const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 80) / 10).toFixed(1);
                     const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
                     deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (${absChange}%)`;
                     break;
                 }
                 case 'mwSales': {
-                    const v = 1 + (base % 100) / 10;
-                    value = `₹ ${v.toFixed(2)} Cr`;
+                    rawValue = 1 + (base % 100) / 10;
+                    value = `₹ ${rawValue.toFixed(2)} Cr`;
                     const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 120) / 10).toFixed(2);
                     const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
                     deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (₹${absChange} Cr)`;
                     break;
                 }
                 case 'mlMarketShare': {
-                    const v = 30 + (base % 20) / 10;
-                    value = `${v.toFixed(2)}%`;
+                    rawValue = 30 + (base % 20) / 10;
+                    value = `${rawValue.toFixed(2)}%`;
                     const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 500) / 10).toFixed(1);
                     const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
                     deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (${absChange}%)`;
                     break;
                 }
                 case 'mlSales': {
-                    const v = 10 + (base % 200) / 10;
-                    value = `₹ ${v.toFixed(2)} Cr`;
+                    rawValue = 10 + (base % 200) / 10;
+                    value = `₹ ${rawValue.toFixed(2)} Cr`;
                     const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 100)).toFixed(2);
                     const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
                     deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (₹${absChange} Cr)`;
                     break;
                 }
                 default: {
+                    rawValue = base;
                     value = `${base}`;
                     deltaVal = `${isUp ? '▲' : '▼'} ${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`;
                 }
@@ -144,7 +145,8 @@ const MarketCatOverview = ({
 
             data[kpi.key] = {
                 value,
-                delta: { value: deltaVal, dir: isUp ? 'up' : 'down' }
+                delta: { value: deltaVal, dir: isUp ? 'up' : 'down' },
+                raw: rawValue
             }
         })
 
@@ -168,10 +170,87 @@ const MarketCatOverview = ({
     const platformData = useMemo(() => {
         const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
 
-        return platformEntities.map((e, idx) => ({
-            ...e,
-            data: generatePlatformData(e.key, idx, context)
-        }))
+        // 1. Generate data for individual platforms (Blinkit, Instamart, Zepto)
+        const individualPlats = platformEntities
+            .filter(e => e.key !== 'odd_overall')
+            .map((e, idx) => ({
+                ...e,
+                data: generatePlatformData(e.key, idx + 1, context)
+            }));
+
+        // 2. Calculate "Odd Overall" as the sum of the others
+        const oddOverall = {
+            key: 'odd_overall',
+            name: 'ODD Overall',
+            data: {}
+        };
+
+        const totalCategorySize = individualPlats.reduce((sum, p) => sum + p.data.categorySize.raw, 0);
+        const totalMwSales = individualPlats.reduce((sum, p) => sum + p.data.mwSales.raw, 0);
+        const totalMlSales = individualPlats.reduce((sum, p) => sum + p.data.mlSales.raw, 0);
+
+        // Calculate deltas for Odd Overall (simple average for now, better than zero or random)
+        const avgDelta = (kpi) => {
+            const count = individualPlats.length;
+            const upCount = individualPlats.filter(p => p.data[kpi].delta.dir === 'up').length;
+            const isUp = upCount > count / 2;
+            const pctAvg = (individualPlats.reduce((sum, p) => sum + parseFloat(p.data[kpi].delta.value.split(' ')[1]), 0) / count).toFixed(1);
+
+            // Extract and average absolute changes if applicable
+            let absPart = "";
+            if (kpi === 'categorySize' || kpi === 'mwSales' || kpi === 'mlSales') {
+                const absAvg = (individualPlats.reduce((sum, p) => {
+                    const match = p.data[kpi].delta.value.match(/₹([\d.]+)/);
+                    return sum + (match ? parseFloat(match[1]) : 0);
+                }, 0)).toFixed(2);
+                absPart = ` (₹${absAvg} Cr)`;
+            } else {
+                const absAvg = (individualPlats.reduce((sum, p) => {
+                    const match = p.data[kpi].delta.value.match(/\(([\d.]+)\%\)/);
+                    return sum + (match ? parseFloat(match[1]) : 0);
+                }, 0) / count).toFixed(1);
+                absPart = ` (${absAvg}%)`;
+            }
+
+            return {
+                value: `${isUp ? '▲' : '▼'} ${pctAvg}%${absPart}`,
+                dir: isUp ? 'up' : 'down'
+            };
+        };
+
+        oddOverall.data.categorySize = {
+            raw: totalCategorySize,
+            value: `₹ ${totalCategorySize.toFixed(2)} Cr`,
+            delta: avgDelta('categorySize')
+        };
+        oddOverall.data.mwSales = {
+            raw: totalMwSales,
+            value: `₹ ${totalMwSales.toFixed(2)} Cr`,
+            delta: avgDelta('mwSales')
+        };
+        oddOverall.data.mlSales = {
+            raw: totalMlSales,
+            value: `₹ ${totalMlSales.toFixed(2)} Cr`,
+            delta: avgDelta('mlSales')
+        };
+
+        // Recalculate Market Shares as Sums
+        const mwShare = individualPlats.reduce((sum, p) => sum + p.data.mwMarketShare.raw, 0);
+        const mlShare = individualPlats.reduce((sum, p) => sum + p.data.mlMarketShare.raw, 0);
+
+        oddOverall.data.mwMarketShare = {
+            raw: mwShare,
+            value: `${mwShare.toFixed(2)}%`,
+            delta: avgDelta('mwMarketShare')
+        };
+        oddOverall.data.mlMarketShare = {
+            raw: mlShare,
+            value: `${mlShare.toFixed(2)}%`,
+            delta: avgDelta('mlMarketShare')
+        };
+
+        // Combine them in the original order (Odd Overall first)
+        return [oddOverall, ...individualPlats];
     }, [
         selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd,
         advancedFilters,
@@ -221,7 +300,7 @@ const MarketCatOverview = ({
         <>
             <div>
                 <SectionWrapper
-                    title="Category Overview"
+                    title="Cross Platform Overview"
                     icon={BarChart3}
                     chip={`${platformEntities.length} Platforms × ${kpiCount} KPIs`}
                     headerRight={
@@ -267,8 +346,8 @@ const MarketCatOverview = ({
                         <div className="min-w-max pb-2">
                             {/* Column Header Row — Platform names */}
                             <div className="flex items-center gap-2 mb-4 px-1">
-                                <div className="w-48 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Category Overview</span>
+                                <div className="w-48 flex-shrink-0 sticky left-4 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                    <span className="text-xs font-bold text-slate-900 uppercase tracking-[0.15em]">Entity</span>
                                 </div>
                                 {platformEntities.map(plat => (
                                     <div

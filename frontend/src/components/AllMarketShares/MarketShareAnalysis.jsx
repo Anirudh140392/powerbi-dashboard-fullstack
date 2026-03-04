@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Area,
   AreaChart,
@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { LayoutGrid, Layers, TrendingUp, PieChart } from "lucide-react";
+import { LayoutGrid, Layers, TrendingUp, PieChart, ChevronDown, Check } from "lucide-react";
 import { DualAxisDrillMatrix } from "./PowerBiDashboard";
 import axiosInstance from "../../api/axiosInstance";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
@@ -85,6 +85,46 @@ const brandShareHeat = [
   { brand: "Cream Bell", values: [3, 8, 9, 8, 6, 7, 7, 6, 7] },
   { brand: "Havmor", values: [9, 5, 5, 5, 5, 5, 5, 6, 7] },
 ];
+
+/* Sub-category → brand sets for TwoUp charts */
+const subCategoryBrandHeat = {
+  Candies: [
+    { brand: "Cadbury", values: [35, 34, 33, 35, 36, 35, 34, 33, 35] },
+    { brand: "Ferrero", values: [24, 25, 24, 23, 24, 25, 24, 25, 24] },
+    { brand: "Lindt", values: [7, 6, 7, 6, 7, 6, 7, 7, 6] },
+    { brand: "Nestle", values: [5, 6, 5, 5, 5, 6, 5, 5, 5] },
+    { brand: "Mars", values: [3, 3, 4, 3, 3, 3, 4, 3, 3] },
+  ],
+  'Filled Bars': [
+    { brand: "Snickers", values: [28, 27, 29, 28, 29, 28, 28, 27, 28] },
+    { brand: "KitKat", values: [22, 23, 22, 21, 22, 23, 22, 22, 21] },
+    { brand: "Twix", values: [13, 12, 13, 13, 12, 13, 12, 13, 12] },
+    { brand: "Bounty", values: [9, 8, 9, 8, 9, 8, 9, 8, 9] },
+    { brand: "Milky Way", values: [5, 6, 5, 5, 6, 5, 5, 6, 5] },
+  ],
+  Gums: [
+    { brand: "Orbit", values: [33, 32, 33, 32, 33, 32, 33, 32, 33] },
+    { brand: "Mentos", values: [19, 18, 19, 19, 18, 19, 18, 19, 18] },
+    { brand: "Center Fresh", values: [14, 15, 14, 14, 15, 14, 15, 14, 14] },
+    { brand: "Happydent", values: [10, 11, 10, 10, 11, 10, 11, 10, 10] },
+    { brand: "Boomer", values: [7, 8, 7, 7, 8, 7, 7, 8, 7] },
+  ],
+  'Gift Packs': [
+    { brand: "Cadbury Celebrations", values: [42, 41, 43, 42, 42, 41, 43, 42, 42] },
+    { brand: "Ferrero Rocher", values: [23, 22, 23, 22, 23, 23, 22, 23, 22] },
+    { brand: "Toblerone", values: [11, 12, 11, 12, 11, 11, 12, 11, 12] },
+    { brand: "Lindt Box", values: [9, 9, 8, 9, 9, 9, 8, 9, 9] },
+    { brand: "Mars Assorted", values: [6, 5, 6, 5, 6, 5, 6, 5, 6] },
+  ],
+  Others: [
+    { brand: "Amul", values: [19, 18, 19, 18, 19, 18, 19, 18, 19] },
+    { brand: "Parle", values: [14, 15, 14, 14, 15, 14, 15, 14, 14] },
+    { brand: "ITC", values: [11, 10, 11, 11, 10, 11, 10, 11, 10] },
+    { brand: "Britannia", values: [8, 9, 8, 8, 9, 8, 9, 8, 8] },
+    { brand: "Haldirams", values: [7, 6, 7, 6, 7, 6, 7, 6, 7] },
+  ],
+};
+const subCatOptions = Object.keys(subCategoryBrandHeat);
 
 const zones = ["North", "East", "South", "West"];
 const months = [
@@ -313,7 +353,7 @@ export default function MarketShareAnalysis() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-1 md:gap-5">
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-1 md:gap-0">
       {/* <HeaderStats /> */}
       <SnapshotOverview
         title="Market Share Overview"
@@ -346,8 +386,8 @@ export default function MarketShareAnalysis() {
         <DualAxisDrillMatrix />
       </div> */}
 
-      <div className="space-y-4">
-        <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
+      <div className="space-y-4 mt-6">
+        <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
           <div className="flex justify-center">
             <div className="relative w-full md:w-[420px]">
               <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
@@ -380,7 +420,7 @@ export default function MarketShareAnalysis() {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          {/* <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div className="space-y-1">
               <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
                 {marketMode === "geographical"
@@ -394,10 +434,11 @@ export default function MarketShareAnalysis() {
                   : "Coverage depth and pincodes with per-card chart/table toggle."}
               </div>
             </div>
-          </div>
+          </div> */}
 
           {marketMode === "geographical" ? (
             <>
+
               <TwoUp />
               {/* <ZoneTables /> */}
             </>
@@ -509,6 +550,19 @@ function LeftColumn() {
 function TwoUp() {
   const [view, setView] = useState("chart");
   const [timeRange, setTimeRange] = useState("Month");
+  const [selectedSubCat, setSelectedSubCat] = useState("Candies");
+  const [isSubCatOpen, setIsSubCatOpen] = useState(false);
+  const subCatRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (subCatRef.current && !subCatRef.current.contains(e.target)) setIsSubCatOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const activeBrandHeat = subCategoryBrandHeat[selectedSubCat] || brandShareHeat;
 
   // --- Dynamic Data Generation based on Time Range ---
   const currentPlatformChartData = useMemo(() => {
@@ -548,56 +602,28 @@ function TwoUp() {
   }, [timeRange]);
 
   const currentBrandChartData = useMemo(() => {
-    const brands = brandShareHeat.map(b => b.brand);
+    const brands = activeBrandHeat.map(b => b.brand);
     let labels = [];
-    let baseData = [];
 
     if (timeRange === "Day") {
       labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      baseData = [
-        [22, 23, 21, 24, 23, 22, 23], // Amul
-        [15, 16, 18, 19, 18, 17, 19], // KW
-        [8, 7, 7, 8, 9, 7, 7],       // Baskin
-        [5, 4, 6, 5, 4, 6, 5],       // Cream Bell
-        [7, 8, 7, 6, 7, 8, 7]        // Havmor
-      ];
     } else if (timeRange === "Week") {
       labels = ["W1", "W2", "W3", "W4"];
-      baseData = [
-        [22, 23, 21, 22],
-        [18, 19, 21, 20],
-        [7, 8, 7, 9],
-        [6, 5, 7, 6],
-        [8, 7, 6, 7]
-      ];
     } else if (timeRange === "Quarterly") {
       labels = ["Q1", "Q2", "Q3", "Q4"];
-      baseData = [
-        [23, 22, 21, 22],
-        [15, 19, 22, 21],
-        [7, 6, 7, 9],
-        [5, 8, 6, 7],
-        [9, 5, 5, 6]
-      ];
     } else {
       labels = months.slice(2);
-      return labels.map((m, idx) => {
-        const row = { label: m };
-        brandShareHeat.forEach((b) => {
-          row[b.brand] = b.values[idx] || 0;
-        });
-        return row;
-      });
     }
 
     return labels.map((label, idx) => {
       const row = { label };
-      brands.forEach((brand, bIdx) => {
-        row[brand] = baseData[bIdx][idx];
+      activeBrandHeat.forEach((b) => {
+        // Derive values from the heat data, cycling if index exceeds length
+        row[b.brand] = b.values[idx % b.values.length] || 0;
       });
       return row;
     });
-  }, [timeRange]);
+  }, [timeRange, selectedSubCat]);
 
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-3">
@@ -611,8 +637,52 @@ function TwoUp() {
           </div>
         </div>
 
-        {/* TIME FILTER TABS - Centered at Mid */}
-        <div className="flex-1 flex justify-center">
+        {/* FILTERS ROW - Sub-Category + Time Range */}
+        <div className="flex-1 flex justify-center items-center gap-3">
+          {/* Sub-Category dropdown */}
+          <div className="relative" ref={subCatRef}>
+            <button
+              onClick={() => setIsSubCatOpen(!isSubCatOpen)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 border shadow-sm ${isSubCatOpen
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                }`}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wider opacity-60">Sub-Cat:</span>
+              <span>{selectedSubCat}</span>
+              <ChevronDown size={12} className={`transition-transform duration-200 ${isSubCatOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {isSubCatOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 top-full mt-2 w-44 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden"
+                >
+                  <div className="p-1.5">
+                    {subCatOptions.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => { setSelectedSubCat(cat); setIsSubCatOpen(false); }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[11px] font-semibold transition-all duration-150 ${selectedSubCat === cat
+                          ? 'bg-slate-900 text-white'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                      >
+                        <span>{cat}</span>
+                        {selectedSubCat === cat && <Check size={12} className="text-emerald-400" />}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Time range tabs */}
           <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold text-slate-600">
             {["Day", "Week", "Month", "Quarterly"].map((range) => (
               <button
@@ -738,7 +808,7 @@ function TwoUp() {
                 />
                 <Tooltip formatter={(val, name) => [`${val}%`, name]} />
 
-                {brandShareHeat.map((b, idx) => (
+                {activeBrandHeat.map((b, idx) => (
                   <Bar
                     key={b.brand}
                     dataKey={b.brand}
@@ -794,7 +864,7 @@ function TwoUp() {
             <div className="text-sm font-semibold">
               Market Share Across Brands ({timeRange})
             </div>
-            <DynamicHeatTable rows={brandShareHeat} data={currentBrandChartData} brands={brandShareHeat.map(b => b.brand)} max={30} />
+            <DynamicHeatTable rows={activeBrandHeat} data={currentBrandChartData} brands={activeBrandHeat.map(b => b.brand)} max={30} />
           </div>
         </div>
       )}
