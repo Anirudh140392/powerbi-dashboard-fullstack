@@ -235,7 +235,7 @@ const MarketShareDrilldown = () => {
                             <thead>
                                 <tr className="text-center text-[13px] font-bold text-slate-900 border-b border-slate-100">
                                     <th className="px-6 py-4 text-left min-w-[320px] max-w-[400px]" style={{ position: 'sticky', left: 0, zIndex: 10, backgroundColor: 'white' }}>Entity Name</th>
-                                    <th className="px-6 py-4  whitespace-nowrap">Category Size (Cr)</th>
+                                    <th className="px-6 py-4  whitespace-nowrap">Market Share %</th>
                                     <th className="px-6 py-4  whitespace-nowrap">MRP</th>
                                 </tr>
                                 <tr className="text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-50/20">
@@ -281,7 +281,7 @@ const MarketShareDrilldown = () => {
                                             </div>
                                         </td>
 
-                                        {['categorySize', 'mrp'].map(kpi => (
+                                        {['share', 'mrp'].map(kpi => (
                                             <td key={kpi} className="py-4 px-6 text-center align-middle">
                                                 <div className="flex items-center justify-center h-full w-full">
                                                     <span
