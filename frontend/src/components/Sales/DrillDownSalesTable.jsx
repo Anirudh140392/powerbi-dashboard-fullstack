@@ -11,7 +11,8 @@ import {
     IconButton,
     Button,
     CircularProgress,
-    LinearProgress
+    LinearProgress,
+    Skeleton
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { Plus, Minus, SlidersHorizontal, X } from "lucide-react";
@@ -558,16 +559,13 @@ export default function DrillDownSalesTable({ startDate, endDate, compareStartDa
                                 </TableHead>
                                 <TableBody>
                                     {loading && pageRows.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
-                                                <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-                                                    <CircularProgress size={40} sx={{ color: "#10b981" }} />
-                                                    <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
-                                                        Loading data...
-                                                    </Typography>
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
+                                        [1, 2, 3, 4, 5].map((item) => (
+                                            <TableRow key={`skeleton-${item}`}>
+                                                <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} sx={{ py: 2 }}>
+                                                    <Skeleton variant="rectangular" width="100%" height={32} sx={{ borderRadius: 1 }} />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
                                     ) : pageRows.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
