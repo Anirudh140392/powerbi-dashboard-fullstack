@@ -34,6 +34,7 @@ export const getVisibilityOverview = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -73,6 +74,7 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            category: req.query.category || 'All',
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
@@ -114,6 +116,7 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            category: req.query.category || 'All',
             view: req.query.view || 'keywords', // keywords, skus, platforms
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -152,6 +155,8 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            keyword: req.query.keyword || 'All',
+            category: req.query.category || 'All',
             filter: req.query.filter || 'All', // All, Branded, Competitor, Generic
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -294,6 +299,8 @@ export const getVisibilityKpiTrends = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            keyword: req.query.keyword || 'All',
+            category: req.query.category || 'All',
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,

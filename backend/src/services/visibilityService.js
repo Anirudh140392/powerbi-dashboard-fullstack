@@ -17,11 +17,12 @@ function buildCHCondition(value, column, options = {}) {
 
 const RB_SOS_CONDITION = "toString(keyword_is_rb_product) = '1'";
 
-async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null) {
+async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+        const keywordCondition = (keyword && keyword !== 'All') ? `LOWER(keyword) LIKE LOWER('%${escapeCH(keyword)}%')` : '1=1';
 
         // Single query that calculates ALL SOS types at once - ClickHouse syntax
         const query = `
@@ -34,6 +35,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
               AND keyword_search_rank < 11
               AND ${platformCondition}
               AND ${locationCondition}
+              AND ${keywordCondition}
         `;
 
         const result = await queryClickHouse(query);
@@ -56,7 +58,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
  * @param {string|null} platform - Platform filter
  * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null) {
     try {
         let startDate, endDate;
         if (customStartDate && customEndDate) {
@@ -73,6 +75,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+        const keywordCondition = (keyword && keyword !== 'All') ? `LOWER(keyword) LIKE LOWER('%${escapeCH(keyword)}%')` : '1=1';
 
         const query = `
             SELECT 
@@ -85,6 +88,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
               AND keyword_search_rank < 11
               AND ${platformCondition}
               AND ${locationCondition}
+              AND ${keywordCondition}
             GROUP BY crawl_date
             ORDER BY crawl_date ASC
         `;
@@ -214,9 +218,9 @@ async function getVisibilityOverviewData(filters = {}) {
         // OPTIMIZED: Only 3 database queries instead of 9
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword)
         ]);
 
         // Aggregate daily points into weekly points for "Weekly" aggregation
@@ -786,6 +790,11 @@ class VisibilityService {
                     baseWhere += ` AND ${locCond}`;
                 }
 
+                // Apply keyword filter if provided
+                if (filters.keyword && filters.keyword !== 'All') {
+                    baseWhere += ` AND LOWER(keyword) LIKE LOWER('%${escapeCH(filters.keyword)}%')`;
+                }
+
                 // Apply pincode filter if provided
                 if (filters.pincode && filters.pincode !== 'All') {
                     const pins = Array.isArray(filters.pincode) ? filters.pincode : [filters.pincode];
@@ -1260,7 +1269,7 @@ class VisibilityService {
 
     async getTopSearchTerms(filters = {}) {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
-        const cacheKey = generateCacheKey('visibility_top_search_terms_v2', filters);
+        const cacheKey = generateCacheKey('visibility_top_search_terms_v3', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -1306,6 +1315,16 @@ class VisibilityService {
                     ? `AND keyword_type = '${escapeCH(filters.filter)}'`
                     : '';
 
+                // Apply keyword filter if provided
+                const keywordFilter = (filters.keyword && filters.keyword !== 'All')
+                    ? `AND LOWER(keyword) LIKE LOWER('%${escapeCH(filters.keyword)}%')`
+                    : '';
+
+                // Apply category filter if provided
+                const categoryFilter = (filters.category && filters.category !== 'All')
+                    ? `AND LOWER(keyword_category) = LOWER('${escapeCH(filters.category)}')`
+                    : '';
+
                 const metricsQuery = `
                     SELECT 
                         keyword,
@@ -1323,6 +1342,8 @@ class VisibilityService {
                       AND ${platformCondition}
                       AND ${locationCondition}
                       ${typeFilter}
+                      ${keywordFilter}
+                      ${categoryFilter}
                     GROUP BY keyword
                     ${brand && brand !== 'All' ? 'HAVING brand_filter_results > 0' : ''}
                     ORDER BY (toFloat64(rb_results) / nullIf(count(), 0)) DESC, total_results DESC
@@ -1348,6 +1369,7 @@ class VisibilityService {
                       AND ${platformCondition}
                       AND ${locationCondition}
                       AND keyword IN (${keywordList})
+                      ${categoryFilter}
                     GROUP BY keyword
                 `;
                 const prevKeywordMetrics = await queryClickHouse(prevMetricsQuery);
@@ -1366,14 +1388,16 @@ class VisibilityService {
                 const leadingBrandQuery = `
                     SELECT 
                         keyword,
-                        brand_name,
+                        brand_crawl as brand_name,
                         count() as brand_count
                     FROM rb_kw
                     WHERE ${dateCondition}
                       AND keyword IN (${keywordList})
                       AND ${platformCondition}
                       AND ${locationCondition}
-                    GROUP BY keyword, brand_name
+                      AND brand_crawl IS NOT NULL 
+                      AND brand_crawl != ''
+                    GROUP BY keyword, brand_crawl
                     ORDER BY keyword, brand_count DESC
                 `;
 
@@ -1430,7 +1454,7 @@ class VisibilityService {
      */
     async getBrandDrilldown(filters) {
         console.log(`[VisibilityService] getBrandDrilldown (ClickHouse): keyword="${filters.keyword}"`);
-        const cacheKey = generateCacheKey('visibility_brand_drilldown', filters);
+        const cacheKey = generateCacheKey('visibility_brand_drilldown_v3', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -1443,65 +1467,78 @@ class VisibilityService {
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const keyword = escapeCH(filters.keyword);
 
-                // 1. Get two most recent crawl dates for this keyword
-                const dateQuery = `
-                    SELECT DISTINCT toDate(created_on) as crawl_date
-                    FROM rb_kw
-                    WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
-                      AND keyword_search_rank < 11
-                    ORDER BY crawl_date DESC
-                    LIMIT 2
-                `;
-                const dateResults = await queryClickHouse(dateQuery);
+                // Apply category filter if provided
+                const categoryFilter = (filters.category && filters.category !== 'All')
+                    ? `AND LOWER(keyword_category) = LOWER('${escapeCH(filters.category)}')`
+                    : '';
 
-                if (dateResults.length === 0) return { brands: [], topLosers: [] };
+                // 1. Calculate Period Boundaries (consistent with getTopSearchTerms)
+                const start = dayjs(filters.startDate || dayjs().subtract(7, 'day'));
+                const end = dayjs(filters.endDate || dayjs());
+                const duration = end.diff(start, 'day') + 1;
 
-                const latestDate = dayjs(dateResults[0].crawl_date).format('YYYY-MM-DD');
-                const previousDate = dateResults[1] ? dayjs(dateResults[1].crawl_date).format('YYYY-MM-DD') : latestDate;
+                const currStart = start.format('YYYY-MM-DD');
+                const currEnd = end.format('YYYY-MM-DD');
+                const prevStartStr = start.subtract(duration, 'day').format('YYYY-MM-DD');
+                const prevEndStr = start.subtract(1, 'day').format('YYYY-MM-DD');
 
-                // 2. Fetch metrics for ALL brands for both dates
+                // 2. Fetch aggregate metrics for ALL brands for both periods
                 const drilldownQuery = `
                     SELECT 
-                        brand_name,
-                        toDate(created_on) as crawl_date,
+                        brand_crawl as brand_name,
+                        if(toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
                         count() as brand_results,
                         countIf(toString(spons_flag) != '1') as brand_organic,
                         countIf(toString(spons_flag) = '1') as brand_sponsored
                     FROM rb_kw
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
-                      AND toDate(created_on) IN ('${latestDate}', '${previousDate}')
+                      AND (
+                          toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}'
+                          OR toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                      )
                       AND keyword_search_rank < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
-                    GROUP BY brand_name, crawl_date
+                      ${categoryFilter}
+                      AND brand_crawl IS NOT NULL 
+                      AND brand_crawl != ''
+                    GROUP BY brand_crawl, period
                 `;
 
                 const results = await queryClickHouse(drilldownQuery);
 
-                // 3. Get total results per date for SOS normalization
+                if (results.length === 0) return { brands: [], topLosers: [] };
+
+                // 3. Get total results per period for SOS normalization
                 const totalsQuery = `
-                    SELECT toDate(created_on) as crawl_date, count() as total 
+                    SELECT 
+                        if(toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
+                        count() as total 
                     FROM rb_kw 
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
-                      AND toDate(created_on) IN ('${latestDate}', '${previousDate}')
+                      AND (
+                          toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}'
+                          OR toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                      )
                       AND keyword_search_rank < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
-                    GROUP BY crawl_date
+                      ${categoryFilter}
+                    GROUP BY period
                 `;
 
                 const totalResults = await queryClickHouse(totalsQuery);
                 const totalMap = {};
                 totalResults.forEach(t => {
-                    totalMap[dayjs(t.crawl_date).format('YYYY-MM-DD')] = Number(t.total);
+                    totalMap[t.period] = Number(t.total);
                 });
 
                 // 4. Process results into a map of brands
                 const brandData = {};
                 results.forEach(row => {
                     const brand = row.brand_name || 'Unknown';
-                    const dateStr = dayjs(row.crawl_date).format('YYYY-MM-DD');
-                    const total = totalMap[dateStr] || 1;
+                    const period = row.period;
+                    const total = totalMap[period] || 1;
 
                     if (!brandData[brand]) {
                         brandData[brand] = {
@@ -1515,9 +1552,9 @@ class VisibilityService {
                     const sosOrganic = Number(((Number(row.brand_organic) / total) * 100).toFixed(1));
                     const sosPaid = Number(((Number(row.brand_sponsored) / total) * 100).toFixed(1));
 
-                    if (dateStr === latestDate) {
+                    if (period === 'current') {
                         brandData[brand].current = { overall: sosOverall, organic: sosOrganic, paid: sosPaid };
-                    } else if (dateStr === previousDate) {
+                    } else {
                         brandData[brand].previous = { overall: sosOverall, organic: sosOrganic, paid: sosPaid };
                     }
                 });
@@ -1530,11 +1567,11 @@ class VisibilityService {
                     paidSos: { value: b.current.paid, delta: Number((b.current.paid - b.previous.paid).toFixed(1)) }
                 })).sort((a, b) => b.overallSos.value - a.overallSos.value);
 
-                // 6. Identify top losers (most negative delta in overall SOS)
+                // 6. Identify top losers (negative delta in ANY SOS metric)
                 const topLosers = brands
-                    .filter(b => b.overallSos.delta < 0)
+                    .filter(b => b.overallSos.delta < 0 || b.organicSos.delta < 0 || b.paidSos.delta < 0)
                     .sort((a, b) => a.overallSos.delta - b.overallSos.delta)
-                    .slice(0, 5);
+                    .slice(0, 10);
 
                 return { brands, topLosers };
             } catch (error) {

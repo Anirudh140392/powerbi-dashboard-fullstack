@@ -9,10 +9,10 @@ export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFe
 
 
 // Static fallback data (used if API is unreachable)
-const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart", "Flipkart", "Amazon"];
-const FALLBACK_CATEGORIES = ["Cassata", "Core Tub", "Cup", "Sandwich"];
+const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
+const FALLBACK_CATEGORIES = ["Toothpaste", "Toothbrush", "Mouthwash", "Handwash", "Bodywash"];
 const FALLBACK_LOCATIONS = [];
-const FALLBACK_BRANDS = ["Colgate", "Palmolive", "Halo"];
+const FALLBACK_BRANDS = ["Colgate", "Closeup", "Palmolive", "Halo"];
 
 // Channel → platform mapping (static, channels are not in rca_sku_dim)
 const channelPlatformMap = {
@@ -41,9 +41,9 @@ export const FilterProvider = ({ children }) => {
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
     const [selectedLocation, setSelectedLocation] = useState("All");
 
-    // Keyword state (for visibility analysis)
-    const [keywords, setKeywords] = useState(["vanilla", "chocolate", "strawberry", "butterscotch", "mango"]);
-    const [selectedKeyword, setSelectedKeyword] = useState("vanilla");
+    // Keyword state (for visibility analysis) - fetched dynamically from rb_kw
+    const [keywords, setKeywords] = useState([]);
+    const [selectedKeyword, setSelectedKeyword] = useState("All");
 
     // Category state
     const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
@@ -309,6 +309,30 @@ export const FilterProvider = ({ children }) => {
         };
         fetchBrands();
     }, [platform]);
+
+    // ====== FETCH KEYWORDS FROM DB (on mount) ======
+    useEffect(() => {
+        const fetchKeywords = async () => {
+            if (!isAuthenticated) return;
+            try {
+                const res = await axiosInstance.get("/watchtower/keywords");
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched keywords from DB:", res.data.length, "keywords");
+                    setKeywords(res.data);
+                    // Keep current selection if still valid
+                    if (selectedKeyword !== "All" && !res.data.includes(selectedKeyword)) {
+                        setSelectedKeyword("All");
+                    }
+                } else {
+                    setKeywords([]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch keywords:", err.message);
+                setKeywords([]);
+            }
+        };
+        fetchKeywords();
+    }, []);
 
     return (
         <FilterContext.Provider value={{

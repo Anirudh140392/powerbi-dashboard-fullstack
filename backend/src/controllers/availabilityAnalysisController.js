@@ -451,6 +451,7 @@ export const getSignalLabData = async (req, res) => {
                 platform,
                 brand,
                 location,
+                category,
                 startDate,
                 endDate,
                 compareStartDate,
@@ -489,6 +490,7 @@ export const getSignalLabData = async (req, res) => {
             const platformFilter = processFilter(platform);
             const locationFilter = processFilter(location);
             const brandFilter = processFilter(brand);
+            const categoryFilter = processFilter(category);
 
             // Build WHERE clause for ClickHouse
             const buildWhereClause = (includeCompDates = false) => {
@@ -513,6 +515,14 @@ export const getSignalLabData = async (req, res) => {
                         conditions.push(`Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     } else {
                         conditions.push(`Location = '${escapeStr(locationFilter)}'`);
+                    }
+                }
+
+                if (categoryFilter) {
+                    if (Array.isArray(categoryFilter)) {
+                        conditions.push(`Category IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Category = '${escapeStr(categoryFilter)}'`);
                     }
                 }
 

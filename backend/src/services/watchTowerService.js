@@ -3787,12 +3787,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
 const getPlatforms = async () => {
     try {
-        // ClickHouse query
-        const query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        // Query rb_pdp_olap for platforms (Colgate database)
+        const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
         const results = await queryClickHouse(query);
         return results.map(p => p.platform).filter(Boolean).sort();
     } catch (error) {
-        console.error("Error fetching platforms:", error);
+        console.error("Error fetching platforms from rb_pdp_olap:", error);
         return []; // Return empty array instead of throwing
     }
 };
@@ -3804,20 +3804,20 @@ const getSummaryMetrics = async (filters) => {
 
 const getBrands = async (platform, includeCompetitors = false) => {
     try {
-        // ClickHouse query - build conditions
-        const conditions = [`brand_name IS NOT NULL`, `brand_name != ''`];
+        // Query rb_pdp_olap for brands (Colgate database)
+        const conditions = [`Brand IS NOT NULL`, `Brand != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
         }
         if (!includeCompetitors) {
-            conditions.push(`comp_flag = 0`);
+            conditions.push(`toString(Comp_flag) = '0'`);
         }
 
-        const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY brand_name`;
+        const query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Brand`;
         const results = await queryClickHouse(query);
-        return results.map(r => r.brand_name).filter(Boolean);
+        return results.map(r => r.brand).filter(Boolean);
     } catch (error) {
-        console.error('Error fetching brands from rca_sku_dim:', error);
+        console.error('Error fetching brands from rb_pdp_olap:', error);
         return [];
     }
 };
@@ -3841,23 +3841,23 @@ const getKeywords = async (brand) => {
 
 const getLocations = async (platform, brand, includeCompetitors = false) => {
     try {
-        // ClickHouse query
-        const conditions = [`location IS NOT NULL`, `location != ''`];
+        // Query rb_pdp_olap for locations (Colgate database)
+        const conditions = [`Location IS NOT NULL`, `Location != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
         }
         if (brand && brand !== 'All') {
-            conditions.push(`brand_name = '${brand.replace(/'/g, "''")}'`);
+            conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
         }
         if (!includeCompetitors) {
-            conditions.push(`comp_flag = 0`);
+            conditions.push(`toString(Comp_flag) = '0'`);
         }
 
-        const query = `SELECT DISTINCT location FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY location`;
+        const query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Location`;
         const results = await queryClickHouse(query);
         return results.map(l => l.location).filter(Boolean);
     } catch (error) {
-        console.error("Error fetching locations:", error);
+        console.error("Error fetching locations from rb_pdp_olap:", error);
         return [];
     }
 };
@@ -4248,17 +4248,17 @@ const getTrendData = async (filters) => {
 
 const getBrandCategories = async (platform) => {
     try {
-        // ClickHouse query
-        const conditions = [`status = 1`, `Category IS NOT NULL`, `Category != ''`];
+        // Query rb_pdp_olap for categories (Colgate database)
+        const conditions = [`Category IS NOT NULL`, `Category != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
         }
 
-        const query = `SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+        const query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Category`;
         const results = await queryClickHouse(query);
         return results.map(c => c.category).filter(Boolean);
     } catch (error) {
-        console.error("Error fetching brand categories:", error);
+        console.error("Error fetching brand categories from rb_pdp_olap:", error);
         throw error;
     }
 };
