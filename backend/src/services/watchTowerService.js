@@ -220,7 +220,7 @@ const calcChange = (current, previous) => {
 };
 const calcPPChange = (current, previous) => (parseFloat(current) || 0) - (parseFloat(previous) || 0);
 const formatChange = (val, isPP = false) => {
-    const suffix = isPP ? ' pp' : '%';
+    const suffix = isPP ? '%' : '%';
     const sign = val >= 0 ? '+' : '';
     return `${sign}${val.toFixed(1)}${suffix}`;
 };
@@ -1569,14 +1569,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Calculate Market Share Trend (percentage point difference for % KPIs)
         const prevMarketShareVal = parseFloat(prevMarketShareResult?.avg_ms || 0);
         const marketShareChange = totalMarketShare - prevMarketShareVal;
-        const marketShareTrendStr = (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(1) + " pp";
+        const marketShareTrendStr = (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(1) + "%";
 
         // Process Availability Data
         const formattedAvailability = currentAvailability.toFixed(1) + "%";
 
         // Calculate Availability Trend (percentage point difference for % KPIs)
         const availabilityChange = currentAvailability - prevAvailability;
-        const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + " pp";
+        const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + "%";
 
         // Process Availability Chart - Using weekBuckets for weekly chart
         const availabilityChart = weekBuckets.map(bucket => {
@@ -1594,7 +1594,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         // Calculate SOS Trend (percentage point difference for % KPIs)
         const sosChange = currentShareOfSearch - prevShareOfSearch;
-        const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + " pp";
+        const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + "%";
 
         // Process Share of Search Chart - Using weekBuckets for weekly chart
         const shareOfSearchChart = weekBuckets.map(bucket => {
@@ -1607,7 +1607,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const safePrevPromoDepth = parseFloat(prevPromoDepth) || 0;
         const formattedPromo = safePromoDepth.toFixed(1) + "%";
         const promoChange = safePromoDepth - safePrevPromoDepth;
-        const promoTrendStr = (promoChange >= 0 ? "+" : "") + promoChange.toFixed(1) + " pp";
+        const promoTrendStr = (promoChange >= 0 ? "+" : "") + promoChange.toFixed(1) + "%";
 
         const safePromoTrendData = Array.isArray(promoTrendData) ? promoTrendData : [];
         const promoChart = weekBuckets.map(bucket => {
@@ -2017,7 +2017,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // SOS KPI (USES prevShareOfSearch computed for top metrics for consistency)
                 const currentSosKpi = currentShareOfSearch;
                 const momSosKpi = prevShareOfSearch;
-                const sosKpiChange = currentSosKpi - momSosKpi; // Calculate pp difference instead of % growth
+                const sosKpiChange = currentSosKpi - momSosKpi; // Calculate% difference instead of % growth
 
                 // OPTIMIZED: SOS Trend using bulk GROUP BY query instead of 7 individual queries
                 let sosTrendKpiData;
@@ -2167,7 +2167,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     value: `${currentSosKpi.toFixed(1)}%`,
                     prevValue: `${momSosKpi.toFixed(1)}%`,
                     unit: "",
-                    tag: `${sosKpiChange >= 0 ? '+' : ''}${sosKpiChange.toFixed(1)} pp`,
+                    tag: `${sosKpiChange >= 0 ? '+' : ''}${sosKpiChange.toFixed(1)}%`,
                     tagTone: sosKpiChange >= 0 ? "positive" : "warning",
                     footer: "Organic + Paid view",
                     trendTitle: "Share of Search Trend",
@@ -2346,7 +2346,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         };
 
         const formatChange = (changeValue, isPercentagePoint = false) => {
-            const suffix = isPercentagePoint ? ' pp' : '%';
+            const suffix = isPercentagePoint ? '%' : '%';
             const sign = changeValue >= 0 ? '+' : '';
             return `${sign}${changeValue.toFixed(1)}${suffix}`;
         };
@@ -2891,12 +2891,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             { title: "Spend", value: formatCurrency(spend), meta: { units: "", change: "▲0.0%" } },
             { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "", change: "▲0.0%" } },
             { title: "Inorg Sales", value: formatCurrency(inorgSales), meta: { units: "", change: "▲0.0%" } },
-            { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
-            { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
-            { title: "SOS", value: `${sos.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
-            { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "", change: "▲0.0 pp" } },
-            { title: "Promo My Brand", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
-            { title: "Promo Compete", value: "0%", meta: { units: "", change: "▲0.0 pp" } }, // Mock
+            { title: "Conversion", value: `${conversion.toFixed(1)}%`, meta: { units: "", change: "▲0.0%" } },
+            { title: "Availability", value: `${availability.toFixed(1)}%`, meta: { units: "", change: "▲0.0%" } },
+            { title: "SOS", value: `${sos.toFixed(1)}%`, meta: { units: "", change: "▲0.0%" } },
+            { title: "Market Share", value: `${marketShare.toFixed(1)}%`, meta: { units: "", change: "▲0.0%" } },
+            { title: "Promo My Brand", value: "0%", meta: { units: "", change: "▲0.0%" } }, // Mock
+            { title: "Promo Compete", value: "0%", meta: { units: "", change: "▲0.0%" } }, // Mock
             { title: "CPM", value: `₹${cpm.toFixed(2)}`, meta: { units: "", change: "▲0.0%" } },
             { title: "CPC", value: `₹${cpc.toFixed(2)}`, meta: { units: "", change: "▲0.0%" } }
         ];
@@ -3306,44 +3306,44 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         {
                             title: "Inorg Sales",
                             value: catOfftake > 0 ? `${((catAdSales / catOfftake) * 100).toFixed(1)}%` : "0%",
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: formatCurrency(catAdSales), change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: formatCurrency(catAdSales), change: "▲0.0%" }
                         },
                         {
                             title: "Conversion",
                             value: `${catConversion.toFixed(1)}%`,
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "Orders / Clicks", change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "Orders / Clicks", change: "▲0.0%" }
                         },
                         {
                             title: "Availability",
                             value: `${catAvailability.toFixed(1)}%`,
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "stores", change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "stores", change: "▲0.0%" }
                         },
                         {
                             title: "SOS",
                             value: `${catSos.toFixed(1)}%`,
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "index", change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "index", change: "▲0.0%" }
                         },
                         {
                             title: "Market Share",
                             value: `${catMarketShare.toFixed(1)}%`,
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "share", change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "share", change: "▲0.0%" }
                         },
                         {
                             title: "Promo My Brand",
                             value: `${catPromoMyBrand.toFixed(1)}%`,
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "depth", change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "depth", change: "▲0.0%" }
                         },
                         {
                             title: "Promo Compete",
                             value: `${catPromoCompete.toFixed(1)}%`,
-                            change: { text: "▲0.0 pp", positive: true },
-                            meta: { units: "depth", change: "▲0.0 pp" }
+                            change: { text: "▲0.0%", positive: true },
+                            meta: { units: "depth", change: "▲0.0%" }
                         },
                         {
                             title: "CPM",
@@ -3757,14 +3757,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     {
                         title: "Inorg Sales",
                         value: `${currInorgPct.toFixed(1)}%`,
-                        meta: { units: formatCurrency(currAdSales), change: `${inorgPctTrend >= 0 ? '▲' : '▼'}${Math.abs(inorgPctTrend).toFixed(1)} pp` }
+                        meta: { units: formatCurrency(currAdSales), change: `${inorgPctTrend >= 0 ? '▲' : '▼'}${Math.abs(inorgPctTrend).toFixed(1)}%` }
                     },
-                    { title: "Conversion", value: `${currConv.toFixed(1)}%`, meta: { units: `${(currOrders / 1000).toFixed(1)}k`, change: `${convTrend >= 0 ? '▲' : '▼'}${Math.abs(convTrend).toFixed(1)} pp` } },
-                    { title: "Availability", value: `${currAvail.toFixed(1)}%`, meta: { units: `${currDeno}`, change: `${availTrend >= 0 ? '▲' : '▼'}${Math.abs(availTrend).toFixed(1)} pp` } },
-                    { title: "SOS", value: `${currSos.toFixed(1)}%`, meta: { units: `${currSos.toFixed(1)}`, change: `${sosTrend >= 0 ? '▲' : '▼'}${Math.abs(sosTrend).toFixed(1)} pp` } },
-                    { title: "Market Share", value: `${currMs.toFixed(1)}%`, meta: { units: formatCurrency(currSales * (100 / currMs) || 0), change: `${msTrend >= 0 ? '▲' : '▼'}${Math.abs(msTrend).toFixed(1)} pp` } },
-                    { title: "Promo My Brand", value: `${currDisc.toFixed(1)}%`, meta: { units: `${currDisc.toFixed(1)}%`, change: `${discTrend >= 0 ? '▲' : '▼'}${Math.abs(discTrend).toFixed(1)} pp` } },
-                    { title: "Promo Compete", value: `${otherBrandsAvgDisc.toFixed(1)}%`, meta: { units: `${otherBrandsAvgDisc.toFixed(1)}%`, change: `${promoCompeteTrend >= 0 ? '▲' : '▼'}${Math.abs(promoCompeteTrend).toFixed(1)} pp` } },
+                    { title: "Conversion", value: `${currConv.toFixed(1)}%`, meta: { units: `${(currOrders / 1000).toFixed(1)}k`, change: `${convTrend >= 0 ? '▲' : '▼'}${Math.abs(convTrend).toFixed(1)}%` } },
+                    { title: "Availability", value: `${currAvail.toFixed(1)}%`, meta: { units: `${currDeno}`, change: `${availTrend >= 0 ? '▲' : '▼'}${Math.abs(availTrend).toFixed(1)}%` } },
+                    { title: "SOS", value: `${currSos.toFixed(1)}%`, meta: { units: `${currSos.toFixed(1)}`, change: `${sosTrend >= 0 ? '▲' : '▼'}${Math.abs(sosTrend).toFixed(1)}%` } },
+                    { title: "Market Share", value: `${currMs.toFixed(1)}%`, meta: { units: formatCurrency(currSales * (100 / currMs) || 0), change: `${msTrend >= 0 ? '▲' : '▼'}${Math.abs(msTrend).toFixed(1)}%` } },
+                    { title: "Promo My Brand", value: `${currDisc.toFixed(1)}%`, meta: { units: `${currDisc.toFixed(1)}%`, change: `${discTrend >= 0 ? '▲' : '▼'}${Math.abs(discTrend).toFixed(1)}%` } },
+                    { title: "Promo Compete", value: `${otherBrandsAvgDisc.toFixed(1)}%`, meta: { units: `${otherBrandsAvgDisc.toFixed(1)}%`, change: `${promoCompeteTrend >= 0 ? '▲' : '▼'}${Math.abs(promoCompeteTrend).toFixed(1)}%` } },
                     { title: "CPM", value: formatCurrency(currCpm), meta: { units: formatCurrency(currCpm), change: `${cpmTrend >= 0 ? '▲' : '▼'}${Math.abs(cpmTrend).toFixed(1)}%` } },
                     { title: "CPC", value: formatCurrency(currCpc), meta: { units: formatCurrency(currCpc), change: `${cpcTrend >= 0 ? '▲' : '▼'}${Math.abs(cpcTrend).toFixed(1)}%` } }
                 ]
@@ -9004,9 +9004,9 @@ const getPerformanceBreakdownData = async (filters) => {
                 SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
                 if(${total_spends} > 0, (group_spends / ${total_spends}) * 100, 0) AS spend_percent_share,
                 if(group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS group_orders,
+                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS group_orders,
                 if(group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS group_sales
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS group_sales
             FROM rb_pdp_olap
             WHERE Comp_flag = 0
             ${platformClause}
@@ -9104,9 +9104,9 @@ const getPerformanceBreakdownData = async (filters) => {
                         if(group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
                         SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
                         if(group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS group_orders,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS group_orders,
                         if(group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS group_sales
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS group_sales
                     FROM rb_pdp_olap
                     WHERE Comp_flag = 0 ${platformClause} ${periodDateClause}
                     GROUP BY ${groupByCol}

@@ -178,7 +178,14 @@ const PlatformOverviewNew = ({
     ]
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'])
+
+    // Filter out Category size (key: 'roas') when viewing SKU dimension
+    const filteredKpis = dimension === 'sku' ? kpis.filter(k => k.key !== 'roas') : kpis;
+    const defaultKpiKeys = dimension === 'sku'
+        ? ['offtakes', 'spend', 'availability', 'marketShare', 'conversion']
+        : ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'];
+
+    const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(false)
@@ -194,9 +201,16 @@ const PlatformOverviewNew = ({
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+        kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
+
+    // Re-sync glanceKpis when dimension changes (remove 'roas'/Category size for SKU)
+    useEffect(() => {
+        if (dimension === 'sku') {
+            setGlanceKpis(prev => prev.filter(k => k !== 'roas'));
+        }
+    }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -344,7 +358,7 @@ const PlatformOverviewNew = ({
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
     // Get selected KPIs in order
-    const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
+    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
     // Build entities from API data only — NO hardcoded fallback

@@ -292,7 +292,7 @@ export default function WatchTower() {
         id: 'promo', title: 'Promo',
         value: `${getJitter(8.5, 'promo')}%`,
         delta: getJitter(1.2, 'promodelta'),
-        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)} pp`,
+        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)}%`,
         icon: Percent, gradient: ['#f59e0b', '#fbbf24'],
         trend: getLogicalKpiTrend('osa', context) // Reuse OSA trend for mock variety
       }
