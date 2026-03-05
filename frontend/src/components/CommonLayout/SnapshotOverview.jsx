@@ -464,7 +464,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     </Box>
                     <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
                         <DeltaIcon size={12} strokeWidth={2.5} />
-                        <span className="text-[11px] font-bold">{deltaLabel}</span>
+                        <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
                 </div>
 
