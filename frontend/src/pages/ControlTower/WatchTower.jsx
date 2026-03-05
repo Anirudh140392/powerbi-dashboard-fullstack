@@ -292,7 +292,7 @@ export default function WatchTower() {
         id: 'promo', title: 'Promo',
         value: `${getJitter(8.5, 'promo')}%`,
         delta: getJitter(1.2, 'promodelta'),
-        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)} pp`,
+        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)}%`,
         icon: Percent, gradient: ['#f59e0b', '#fbbf24'],
         trend: getLogicalKpiTrend('osa', context) // Reuse OSA trend for mock variety
       }
@@ -406,7 +406,7 @@ export default function WatchTower() {
   return (
     <>
       <CommonContainer
-        title="Watch Tower"
+        title="Business Overview"
         filters={filters}
         onFiltersChange={setFilters}
       >
@@ -424,7 +424,7 @@ export default function WatchTower() {
           <ErrorRetryOverlay onRetry={fetchData} message={fetchError} />
         ) : (
           <SnapshotOverview
-            title="Watchtower Overview"
+            title="Business Overview"
             icon={LayoutGrid}
             chip="All Platforms"
             headerRight={
@@ -544,7 +544,7 @@ export default function WatchTower() {
             />
           </Box>
         </Box> */}
-        <Box
+        {/* <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 2,
@@ -553,7 +553,7 @@ export default function WatchTower() {
           }}
         >
           <TopActionsLayoutsShowcase />
-        </Box>
+        </Box> */}
         {/* Category / SKU Tabs */}
         <Box
           sx={{

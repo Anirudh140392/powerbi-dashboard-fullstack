@@ -94,6 +94,8 @@ const BACKEND_TITLE_TO_KEY = {
     'Conversion': 'conversion',
     'Availability': 'availability',
     'SOS': 'shareOfVolume',
+    'Ad SOV': 'ad_sov',
+    'Organic SOV': 'organic_sov',
     'Market Share': 'marketShare',
     'Promo My Brand': 'promoMyBrand',
     'Promo Compete': 'promoCompete',
@@ -151,7 +153,9 @@ const PlatformOverviewNew = ({
         timeStart,
         timeEnd,
         compareStart,
-        compareEnd
+        compareEnd,
+        datesFetched,
+        platformsFetched
     } = useContext(FilterContext);
 
     const kpis = [
@@ -159,23 +163,35 @@ const PlatformOverviewNew = ({
         { key: 'spend', label: 'Spend' },
         { key: 'roas', label: 'Category size' },
         { key: 'inorgSales', label: 'Inorg Sales' },
+        { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
         { key: 'shareOfVolume', label: 'Share of Volume' },
+        { key: 'ad_sov', label: 'Ad SOV' },
+        { key: 'organic_sov', label: 'Organic SOV' },
         { key: 'marketShare', label: 'Market share' },
         { key: 'promoMyBrand', label: 'Promo - My Brand' },
         { key: 'promoCompete', label: 'Promo - Compete' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
+        { key: 'asp', label: 'ASP' },
     ]
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'])
+
+    // Filter out Category size (key: 'roas') when viewing SKU dimension
+    const filteredKpis = dimension === 'sku' ? kpis.filter(k => k.key !== 'roas') : kpis;
+    const defaultKpiKeys = dimension === 'sku'
+        ? ['offtakes', 'spend', 'availability', 'marketShare', 'conversion']
+        : ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'];
+
+    const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(false)
     const [apiError, setApiError] = useState(null)
     const [isRetrying, setIsRetrying] = useState(false)
+    const [productOptions, setProductOptions] = useState([])
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -185,9 +201,16 @@ const PlatformOverviewNew = ({
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+        kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
+
+    // Re-sync glanceKpis when dimension changes (remove 'roas'/Category size for SKU)
+    useEffect(() => {
+        if (dimension === 'sku') {
+            setGlanceKpis(prev => prev.filter(k => k !== 'roas'));
+        }
+    }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -279,8 +302,38 @@ const PlatformOverviewNew = ({
     }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, advancedFilters])
 
     useEffect(() => {
-        fetchDimensionData()
-    }, [fetchDimensionData])
+        if (!datesFetched || !platformsFetched) {
+            console.log("[PlatformOverviewNew] Waiting for context to initialize dates/platforms...");
+            return;
+        }
+
+        const debounceTimer = setTimeout(() => {
+            fetchDimensionData()
+        }, 500);
+
+        return () => clearTimeout(debounceTimer);
+    }, [fetchDimensionData, datesFetched, platformsFetched])
+
+    // Fetch product/SKU options from DB for the filter dropdown
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const params = {};
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
+                }
+                const res = await axiosInstance.get('/watchtower/products', { params });
+                if (res.data && Array.isArray(res.data)) {
+                    setProductOptions(res.data.map(p => ({ id: p, name: p })));
+                }
+            } catch (err) {
+                console.warn('[PlatformOverviewNew] Failed to fetch products for filter:', err.message);
+            }
+        };
+        if (datesFetched) {
+            fetchProducts();
+        }
+    }, [datesFetched, globalPlatform])
 
     // Retry function for error state
     const retryFetch = async () => {
@@ -305,7 +358,7 @@ const PlatformOverviewNew = ({
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
     // Get selected KPIs in order
-    const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
+    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
     // Build entities from API data only — NO hardcoded fallback
@@ -702,7 +755,8 @@ const PlatformOverviewNew = ({
                 const categoryOptions = globalCategories.map(c => ({ id: c, name: c }))
                 const platformOptions = globalPlatforms.map(p => ({ id: p, name: p }))
                 // SKUs: if current dimension is sku, use them, else empty (fetching all SKUs is too heavy)
-                const skuOptions = dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : []
+                const skuOptions = productOptions.length > 0 ? productOptions
+                    : (dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : [])
 
                 return (
                     <AdvancedFilterModal

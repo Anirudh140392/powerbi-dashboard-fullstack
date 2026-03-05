@@ -11,7 +11,8 @@ import {
     IconButton,
     Button,
     CircularProgress,
-    LinearProgress
+    LinearProgress,
+    Skeleton
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { Plus, Minus, SlidersHorizontal, X } from "lucide-react";
@@ -77,7 +78,7 @@ const METRIC_HEADERS = [
 ];
 
 // -------------- COMPONENT -----------------
-export default function DrillDownSalesTable({ startDate, endDate, brand }) {
+export default function DrillDownSalesTable({ startDate, endDate, compareStartDate, compareEndDate, platform: globalPlatform, brand, location: globalLocation }) {
     const { refreshFilters } = React.useContext(FilterContext);
     const [hierarchyData, setHierarchyData] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -94,7 +95,7 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
         setLoading(true);
         setApiError(null);
         try {
-            const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand });
+            const data = await fetchSalesDrilldown({ level: 'platform', startDate, endDate, brand, platform: globalPlatform, location: globalLocation });
             const formatted = data.map(item => ({
                 id: item.name.toLowerCase(),
                 name: item.name,
@@ -123,7 +124,8 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
 
     React.useEffect(() => {
         loadPlatforms();
-    }, [startDate, endDate, brand]);
+        setExpanded(new Set()); // Reset expanded nodes when filters change
+    }, [startDate, endDate, brand, globalPlatform, globalLocation]);
 
     const toggleExpand = async (key, row) => {
         const isCurrentlyExpanded = expanded.has(key);
@@ -139,11 +141,11 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
 
                     if (row.type === 'platform') {
                         levelToFetch = 'region';
-                        params = { level: 'region', platform: row.name, startDate, endDate, brand };
+                        params = { level: 'region', platform: row.name, startDate, endDate, brand, location: globalLocation };
                     } else if (row.type === 'region') {
                         levelToFetch = 'city';
                         const platformName = row.path[0];
-                        params = { level: 'city', platform: platformName, region: row.name, startDate, endDate, brand };
+                        params = { level: 'city', platform: platformName, region: row.name, startDate, endDate, brand, location: globalLocation };
                     } else if (row.type === 'city') {
                         levelToFetch = 'category';
                         const platformName = row.path[0];
@@ -557,16 +559,13 @@ export default function DrillDownSalesTable({ startDate, endDate, brand }) {
                                 </TableHead>
                                 <TableBody>
                                     {loading && pageRows.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>
-                                                <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
-                                                    <CircularProgress size={40} sx={{ color: "#10b981" }} />
-                                                    <Typography sx={{ color: "#64748b", fontSize: 14, fontWeight: 500 }}>
-                                                        Loading data...
-                                                    </Typography>
-                                                </Box>
-                                            </TableCell>
-                                        </TableRow>
+                                        [1, 2, 3, 4, 5].map((item) => (
+                                            <TableRow key={`skeleton-${item}`}>
+                                                <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} sx={{ py: 2 }}>
+                                                    <Skeleton variant="rectangular" width="100%" height={32} sx={{ borderRadius: 1 }} />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
                                     ) : pageRows.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={visibleHierarchyCols.length + METRIC_HEADERS.length} align="center" sx={{ py: 10 }}>

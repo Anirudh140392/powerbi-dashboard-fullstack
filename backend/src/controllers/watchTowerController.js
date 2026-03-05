@@ -16,7 +16,7 @@ export const watchTowerOverview = async (req, res) => {
                 { name: "Availability", label: "0%", subtitle: "No data", trend: "0%", trendType: "neutral", chart: [] },
                 { name: "Share of Search", label: "0%", subtitle: "No data", trend: "0%", trendType: "neutral", chart: [] },
                 { name: "Market Share", label: "0%", subtitle: "No data", trend: "0%", trendType: "neutral", chart: [] },
-                { name: "Promo", label: "0%", subtitle: "No data", trend: "+0.0 pp", trendType: "neutral", chart: [] },
+                { name: "Promo", label: "0%", subtitle: "No data", trend: "+0.0%", trendType: "neutral", chart: [] },
             ],
             summaryMetrics: {
                 offtakes: "₹0",
@@ -27,7 +27,7 @@ export const watchTowerOverview = async (req, res) => {
                 stockAvailabilityTrend: "0%",
                 marketShare: "0%",
                 promo: "0%",
-                promoTrend: "+0.0 pp",
+                promoTrend: "+0.0%",
             },
             skuTable: [],
             platformOverview: []
@@ -474,5 +474,20 @@ export const getPerformanceBreakdown = async (req, res) => {
     } catch (error) {
         console.error('[getPerformanceBreakdown] Error:', error);
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get distinct Product names (SKUs) from rb_pdp_olap
+ * GET /api/watchtower/products
+ */
+export const getProducts = async (req, res) => {
+    try {
+        const { platform, brand, category } = req.query;
+        const products = await watchTowerService.getProducts({ platform, brand, category });
+        res.json(products);
+    } catch (error) {
+        console.error('[getProducts] Error:', error);
+        res.json([]);
     }
 };

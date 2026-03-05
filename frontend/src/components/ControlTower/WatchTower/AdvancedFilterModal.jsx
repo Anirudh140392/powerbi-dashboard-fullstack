@@ -74,8 +74,8 @@ const kpiOptions = [
     { key: 'ad_sov', label: 'Ad SOV' },
     { key: 'organic_sov', label: 'Organic SOV' },
     { key: 'marketShare', label: 'Market share' },
-    { key: 'promoMy', label: 'Promo (My)' },
-    { key: 'promoComp', label: 'Promo (Comp)' },
+    { key: 'promoMyBrand', label: 'Promo (My)' },
+    { key: 'promoCompete', label: 'Promo (Comp)' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
     { key: 'asp', label: 'ASP' },
@@ -230,7 +230,11 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
-    const kpisToUse = propKpiOptions || kpiOptions;
+    // Filter out "Category size" (key: 'roas') when on SKU dimension
+    const baseKpiOptions = propKpiOptions || kpiOptions;
+    const kpisToUse = currentDimension === 'sku'
+        ? baseKpiOptions.filter(k => k.key !== 'roas')
+        : baseKpiOptions;
 
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({

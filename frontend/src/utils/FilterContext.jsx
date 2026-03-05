@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback } from "react";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
+import { useAuth } from "./AuthContext";
 
 export const FilterContext = createContext();
 
@@ -22,8 +23,9 @@ const channelPlatformMap = {
 
 
 export const FilterProvider = ({ children }) => {
+    const { isLoggedIn } = useAuth();
     // Check if user is logged in (has a valid token) before making API calls
-    const isAuthenticated = !!localStorage.getItem('token');
+    const isAuthenticated = isLoggedIn || !!localStorage.getItem('token');
 
     // Channel state
     const [channels] = useState(["Ecom", "ModernTrade"]);
@@ -65,10 +67,9 @@ export const FilterProvider = ({ children }) => {
     // ====== FETCH LATEST DATES FROM DB (on mount) ======
     useEffect(() => {
         const fetchDates = async () => {
-            if (!isAuthenticated) {
-                setDatesFetched(true);
-                return;
-            }
+            if (!isAuthenticated) return;
+
+            setDatesFetched(false);
             try {
                 const res = await axiosInstance.get('/watchtower/latest-available-month');
                 if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
@@ -91,14 +92,13 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchDates();
-    }, []);
+    }, [isAuthenticated]);
 
     // ====== FETCH PLATFORMS FROM DB (on mount) ======
     const fetchPlatformsFromDb = useCallback(async () => {
-        if (!isAuthenticated) {
-            setPlatformsFetched(true);
-            return;
-        }
+        if (!isAuthenticated) return;
+
+        setPlatformsFetched(false);
         try {
             const res = await axiosInstance.get("/watchtower/platforms");
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -122,11 +122,11 @@ export const FilterProvider = ({ children }) => {
         } finally {
             setPlatformsFetched(true);
         }
-    }, [platform]);
+    }, [platform, isAuthenticated]);
 
     useEffect(() => {
         fetchPlatformsFromDb();
-    }, []);
+    }, [fetchPlatformsFromDb]);
 
     // refreshFilters — can be called by child components to re-fetch filter options
     const refreshFilters = useCallback(() => {
@@ -202,7 +202,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         filterPlatformsByChannel();
-    }, [selectedChannel]);
+    }, [selectedChannel, isAuthenticated]);
 
     // ====== FETCH CATEGORIES FROM DB (when platform changes) ======
     useEffect(() => {
@@ -237,7 +237,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchCategories();
-    }, [platform]);
+    }, [platform, isAuthenticated]);
 
     // ====== FETCH LOCATIONS FROM DB (when platform changes) ======
     useEffect(() => {
@@ -274,7 +274,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchLocations();
-    }, [platform]);
+    }, [platform, isAuthenticated]);
 
     // ====== FETCH BRANDS FROM DB (when platform changes) ======
     useEffect(() => {
@@ -308,7 +308,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchBrands();
-    }, [platform]);
+    }, [platform, isAuthenticated]);
 
     // ====== FETCH KEYWORDS FROM DB (on mount) ======
     useEffect(() => {
