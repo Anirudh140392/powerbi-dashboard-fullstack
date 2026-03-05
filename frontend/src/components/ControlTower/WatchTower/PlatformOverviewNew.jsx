@@ -94,6 +94,8 @@ const BACKEND_TITLE_TO_KEY = {
     'Conversion': 'conversion',
     'Availability': 'availability',
     'SOS': 'shareOfVolume',
+    'Ad SOV': 'ad_sov',
+    'Organic SOV': 'organic_sov',
     'Market Share': 'marketShare',
     'Promo My Brand': 'promoMyBrand',
     'Promo Compete': 'promoCompete',
@@ -161,14 +163,18 @@ const PlatformOverviewNew = ({
         { key: 'spend', label: 'Spend' },
         { key: 'roas', label: 'Category size' },
         { key: 'inorgSales', label: 'Inorg Sales' },
+        { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
         { key: 'shareOfVolume', label: 'Share of Volume' },
+        { key: 'ad_sov', label: 'Ad SOV' },
+        { key: 'organic_sov', label: 'Organic SOV' },
         { key: 'marketShare', label: 'Market share' },
         { key: 'promoMyBrand', label: 'Promo - My Brand' },
         { key: 'promoCompete', label: 'Promo - Compete' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
+        { key: 'asp', label: 'ASP' },
     ]
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
@@ -178,6 +184,7 @@ const PlatformOverviewNew = ({
     const [apiLoading, setApiLoading] = useState(false)
     const [apiError, setApiError] = useState(null)
     const [isRetrying, setIsRetrying] = useState(false)
+    const [productOptions, setProductOptions] = useState([])
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -292,6 +299,27 @@ const PlatformOverviewNew = ({
 
         return () => clearTimeout(debounceTimer);
     }, [fetchDimensionData, datesFetched, platformsFetched])
+
+    // Fetch product/SKU options from DB for the filter dropdown
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const params = {};
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
+                }
+                const res = await axiosInstance.get('/watchtower/products', { params });
+                if (res.data && Array.isArray(res.data)) {
+                    setProductOptions(res.data.map(p => ({ id: p, name: p })));
+                }
+            } catch (err) {
+                console.warn('[PlatformOverviewNew] Failed to fetch products for filter:', err.message);
+            }
+        };
+        if (datesFetched) {
+            fetchProducts();
+        }
+    }, [datesFetched, globalPlatform])
 
     // Retry function for error state
     const retryFetch = async () => {
@@ -713,7 +741,8 @@ const PlatformOverviewNew = ({
                 const categoryOptions = globalCategories.map(c => ({ id: c, name: c }))
                 const platformOptions = globalPlatforms.map(p => ({ id: p, name: p }))
                 // SKUs: if current dimension is sku, use them, else empty (fetching all SKUs is too heavy)
-                const skuOptions = dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : []
+                const skuOptions = productOptions.length > 0 ? productOptions
+                    : (dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : [])
 
                 return (
                     <AdvancedFilterModal
