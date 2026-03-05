@@ -246,7 +246,9 @@ export const getSalesOverview = async (req, res) => {
 
         res.json(data);
     } catch (error) {
-        console.error('[getSalesOverview] Error:', error);
+        console.error('[getSalesOverview] Error:', error.message);
+        console.error('[getSalesOverview] Query params:', req.query);
+        console.error('[getSalesOverview] Stack:', error.stack);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -303,8 +305,13 @@ export const getSalesDrilldown = async (req, res) => {
             const results = await queryClickHouse(query);
 
             // Load location mapping for region association
-            const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
-            const mappingRows = await queryClickHouse(mappingQuery);
+            let mappingRows = [];
+            try {
+                const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
+                mappingRows = await queryClickHouse(mappingQuery);
+            } catch (mappingErr) {
+                console.warn('[getSalesDrilldown] rb_location_darkstore query failed, skipping region mapping:', mappingErr.message);
+            }
             const locMap = {};
             mappingRows.forEach(m => {
                 if (m.location_sales) {
@@ -413,14 +420,19 @@ export const getCategorySalesMatrix = async (req, res) => {
                 conditions.push(buildCHMultiCondition(location, 'Location'));
             }
 
-            // Filter by active categories from rca_sku_dim
-            const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
-            const activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+            // Filter by active categories from rca_sku_dim (if table exists)
+            let activeCategories = [];
+            try {
+                const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
+                activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+            } catch (catErr) {
+                console.warn('[getCategorySalesMatrix] rca_sku_dim query failed, skipping active category filter:', catErr.message);
+            }
 
             if (activeCategories.length > 0) {
                 conditions.push(`Category IN (${activeCategories.map(c => `'${escapeCH(c)}'`).join(',')})`);
             } else {
-                // If no active categories found, fallback to all but prevent error
+                // If no active categories found or table missing, include all categories
                 conditions.push('1=1');
             }
 
