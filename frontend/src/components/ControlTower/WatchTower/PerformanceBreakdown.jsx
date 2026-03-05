@@ -401,7 +401,7 @@ export function AggregatedViewTable() {
             setApiError(e.message || "Failed to load Performance Breakdown data");
         }
         setLoading(false);
-    }, [groupBy, filters, selectedPeriods]);
+    }, [groupBy, filters, selectedPeriods]); // DO NOT ADD fetchOptions or objects to dependencies that change on render
 
     useEffect(() => {
         fetchData();

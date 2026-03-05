@@ -707,17 +707,19 @@ const SnapshotOverview = ({
         // Helper to check for zero/empty
         const isZero = (v) => !v || v === '0' || v === '0.0' || v === 0;
 
-        const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, defaultVal, defaultDelta, icon, gradient, idx) => {
-            const val = baseItem?.value || perfItem?.value || defaultVal;
-            const delta = baseItem?.delta || parseFloat(perfItem?.tag) || defaultDelta;
-            const footer = baseItem?.footer || perfItem?.footer || "Actionable Insight";
+        const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, icon, gradient, idx) => {
+            // Always use API data — no hardcoded fallback values
+            const val = baseItem?.value ?? perfItem?.value ?? '0';
+            const rawDelta = baseItem?.delta ?? (perfItem?.tag != null ? parseFloat(perfItem.tag) : 0);
+            const delta = isNaN(rawDelta) ? 0 : rawDelta;
+            const footer = baseItem?.subtitle || baseItem?.footer || perfItem?.footer || "Performance Metric";
 
             return {
                 id: baseItem?.id || defaultId,
                 title: baseItem?.title || defaultTitle,
                 value: val,
                 delta: delta,
-                deltaLabel: `${delta > 0 ? '+' : ''}${delta}%`,
+                deltaLabel: perfItem?.tag || `${delta > 0 ? '+' : ''}${delta}%`,
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
@@ -729,32 +731,37 @@ const SnapshotOverview = ({
 
         // Inorganic Sales
         bottomItems.push(buildBottomItem(
-            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', '₹2.4 Cr', 12.5, TrendingUp, ['#22c55e', '#4ade80'], 0
+            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 0
         ));
 
         // Conversion
         bottomItems.push(buildBottomItem(
-            conversionItem, conversionPerf, 'conversion', 'Conversion', '3.8%', -2.1, Target, ['#06b6d4', '#22d3ee'], 1
+            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 1
         ));
 
         // ROAS
         bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', '4.2', 5.4, DollarSign, ['#eab308', '#facc15'], 2
+            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 2
         ));
 
         // 4. Orders (Always last in this specific list)
-        const ordersVal = (ordersItem && !isZero(ordersItem.value)) ? (ordersItem.value || ordersItem.label) : '15.2K';
-        const ordersDelta = (ordersItem && parseFloat(ordersItem.tag) !== 0) ? ordersItem.tag : 8.5;
+        // Check performanceData for orders KPI as well
+        const ordersPerf = performanceData.find(p => p.id === 'orders') || {};
+        const ordersVal = (ordersItem && ordersItem.value != null) ? (ordersItem.value || ordersItem.label)
+            : (ordersPerf.value != null ? ordersPerf.value : '0');
+        const ordersDeltaRaw = (ordersItem?.tag != null) ? parseFloat(ordersItem.tag)
+            : (ordersPerf?.tag != null ? parseFloat(ordersPerf.tag) : 0);
+        const ordersDelta = isNaN(ordersDeltaRaw) ? 0 : ordersDeltaRaw;
 
         const finalOrders = {
             id: ordersItem?.id || 'orders',
             title: 'Orders',
             value: ordersVal,
-            delta: parseFloat(ordersDelta) || 8.5,
-            deltaLabel: ordersItem?.tag || ordersItem?.deltaLabel || '8.5%',
+            delta: ordersDelta,
+            deltaLabel: ordersItem?.tag || ordersPerf?.tag || `${ordersDelta > 0 ? '+' : ''}${ordersDelta}%`,
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
-            subtitle: ordersItem?.footer || "Actionable Insight",
+            subtitle: ordersItem?.footer || ordersPerf?.footer || "Ad Quantity Sold",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
 
