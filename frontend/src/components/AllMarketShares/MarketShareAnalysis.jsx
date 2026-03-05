@@ -374,7 +374,7 @@ export default function MarketShareAnalysis() {
       />
 
       <MarketShareDrilldown />
-      <SubCategoryMarket />
+      {/* <SubCategoryMarket /> */}
 
       {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
         <div className="text-sm font-semibold">
@@ -388,7 +388,7 @@ export default function MarketShareAnalysis() {
 
       <div className="space-y-4 mt-6">
         <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
-          <div className="flex justify-center">
+          {/* <div className="flex justify-center">
             <div className="relative w-full md:w-[420px]">
               <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
                 <motion.div
@@ -418,12 +418,12 @@ export default function MarketShareAnalysis() {
                 ))}
               </div>
             </div>
-          </div>
+          </div> */}
 
           {marketMode === "geographical" ? (
             <>
 
-              <TwoUp />
+              {/* <TwoUp /> */}
               {/* <ZoneTables /> */}
             </>
           ) : (
