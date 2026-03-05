@@ -226,9 +226,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
               />
 
+              {/* CATEGORY SELECTION */}
               <CustomHeaderDropdown
                 label="CATEGORY"
-                options={categories}
+                options={title === "Availability Analysis" ? ["gold", "silver", "bronze", "non-pds"] : categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
