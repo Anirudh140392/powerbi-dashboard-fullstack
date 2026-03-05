@@ -105,24 +105,27 @@ export const FilterProvider = ({ children }) => {
                 console.log("[FilterContext] Fetched platforms from DB:", res.data);
                 setPlatforms(res.data);
                 // Keep "All" or current selection if it's still valid
-                if (platform !== "All") {
-                    const currentList = Array.isArray(platform) ? platform : [platform];
-                    const validPlatforms = currentList.filter(p => res.data.includes(p));
-                    if (validPlatforms.length === 0) {
-                        setPlatform("All");
-                    } else if (validPlatforms.length === res.data.length) {
-                        setPlatform("All");
-                    } else {
-                        setPlatform(validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms);
+                setPlatform(prevPlatform => {
+                    if (prevPlatform !== "All") {
+                        const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
+                        const validPlatforms = currentList.filter(p => res.data.includes(p));
+                        if (validPlatforms.length === 0) {
+                            return "All";
+                        } else if (validPlatforms.length === res.data.length) {
+                            return "All";
+                        } else {
+                            return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
+                        }
                     }
-                }
+                    return prevPlatform;
+                });
             }
         } catch (err) {
             console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
         } finally {
             setPlatformsFetched(true);
         }
-    }, [platform, isAuthenticated]);
+    }, [isAuthenticated]);
 
     useEffect(() => {
         fetchPlatformsFromDb();
@@ -215,17 +218,16 @@ export const FilterProvider = ({ children }) => {
                     const cats = [...res.data.filter(c => c !== "All")];
                     setCategories(cats);
                     // Keep current selection if still valid, otherwise reset to "All"
-                    if (selectedCategory !== "All") {
-                        const currentList = Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory];
-                        const validList = currentList.filter(c => cats.includes(c));
-                        if (validList.length === 0) {
-                            setSelectedCategory("All");
-                        } else if (validList.length === cats.length - 1) { // all except "All"
-                            setSelectedCategory("All");
-                        } else {
-                            setSelectedCategory(validList.length === 1 ? validList[0] : validList);
+                    setSelectedCategory(prevCat => {
+                        if (prevCat !== "All") {
+                            const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
+                            const validList = currentList.filter(c => cats.includes(c));
+                            if (validList.length === 0) return "All";
+                            if (validList.length === cats.length) return "All";
+                            return validList.length === 1 ? validList[0] : validList;
                         }
-                    }
+                        return prevCat;
+                    });
                 } else {
                     setCategories(FALLBACK_CATEGORIES);
                 }
@@ -250,17 +252,16 @@ export const FilterProvider = ({ children }) => {
                     const locs = [...res.data.filter(l => l !== "All")];
                     setLocations(locs);
                     // Keep current selection if still valid, otherwise reset to "All"
-                    if (selectedLocation !== "All") {
-                        const currentList = Array.isArray(selectedLocation) ? selectedLocation : [selectedLocation];
-                        const validList = currentList.filter(l => locs.includes(l));
-                        if (validList.length === 0) {
-                            setSelectedLocation("All");
-                        } else if (validList.length === locs.length - 1) {
-                            setSelectedLocation("All");
-                        } else {
-                            setSelectedLocation(validList.length === 1 ? validList[0] : validList);
+                    setSelectedLocation(prevLoc => {
+                        if (prevLoc !== "All") {
+                            const currentList = Array.isArray(prevLoc) ? prevLoc : [prevLoc];
+                            const validList = currentList.filter(l => locs.includes(l));
+                            if (validList.length === 0) return "All";
+                            if (validList.length === locs.length) return "All";
+                            return validList.length === 1 ? validList[0] : validList;
                         }
-                    }
+                        return prevLoc;
+                    });
                 } else {
                     setLocations(FALLBACK_LOCATIONS);
                     setSelectedLocation("All");
@@ -286,15 +287,18 @@ export const FilterProvider = ({ children }) => {
                     console.log("[FilterContext] Fetched brands from DB:", res.data);
                     setBrands(res.data);
                     // Auto-select first brand if current not in list
-                    if (selectedBrand !== "All") {
-                        const currentList = Array.isArray(selectedBrand) ? selectedBrand : [selectedBrand];
-                        const validList = currentList.filter(b => res.data.includes(b));
-                        if (validList.length === 0) {
-                            setSelectedBrand(res.data[0]); // fallback to first valid brand
-                        } else {
-                            setSelectedBrand(validList.length === 1 ? validList[0] : validList);
+                    setSelectedBrand(prevBrand => {
+                        if (prevBrand !== "All") {
+                            const currentList = Array.isArray(prevBrand) ? prevBrand : [prevBrand];
+                            const validList = currentList.filter(b => res.data.includes(b));
+                            if (validList.length === 0) {
+                                return res.data[0]; // fallback to first valid brand
+                            } else {
+                                return validList.length === 1 ? validList[0] : validList;
+                            }
                         }
-                    }
+                        return prevBrand;
+                    });
                 } else {
                     setBrands(FALLBACK_BRANDS);
                     setSelectedBrand(FALLBACK_BRANDS[0]);
