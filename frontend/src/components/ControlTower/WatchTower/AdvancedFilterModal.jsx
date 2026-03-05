@@ -230,7 +230,11 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
-    const kpisToUse = propKpiOptions || kpiOptions;
+    // Filter out "Category size" (key: 'roas') when on SKU dimension
+    const baseKpiOptions = propKpiOptions || kpiOptions;
+    const kpisToUse = currentDimension === 'sku'
+        ? baseKpiOptions.filter(k => k.key !== 'roas')
+        : baseKpiOptions;
 
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({
