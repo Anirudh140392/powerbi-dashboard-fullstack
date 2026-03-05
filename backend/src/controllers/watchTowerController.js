@@ -476,3 +476,18 @@ export const getPerformanceBreakdown = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+/**
+ * Get distinct Product names (SKUs) from rb_pdp_olap
+ * GET /api/watchtower/products
+ */
+export const getProducts = async (req, res) => {
+    try {
+        const { platform, brand, category } = req.query;
+        const products = await watchTowerService.getProducts({ platform, brand, category });
+        res.json(products);
+    } catch (error) {
+        console.error('[getProducts] Error:', error);
+        res.json([]);
+    }
+};
