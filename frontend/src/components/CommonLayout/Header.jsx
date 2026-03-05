@@ -27,7 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
 
-const Header = ({ title = "Watch Tower", onMenuClick }) => {
+const Header = ({ title = "Business Overview", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
   const [isExpanded, setIsExpanded] = React.useState(true);
 
@@ -228,9 +228,10 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 multiSelect={true}
               />
 
+              {/* CATEGORY SELECTION */}
               <CustomHeaderDropdown
                 label="CATEGORY"
-                options={categories}
+                options={title === "Availability Analysis" ? ["gold", "silver", "bronze", "non-pds"] : categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}

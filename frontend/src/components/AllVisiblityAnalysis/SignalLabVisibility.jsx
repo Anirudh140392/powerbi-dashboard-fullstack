@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useContext, useEffect } from "react";
+import React, { useState, useMemo, useContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import { fetchVisibilitySignals } from "../../api/signalLabService";
 import {
     X,
     SlidersHorizontal,
@@ -12,8 +13,31 @@ import {
     Zap,
     TrendingUp,
     Package,
-    MapPin
+    MapPin,
+    AlertCircle,
+    RefreshCw
 } from "lucide-react";
+
+const ErrorWithRefresh = ({ onRetry, message }) => (
+    <div className="flex flex-col items-center justify-center py-12 px-3 text-center">
+        <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mb-3">
+            <AlertCircle size={32} className="text-rose-500" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-800 mb-1">
+            API Reference Error
+        </h3>
+        <p className="text-sm text-slate-500 mb-4 max-w-[300px]">
+            {message || "We encountered an issue while fetching the latest data for this segment."}
+        </p>
+        <button
+            onClick={onRetry}
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all active:scale-95"
+        >
+            <RefreshCw size={16} />
+            Try Refreshing
+        </button>
+    </div>
+);
 
 /* ------------------------------------------------------
    KPI ORDER CONFIG
@@ -1293,11 +1317,14 @@ function SignalLabBase({ metricType, usePagination = true }) {
     // State for real API data
     const [apiSkus, setApiSkus] = useState(null); // null = not fetched yet
     const [totalCount, setTotalCount] = useState(0);
+    const [apiError, setApiError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
 
     // Fetch real data from backend API
     useEffect(() => {
         let cancelled = false;
         setIsLoading(true);
+        setApiError(null);
         setPage(1); // Reset to page 1 on filter change
 
         const fetchSignalLab = async () => {
@@ -1357,6 +1384,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
             } catch (err) {
                 console.error('[SignalLab] API error, falling back to sample data:', err);
                 if (!cancelled) {
+                    setApiError(err.message);
                     // Fallback to filtered SAMPLE_SKUS
                     const fallback = SAMPLE_SKUS.filter(s => s.metricType === metricType && s.type === signalType);
                     setApiSkus(fallback);
@@ -1369,7 +1397,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
         fetchSignalLab();
         return () => { cancelled = true; };
-    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation, selectedBrand, selectedChannel, timeStart, timeEnd]);
+    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation, selectedBrand, selectedChannel, timeStart, timeEnd, retryCount]);
 
     // Fetch when page or rowsPerPage changes (server-side pagination)
     useEffect(() => {
@@ -1442,7 +1470,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
         fetchPage();
         return () => { cancelled = true; };
-    }, [page, rowsPerPage]);
+    }, [page, rowsPerPage, retryCount]);
 
     const filtered = apiSkus || [];
     const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
@@ -1476,6 +1504,10 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
                         {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
                     </div>
+                ) : apiError ? (
+                    <ErrorWithRefresh onRetry={() => {
+                        setRetryCount(c => c + 1);
+                    }} message={apiError} />
                 ) : filtered.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
                         {pageRows.map((s) => (

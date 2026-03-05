@@ -9,6 +9,7 @@ import {
     TableHead,
     TableRow,
     CircularProgress,
+    Skeleton,
     Tooltip
 } from "@mui/material";
 import { motion } from "framer-motion";
@@ -427,11 +428,13 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                             </TableHead>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} align="center" sx={{ py: 10 }}>
-                                            <CircularProgress size={35} sx={{ color: "#6366f1" }} />
-                                        </TableCell>
-                                    </TableRow>
+                                    [1, 2, 3].map((item) => (
+                                        <TableRow key={`skeleton-${item}`}>
+                                            <TableCell colSpan={activeKpis.length + 1} sx={{ py: 2 }}>
+                                                <Skeleton variant="rectangular" width="100%" height={40} sx={{ borderRadius: 1 }} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
                                 ) : filteredData.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} align="center" sx={{ py: 10 }}>

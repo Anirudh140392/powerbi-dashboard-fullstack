@@ -64,50 +64,68 @@ export const getSalesOverview = async (req, res) => {
         const cacheKey = generateCacheKey('sales_overview_ch', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            const { platform, brand, location, region, startDate, endDate, compareStartDate, compareEndDate } = req.query;
+            const { platform, brand, location, startDate, endDate, compareStartDate, compareEndDate } = req.query;
 
             // Build base conditions
             const platformCondition = buildCHMultiCondition(platform, 'Platform');
             const brandCondition = buildCHMultiCondition(brand, 'Brand', { isBrand: true });
             const locationCondition = buildCHMultiCondition(location, 'Location');
             const compFlagCondition = "toString(Comp_flag) = '0'";
-
             const baseWhere = `${compFlagCondition} AND ${platformCondition} AND ${brandCondition} AND ${locationCondition}`;
 
             const currentEnd = endDate ? dayjs(endDate) : dayjs();
-            const daysInInterval = startDate && endDate ? dayjs(endDate).diff(dayjs(startDate), 'day') + 1 : 1;
+            const currentStart = startDate ? dayjs(startDate) : currentEnd.subtract(30, 'day');
+            const today = dayjs();
+            const daysInMonth = currentEnd.daysInMonth();
 
-            // 1. Overall Sales in selected range
-            let overallSales = 0;
-            if (startDate && endDate) {
-                const overallQuery = `
-                    SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
-                    FROM rb_pdp_olap
-                    WHERE ${baseWhere}
-                      AND toDate(DATE) BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'
-                `;
-                const overallRes = await queryClickHouse(overallQuery);
-                overallSales = parseFloat(overallRes[0]?.total || 0);
-            }
+            // ── Q1: Overall Sales in selected range ───────────────────
+            const overallQuery = `
+                SELECT 
+                    COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total,
+                    COUNT(DISTINCT toDate(DATE)) as dataDays
+                FROM rb_pdp_olap
+                WHERE ${baseWhere}
+                  AND toDate(DATE) BETWEEN '${currentStart.format('YYYY-MM-DD')}' AND '${currentEnd.format('YYYY-MM-DD')}'
+            `;
+            const overallRes = await queryClickHouse(overallQuery);
+            const overallSales = parseFloat(overallRes[0]?.total || 0);
+            const actualDataDays = parseInt(overallRes[0]?.dataDays || 1);
 
-            // 2. Comparison Period Sales
+            // ── Q2: Comparison Period Sales ────────────────────────────
             let comparisonSales = 0;
+            let compDataDays = 1;
             if (compareStartDate && compareEndDate) {
                 const compQuery = `
-                    SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                    SELECT 
+                        COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total,
+                        COUNT(DISTINCT toDate(DATE)) as dataDays
                     FROM rb_pdp_olap
                     WHERE ${baseWhere}
                       AND toDate(DATE) BETWEEN '${dayjs(compareStartDate).format('YYYY-MM-DD')}' AND '${dayjs(compareEndDate).format('YYYY-MM-DD')}'
                 `;
                 const compRes = await queryClickHouse(compQuery);
                 comparisonSales = parseFloat(compRes[0]?.total || 0);
+                compDataDays = parseInt(compRes[0]?.dataDays || 1);
             }
 
-            // 3. MTD Sales (Month of the endDate)
+            // ── Q3: Previous Full Month Sales (for projected comparison) ──
+            const prevMonthStart = currentEnd.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+            const prevMonthEnd = currentEnd.subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
+            const prevMonthQuery = `
+                SELECT COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total
+                FROM rb_pdp_olap
+                WHERE ${baseWhere}
+                  AND toDate(DATE) BETWEEN '${prevMonthStart}' AND '${prevMonthEnd}'
+            `;
+            const prevMonthRes = await queryClickHouse(prevMonthQuery);
+            const prevMonthSales = parseFloat(prevMonthRes[0]?.total || 0);
+
+            // ── Derived KPIs ──────────────────────────────────────────
+            // MTD = Sales from 1st of endDate's month to endDate
             const mtdStart = currentEnd.startOf('month').format('YYYY-MM-DD');
             const mtdEnd = currentEnd.format('YYYY-MM-DD');
             const mtdQuery = `
-                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                SELECT COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
                   AND toDate(DATE) BETWEEN '${mtdStart}' AND '${mtdEnd}'
@@ -115,76 +133,122 @@ export const getSalesOverview = async (req, res) => {
             const mtdRes = await queryClickHouse(mtdQuery);
             const mtdSales = parseFloat(mtdRes[0]?.total || 0);
 
-            // 4. Calculations
-            const drr = daysInInterval > 0 ? overallSales / daysInInterval : 0;
-            const mtdDaysElapsed = currentEnd.date() || 1;
-            const projectedSales = (mtdSales / mtdDaysElapsed) * currentEnd.daysInMonth();
+            // DRR = Overall / actual data days (NOT calendar days)
+            const drr = actualDataDays > 0 ? overallSales / actualDataDays : 0;
 
-            // 5. Daily Trend for Sparklines (selected date range)
-            let trend = [];
-            if (startDate && endDate) {
-                const trendQuery = `
-                    SELECT 
-                        toDate(DATE) as date,
-                        SUM(toFloat64OrZero(Sales)) as value
-                    FROM rb_pdp_olap
-                    WHERE ${baseWhere}
-                      AND toDate(DATE) BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'
-                    GROUP BY toDate(DATE)
-                    ORDER BY date ASC
-                `;
-                const trendRes = await queryClickHouse(trendQuery);
-                trend = trendRes.map(t => ({
-                    date: dayjs(t.date).format('DD MMM'),
-                    value: parseFloat(t.value || 0)
-                }));
-            }
+            // Projected = DRR × days in month (of endDate's month)
+            const projectedSales = drr * daysInMonth;
 
-            // 6. MTD Trend for Sparklines
-            const mtdTrendQuery = `
+            // ── Change Percentages ────────────────────────────────────
+            const changePercentage = comparisonSales > 0
+                ? ((overallSales - comparisonSales) / comparisonSales) * 100
+                : null;
+
+            const compDrr = compDataDays > 0 ? comparisonSales / compDataDays : 0;
+            const mtdChangePercentage = compDrr > 0
+                ? ((drr - compDrr) / compDrr) * 100 * (actualDataDays / compDataDays)
+                : null;
+
+            const drrChangePercentage = compDrr > 0
+                ? ((drr - compDrr) / compDrr) * 100
+                : null;
+
+            const projectedChangePercentage = prevMonthSales > 0
+                ? ((projectedSales - prevMonthSales) / prevMonthSales) * 100
+                : null;
+
+            // ── Required Run Rate & Forecast Accuracy ─────────────────
+            const dayOfMonth = currentEnd.date();
+            const remainingDays = daysInMonth - dayOfMonth;
+            // How much daily sales needed for rest of month to match last month
+            const reqRunRate = remainingDays > 0 && prevMonthSales > 0
+                ? (prevMonthSales - mtdSales) / remainingDays
+                : drr;
+            // Gap between current DRR and required run rate
+            const reqRunRateGap = drr > 0
+                ? ((reqRunRate - drr) / drr) * 100
+                : null;
+            // Forecast accuracy = projected as % of previous month
+            const forecastAccuracy = prevMonthSales > 0
+                ? (projectedSales / prevMonthSales) * 100
+                : null;
+
+            // ── Q4: Sparkline — Overall Sales trend (bucketed ~15 pts) ─
+            const MAX_SPARKLINE_POINTS = 15;
+            const clampedEnd = currentEnd.isAfter(today) ? today : currentEnd;
+            const totalDays = Math.max(1, clampedEnd.diff(currentStart, 'day') + 1);
+            const bucketSize = Math.max(1, Math.ceil(totalDays / MAX_SPARKLINE_POINTS));
+            const dateFormat = totalDays > 60 ? 'MMM YY' : 'DD MMM';
+
+            const trendQuery = `
                 SELECT 
-                    toDate(DATE) as date,
-                    SUM(toFloat64OrZero(Sales)) as value
+                    min(toDate(DATE)) as bucket_start,
+                    SUM(toFloat64OrZero(toString(Sales))) as value,
+                    COUNT(DISTINCT toDate(DATE)) as days_in_bucket
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
-                  AND toDate(DATE) BETWEEN '${mtdStart}' AND '${mtdEnd}'
-                GROUP BY toDate(DATE)
-                ORDER BY date ASC
+                  AND toDate(DATE) BETWEEN '${currentStart.format('YYYY-MM-DD')}' AND '${clampedEnd.format('YYYY-MM-DD')}'
+                GROUP BY intDiv(dateDiff('day', toDate('${currentStart.format('YYYY-MM-DD')}'), toDate(DATE)), ${bucketSize})
+                ORDER BY bucket_start ASC
             `;
-            const mtdTrendRes = await queryClickHouse(mtdTrendQuery);
-            const mtdTrend = mtdTrendRes.map(t => ({
-                date: dayjs(t.date).format('DD MMM'),
-                value: parseFloat(t.value || 0)
+            const trendRes = await queryClickHouse(trendQuery);
+            const trend = trendRes.map(t => ({
+                date: dayjs(t.bucket_start).format(dateFormat),
+                value: parseFloat(t.value || 0),
+                dataDays: parseInt(t.days_in_bucket || 1)
             }));
 
-            // Calculate change percentages - Previous Month MTD
-            const mtdPrevStart = currentEnd.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
-            const mtdPrevEnd = currentEnd.subtract(1, 'month').format('YYYY-MM-DD');
-            const mtdPrevQuery = `
-                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
-                FROM rb_pdp_olap
-                WHERE ${baseWhere}
-                  AND toDate(DATE) BETWEEN '${mtdPrevStart}' AND '${mtdPrevEnd}'
-            `;
-            const mtdPrevRes = await queryClickHouse(mtdPrevQuery);
-            const mtdPrevSales = parseFloat(mtdPrevRes[0]?.total || 0);
+            console.log(`[Sparkline] Range: ${totalDays} days | Bucket: ${bucketSize} days/pt | Points: ${trend.length} | DataDays: ${actualDataDays}`);
+
+            // ── Derived Sparklines ─────────────────────────────────────
+            // MTD trend: cumulative running total
+            const mtdTrend = trend.map((point, idx) => {
+                const cumSum = trend.slice(0, idx + 1).reduce((s, p) => s + p.value, 0);
+                return { date: point.date, value: Math.round(cumSum) };
+            });
+
+            // DRR trend: running average using actual data days per bucket
+            const drrTrend = trend.map((point, idx) => {
+                const cumSum = trend.slice(0, idx + 1).reduce((s, p) => s + p.value, 0);
+                const cumDataDays = trend.slice(0, idx + 1).reduce((s, p) => s + p.dataDays, 0);
+                return { date: point.date, value: Math.round(cumSum / Math.max(1, cumDataDays)) };
+            });
+
+            // Projected trend: projected month total at each point
+            const projectedTrend = trend.map((point, idx) => {
+                const cumSum = trend.slice(0, idx + 1).reduce((s, p) => s + p.value, 0);
+                const cumDataDays = trend.slice(0, idx + 1).reduce((s, p) => s + p.dataDays, 0);
+                const localDrr = cumDataDays > 0 ? cumSum / cumDataDays : 0;
+                return { date: point.date, value: Math.round(localDrr * daysInMonth) };
+            });
 
             return {
                 overallSales,
                 comparisonSales,
-                changePercentage: comparisonSales > 0 ? ((overallSales - comparisonSales) / comparisonSales) * 100 : null,
+                changePercentage,
                 mtdSales,
-                mtdChangePercentage: mtdPrevSales > 0 ? ((mtdSales - mtdPrevSales) / mtdPrevSales) * 100 : null,
+                mtdChangePercentage,
                 drr,
+                drrChangePercentage,
                 projectedSales,
+                projectedChangePercentage,
+                actualDataDays,
+                prevMonthSales,
+                reqRunRate,
+                reqRunRateGap,
+                forecastAccuracy,
                 trend,
-                mtdTrend
+                mtdTrend,
+                drrTrend,
+                projectedTrend
             };
         }, CACHE_TTL.METRICS);
 
         res.json(data);
     } catch (error) {
-        console.error('[getSalesOverview] Error:', error);
+        console.error('[getSalesOverview] Error:', error.message);
+        console.error('[getSalesOverview] Query params:', req.query);
+        console.error('[getSalesOverview] Stack:', error.stack);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -229,10 +293,10 @@ export const getSalesDrilldown = async (req, res) => {
             const query = `
                 SELECT 
                     ${groupByField} as groupKey,
-                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
-                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(Sales), 0)) as ytd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYear
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
+                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(toString(Sales)), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(toString(Sales)), 0)) as lastYear
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY ${groupByField}
@@ -241,8 +305,13 @@ export const getSalesDrilldown = async (req, res) => {
             const results = await queryClickHouse(query);
 
             // Load location mapping for region association
-            const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
-            const mappingRows = await queryClickHouse(mappingQuery);
+            let mappingRows = [];
+            try {
+                const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
+                mappingRows = await queryClickHouse(mappingQuery);
+            } catch (mappingErr) {
+                console.warn('[getSalesDrilldown] rb_location_darkstore query failed, skipping region mapping:', mappingErr.message);
+            }
             const locMap = {};
             mappingRows.forEach(m => {
                 if (m.location_sales) {
@@ -351,14 +420,19 @@ export const getCategorySalesMatrix = async (req, res) => {
                 conditions.push(buildCHMultiCondition(location, 'Location'));
             }
 
-            // Filter by active categories from rca_sku_dim
-            const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
-            const activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+            // Filter by active categories from rca_sku_dim (if table exists)
+            let activeCategories = [];
+            try {
+                const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
+                activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+            } catch (catErr) {
+                console.warn('[getCategorySalesMatrix] rca_sku_dim query failed, skipping active category filter:', catErr.message);
+            }
 
             if (activeCategories.length > 0) {
                 conditions.push(`Category IN (${activeCategories.map(c => `'${escapeCH(c)}'`).join(',')})`);
             } else {
-                // If no active categories found, fallback to all but prevent error
+                // If no active categories found or table missing, include all categories
                 conditions.push('1=1');
             }
 
@@ -367,12 +441,12 @@ export const getCategorySalesMatrix = async (req, res) => {
             const query = `
                 SELECT 
                     Category as category,
-                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(Sales), 0)) as prevMonthFull,
-                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as ytd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYearMtd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(Sales), 0)) as lastYearFull
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(toString(Sales)), 0)) as prevMonthFull,
+                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearMtd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearFull
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY Category
@@ -385,7 +459,7 @@ export const getCategorySalesMatrix = async (req, res) => {
                 SELECT 
                     Category,
                     toDate(DATE) as date,
-                    sum(toFloat64OrZero(Sales)) as dailySales
+                    sum(toFloat64OrZero(toString(Sales))) as dailySales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}'
@@ -484,7 +558,7 @@ export const getSalesTrends = async (req, res) => {
             const query = `
                 SELECT 
                     toDate(DATE) as date,
-                    sum(toFloat64OrZero(Sales)) as sales
+                    sum(toFloat64OrZero(toString(Sales))) as sales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY toDate(DATE)

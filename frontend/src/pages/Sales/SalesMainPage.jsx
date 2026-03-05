@@ -9,6 +9,7 @@ import ByCategoryKpiMatrix from "../../components/Sales/ByCategoryKpiMatrix";
 import DrillDownSalesTable from "../../components/Sales/DrillDownSalesTable";
 import SalesTrendsDrawer from "../../components/Sales/SalesTrendsDrawer";
 import { FilterContext } from "../../utils/FilterContext";
+import { fetchSalesOverview as fetchSalesOverviewApi } from "../../api/salesService";
 
 // ---------------------------------------------------------------------------
 // Error State Component - Shows when API fails with refresh button
@@ -75,31 +76,18 @@ export default function SalesMainPage() {
 
   // Format filter helper
   const formatFilter = useCallback((val) => {
-    if (!val || val === "All") return "All";
+    if (!val || val === "All") return "";
     if (Array.isArray(val)) return val.join(",");
     return val;
   }, []);
 
-  // Build query params helper
-  const buildQueryParams = useCallback(() => {
-    return new URLSearchParams({
-      platform: formatFilter(platform),
-      brand: formatFilter(selectedBrand),
-      location: formatFilter(selectedLocation),
-      startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
-      endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
-      compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
-      compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
-    });
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, formatFilter]);
-
   // Individual fetch functions for retry capability
-  const fetchSalesOverview = useCallback(async (signal) => {
+  const fetchSalesOverview = useCallback(async () => {
     try {
       setApiErrors(prev => ({ ...prev, overview: null }));
       setLoading(true);
 
-      const params = {
+      const data = await fetchSalesOverviewApi({
         platform: formatFilter(platform),
         brand: formatFilter(selectedBrand),
         location: formatFilter(selectedLocation),
@@ -107,19 +95,18 @@ export default function SalesMainPage() {
         endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
         compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
         compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
-      };
-      const response = await axiosInstance.get("/sales/overview", { params, signal });
-      setSummaryData(response.data);
+      });
+      setSummaryData(data);
       return true;
     } catch (error) {
-      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') return false;
+      if (error.name === 'CanceledError') return false;
       console.error("Error fetching sales overview:", error);
-      setApiErrors(prev => ({ ...prev, overview: error.message }));
+      setApiErrors(prev => ({ ...prev, overview: error.message || "Failed to load overview" }));
       return false;
     } finally {
       setLoading(false);
     }
-  }, [buildQueryParams, platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, formatFilter]);
+  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, formatFilter]);
 
   // Retry handler for overview segment
   const retrySegment = useCallback(async (segmentKey) => {
@@ -135,14 +122,9 @@ export default function SalesMainPage() {
   }, [refreshFilters, fetchSalesOverview]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const signal = controller.signal;
-
     // Reset errors when filters change
     setApiErrors({});
-    fetchSalesOverview(signal);
-
-    return () => controller.abort();
+    fetchSalesOverview();
   }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, fetchSalesOverview]);
 
   return (
@@ -211,7 +193,11 @@ export default function SalesMainPage() {
           <DrillDownSalesTable
             startDate={timeStart ? timeStart.format("YYYY-MM-DD") : ""}
             endDate={timeEnd ? timeEnd.format("YYYY-MM-DD") : ""}
+            compareStartDate={compareStart ? compareStart.format("YYYY-MM-DD") : ""}
+            compareEndDate={compareEnd ? compareEnd.format("YYYY-MM-DD") : ""}
+            platform={platform}
             brand={selectedBrand}
+            location={selectedLocation}
           />
         </Box>
       </Box>
