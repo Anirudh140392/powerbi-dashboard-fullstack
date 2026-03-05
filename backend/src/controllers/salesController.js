@@ -81,7 +81,7 @@ export const getSalesOverview = async (req, res) => {
             // ── Q1: Overall Sales in selected range ───────────────────
             const overallQuery = `
                 SELECT 
-                    COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total,
+                    COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total,
                     COUNT(DISTINCT toDate(DATE)) as dataDays
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
@@ -97,7 +97,7 @@ export const getSalesOverview = async (req, res) => {
             if (compareStartDate && compareEndDate) {
                 const compQuery = `
                     SELECT 
-                        COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total,
+                        COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total,
                         COUNT(DISTINCT toDate(DATE)) as dataDays
                     FROM rb_pdp_olap
                     WHERE ${baseWhere}
@@ -112,7 +112,7 @@ export const getSalesOverview = async (req, res) => {
             const prevMonthStart = currentEnd.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
             const prevMonthEnd = currentEnd.subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
             const prevMonthQuery = `
-                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                SELECT COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
                   AND toDate(DATE) BETWEEN '${prevMonthStart}' AND '${prevMonthEnd}'
@@ -125,7 +125,7 @@ export const getSalesOverview = async (req, res) => {
             const mtdStart = currentEnd.startOf('month').format('YYYY-MM-DD');
             const mtdEnd = currentEnd.format('YYYY-MM-DD');
             const mtdQuery = `
-                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                SELECT COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
                   AND toDate(DATE) BETWEEN '${mtdStart}' AND '${mtdEnd}'
@@ -183,7 +183,7 @@ export const getSalesOverview = async (req, res) => {
             const trendQuery = `
                 SELECT 
                     min(toDate(DATE)) as bucket_start,
-                    SUM(toFloat64OrZero(Sales)) as value,
+                    SUM(toFloat64OrZero(toString(Sales))) as value,
                     COUNT(DISTINCT toDate(DATE)) as days_in_bucket
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
@@ -246,7 +246,9 @@ export const getSalesOverview = async (req, res) => {
 
         res.json(data);
     } catch (error) {
-        console.error('[getSalesOverview] Error:', error);
+        console.error('[getSalesOverview] Error:', error.message);
+        console.error('[getSalesOverview] Query params:', req.query);
+        console.error('[getSalesOverview] Stack:', error.stack);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -291,10 +293,10 @@ export const getSalesDrilldown = async (req, res) => {
             const query = `
                 SELECT 
                     ${groupByField} as groupKey,
-                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
-                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(Sales), 0)) as ytd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYear
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
+                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(toString(Sales)), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(toString(Sales)), 0)) as lastYear
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY ${groupByField}
@@ -303,8 +305,13 @@ export const getSalesDrilldown = async (req, res) => {
             const results = await queryClickHouse(query);
 
             // Load location mapping for region association
-            const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
-            const mappingRows = await queryClickHouse(mappingQuery);
+            let mappingRows = [];
+            try {
+                const mappingQuery = `SELECT location_sales, region FROM rb_location_darkstore`;
+                mappingRows = await queryClickHouse(mappingQuery);
+            } catch (mappingErr) {
+                console.warn('[getSalesDrilldown] rb_location_darkstore query failed, skipping region mapping:', mappingErr.message);
+            }
             const locMap = {};
             mappingRows.forEach(m => {
                 if (m.location_sales) {
@@ -413,14 +420,19 @@ export const getCategorySalesMatrix = async (req, res) => {
                 conditions.push(buildCHMultiCondition(location, 'Location'));
             }
 
-            // Filter by active categories from rca_sku_dim
-            const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
-            const activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+            // Filter by active categories from rca_sku_dim (if table exists)
+            let activeCategories = [];
+            try {
+                const activeCategoriesResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE toString(status) = '1'`);
+                activeCategories = activeCategoriesResult.map(r => r.category).filter(Boolean);
+            } catch (catErr) {
+                console.warn('[getCategorySalesMatrix] rca_sku_dim query failed, skipping active category filter:', catErr.message);
+            }
 
             if (activeCategories.length > 0) {
                 conditions.push(`Category IN (${activeCategories.map(c => `'${escapeCH(c)}'`).join(',')})`);
             } else {
-                // If no active categories found, fallback to all but prevent error
+                // If no active categories found or table missing, include all categories
                 conditions.push('1=1');
             }
 
@@ -429,12 +441,12 @@ export const getCategorySalesMatrix = async (req, res) => {
             const query = `
                 SELECT 
                     Category as category,
-                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(Sales), 0)) as prevMonthFull,
-                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as ytd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYearMtd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(Sales), 0)) as lastYearFull
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(toString(Sales)), 0)) as prevMonthFull,
+                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearMtd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearFull
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY Category
@@ -447,7 +459,7 @@ export const getCategorySalesMatrix = async (req, res) => {
                 SELECT 
                     Category,
                     toDate(DATE) as date,
-                    sum(toFloat64OrZero(Sales)) as dailySales
+                    sum(toFloat64OrZero(toString(Sales))) as dailySales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}'
@@ -546,7 +558,7 @@ export const getSalesTrends = async (req, res) => {
             const query = `
                 SELECT 
                     toDate(DATE) as date,
-                    sum(toFloat64OrZero(Sales)) as sales
+                    sum(toFloat64OrZero(toString(Sales))) as sales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY toDate(DATE)
