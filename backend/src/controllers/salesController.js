@@ -81,7 +81,7 @@ export const getSalesOverview = async (req, res) => {
             // ── Q1: Overall Sales in selected range ───────────────────
             const overallQuery = `
                 SELECT 
-                    COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total,
+                    COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total,
                     COUNT(DISTINCT toDate(DATE)) as dataDays
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
@@ -97,7 +97,7 @@ export const getSalesOverview = async (req, res) => {
             if (compareStartDate && compareEndDate) {
                 const compQuery = `
                     SELECT 
-                        COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total,
+                        COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total,
                         COUNT(DISTINCT toDate(DATE)) as dataDays
                     FROM rb_pdp_olap
                     WHERE ${baseWhere}
@@ -112,7 +112,7 @@ export const getSalesOverview = async (req, res) => {
             const prevMonthStart = currentEnd.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
             const prevMonthEnd = currentEnd.subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
             const prevMonthQuery = `
-                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                SELECT COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
                   AND toDate(DATE) BETWEEN '${prevMonthStart}' AND '${prevMonthEnd}'
@@ -125,7 +125,7 @@ export const getSalesOverview = async (req, res) => {
             const mtdStart = currentEnd.startOf('month').format('YYYY-MM-DD');
             const mtdEnd = currentEnd.format('YYYY-MM-DD');
             const mtdQuery = `
-                SELECT COALESCE(SUM(toFloat64OrZero(Sales)), 0) as total
+                SELECT COALESCE(SUM(toFloat64OrZero(toString(Sales))), 0) as total
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
                   AND toDate(DATE) BETWEEN '${mtdStart}' AND '${mtdEnd}'
@@ -183,7 +183,7 @@ export const getSalesOverview = async (req, res) => {
             const trendQuery = `
                 SELECT 
                     min(toDate(DATE)) as bucket_start,
-                    SUM(toFloat64OrZero(Sales)) as value,
+                    SUM(toFloat64OrZero(toString(Sales))) as value,
                     COUNT(DISTINCT toDate(DATE)) as days_in_bucket
                 FROM rb_pdp_olap
                 WHERE ${baseWhere}
@@ -293,10 +293,10 @@ export const getSalesDrilldown = async (req, res) => {
             const query = `
                 SELECT 
                     ${groupByField} as groupKey,
-                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
-                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(Sales), 0)) as ytd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYear
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
+                    sum(if(toDate(DATE) >= '${ytdS}', toFloat64OrZero(toString(Sales)), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(toString(Sales)), 0)) as lastYear
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY ${groupByField}
@@ -441,12 +441,12 @@ export const getCategorySalesMatrix = async (req, res) => {
             const query = `
                 SELECT 
                     Category as category,
-                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as mtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(Sales), 0)) as prevMtd,
-                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(Sales), 0)) as prevMonthFull,
-                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(Sales), 0)) as ytd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(Sales), 0)) as lastYearMtd,
-                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(Sales), 0)) as lastYearFull
+                    sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
+                    sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(toString(Sales)), 0)) as prevMonthFull,
+                    sum(if(toDate(DATE) BETWEEN '${ytdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as ytd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearS}' AND '${lastYearE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearMtd,
+                    sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearFull
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY Category
@@ -459,7 +459,7 @@ export const getCategorySalesMatrix = async (req, res) => {
                 SELECT 
                     Category,
                     toDate(DATE) as date,
-                    sum(toFloat64OrZero(Sales)) as dailySales
+                    sum(toFloat64OrZero(toString(Sales))) as dailySales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}'
@@ -558,7 +558,7 @@ export const getSalesTrends = async (req, res) => {
             const query = `
                 SELECT 
                     toDate(DATE) as date,
-                    sum(toFloat64OrZero(Sales)) as sales
+                    sum(toFloat64OrZero(toString(Sales))) as sales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY toDate(DATE)
