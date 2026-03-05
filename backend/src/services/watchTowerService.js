@@ -9004,9 +9004,9 @@ const getPerformanceBreakdownData = async (filters) => {
                 SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
                 if(${total_spends} > 0, (group_spends / ${total_spends}) * 100, 0) AS spend_percent_share,
                 if(group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS group_orders,
+                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS group_orders,
                 if(group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS group_sales
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS group_sales
             FROM rb_pdp_olap
             WHERE Comp_flag = 0
             ${platformClause}
@@ -9104,9 +9104,9 @@ const getPerformanceBreakdownData = async (filters) => {
                         if(group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
                         SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
                         if(group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS group_orders,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS group_orders,
                         if(group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) AS group_sales
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS group_sales
                     FROM rb_pdp_olap
                     WHERE Comp_flag = 0 ${platformClause} ${periodDateClause}
                     GROUP BY ${groupByCol}
