@@ -1,16 +1,13 @@
 import React from "react";
 import MetricCardContainer from "../../components/CommonLayout/MetricCardContainer";
-import { SALES_SUMMARY_DATA } from "./SalesData";
 import dayjs from "dayjs";
 
 export default function SalesSummaryCards({ data, loading, startDate, endDate }) {
-    const { mtd, currentDRR, projectedSales: mockProjected } = SALES_SUMMARY_DATA;
-
-    // Fallback values if data is missing
-    const overallValue = data?.overallSales ?? SALES_SUMMARY_DATA.overallSales;
-    const mtdValue = data?.mtdSales ?? mtd.value;
-    const drrValue = data?.drr ?? currentDRR;
-    const projectedValue = data?.projectedSales ?? mockProjected.value;
+    // Treat data values as 0 when not loaded or not provided, instead of hardcoded data
+    const overallValue = data?.overallSales ?? 0;
+    const mtdValue = data?.mtdSales ?? 0;
+    const drrValue = data?.drr ?? 0;
+    const projectedValue = data?.projectedSales ?? 0;
 
     const changePerc = data?.changePercentage;
     const isPositive = changePerc >= 0;
@@ -39,25 +36,19 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
     const defaultMonths = generateDateLabels();
 
     const generateDefaultSparkline = (baseValue, variance = 0.15) => {
-        const values = [];
-        let current = baseValue || 100;
-        for (let i = 0; i < 7; i++) {
-            current = current * (1 + (Math.random() - 0.5) * variance);
-            values.push(current);
-        }
-        return values;
+        return Array(7).fill(baseValue || 0); // Flat-line when there is no data
     };
 
     const sparklineData = (data?.trend?.length >= 1) ? data.trend.map(t => t.value) : generateDefaultSparkline(overallValue / 100000);
     const sparklineMonths = (data?.trend?.length >= 1) ? data.trend.map(t => t.date) : defaultMonths;
 
-    const mtdSparklineData = (data?.mtdTrend?.length >= 1) ? data.mtdTrend.map(t => t.value) : generateDefaultSparkline(mtdValue / 100000, 0.12);
+    const mtdSparklineData = (data?.mtdTrend?.length >= 1) ? data.mtdTrend.map(t => t.value) : generateDefaultSparkline(mtdValue / 100000);
     const mtdSparklineMonths = (data?.mtdTrend?.length >= 1) ? data.mtdTrend.map(t => t.date) : defaultMonths;
 
-    const drrSparklineData = (data?.drrTrend?.length >= 1) ? data.drrTrend.map(t => t.value) : generateDefaultSparkline(drrValue / 100000, 0.08);
+    const drrSparklineData = (data?.drrTrend?.length >= 1) ? data.drrTrend.map(t => t.value) : generateDefaultSparkline(drrValue / 100000);
     const drrSparklineMonths = (data?.drrTrend?.length >= 1) ? data.drrTrend.map(t => t.date) : defaultMonths;
 
-    const projSparklineData = (data?.projectedTrend?.length >= 1) ? data.projectedTrend.map(t => t.value) : generateDefaultSparkline(projectedValue / 100000, 0.1);
+    const projSparklineData = (data?.projectedTrend?.length >= 1) ? data.projectedTrend.map(t => t.value) : generateDefaultSparkline(projectedValue / 100000);
     const projSparklineMonths = (data?.projectedTrend?.length >= 1) ? data.projectedTrend.map(t => t.date) : defaultMonths;
 
     // Helper for formatting large numbers in Indian system (Lakh/Crore)
@@ -106,10 +97,9 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         {
             title: "Overall Sales",
             value: `₹${formatValue(overallValue)}`,
-            loading: loading,
             change: changeText,
             changeColor: changeColor,
-            prevText: changePerc !== null ? "vs Prev Period" : "",
+            prevText: changePerc !== null && changePerc !== undefined ? "vs Prev Period" : "",
             extra: data?.actualDataDays ? `${data.actualDataDays} days with data` : "",
             sparklineData: sparklineData,
             months: sparklineMonths
@@ -117,10 +107,9 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         {
             title: "MTD Sales",
             value: `₹${formatValue(mtdValue)}`,
-            loading: loading,
             change: mtdChangeText,
             changeColor: mtdChangeColor,
-            prevText: mtdChangePerc !== null ? "vs Prev Period" : "",
+            prevText: mtdChangePerc !== null && mtdChangePerc !== undefined ? "vs Prev Period" : "",
             extra: `Daily Average: ₹${formatValue(drrValue)}`,
             extraChange: "",
             extraChangeColor: "",
@@ -130,10 +119,9 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         {
             title: "Current DRR",
             value: `₹${formatValue(drrValue)}`,
-            loading: loading,
             change: drrChangeText,
             changeColor: drrChangeColor,
-            prevText: drrChangePerc !== null ? "vs Prev Period" : "",
+            prevText: drrChangePerc !== null && drrChangePerc !== undefined ? "vs Prev Period" : "",
             extra: data?.reqRunRate ? `Req. Run Rate: ₹${formatValue(data.reqRunRate)}` : "",
             extraChange: data?.reqRunRateGap !== null && data?.reqRunRateGap !== undefined
                 ? `${data.reqRunRateGap >= 0 ? '▲' : '▼'}${Math.abs(data.reqRunRateGap).toFixed(0)}%`
@@ -145,10 +133,9 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         {
             title: "Projected Sales",
             value: `₹${formatValue(projectedValue)}`,
-            loading: loading,
             change: projChangeText,
             changeColor: projChangeColor,
-            prevText: projChangePerc !== null ? "vs Last Month" : "",
+            prevText: projChangePerc !== null && projChangePerc !== undefined ? "vs Last Month" : "",
             extra: "Forecast Accuracy",
             extraChange: data?.forecastAccuracy !== null && data?.forecastAccuracy !== undefined
                 ? `${data.forecastAccuracy.toFixed(0)}%`
@@ -163,6 +150,7 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         <MetricCardContainer
             title="Sales Overview"
             cards={cards}
+            loading={loading}
         />
     );
 }
