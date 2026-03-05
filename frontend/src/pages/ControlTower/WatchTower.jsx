@@ -406,7 +406,7 @@ export default function WatchTower() {
   return (
     <>
       <CommonContainer
-        title="Watch Tower"
+        title="Business Overview"
         filters={filters}
         onFiltersChange={setFilters}
       >
@@ -424,7 +424,7 @@ export default function WatchTower() {
           <ErrorRetryOverlay onRetry={fetchData} message={fetchError} />
         ) : (
           <SnapshotOverview
-            title="Watchtower Overview"
+            title="Business Overview"
             icon={LayoutGrid}
             chip="All Platforms"
             headerRight={

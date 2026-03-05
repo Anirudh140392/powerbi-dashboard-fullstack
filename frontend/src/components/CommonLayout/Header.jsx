@@ -27,7 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
 
-const Header = ({ title = "Watch Tower", onMenuClick }) => {
+const Header = ({ title = "Business Overview", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
   const [isExpanded, setIsExpanded] = React.useState(true);
 
