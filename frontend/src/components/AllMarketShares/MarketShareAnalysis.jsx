@@ -373,8 +373,8 @@ export default function MarketShareAnalysis() {
         onViewRca={handleViewRca}
       />
 
-      <MarketShareDrilldown />
-      <SubCategoryMarket />
+      {/* <MarketShareDrilldown />
+      <SubCategoryMarket /> */}
 
       {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
         <div className="text-sm font-semibold">
@@ -388,7 +388,7 @@ export default function MarketShareAnalysis() {
 
       <div className="space-y-4 mt-6">
         <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
-          <div className="flex justify-center">
+          {/* <div className="flex justify-center">
             <div className="relative w-full md:w-[420px]">
               <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
                 <motion.div
@@ -418,28 +418,12 @@ export default function MarketShareAnalysis() {
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                {marketMode === "geographical"
-                  ? "Platform + brand story"
-                  : "Listing coverage story"}
-              </div>
-
-              <div className="text-sm text-slate-600">
-                {marketMode === "geographical"
-                  ? "Each card has its own small toggle to flip between chart and table."
-                  : "Coverage depth and pincodes with per-card chart/table toggle."}
-              </div>
-            </div>
           </div> */}
 
           {marketMode === "geographical" ? (
             <>
 
-              <TwoUp />
+              {/* <TwoUp /> */}
               {/* <ZoneTables /> */}
             </>
           ) : (
