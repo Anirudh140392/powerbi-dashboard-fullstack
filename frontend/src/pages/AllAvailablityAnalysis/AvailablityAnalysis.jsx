@@ -181,11 +181,17 @@ export default function AvailablityAnalysis() {
     return params.toString();
   };
 
+  // Get auth headers for API calls (JWT token from localStorage)
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   // Individual segment fetch functions for retry capability
   const fetchOverview = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, overview: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, overview: data }));
@@ -200,7 +206,7 @@ export default function AvailablityAnalysis() {
   const fetchPlatformKpi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, platformKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, platformKpi: data }));
@@ -215,7 +221,7 @@ export default function AvailablityAnalysis() {
   const fetchFormatKpi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, formatKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, formatKpi: data }));
@@ -230,7 +236,7 @@ export default function AvailablityAnalysis() {
   const fetchCityKpi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, cityKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, cityKpi: data }));
@@ -245,7 +251,7 @@ export default function AvailablityAnalysis() {
   const fetchDoi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, doi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, doi: data }));
@@ -260,7 +266,7 @@ export default function AvailablityAnalysis() {
   const fetchMetroCity = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, metroCity: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, metroCity: data }));
@@ -275,7 +281,7 @@ export default function AvailablityAnalysis() {
   const fetchOsaDetail = async (osaDetailParams) => {
     try {
       setApiErrors(prev => ({ ...prev, osaDetail: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, osaDetail: data }));
@@ -283,6 +289,21 @@ export default function AvailablityAnalysis() {
     } catch (err) {
       console.error('[OsaDetail] API error:', err);
       setApiErrors(prev => ({ ...prev, osaDetail: err.message }));
+      return false;
+    }
+  };
+
+  const fetchKpiTrends = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, kpiTrends: null }));
+      const res = await fetch(`/api/availability-analysis/kpi-trends?${queryParams}`, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, kpiTrends: data }));
+      return true;
+    } catch (err) {
+      console.error('[KpiTrends] API error:', err);
+      setApiErrors(prev => ({ ...prev, kpiTrends: err.message }));
       return false;
     }
   };
@@ -311,6 +332,7 @@ export default function AvailablityAnalysis() {
       case 'doi': return fetchDoi(queryParams);
       case 'metroCity': return fetchMetroCity(queryParams);
       case 'osaDetail': return fetchOsaDetail(osaDetailParams);
+      case 'kpiTrends': return fetchKpiTrends(queryParams);
       default: return false;
     }
   };
@@ -366,7 +388,8 @@ export default function AvailablityAnalysis() {
           fetchCityKpi(queryParams),
           fetchDoi(queryParams),
           fetchMetroCity(queryParams),
-          fetchOsaDetail(osaDetailParams)
+          fetchOsaDetail(osaDetailParams),
+          fetchKpiTrends(queryParams)
         ]);
 
         console.log('✅ All availability data segments processed');

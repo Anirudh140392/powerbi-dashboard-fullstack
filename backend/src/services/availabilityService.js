@@ -329,7 +329,7 @@ const getAbsoluteOsaOverview = async (filters) => {
             const fillRate = currSumDeno > 0 ? (currSumBuyBox / currSumDeno) * 100 : 0;
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
-            return {
+            const result = {
                 section: "availability_overview",
                 stockAvailability: parseFloat(stockAvailability.toFixed(2)),
                 prevStockAvailability: parseFloat(prevStockAvailability.toFixed(2)),
@@ -342,6 +342,90 @@ const getAbsoluteOsaOverview = async (filters) => {
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
                 timestamp: new Date().toISOString()
             };
+
+            // ---- ADD OSA DETAIL DATA ----
+            // We need 31 days of data backwards from the current end date
+            const detailStartDate = currentEndDate.subtract(30, 'day').format('YYYY-MM-DD');
+            const detailEndDate = currentEndDate.format('YYYY-MM-DD');
+            const detailFilters = { ...filters, startDate: detailStartDate, endDate: detailEndDate };
+            const detailWhere = buildAvailabilityWhereClause(detailFilters);
+
+            const detailQuery = `
+                SELECT 
+                    Web_Pid as sku,
+                    Product as name,
+                    DATE as date,
+                    SUM(toFloat64(neno_osa)) as sumNeno,
+                    SUM(toFloat64(deno_osa)) as sumDeno
+                FROM rb_pdp_olap
+                WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
+                GROUP BY Web_Pid, Product, DATE
+                ORDER BY Web_Pid, DATE
+            `;
+
+            console.log('[getAbsoluteOsaOverview] Fetching detail data');
+            const detailResult = await queryClickHouse(detailQuery);
+
+            // Structure: { sku: { name: '', values: [0..0] (31 length), cities: [], avg7, avg31, status } }
+            const skuMap = {};
+            const daysArr = Array.from({ length: 31 }, (_, i) => currentEndDate.subtract(30 - i, 'day').format('YYYY-MM-DD'));
+
+            detailResult.forEach(row => {
+                if (!skuMap[row.sku]) {
+                    skuMap[row.sku] = {
+                        name: row.name || 'Unknown Product',
+                        sku: row.sku,
+                        dateMap: {},
+                        values: new Array(31).fill(null), // null means no data for that day
+                    };
+                }
+                const osa = parseFloat(row.sumDeno) > 0 ? Math.round((parseFloat(row.sumNeno) / parseFloat(row.sumDeno)) * 100) : 0;
+                skuMap[row.sku].dateMap[row.date] = osa;
+            });
+
+            // Calculate averages and fill values array
+            const osaDetail = Object.values(skuMap).map(item => {
+                let sum31 = 0, count31 = 0;
+                let sum7 = 0, count7 = 0;
+
+                daysArr.forEach((dateStr, index) => {
+                    const val = item.dateMap[dateStr];
+                    if (val !== undefined && val !== null) {
+                        item.values[index] = val;
+                        sum31 += val;
+                        count31++;
+                        if (index >= 24) { // Last 7 days (indexes 24 to 30)
+                            sum7 += val;
+                            count7++;
+                        }
+                    } else {
+                        // If no data, we could put 0 or null. The frontend expects a number for rendering.
+                        // Let's put 0 or leave it as null and frontend handles it. 
+                        item.values[index] = 0;
+                    }
+                });
+
+                const avg31 = count31 > 0 ? Math.round(sum31 / count31) : 0;
+                const avg7 = count7 > 0 ? Math.round(sum7 / count7) : 0;
+                const status = avg7 >= 85 ? "Healthy" : avg7 >= 70 ? "Watch" : "Action";
+
+                return {
+                    name: item.name,
+                    sku: item.sku,
+                    values: item.values,
+                    avg7,
+                    avg31,
+                    status,
+                    cities: [] // For future drilldown if needed
+                };
+            });
+
+            // Sort by worst avg7 descending or name
+            osaDetail.sort((a, b) => b.avg31 - a.avg31 || a.name.localeCompare(b.name));
+
+            result.osaDetail = osaDetail;
+
+            return result;
         } catch (error) {
             console.error('[getAbsoluteOsaOverview] Error:', error);
             throw error;
@@ -865,6 +949,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     t1.Product as name,
                     t1.Web_Pid as sku,
                     t1.Location as city,
+                    t1.Platform as platform,
+                    t1.Category as format,
                     t1.DATE,
                     SUM(toFloat64(t1.neno_osa)) as sum_neno,
                     SUM(toFloat64(t1.deno_osa)) as sum_deno
@@ -872,10 +958,10 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
                     AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Category) = lower(t2.category)
+                    AND lower(t1.Category) = lower(t2.Category)
                 WHERE ${whereClause}
                   AND t2.status = 1
-                GROUP BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
+                GROUP BY t1.Product, t1.Web_Pid, t1.Location, t1.Platform, t1.Category, t1.DATE
                 ORDER BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
             `;
 
@@ -924,6 +1010,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     skuMap[skuId] = {
                         name: row.name,
                         sku: row.sku,
+                        platform: row.platform,
+                        format: row.format,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
@@ -985,6 +1073,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 return {
                     name: item.name,
                     sku: item.sku,
+                    platform: item.platform,
+                    format: item.format,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -1247,42 +1337,36 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}`;
 
+    // Helper to build IN clause or equality
+    const buildInClause = (col, val) => {
+        const arr = Array.isArray(val) ? val : [val];
+        if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
+        return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
+    };
+
+    // Special case for categories/formats - often needs updates during debugging
+    if (filterType === 'categories' || filterType === 'formats') {
+        try {
+            const query = `
+                SELECT DISTINCT Category as value 
+                FROM rb_pdp_olap
+                WHERE Category IS NOT NULL AND Category != ''
+                ORDER BY value
+            `;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Categories Error:', error);
+            return { options: [] };
+        }
+    }
+
     return getCachedOrCompute(cacheKey, async () => {
         try {
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
-            // Helper to build IN clause or equality
-            const buildInClause = (col, val) => {
-                const arr = Array.isArray(val) ? val : [val];
-                if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
-                return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
-            };
-
-            // Build cascading filter conditions
-            const conditions = [];
-            if (platform && platform !== 'All') conditions.push(buildInClause('Platform', platform));
-            if (category && category !== 'All') conditions.push(buildInClause('Category', category));
-            const cityFilter = city || location;
-            if (cityFilter && cityFilter !== 'All') conditions.push(buildInClause('Location', cityFilter));
-            const baseFilter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
             if (filterType === 'platforms') {
                 const query = `SELECT DISTINCT Platform as value FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
-                const results = await queryClickHouse(query);
-                return { options: results.map(r => r.value).filter(Boolean) };
-            }
-
-            if (filterType === 'categories' || filterType === 'formats') {
-                const catConditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
-                if (platform && platform !== 'All') catConditions.push(buildInClause('platform', platform)); // rca_sku_dim uses lowercase platform
-                if (city && city !== 'All') catConditions.push(buildInClause('location', city)); // rca_sku_dim uses lowercase location
-
-                const query = `
-                    SELECT DISTINCT category as value 
-                    FROM rca_sku_dim
-                    WHERE ${catConditions.join(' AND ')}
-                    ORDER BY value
-                `;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
@@ -1315,16 +1399,12 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'cities') {
-                // rb_pdp_olap uses uppercase Location, Platform, Brand
                 const cityConditions = [];
                 if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
                 if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
                 if (category && category !== 'All') cityConditions.push(buildInClause('Category', category));
 
-                // Join with rb_location_darkstore for tier (metroFlag) filtering
                 if (metroFlag && metroFlag !== 'All') {
-                    // This requires a join or a subquery. Since we're fetching from rb_pdp_olap, 
-                    // we'll use a subquery for simplicity if filtering by metroFlag.
                     const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
                     const metroCitiesQuery = `SELECT DISTINCT location FROM rb_location_darkstore WHERE tier IN (${tierArr.map(t => `'${escapeStr(t)}'`).join(',')})`;
                     const metroCitiesResult = await queryClickHouse(metroCitiesQuery);
