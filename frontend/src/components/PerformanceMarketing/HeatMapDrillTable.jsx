@@ -1,5 +1,4 @@
-// HeatMapDrillTable.jsx
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useContext } from "react";
 import {
   Box,
   Card,
@@ -16,13 +15,18 @@ import {
   Chip,
   Select,
   MenuItem,
+  CircularProgress,
+  Skeleton
 } from "@mui/material";
 
 import { motion } from "framer-motion";
 import { Plus, Minus, TrendingUp, LineChart, SlidersHorizontal, X } from "lucide-react";
 import EChartsWrapper from "../EChartsWrapper";
 
-import performanceData from "../../utils/PerformanceMarketingData";
+// Import API and Context instead of hardcoded data
+import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
+
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import PerformanceTrendDatas from "./PerformanceTrendDatas";
 import { KpiFilterPanel } from "../KpiFilterPanel";
@@ -33,6 +37,7 @@ const parsePercent = (v) =>
   typeof v === "string" ? parseFloat(v.replace("%", "")) : Number(v || 0);
 
 const rowConvAvg = (values) => {
+  if (!values) return "–";
   const convIndices = [3, 4, 5];
   const nums = convIndices
     .map((i) => parsePercent(values[i]))
@@ -54,6 +59,7 @@ const getHeatStyle = (val) => {
 };
 
 const getQuarterValues = (base, quarter) => {
+  if (!base) return [];
   if (quarter === "Q1") return base;
 
   const factor = { Q2: 1.1, Q3: 0.95, Q4: 1.15 }[quarter] || 1;
@@ -85,6 +91,7 @@ const KEYWORDS = [
 // -------------- MAX DEPTH -----------------
 const getMaxDepth = (nodes, depth = 0) => {
   let max = depth;
+  if (!nodes) return max;
   nodes.forEach((node) => {
     if (node.children?.length) {
       max = Math.max(max, getMaxDepth(node.children, depth + 1));
@@ -106,17 +113,12 @@ const METRICS = [
 ];
 
 // ---------------- expanded depth detector -----------------
-// Returns the maximum number of segments (levels) among expanded keys.
-// Example:
-//  - no expanded keys -> 0
-//  - expanded["Magnum"] === true -> returns 1
-//  - expanded["Magnum>North"] === true -> returns 2
 const getExpandedDepth = (expandedKeys) => {
   if (!expandedKeys) return 0;
   let max = 0;
   Object.keys(expandedKeys).forEach((key) => {
     if (expandedKeys[key]) {
-      const depth = key.split(">").length; // "Magnum" -> 1, "Magnum>North" -> 2
+      const depth = key.split(">").length;
       if (depth > max) max = depth;
     }
   });
@@ -140,21 +142,12 @@ const evaluateRule = (rowValues, rule) => {
   const metric = METRICS.find((m) => m.key === fieldId);
   if (!metric) return true;
 
-  // Get value from row (handle "3%" strings)
-  // rowValues matches the order of header columns (after label)
-  // METRICS indices are 0..7
-  // rowValues has 6-8 items? 
-  // collectedData.headers: "Format...", "Spend", "M-1 Spend"...
-  // Spend is idx 0 in values.
-  // METRICS: spend index 0.
-  // matches.
-
   const rawVal = rowValues[metric.index];
   let val = rawVal;
   if (typeof rawVal === "string" && rawVal.includes("%")) {
     val = parseFloat(rawVal.replace("%", ""));
   } else {
-    val = Number(rawVal); // "203.2" -> 203.2
+    val = Number(rawVal);
   }
 
   if (isNaN(val)) return false;
@@ -176,26 +169,40 @@ const evaluateRule = (rowValues, rule) => {
 
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
-  const {
-    heatmapData,
-    heatmapDataSecond,
-    heatmapDataThird,
-    heatmapDataFourth,
-    heatmapDataFifth,
-  } = performanceData;
+  // Use Filter Context
+  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd } = useContext(FilterContext);
 
-  const collectedData =
-    selectedInsight === "All Campaign Summary"
-      ? heatmapData
-      : selectedInsight === "Q1 - Performing Well"
-        ? heatmapDataSecond
-        : selectedInsight === "Q2 - Need Attention"
-          ? heatmapDataThird
-          : selectedInsight === "Q3 - Experiment"
-            ? heatmapDataFourth
-            : selectedInsight === "Q4 - Opportunity"
-              ? heatmapDataFifth
-              : heatmapData;
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch true Backend Data Instead of Hardcoded Data
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
+          brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+          zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+          startDate: timeStart?.format?.("YYYY-MM-DD"),
+          endDate: timeEnd?.format?.("YYYY-MM-DD")
+        };
+
+        console.log("🚀 [HeatMapDrillTable] Fetching with params:", params);
+
+        const response = await axiosInstance.get('/performance-marketing/keyword-type-performance', { params });
+        setApiData(response.data);
+      } catch (error) {
+        console.error("Error fetching format performance:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd]);
+
+  const collectedData = apiData;
 
   const LEVEL_TITLES = ["Keyword Type", "Keyword", "City"];
   const openHeaderTrend = (levelIndex) => {
@@ -204,6 +211,15 @@ export default function HeatMapDrillTable({ selectedInsight }) {
   const [expanded, setExpanded] = useState({});
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState("Q4");
+
+  // Sync selectedQuarter with selectedInsight prop
+  useEffect(() => {
+    if (selectedInsight?.startsWith("Q1")) setSelectedQuarter("Q1");
+    else if (selectedInsight?.startsWith("Q2")) setSelectedQuarter("Q2");
+    else if (selectedInsight?.startsWith("Q3")) setSelectedQuarter("Q3");
+    else if (selectedInsight?.startsWith("Q4")) setSelectedQuarter("Q4");
+  }, [selectedInsight]);
+
   const [page, setPage] = useState(1);
   // ---------- FILTERS STATE ----------
   const [activeFilters, setActiveFilters] = useState({
@@ -227,13 +243,13 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     };
 
     const traverse = (nodes, level = 0) => {
+      if (!nodes) return;
       nodes.forEach((node) => {
         const item = { id: node.label, label: node.label, value: 0 };
 
         if (level === 0) opts.brands.set(node.label, item);
         else if (level === 1) opts.categories.set(node.label, item);
         else if (level === 2) opts.cities.set(node.label, item);
-        else if (node.isKeyword || level === 3) opts.keywords.set(node.label, item);
 
         if (node.children) traverse(node.children, level + 1);
       });
@@ -717,11 +733,10 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
               <KpiFilterPanel
                 sectionConfig={[
-                  { id: "brands", label: "Format" },
+                  { id: "brands", label: "Keyword Type" },
                   { id: "weekendFlag", label: "Weekend Flag" },
-                  { id: "categories", label: "Region" },
+                  { id: "categories", label: "Keyword" },
                   { id: "cities", label: "City" },
-                  { id: "keywords", label: "Keyword" },
                   { id: "kpiRules", label: "KPI Rules" },
                 ]}
                 keywords={filterOptions.keywords}
@@ -982,11 +997,28 @@ export default function HeatMapDrillTable({ selectedInsight }) {
             </TableHead>
 
             <TableBody>
-              {filteredRows
-                .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
-                .map((row) => renderRow(row, 0, []))}
-
-
+              {loading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <TableRow key={`skeleton-${idx}`}>
+                    {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+                      <TableCell key={i} sx={i === 0 ? { position: "sticky", left: 0, background: "white", zIndex: 10 } : {}}>
+                        <Skeleton variant="text" width="80%" />
+                      </TableCell>
+                    ))}
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                    <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                filteredRows
+                  .slice((page - 1) * rowsPerPage, (page - 1) * rowsPerPage + rowsPerPage)
+                  .map((row) => renderRow(row, 0, []))
+              )}
             </TableBody>
           </Table>
         </TableContainer >

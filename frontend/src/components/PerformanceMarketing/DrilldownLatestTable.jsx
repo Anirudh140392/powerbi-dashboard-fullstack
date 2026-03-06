@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { SlidersHorizontal, X, Plus, Minus } from 'lucide-react'
-import { Box, Button, Typography, Select, MenuItem } from '@mui/material'
+import { Box, Button, Typography, Select, MenuItem, Skeleton } from '@mui/material'
 import { KpiFilterPanel } from '../KpiFilterPanel'
 import PaginationFooter from '../CommonLayout/PaginationFooter'
 import { FilterContext } from '../../utils/FilterContext'
@@ -418,7 +418,7 @@ export default function DrilldownLatestTable() {
   const [page, setPage] = useState(1)
 
   // Use FilterContext values - PM specific
-  const { pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd } = React.useContext(FilterContext);
+  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd } = React.useContext(FilterContext);
 
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState([]);
@@ -505,7 +505,7 @@ export default function DrilldownLatestTable() {
     const fetchOptions = async () => {
       try {
         const [brandsRes, zonesRes, catsRes] = await Promise.all([
-          axiosInstance.get('/performance-marketing/brands', { params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform } }),
+          axiosInstance.get('/performance-marketing/brands', { params: { platform: Array.isArray(platform) ? platform.join(',') : platform } }),
           axiosInstance.get('/performance-marketing/zones'),
           axiosInstance.get('/performance-marketing/categories')
         ]);
@@ -523,7 +523,7 @@ export default function DrilldownLatestTable() {
       }
     };
     fetchOptions();
-  }, [pmSelectedPlatform]);
+  }, [platform]);
 
   // Fetch Keywords when Categories change
   useEffect(() => {
@@ -551,9 +551,9 @@ export default function DrilldownLatestTable() {
       setLoading(true);
       try {
         const params = {
-          platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : (pmSelectedPlatform || 'All'),
-          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand),
-          zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone),
+          platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
+          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory),
+          zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
           category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : '',
           keywords: activeFilters.keywords.length > 0 ? activeFilters.keywords.join(',') : '',
           weekendFlag: activeFilters.weekendFlag?.length > 0 ? activeFilters.weekendFlag.join(',') : (localFilters.weekendFlag === 'All' ? '' : localFilters.weekendFlag),
@@ -574,7 +574,7 @@ export default function DrilldownLatestTable() {
     };
 
     fetchData();
-  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, localFilters.weekendFlag, timeStart, timeEnd, activeFilters]);
+  }, [platform, selectedCategory, selectedLocation, localFilters.weekendFlag, timeStart, timeEnd, activeFilters]);
 
 
   // --------------- TRANSFORM API DATA ---------------
@@ -802,9 +802,9 @@ export default function DrilldownLatestTable() {
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-6 pb-6">
               <KpiFilterPanel
                 sectionConfig={[
-                  { id: "keywords", label: "Keywords" },
-                  { id: "brands", label: "Brands" },
-                  { id: "categories", label: "Categories" },
+                  { id: "brands", label: "Brand" },
+                  { id: "categories", label: "Category" },
+                  { id: "keywords", label: "Keyword" },
                   { id: "weekendFlag", label: "Weekend Flag" },
                   { id: "platforms", label: "Platform" },
                   { id: "zones", label: "Zone" },
@@ -1070,119 +1070,148 @@ export default function DrilldownLatestTable() {
                   </thead>
 
                   <tbody>
-                    {pageRows.map((row) => (
-                      <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/30 transition-colors">
-                        {/* FORMAT CELL */}
-                        <td
-                          className="px-3 py-2 border-r border-slate-100"
-                          style={{
-                            position: 'sticky',
-                            left: 0,
-                            background: '#fff',
-                            width: FROZEN_WIDTHS.format,
-                            zIndex: 10
-                          }}
-                        >
-                          <div className="flex items-center gap-2" style={{ paddingLeft: row.depth * 18 }}>
-                            <button
-                              onClick={() =>
-                                setExpandedRows((prev) => {
-                                  const next = new Set(prev)
-                                  next.has(row.id) ? next.delete(row.id) : next.add(row.id)
-                                  return next
-                                })
-                              }
-                              className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${row.hasChildren
-                                ? 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50 cursor-pointer'
-                                : 'border-transparent text-transparent cursor-default'
-                                }`}
-                              disabled={!row.hasChildren}
-                            >
-                              {row.hasChildren && (expandedRows.has(row.id) ? <Minus size={12} /> : <Plus size={12} />)}
-                            </button>
-
-                            <span className={`${row.hasChildren ? 'font-bold text-slate-800' : 'font-normal text-slate-500'} whitespace-nowrap`}>
-                              {row.label}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* DAY CELL */}
-                        {expandedRows.size > 0 && (
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, idx) => (
+                        <tr key={`skeleton-${idx}`} className="bg-white border-b border-slate-50 last:border-0 h-10">
                           <td
-                            className="px-2 py-2 text-center border-r border-slate-100"
+                            className="px-4 py-2 border-r border-slate-100"
+                            style={{ position: 'sticky', left: 0, background: '#fff', zIndex: 10, width: FROZEN_WIDTHS.format }}
+                          >
+                            <Skeleton variant="text" width="80%" />
+                          </td>
+                          {expandedRows.size > 0 && (
+                            <td
+                              className="px-2 py-2 text-center border-r border-slate-100"
+                              style={{ position: 'sticky', left: LEFT_DAY, background: '#fff', zIndex: 10, width: FROZEN_WIDTHS.day }}
+                            >
+                              <Skeleton variant="text" />
+                            </td>
+                          )}
+                          {quarters.flatMap(q => {
+                            const isExpanded = expandedQuarters.has(q);
+                            const cells = isExpanded ? (quarterMonths[q].length * visibleKpiKeys.length) : visibleKpiKeys.length;
+                            return Array.from({ length: cells }).map((_, cid) => (
+                              <td key={`${q}-${cid}`} className="px-3 py-2 border-r border-slate-100 last:border-r-0">
+                                <Skeleton variant="text" />
+                              </td>
+                            ));
+                          })}
+                        </tr>
+                      ))
+                    ) : (
+                      pageRows.map((row) => (
+                        <tr key={row.id} className="border-b last:border-b-0 hover:bg-slate-50/30 transition-colors">
+                          {/* FORMAT CELL */}
+                          <td
+                            className="px-3 py-2 border-r border-slate-100"
                             style={{
                               position: 'sticky',
-                              left: LEFT_DAY,
+                              left: 0,
                               background: '#fff',
+                              width: FROZEN_WIDTHS.format,
                               zIndex: 10
                             }}
                           >
-                            {(() => {
-                              if (row.level === 'format') return ''
-                              return row.day ?? 'All days'
-                            })()}
-                          </td>
-                        )}
-
-                        {/* DATA CELLS */}
-                        {quarters.flatMap((q) => {
-                          const isExpanded = expandedQuarters.has(q)
-                          if (isExpanded) {
-                            return quarterMonths[q].flatMap((m, mi) =>
-                              visibleKpiKeys.map((k) => {
-                                // For day-level rows, use quarter data mapped to the row's month
-                                // For category rows, use aggregated month data
-                                let v;
-                                if (row.level === 'day') {
-                                  // Day rows: check if THIS month matches the row's month property
-                                  // If yes, use the quarter data. If no, show dash.
-                                  if (row.month === m) {
-                                    v = row.quarters[q]?.[k] ?? NaN;
-                                  } else {
-                                    v = NaN; // This day doesn't belong to this month
-                                  }
-                                } else {
-                                  // Category rows: use aggregated months data
-                                  v = row.months[m]?.[k] ?? NaN;
+                            <div className="flex items-center gap-2" style={{ paddingLeft: row.depth * 18 }}>
+                              <button
+                                onClick={() =>
+                                  setExpandedRows((prev) => {
+                                    const next = new Set(prev)
+                                    next.has(row.id) ? next.delete(row.id) : next.add(row.id)
+                                    return next
+                                  })
                                 }
-
-                                const meta = kpiModes[k]
-                                const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
-                                const display = Number.isFinite(v) ? meta.formatter(v) : '—'
-                                return (
-                                  <td
-                                    key={`${row.id}-${m}-${k}`}
-                                    className={`px-1.5 py-2 text-center border-r border-slate-100 last:border-r-0 ${mi % 2 ? 'bg-white' : 'bg-slate-50/30'}`}
-                                  >
-                                    <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
-                                      {display}
-                                    </span>
-                                  </td>
-                                )
-                              })
-                            )
-                          }
-
-                          return visibleKpiKeys.map((k) => {
-                            const v = row.quarters[q]?.[k] ?? NaN
-                            const meta = kpiModes[k]
-                            const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
-                            const display = Number.isFinite(v) ? meta.formatter(v) : '—'
-                            return (
-                              <td
-                                key={`${row.id}-${q}-${k}`}
-                                className="px-1.5 py-2 text-center bg-slate-50 border-r border-slate-100 last:border-r-0"
+                                className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${row.hasChildren
+                                  ? 'border-slate-300 bg-white text-slate-500 hover:bg-slate-50 cursor-pointer'
+                                  : 'border-transparent text-transparent cursor-default'
+                                  }`}
+                                disabled={!row.hasChildren}
                               >
-                                <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
-                                  {display}
-                                </span>
-                              </td>
-                            )
-                          })
-                        })}
-                      </tr>
-                    ))}
+                                {row.hasChildren && (expandedRows.has(row.id) ? <Minus size={12} /> : <Plus size={12} />)}
+                              </button>
+
+                              <span className={`${row.hasChildren ? 'font-bold text-slate-800' : 'font-normal text-slate-500'} whitespace-nowrap`}>
+                                {row.label}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* DAY CELL */}
+                          {expandedRows.size > 0 && (
+                            <td
+                              className="px-2 py-2 text-center border-r border-slate-100"
+                              style={{
+                                position: 'sticky',
+                                left: LEFT_DAY,
+                                background: '#fff',
+                                zIndex: 10
+                              }}
+                            >
+                              {(() => {
+                                if (row.level === 'format') return ''
+                                return row.day ?? 'All days'
+                              })()}
+                            </td>
+                          )}
+
+                          {/* DATA CELLS */}
+                          {quarters.flatMap((q) => {
+                            const isExpanded = expandedQuarters.has(q)
+                            if (isExpanded) {
+                              return quarterMonths[q].flatMap((m, mi) =>
+                                visibleKpiKeys.map((k) => {
+                                  // For day-level rows, use quarter data mapped to the row's month
+                                  // For category rows, use aggregated month data
+                                  let v;
+                                  if (row.level === 'day') {
+                                    // Day rows: check if THIS month matches the row's month property
+                                    // If yes, use the quarter data. If no, show dash.
+                                    if (row.month === m) {
+                                      v = row.quarters[q]?.[k] ?? NaN;
+                                    } else {
+                                      v = NaN; // This day doesn't belong to this month
+                                    }
+                                  } else {
+                                    // Category rows: use aggregated months data
+                                    v = row.months[m]?.[k] ?? NaN;
+                                  }
+
+                                  const meta = kpiModes[k]
+                                  const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
+                                  const display = Number.isFinite(v) ? meta.formatter(v) : '—'
+                                  return (
+                                    <td
+                                      key={`${row.id}-${m}-${k}`}
+                                      className={`px-1.5 py-2 text-center border-r border-slate-100 last:border-r-0 ${mi % 2 ? 'bg-white' : 'bg-slate-50/30'}`}
+                                    >
+                                      <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
+                                        {display}
+                                      </span>
+                                    </td>
+                                  )
+                                })
+                              )
+                            }
+
+                            return visibleKpiKeys.map((k) => {
+                              const v = row.quarters[q]?.[k] ?? NaN
+                              const meta = kpiModes[k]
+                              const heatClass = activeKpi === k ? activeMeta.heat(v) : 'bg-slate-50 text-slate-700'
+                              const display = Number.isFinite(v) ? meta.formatter(v) : '—'
+                              return (
+                                <td
+                                  key={`${row.id}-${q}-${k}`}
+                                  className="px-1.5 py-2 text-center bg-slate-50 border-r border-slate-100 last:border-r-0"
+                                >
+                                  <span className={`block rounded-md px-2 py-1 text-center ${heatClass}`}>
+                                    {display}
+                                  </span>
+                                </td>
+                              )
+                            })
+                          })}
+                        </tr>
+                      )))}
 
                     {pageRows.length === 0 && (
                       <tr>
