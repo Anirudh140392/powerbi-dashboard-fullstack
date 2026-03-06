@@ -4315,24 +4315,17 @@ const getTrendData = async (filters) => {
 
 const getBrandCategories = async (platform) => {
     try {
-        // Query rca_sku_dim for categories (using the requested rca_sku_dim source)
-        const conditions = [`category IS NOT NULL`, `category != ''`];
-        if (platform && platform !== 'All') {
-            // Support multi-value: comma-separated string or array
-            const platArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
-            if (platArr.length === 1) {
-                conditions.push(`lower(platform) = '${platArr[0].toLowerCase().replace(/'/g, "''")}'`);
-            } else if (platArr.length > 1) {
-                conditions.push(`lower(platform) IN (${platArr.map(p => `'${p.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`);
-            }
+        const dbName = getCurrentDbName();
+        if (dbName === 'mars') {
+            const query = `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE Product_Category IS NOT NULL ORDER BY category ASC`;
+            const rows = await queryClickHouse(query);
+            return rows.map(r => r.category);
         }
-
-        const query = `SELECT DISTINCT category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
-        const results = await queryClickHouse(query);
-        return results.map(c => c.category).filter(Boolean);
+        // Fallback for other databases if needed, or keeping the restricted list as a default
+        return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
     } catch (error) {
-        console.error("Error fetching brand categories from rca_sku_dim:", error);
-        throw error;
+        console.error("Error fetching brand categories:", error);
+        return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
     }
 };
 
