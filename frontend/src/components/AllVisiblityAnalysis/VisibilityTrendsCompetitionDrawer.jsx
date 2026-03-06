@@ -117,13 +117,6 @@ const DASHBOARD_DATA = {
         axis: "left",
         default: false,
       },
-      {
-        id: "display_sos",
-        label: "Display SOS",
-        color: "#22C55E",
-        axis: "left",
-        default: false,
-      },
     ],
 
     // ⭐ All trend points now contain SOS metrics instead of old KPIs
@@ -361,12 +354,6 @@ const DASHBOARD_DATA = {
         color: "#6366F1",
         default: false,
       },
-      {
-        id: "display_sos",
-        label: "Display SOS",
-        color: "#22C55E",
-        default: false,
-      },
     ],
 
     x: COMPARE_X,
@@ -399,7 +386,6 @@ const DASHBOARD_DATA = {
       { id: "overall_sos", label: "Overall SOS", type: "metric" },
       { id: "sponsored_sos", label: "Sponsored SOS", type: "metric" },
       { id: "organic_sos", label: "Organic SOS", type: "metric" },
-      { id: "display_sos", label: "Display SOS", type: "metric" },
     ],
 
     brands: [

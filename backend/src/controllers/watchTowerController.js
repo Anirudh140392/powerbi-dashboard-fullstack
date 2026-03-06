@@ -81,10 +81,21 @@ export const getLatestAvailableMonth = async (req, res) => {
 
 export const getPlatforms = async (req, res) => {
     try {
-        const platforms = await watchTowerService.getPlatforms();
+        const { channel } = req.query;
+        const platforms = await watchTowerService.getPlatforms(channel);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching platforms:', error);
+        res.json([]);
+    }
+};
+
+export const getChannels = async (req, res) => {
+    try {
+        const channels = await watchTowerService.getChannels();
+        res.json(channels);
+    } catch (error) {
+        console.error('Error fetching channels:', error);
         res.json([]);
     }
 };

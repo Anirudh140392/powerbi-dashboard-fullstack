@@ -102,7 +102,7 @@ const inventoryAnalysisService = {
                             SELECT 
                                 Product, 
                                 Location,
-                                argMax(toFloat64(Inventory), DATE) as inventory,
+                                argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as inventory,
                                 sum(ifNull(Qty_Sold, 0)) / ${periodDays} as drr,
                                 if(isNaN(if(drr > 0, inventory / drr, 0)), 0, if(drr > 0, inventory / drr, 0)) as doh,
                                 if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty
@@ -145,7 +145,7 @@ const inventoryAnalysisService = {
                             DATE,
                             Product,
                             Location,
-                            argMax(toFloat64(Inventory), DATE) as inventory,
+                            argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as inventory,
                             sum(ifNull(Qty_Sold, 0)) as qtySold,
                             if(isNaN(if(qtySold > 0, inventory / qtySold, (if(inventory > 0, 99, 0)))), 0, if(qtySold > 0, inventory / qtySold, (if(inventory > 0, 99, 0)))) as doh,
                             if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * qtySold, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * qtySold, 0)) as poQty
@@ -342,7 +342,7 @@ const inventoryAnalysisService = {
                     FROM (
                         SELECT 
                             Product, Location, Brand, Category, Platform,
-                            argMax(toFloat64(Inventory), DATE) as inventory
+                            argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as inventory
                         FROM rb_pdp_olap
                         WHERE ${sqlWhere}
                         GROUP BY Product, Location, Brand, Category, Platform
@@ -410,7 +410,7 @@ const inventoryAnalysisService = {
                     FROM (
                         SELECT 
                             Product, Location, Brand, Category, Platform,
-                            ifNull(argMax(toFloat64(Inventory), DATE), 0) as latestStock,
+                            ifNull(argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE), 0) as latestStock,
                             if(isNaN(sum(ifNull(Qty_Sold, 0)) / ${periodDays}), 0, sum(ifNull(Qty_Sold, 0)) / ${periodDays}) as drr,
                             if(isNaN(if(drr > 0, latestStock / drr, 0)), 0, if(drr > 0, latestStock / drr, 0)) as doh,
                             if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty

@@ -72,6 +72,22 @@ export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
 };
 
 /**
+ * Fetch Brand Visibility Drilldown for a keyword
+ */
+export const fetchVisibilityBrandDrilldown = async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.keyword) params.append('keyword', filters.keyword);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
+    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
+    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+
+    const response = await axiosInstance.get(`/visibility-analysis/brand-drilldown?${params.toString()}`);
+    return response.data;
+};
+
+/**
  * Fetch all visibility data in parallel
  * @param {Object} filters - Common filters to apply
  * @returns {Promise<Object>} - Object with overview, matrix, keywords, searchTerms

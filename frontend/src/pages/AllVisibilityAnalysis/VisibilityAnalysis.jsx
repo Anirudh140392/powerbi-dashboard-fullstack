@@ -11,6 +11,8 @@ export default function VisibilityAnalysis() {
     platform,
     selectedBrand,
     selectedLocation,
+    selectedKeyword,
+    selectedCategory,
     timeStart,
     timeEnd,
     refreshFilters,
@@ -26,6 +28,8 @@ export default function VisibilityAnalysis() {
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
+    keyword: selectedKeyword || "All",
+    category: selectedCategory || "All",
     months: 6,
     timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
@@ -87,8 +91,8 @@ export default function VisibilityAnalysis() {
     fetchVisibilityDates();
   }, [visibilityDatesReady]);
 
-  // Sync platform/brand/location AND dates with FilterContext
-  // When user changes dates in the header, update our local filters
+  // Sync platform/brand/location/keyword/category AND dates with FilterContext
+  // When user changes any global filter in the header, update our local filters
   useEffect(() => {
     setFilters(prev => {
       const updates = {
@@ -96,6 +100,8 @@ export default function VisibilityAnalysis() {
         platform: platform || prev.platform,
         brand: selectedBrand || prev.brand,
         location: selectedLocation || prev.location,
+        keyword: selectedKeyword || prev.keyword,
+        category: selectedCategory || prev.category,
       };
 
       // Sync dates from FilterContext if they're changed by user in the header
@@ -114,7 +120,7 @@ export default function VisibilityAnalysis() {
 
       return updates;
     });
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedCategory, timeStart, timeEnd]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -203,6 +209,8 @@ export default function VisibilityAnalysis() {
       platform: filters.platform || 'All',
       brand: filters.brand || 'All',
       location: filters.location || 'All',
+      keyword: filters.keyword || 'All',
+      category: filters.category || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     };
@@ -212,6 +220,8 @@ export default function VisibilityAnalysis() {
       platform: 'All',
       brand: filters.brand || 'All',
       location: filters.location || 'All',
+      keyword: filters.keyword || 'All',
+      category: filters.category || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     }).toString();
@@ -251,6 +261,8 @@ export default function VisibilityAnalysis() {
       platform: filters.platform,
       brand: filters.brand,
       location: filters.location,
+      keyword: filters.keyword,
+      category: filters.category,
       startDate: filters.startDate,
       endDate: filters.endDate,
     });
@@ -294,6 +306,8 @@ export default function VisibilityAnalysis() {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
+          keyword: filters.keyword || 'All',
+          category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         };
@@ -318,6 +332,8 @@ export default function VisibilityAnalysis() {
           platform: 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
+          keyword: filters.keyword || 'All',
+          category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();

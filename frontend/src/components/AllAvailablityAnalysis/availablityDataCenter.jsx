@@ -790,11 +790,6 @@ const FORMAT_MATRIX_Visibility = {
       kpi: "Organic Weighted SOS",
       values: { Blinkit: 96, Instamart: 94, Zepto: 92, Flipkart: 91, Amazon: 89 },
       trend: generateTrendMulti(92)
-    },
-    {
-      kpi: "Display SOS",
-      values: { Blinkit: 89, Instamart: 91, Zepto: 85, Flipkart: 88, Amazon: 86 },
-      trend: generateTrendMulti(88)
     }
   ],
 
@@ -816,11 +811,6 @@ const FORMAT_MATRIX_Visibility = {
       kpi: "Organic Weighted SOS",
       values: { Cassata: 92, "Core Tub": 95, Cornetto: 98, Magnum: 99, "KW Sticks": 100, "Premium Tub": 93, Sandwich: 91 },
       trend: generateTrendMulti(95)
-    },
-    {
-      kpi: "Display SOS",
-      values: { Cassata: 70, "Core Tub": 88, Cornetto: 90, Magnum: 92, "KW Sticks": 96, "Premium Tub": 85, Sandwich: 82 },
-      trend: generateTrendMulti(86)
     }
   ],
 
@@ -842,11 +832,6 @@ const FORMAT_MATRIX_Visibility = {
       kpi: "Organic Weighted SOS",
       values: { Mumbai: 95, Delhi: 94, Bangalore: 93, Hyderabad: 90, Chennai: 92, Kolkata: 91, Pune: 96, Ahmedabad: 89, Lucknow: 91, Patna: 88, Ranchi: 90, Varanasi: 85, Kanpur: 92, Meerut: 90, Agra: 91, Noida: 94 },
       trend: generateTrendMulti(93)
-    },
-    {
-      kpi: "Display SOS",
-      values: { Mumbai: 90, Delhi: 92, Bangalore: 88, Hyderabad: 87, Chennai: 85, Kolkata: 86, Pune: 91, Ahmedabad: 84, Lucknow: 88, Patna: 85, Ranchi: 87, Varanasi: 82, Kanpur: 89, Meerut: 87, Agra: 88, Noida: 91 },
-      trend: generateTrendMulti(88)
     }
   ]
 };

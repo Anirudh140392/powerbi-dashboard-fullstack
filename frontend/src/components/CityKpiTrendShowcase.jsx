@@ -682,30 +682,104 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [selectedKPIs, setSelectedKPIs] = useState([]);
   const [isKPIOptionsOpen, setKPIOptionsOpen] = useState(false);
 
-  // New KpiFilterPanel State
+  // ====================== DYNAMIC FILTER STATE ======================
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filterRules, setFilterRules] = useState(null);
+  const [dynamicFilterOptions, setDynamicFilterOptions] = useState([]);
+  const [filterLoading, setFilterLoading] = useState(false);
+  // pendingSectionValues = what user is editing in the modal, appliedSectionValues = what is active
+  const [pendingSectionValues, setPendingSectionValues] = useState({});
+  const [appliedSectionValues, setAppliedSectionValues] = useState({});
 
+  // Define which filter types to fetch from backend (maps to filterType param)
+  const FILTER_SECTIONS = React.useMemo(() => [
+    { id: "platforms", label: "Platform", apiType: "platforms" },
+    { id: "categories", label: "Format / Category", apiType: "categories" },
+    { id: "cities", label: "City", apiType: "cities" },
+    { id: "brands", label: "Brand", apiType: "brands" },
+    { id: "kpis", label: "KPI", apiType: "kpis" },
+    { id: "months", label: "Month", apiType: "months" },
+    { id: "metroFlags", label: "Metro Flag", apiType: "metroFlags" },
+  ], []);
+
+  // Fetch dynamic filter options from backend when modal opens
+  // Use section IDs as cache key to force re-fetch only if sections change
+  const sectionCacheKey = FILTER_SECTIONS.map(s => s.id).join(',');
+  const lastFetchedKey = React.useRef('');
+  React.useEffect(() => {
+    if (!showFilterPanel) return;
+    // Skip if we already fetched for this exact section config
+    if (lastFetchedKey.current === sectionCacheKey && dynamicFilterOptions.length > 0) return;
+    const token = localStorage.getItem('token');
+    setFilterLoading(true);
+    setDynamicFilterOptions([]);
+
+    Promise.all(
+      FILTER_SECTIONS.map(async (section) => {
+        try {
+          const res = await fetch(`/api/availability-analysis/filter-options?filterType=${section.apiType}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!res.ok) return { ...section, options: [] };
+          const data = await res.json();
+          const opts = (data.options || []).map(v => ({ id: v, label: v }));
+          return { ...section, options: opts };
+        } catch {
+          return { ...section, options: [] };
+        }
+      })
+    ).then(results => {
+      setDynamicFilterOptions(results);
+      lastFetchedKey.current = sectionCacheKey;
+      setFilterLoading(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFilterPanel, sectionCacheKey]);
+
+  // Use dynamic options when available, fallback to kpiFilterOptions prop
   const filterOptions = React.useMemo(() => {
     if (kpiFilterOptions) return kpiFilterOptions;
-    return [
-      { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-      { id: "keywords", label: "Keyword" },
-      { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-      { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
-      { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
-      { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-      { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-      { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-      { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-      { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-      { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-      { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
-    ];
-  }, [rows, columns, kpiFilterOptions]);
+    if (dynamicFilterOptions.length > 0) return dynamicFilterOptions;
+    // Placeholder while not yet fetched
+    return FILTER_SECTIONS.map(s => ({ ...s, options: [] }));
+  }, [kpiFilterOptions, dynamicFilterOptions, FILTER_SECTIONS]);
 
-  // Value Logic Filter (Legacy - kept for reference or removal)
-  const [filterOperator, setFilterOperator] = useState("none"); // none, gt, lt, eq, gte, lte
+  // Handle section change from KpiFilterPanel
+  const handleSectionChange = React.useCallback((sectionId, values) => {
+    setPendingSectionValues(prev => ({ ...prev, [sectionId]: values }));
+  }, []);
+
+  // Apply filters: copy pending to applied, close modal
+  const handleApplyFilters = React.useCallback(() => {
+    setAppliedSectionValues({ ...pendingSectionValues });
+    setShowFilterPanel(false);
+    // Reset pagination when filters change
+    setCurrentPage(1);
+    setCurrentColPage(1);
+  }, [pendingSectionValues]);
+
+  // Reset filters
+  const handleResetFilters = React.useCallback(() => {
+    setPendingSectionValues({});
+    setAppliedSectionValues({});
+    setShowFilterPanel(false);
+    setCurrentPage(1);
+    setCurrentColPage(1);
+  }, []);
+
+  // Open modal: sync pending with currently applied
+  const handleOpenFilterPanel = React.useCallback(() => {
+    setPendingSectionValues({ ...appliedSectionValues });
+    setShowFilterPanel(true);
+  }, [appliedSectionValues]);
+
+  // Count total active filters
+  const activeFilterCount = React.useMemo(() => {
+    return Object.values(appliedSectionValues).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+  }, [appliedSectionValues]);
+
+  // Value Logic Filter
+  const [filterOperator, setFilterOperator] = useState("none");
   const [filterValue, setFilterValue] = useState("");
 
   const checkValueCondition = (val) => {
@@ -749,27 +823,61 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     }
   };
 
-  // Calculate Pagination
+  // ====================== APPLY FILTERS TO DATA ======================
+  // Filter rows by KPI selection + applied KPI filter
   const filteredRows = React.useMemo(() => {
-    return rows.filter(row => selectedKPIs.includes(row.kpi));
-  }, [rows, selectedKPIs]);
+    let result = rows.filter(row => selectedKPIs.includes(row.kpi));
+
+    // Apply KPI filter from advanced filters
+    const kpiFilter = appliedSectionValues.kpis;
+    if (kpiFilter && kpiFilter.length > 0) {
+      const kpiSet = new Set(kpiFilter.map(k => k.toLowerCase()));
+      result = result.filter(row => kpiSet.has((row.kpi || '').toLowerCase()));
+    }
+
+    return result;
+  }, [rows, selectedKPIs, appliedSectionValues]);
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
 
   const paginatedRows = React.useMemo(() => {
-    if (isColumnPagination) return filteredRows; // Show all rows for column pagination mode
+    if (isColumnPagination) return filteredRows;
     if (!showPagination) return filteredRows;
     const startIndex = (currentPage - 1) * pageSize;
     return filteredRows.slice(startIndex, startIndex + pageSize);
   }, [filteredRows, currentPage, pageSize, showPagination, isColumnPagination]);
 
-  // Column Pagination Logic
-  const allDataColumns = React.useMemo(() => columns.slice(1), [columns]);
+  // Column Pagination Logic — TAB-AWARE column filtering
+  // Only apply the filter that matches the current tab's dimension:
+  //   Platform tab → platforms filter, Format tab → categories filter, City tab → cities filter
+  const allDataColumns = React.useMemo(() => {
+    let cols = columns.slice(1);
+
+    // Determine which filter to apply based on the current tab title
+    const titleLower = (title || '').toLowerCase();
+    let relevantFilter = null;
+
+    if (titleLower === 'platform') {
+      relevantFilter = appliedSectionValues.platforms;
+    } else if (titleLower === 'format' || titleLower === 'format / category' || titleLower === 'category') {
+      relevantFilter = appliedSectionValues.categories;
+    } else if (titleLower === 'city') {
+      relevantFilter = appliedSectionValues.cities;
+    }
+
+    // Apply only the relevant column filter
+    if (relevantFilter && relevantFilter.length > 0) {
+      const allowedCols = new Set(relevantFilter.map(v => v.toLowerCase()));
+      cols = cols.filter(col => allowedCols.has(col.toLowerCase()));
+    }
+
+    return cols;
+  }, [columns, appliedSectionValues, title]);
+
   const totalColPages = Math.ceil(allDataColumns.length / colPageSize);
 
   const visibleColumns = React.useMemo(() => {
     if (isColumnPagination) {
-      // Logic: Cumulative columns (Page 1: 0-5, Page 2: 0-10, etc.)
       const startIndex = 0;
       const endIndex = currentColPage * colPageSize;
       return allDataColumns.slice(startIndex, endIndex);
@@ -828,11 +936,19 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           <div className="flex items-center gap-3 text-xs">
             {/* KpiFilterPanel Integration */}
             <button
-              onClick={() => setShowFilterPanel(true)}
-              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              onClick={handleOpenFilterPanel}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors ${activeFilterCount > 0
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-emerald-600 text-white px-1.5 py-0.5 text-[10px] font-bold leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
             <div className="h-4 w-px bg-slate-200 mx-1"></div>
             <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1">
@@ -870,29 +986,46 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
             </div>
 
             {/* Panel Content */}
-            {/* Panel Content */}
             <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
-              <KpiFilterPanel
-                sectionConfig={filterOptions}
-                keywords={mockKeywords}
-              />
-
+              {filterLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-600"></div>
+                    <span className="text-sm text-slate-500">Loading filter options...</span>
+                  </div>
+                </div>
+              ) : (
+                <KpiFilterPanel
+                  sectionConfig={filterOptions}
+                  sectionValues={pendingSectionValues}
+                  onSectionChange={handleSectionChange}
+                  keywords={mockKeywords}
+                />
+              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
+            <div className="flex justify-between border-t border-slate-100 bg-white px-6 py-4">
               <button
-                onClick={() => setShowFilterPanel(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={handleResetFilters}
+                className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
               >
-                Cancel
+                Reset All
               </button>
-              <button
-                onClick={() => setShowFilterPanel(false)}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-              >
-                Apply Filters
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowFilterPanel(false)}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApplyFilters}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
+                >
+                  Apply Filters
+                </button>
+              </div>
             </div>
           </div>
         </div>

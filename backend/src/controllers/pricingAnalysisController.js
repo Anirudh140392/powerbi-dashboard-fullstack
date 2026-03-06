@@ -1,4 +1,5 @@
-import pricingAnalysisService from '../services/pricingAnalysisService.js';
+import * as pricingAnalysisService from '../services/pricingAnalysisService.js';
+
 import ecpByBrandService from '../services/ecpByBrandService.js';
 import discountTrendService from '../services/discountTrendService.js';
 import brandPriceOverviewService from '../services/brandPriceOverviewService.js';
@@ -37,24 +38,94 @@ export const getEcpByCity = async (req, res) => {
 };
 
 /**
- * Get Price and Discount Intelligence metrics
+ * Get Pricing KPIs
+ * Endpoint: GET /api/pricing-analysis/kpis
  */
-export const PriceAndDiscountIntelligence = async (req, res) => {
+export const getPricingKpis = async (req, res) => {
     try {
-        const filters = req.query;
-        console.log("Price & Discount Intelligence api request received", filters);
-
-        const response = {
-            message: "Pricing Analysis API called successfully",
-            filters: filters
+        const filters = {
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand,
+            category: req.query.category
         };
-        console.log("Sending response:", response);
 
-        // Mock response for now
-        res.json(response);
+        console.log("[PricingAnalysisController] getPricingKpis called with filters:", filters);
+
+        const result = await pricingAnalysisService.getPricingKpis(filters);
+
+        res.json(result);
     } catch (error) {
-        console.error('Error in Pricing Analysis:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('[PricingAnalysisController] Error in getPricingKpis:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Get Pricing Insights
+ * Endpoint: GET /api/pricing-analysis/insights
+ */
+export const getPricingInsights = async (req, res) => {
+    try {
+        const filters = {
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand,
+            category: req.query.category
+        };
+
+        console.log("[PricingAnalysisController] getPricingInsights called with filters:", filters);
+
+        const result = await pricingAnalysisService.getPricingInsights(filters);
+
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getPricingInsights:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Get Pricing Dimension Overview
+ * Endpoint: GET /api/pricing-analysis/dimension-overview
+ */
+export const getDimensionOverview = async (req, res) => {
+    try {
+        const filters = {
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand,
+            category: req.query.category,
+            channel: req.query.channel,
+            dimension: req.query.dimension
+        };
+
+        console.log("[PricingAnalysisController] getDimensionOverview called with filters:", filters);
+
+        const result = await pricingAnalysisService.getDimensionOverview(filters);
+
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getDimensionOverview:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            message: error.message
+        });
     }
 };
 
@@ -270,5 +341,92 @@ export const getBrandDiscountTrend = async (req, res) => {
             error: 'Internal Server Error',
             message: error.message
         });
+    }
+};
+/**
+ * Get Pricing Dimension Trends (time-series)
+ * Endpoint: GET /api/pricing-analysis/dimension-trends
+ * Query params: dimension, dimensionValue, timeStep, period, startDate, endDate, platform, brand, location, category
+ */
+export const getDimensionTrends = async (req, res) => {
+    try {
+        const filters = {
+            dimension: req.query.dimension,
+            dimensionValue: req.query.dimensionValue,
+            timeStep: req.query.timeStep,
+            period: req.query.period,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand,
+            category: req.query.category,
+        };
+
+        console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
+
+        const result = await pricingAnalysisService.getDimensionTrends(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getDimensionTrends:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get Pricing Competition Trends Data
+ * Endpoint: GET /api/pricing-analysis/competition-trends
+ */
+export const getPricingCompetitionTrends = async (req, res) => {
+    try {
+        const filters = {
+            mode: req.query.mode,
+            targets: req.query.targets,
+            dimension: req.query.dimension,
+            dimensionValue: req.query.dimensionValue,
+            period: req.query.period,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand,
+            category: req.query.category,
+        };
+
+        console.log("[PricingAnalysisController] getPricingCompetitionTrends called with filters:", filters);
+
+        const result = await pricingAnalysisService.getPricingCompetitionTrends(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getPricingCompetitionTrends:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get Pricing Competition Data (Brand-level and SKU-level pricing metrics)
+ * Endpoint: GET /api/pricing-analysis/competition
+ */
+export const getPricingCompetition = async (req, res) => {
+    try {
+        const filters = {
+            dimension: req.query.dimension,
+            dimensionValue: req.query.dimensionValue,
+            period: req.query.period,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            platform: req.query.platform,
+            location: req.query.location,
+            brand: req.query.brand,
+            category: req.query.category,
+        };
+
+        console.log("[PricingAnalysisController] getPricingCompetition called with filters:", filters);
+
+        const result = await pricingAnalysisService.getPricingCompetition(filters);
+        res.json(result);
+    } catch (error) {
+        console.error('[PricingAnalysisController] Error in getPricingCompetition:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
     }
 };

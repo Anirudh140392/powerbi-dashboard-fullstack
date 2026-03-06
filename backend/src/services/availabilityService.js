@@ -299,9 +299,9 @@ const getAbsoluteOsaOverview = async (filters) => {
 
             const queryTemplate = (where) => `
                 SELECT 
-                    SUM(toFloat64(neno_osa)) as sumNenoOsa,
-                    SUM(toFloat64(deno_osa)) as sumDenoOsa,
-                    SUM(toFloat64(buy_box_neno_osa)) as sumBuyBoxNeno
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNenoOsa,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDenoOsa,
+                    SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno
                 FROM rb_pdp_olap
                 WHERE ${where}
             `;
@@ -329,7 +329,7 @@ const getAbsoluteOsaOverview = async (filters) => {
             const fillRate = currSumDeno > 0 ? (currSumBuyBox / currSumDeno) * 100 : 0;
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
-            return {
+            const result = {
                 section: "availability_overview",
                 stockAvailability: parseFloat(stockAvailability.toFixed(2)),
                 prevStockAvailability: parseFloat(prevStockAvailability.toFixed(2)),
@@ -342,6 +342,90 @@ const getAbsoluteOsaOverview = async (filters) => {
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
                 timestamp: new Date().toISOString()
             };
+
+            // ---- ADD OSA DETAIL DATA ----
+            // We need 31 days of data backwards from the current end date
+            const detailStartDate = currentEndDate.subtract(30, 'day').format('YYYY-MM-DD');
+            const detailEndDate = currentEndDate.format('YYYY-MM-DD');
+            const detailFilters = { ...filters, startDate: detailStartDate, endDate: detailEndDate };
+            const detailWhere = buildAvailabilityWhereClause(detailFilters);
+
+            const detailQuery = `
+                SELECT 
+                    Web_Pid as sku,
+                    Product as name,
+                    DATE as date,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
+                FROM rb_pdp_olap
+                WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
+                GROUP BY Web_Pid, Product, DATE
+                ORDER BY Web_Pid, DATE
+            `;
+
+            console.log('[getAbsoluteOsaOverview] Fetching detail data');
+            const detailResult = await queryClickHouse(detailQuery);
+
+            // Structure: { sku: { name: '', values: [0..0] (31 length), cities: [], avg7, avg31, status } }
+            const skuMap = {};
+            const daysArr = Array.from({ length: 31 }, (_, i) => currentEndDate.subtract(30 - i, 'day').format('YYYY-MM-DD'));
+
+            detailResult.forEach(row => {
+                if (!skuMap[row.sku]) {
+                    skuMap[row.sku] = {
+                        name: row.name || 'Unknown Product',
+                        sku: row.sku,
+                        dateMap: {},
+                        values: new Array(31).fill(null), // null means no data for that day
+                    };
+                }
+                const osa = parseFloat(row.sumDeno) > 0 ? Math.round((parseFloat(row.sumNeno) / parseFloat(row.sumDeno)) * 100) : 0;
+                skuMap[row.sku].dateMap[row.date] = osa;
+            });
+
+            // Calculate averages and fill values array
+            const osaDetail = Object.values(skuMap).map(item => {
+                let sum31 = 0, count31 = 0;
+                let sum7 = 0, count7 = 0;
+
+                daysArr.forEach((dateStr, index) => {
+                    const val = item.dateMap[dateStr];
+                    if (val !== undefined && val !== null) {
+                        item.values[index] = val;
+                        sum31 += val;
+                        count31++;
+                        if (index >= 24) { // Last 7 days (indexes 24 to 30)
+                            sum7 += val;
+                            count7++;
+                        }
+                    } else {
+                        // If no data, we could put 0 or null. The frontend expects a number for rendering.
+                        // Let's put 0 or leave it as null and frontend handles it. 
+                        item.values[index] = 0;
+                    }
+                });
+
+                const avg31 = count31 > 0 ? Math.round(sum31 / count31) : 0;
+                const avg7 = count7 > 0 ? Math.round(sum7 / count7) : 0;
+                const status = avg7 >= 85 ? "Healthy" : avg7 >= 70 ? "Watch" : "Action";
+
+                return {
+                    name: item.name,
+                    sku: item.sku,
+                    values: item.values,
+                    avg7,
+                    avg31,
+                    status,
+                    cities: [] // For future drilldown if needed
+                };
+            });
+
+            // Sort by worst avg7 descending or name
+            osaDetail.sort((a, b) => b.avg31 - a.avg31 || a.name.localeCompare(b.name));
+
+            result.osaDetail = osaDetail;
+
+            return result;
         } catch (error) {
             console.error('[getAbsoluteOsaOverview] Error:', error);
             throw error;
@@ -437,7 +521,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SELECT 
                         DATE,
                         ${groupColumn} as col_value,
-                        SUM(toFloat64(Inventory)) as daily_inv
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -453,10 +537,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 )
                 SELECT 
                     t1.${groupColumn} as col_value,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno,
-                    SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
-                    SUM(toFloat64(t1.MSL)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -472,7 +556,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SELECT 
                         DATE,
                         ${groupColumn} as col_value,
-                        SUM(toFloat64(Inventory)) as daily_inv
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -488,10 +572,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 )
                 SELECT 
                     t1.${groupColumn} as col_value,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno,
-                    SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
-                    SUM(toFloat64(t1.MSL)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -506,7 +590,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const doiSalesQuery = `
                 SELECT 
                     ${groupColumn} as col_value,
-                    SUM(toFloat64(Qty_Sold)) as total_qty_sold
+                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold
                 FROM rb_pdp_olap
                 WHERE DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                   AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -517,7 +601,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevDoiSalesQuery = `
                 SELECT 
                     ${groupColumn} as col_value,
-                    SUM(toFloat64(Qty_Sold)) as total_qty_sold
+                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold
                 FROM rb_pdp_olap
                 WHERE DATE BETWEEN '${prevDoiLookbackDate}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                   AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -620,17 +704,17 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         t1.${groupColumn} as col_value,
                         l.mapped_region as drill_item,
                         -- KPI Components for selected period
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.neno_osa), 0)) as sum_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.deno_osa), 0)) as sum_deno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.buy_box_neno_osa), 0)) as sum_buybox_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.MSL), 0)) as sum_msl,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_neno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_deno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as sum_buybox_neno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.MSL)), 0), 0)) as sum_msl,
                         COUNT(DISTINCT if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', t1.Web_Pid, NULL)) as assortment_count,
                         
                         -- DOI / Sales components (30-day lookback)
-                        SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.Qty_Sold), 0)) as doi_total_qty_sold,
+                        SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Qty_Sold)), 0), 0)) as doi_total_qty_sold,
                         
                         -- Latest Inventory (across selected period)
-                        argMax(toFloat64(t1.Inventory), t1.DATE) as latest_inventory
+                        argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), t1.DATE) as latest_inventory
                     FROM rb_pdp_olap t1
                     LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
                     WHERE t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
@@ -697,27 +781,27 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SELECT 
                         t1.${groupColumn} as col_value,
                         -- Yesterday
-                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.neno_osa), 0)) as neno_yesterday,
-                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.deno_osa), 0)) as deno_yesterday,
-                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_yesterday,
                         COUNT(DISTINCT if(toDate(t1.DATE) = '${yesterdayStr}', t1.Web_Pid, NULL)) as assortment_yesterday,
                         
                         -- Last Week
-                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_lastweek,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_lastweek,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_lastweek,
                         COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_lastweek,
                         
                         -- MTD
-                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_mtd,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_mtd,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_mtd,
                         COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_mtd,
                         
                         -- L3M
-                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_l3m,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_l3m,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_l3m,
                         COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_l3m
                     FROM rb_pdp_olap t1
                     WHERE t1.DATE BETWEEN '${l3mStr}' AND '${latestStr}'
@@ -779,7 +863,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const topCompQuery = `
                     SELECT 
                         Brand,
-                        SUM(toFloat64(deno_osa)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND Comp_flag = 1
@@ -804,7 +888,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SELECT 
                             ${groupColumn} as col_value,
                             Brand as drill_item,
-                            (SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0)) * 100 as osa
+                            (SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) / nullIf(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)) * 100 as osa
                         FROM rb_pdp_olap
                         WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                           AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -865,9 +949,11 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     t1.Product as name,
                     t1.Web_Pid as sku,
                     t1.Location as city,
+                    t1.Platform as platform,
+                    t1.Category as format,
                     t1.DATE,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno
                 FROM rb_pdp_olap t1
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
@@ -875,7 +961,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     AND lower(t1.Category) = lower(t2.category)
                 WHERE ${whereClause}
                   AND t2.status = 1
-                GROUP BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
+                GROUP BY t1.Product, t1.Web_Pid, t1.Location, t1.Platform, t1.Category, t1.DATE
                 ORDER BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
             `;
 
@@ -924,6 +1010,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     skuMap[skuId] = {
                         name: row.name,
                         sku: row.sku,
+                        platform: row.platform,
+                        format: row.format,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
@@ -985,6 +1073,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 return {
                     name: item.name,
                     sku: item.sku,
+                    platform: item.platform,
+                    format: item.format,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -1028,7 +1118,7 @@ const getDOI = async (filters) => {
 
             // Get today's inventory
             const invQuery = `
-                SELECT SUM(toFloat64(Inventory)) as totalInventory
+                SELECT SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalInventory
                 FROM rb_pdp_olap
                 WHERE DATE = '${currentEndDate.format('YYYY-MM-DD')}'
                 ${baseFilter}
@@ -1040,7 +1130,7 @@ const getDOI = async (filters) => {
             if (todayInventory === 0) {
                 const last7Query = `
                     SELECT 
-                        SUM(toFloat64(Inventory)) as totalInventory,
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalInventory,
                         COUNT(DISTINCT DATE) as daysCount
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentEndDate.subtract(7, 'day').format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
@@ -1055,19 +1145,19 @@ const getDOI = async (filters) => {
             // Get last 30 days Qty_Sold and previous period data in parallel
             const [qtySoldResult, prevInvResult, prevQtySoldResult] = await Promise.all([
                 queryClickHouse(`
-                    SELECT SUM(toFloat64(Qty_Sold)) as totalQtySold
+                    SELECT SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as totalQtySold
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${thirtyDaysAgo.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
                 `),
                 queryClickHouse(`
-                    SELECT SUM(toFloat64(Inventory)) as totalInventory
+                    SELECT SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalInventory
                     FROM rb_pdp_olap
                     WHERE DATE = '${prevEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
                 `),
                 queryClickHouse(`
-                    SELECT SUM(toFloat64(Qty_Sold)) as totalQtySold
+                    SELECT SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as totalQtySold
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
@@ -1198,15 +1288,15 @@ const getMetroCityStockAvailability = async (filters) => {
             const [currentResult, prevResult] = await Promise.all([
                 queryClickHouse(`
                     SELECT 
-                        SUM(toFloat64(neno_osa)) as sumNeno,
-                        SUM(toFloat64(deno_osa)) as sumDeno
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
                     FROM rb_pdp_olap
                     WHERE ${currentWhere}
                 `),
                 queryClickHouse(`
                     SELECT 
-                        SUM(toFloat64(neno_osa)) as sumNeno,
-                        SUM(toFloat64(deno_osa)) as sumDeno
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
                     FROM rb_pdp_olap
                     WHERE ${prevWhere}
                 `)
@@ -1247,42 +1337,36 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}`;
 
+    // Helper to build IN clause or equality
+    const buildInClause = (col, val) => {
+        const arr = Array.isArray(val) ? val : [val];
+        if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
+        return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
+    };
+
+    // Special case for categories/formats - often needs updates during debugging
+    if (filterType === 'categories' || filterType === 'formats') {
+        try {
+            const query = `
+                SELECT DISTINCT Category as value 
+                FROM rb_pdp_olap
+                WHERE Category IS NOT NULL AND Category != ''
+                ORDER BY value
+            `;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Categories Error:', error);
+            return { options: [] };
+        }
+    }
+
     return getCachedOrCompute(cacheKey, async () => {
         try {
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
-            // Helper to build IN clause or equality
-            const buildInClause = (col, val) => {
-                const arr = Array.isArray(val) ? val : [val];
-                if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
-                return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
-            };
-
-            // Build cascading filter conditions
-            const conditions = [];
-            if (platform && platform !== 'All') conditions.push(buildInClause('Platform', platform));
-            if (category && category !== 'All') conditions.push(buildInClause('Category', category));
-            const cityFilter = city || location;
-            if (cityFilter && cityFilter !== 'All') conditions.push(buildInClause('Location', cityFilter));
-            const baseFilter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
             if (filterType === 'platforms') {
                 const query = `SELECT DISTINCT Platform as value FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
-                const results = await queryClickHouse(query);
-                return { options: results.map(r => r.value).filter(Boolean) };
-            }
-
-            if (filterType === 'categories' || filterType === 'formats') {
-                const catConditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
-                if (platform && platform !== 'All') catConditions.push(buildInClause('platform', platform)); // rca_sku_dim uses lowercase platform
-                if (city && city !== 'All') catConditions.push(buildInClause('location', city)); // rca_sku_dim uses lowercase location
-
-                const query = `
-                    SELECT DISTINCT category as value 
-                    FROM rca_sku_dim
-                    WHERE ${catConditions.join(' AND ')}
-                    ORDER BY value
-                `;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
@@ -1315,16 +1399,12 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'cities') {
-                // rb_pdp_olap uses uppercase Location, Platform, Brand
                 const cityConditions = [];
                 if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
                 if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
                 if (category && category !== 'All') cityConditions.push(buildInClause('Category', category));
 
-                // Join with rb_location_darkstore for tier (metroFlag) filtering
                 if (metroFlag && metroFlag !== 'All') {
-                    // This requires a join or a subquery. Since we're fetching from rb_pdp_olap, 
-                    // we'll use a subquery for simplicity if filtering by metroFlag.
                     const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
                     const metroCitiesQuery = `SELECT DISTINCT location FROM rb_location_darkstore WHERE tier IN (${tierArr.map(t => `'${escapeStr(t)}'`).join(',')})`;
                     const metroCitiesResult = await queryClickHouse(metroCitiesQuery);
@@ -1419,8 +1499,8 @@ const getOsaDetailByCategory = async (filters) => {
                     t1.Product as name,
                     t1.Web_Pid as sku,
                     t1.DATE,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno
                 FROM rb_pdp_olap t1
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
