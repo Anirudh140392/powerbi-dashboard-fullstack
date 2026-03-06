@@ -68,7 +68,7 @@ export const getAvailabilityOverview = async (req, res) => {
 
         const data = await availabilityService.getAbsoluteOsaOverview(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] Availability Overview. Records:', data?.length || 0);
         console.log('================================================\n');
 
         res.json(data);
@@ -153,13 +153,14 @@ export const getOsaPercentageDetail = async (req, res) => {
 
         const data = await availabilityService.getAbsoluteOsaPercentageDetail(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] OSA Percentage Detail. Records:', data?.length || 0);
         console.log('================================================\n');
 
         res.json(data);
     } catch (error) {
-        console.error('[ERROR] OSA Percentage Detail:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('[ERROR] getOsaPercentageDetail:', error.message);
+        console.error(error.stack);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 };
 
@@ -193,7 +194,7 @@ export const getDOI = async (req, res) => {
 
         const data = await availabilityService.getDOI(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] DOI. Records:', data?.length || 0);
         console.log('==================================================\n');
 
         res.json(data);
@@ -233,7 +234,7 @@ export const getMetroCityStockAvailability = async (req, res) => {
 
         const data = await availabilityService.getMetroCityStockAvailability(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] Metro City Stock Availability. Records:', data?.length || 0);
         console.log('========================================================\n');
 
         res.json(data);

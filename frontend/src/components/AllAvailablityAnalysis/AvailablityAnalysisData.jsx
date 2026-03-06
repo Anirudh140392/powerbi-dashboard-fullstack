@@ -103,7 +103,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, onFiltersChange }) => {
   const [activeTab, setActiveTab] = useState("platform");
   const {
     selectedChannel,
@@ -299,7 +299,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) 
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} loading={loading} />
+      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} loading={loading} onFilterChange={onFiltersChange} />
     </div>
   );
 };
@@ -1239,7 +1239,7 @@ const getAvailabilityKpis = (type, context = {}) => {
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiErrors, onRetry }) => {
+export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiErrors, onRetry, ...props }) => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
@@ -1354,43 +1354,13 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
         {/* MARKET SHARE TOGGLE BLOCK */}
         {/* AVAILABILITY TOGGLE BLOCK */}
-        <div className="flex justify-center">
-          <div className="relative w-full md:w-[420px]">
-            <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-              <motion.div
-                layout
-                className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
-                initial={false}
-                animate={{ x: availability === "absolute" ? 0 : "100%" }}
-                transition={{ type: "spring", stiffness: 260, damping: 26 }}
-              />
-
-              {[
-                { key: "absolute", label: "Absolute" },
-                { key: "weighted", label: "Weighted" },
-              ].map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setAvailability(option.key)}
-                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
-                    ? "text-slate-900"
-                    : "text-slate-500 hover:text-slate-700"
-                    }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
 
         {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
         <SnapshotOverview
           title="Availability Overview"
           icon={LayoutGrid}
-          chip={availability === "absolute" ? "Absolute Basis" : "Weighted Basis"}
+          chip="Absolute Basis"
           loading={isLoading}
           headerRight={
             <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
@@ -1405,8 +1375,45 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
           <SignalLabVisibility type="availability" />
         </div>
 
-        <TabbedHeatmapTable olaMode={availability} loading={isLoading} apiData={apiData} />
-        <OsaHeatmapTable olaMode={availability} loading={isLoading} apiData={apiData} />
+        <TabbedHeatmapTable
+          olaMode={availability}
+          loading={isLoading}
+          apiData={apiData}
+          onFiltersChange={(matrixFilters) => {
+            if (!props.onFiltersChange) return;
+            // Map Matrix filter keys to Global filter keys
+            const mappedFilters = {};
+            if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+            if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+            if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+            if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+            if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+            if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+            if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+            if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+            if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+            props.onFiltersChange(mappedFilters);
+          }}
+        />
+        <OsaHeatmapTable
+          olaMode={availability}
+          loading={isLoading}
+          apiData={apiData}
+          onFiltersChange={(matrixFilters) => {
+            if (!props.onFiltersChange) return;
+            const mappedFilters = {};
+            if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+            if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+            if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+            if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+            if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+            if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+            if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+            if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+            if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+            props.onFiltersChange(mappedFilters);
+          }}
+        />
 
       </div>
     </div>

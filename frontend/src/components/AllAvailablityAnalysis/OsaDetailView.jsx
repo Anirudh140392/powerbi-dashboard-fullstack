@@ -139,7 +139,13 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                 } else if (key === 'format') {
                     res = res.filter(r => values.includes(r.format));
                 } else if (key === 'city') {
+                    // Filter down to rows containing any of the selected cities
                     res = res.filter(r => r.cities?.some(c => values.includes(c.name)));
+                    // AND filter the nested cities array to ONLY include the selected cities
+                    res = res.map(r => ({
+                        ...r,
+                        cities: r.cities.filter(c => values.includes(c.name))
+                    }));
                 }
             }
         });

@@ -42,12 +42,20 @@ export default function AvailablityAnalysis() {
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
     endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
     compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
-    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
+    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null,
+    // Add extra tracking state for Matrix filters
+    kpis: [],
+    metroFlags: [],
+    cities: [],
+    formats: []
   });
 
   // Wrapper to sync context when filters change locally (e.g. from internal matrix filters)
   const handleFiltersChange = (newFilters) => {
-    setFilters(newFilters);
+    setFilters((prev) => {
+      const updatedFilters = { ...prev, ...newFilters };
+      return updatedFilters;
+    });
 
     // Sync back to FilterContext to update global header
     if (newFilters.platform && newFilters.platform !== platform) {
@@ -284,7 +292,11 @@ export default function AvailablityAnalysis() {
       const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setApiData(prev => ({ ...prev, osaDetail: data }));
+      console.log('[OsaDetail] API response received. Type:', typeof data, 'IsArray:', Array.isArray(data), 'Length:', Array.isArray(data) ? data.length : (data?.length || 'N/A'));
+      // Handle both direct array and wrapped responses
+      const osaRows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : data?.rows || data);
+      console.log('[OsaDetail] Parsed rows count:', Array.isArray(osaRows) ? osaRows.length : 'not-array');
+      setApiData(prev => ({ ...prev, osaDetail: osaRows }));
       return true;
     } catch (err) {
       console.error('[OsaDetail] API error:', err);
@@ -348,7 +360,14 @@ export default function AvailablityAnalysis() {
       startDate: filters.startDate,
       endDate: filters.endDate,
       compareStartDate: filters.compareStartDate,
-      compareEndDate: filters.compareEndDate
+      compareEndDate: filters.compareEndDate,
+      months: filters.months,
+      zones: filters.zones,
+      timeStep: filters.timeStep,
+      kpis: filters.kpis,
+      metroFlags: filters.metroFlags,
+      cities: filters.cities,
+      formats: filters.formats
     });
 
     // Skip if we already fetched with these same filters
@@ -369,7 +388,9 @@ export default function AvailablityAnalysis() {
       try {
         const queryParams = buildQueryParams();
 
-        // OSA Detail - Following global date range
+        console.log('📡 Fetching availability data. Global filters:', filters.platform, filters.brand, filters.location);
+
+        // OSA Detail uses only date range (shows ALL products regardless of brand/platform filter)
         const osaDetailParams = new URLSearchParams({
           platform: 'All',
           brand: 'All',
@@ -377,8 +398,6 @@ export default function AvailablityAnalysis() {
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();
-
-        console.log('📡 Fetching availability data. Global filters:', filters.platform, filters.brand, filters.location);
 
         // Fetch all segments (errors are tracked per-segment)
         await Promise.allSettled([
