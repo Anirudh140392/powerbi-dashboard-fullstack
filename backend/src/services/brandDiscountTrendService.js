@@ -77,7 +77,7 @@ async function getBrandDiscountTrend(filters = {}) {
                 Brand,
                 formatDateTime(DATE, '%b %Y') as monthLabel,
                 formatDateTime(DATE, '%Y-%m') as monthSort,
-                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND toFloat64(Discount) >= 0 THEN toFloat64(Discount) ELSE NULL END), 1) AS avgDiscount
+                ROUND(AVG(CASE WHEN Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(Discount)), 0) ELSE NULL END), 1) AS avgDiscount
             FROM rb_pdp_olap
             WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
               AND Brand IS NOT NULL

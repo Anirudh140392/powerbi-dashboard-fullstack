@@ -1233,7 +1233,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                 </div>
 
                 <div>
-                    <div className="text-sm font-semibold">{sku.skuName}</div>
+                    <div className="text-sm font-semibold line-clamp-2" title={sku.skuName}>{sku.skuName}</div>
                     <div className="text-xs text-slate-500">{sku.packSize}</div>
                 </div>
 
@@ -1299,112 +1299,187 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 function SignalLabBase({ metricType, usePagination = true }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [apiSignals, setApiSignals] = useState([]);
-    const [apiError, setApiError] = useState(null);
-    const [retryCount, setRetryCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
 
     const {
         platform: globalPlatform,
         selectedCategory,
         selectedLocation,
+        selectedBrand,
+        selectedChannel,
         timeStart,
-        timeEnd,
-        compareStart,
-        compareEnd
+        timeEnd
     } = useContext(FilterContext);
 
     const [rowsPerPage, setRowsPerPage] = useState(4);
     const [page, setPage] = useState(1);
 
-    // Helper: normalize "All" / empty / array platform to clean value
-    const normalizePlatform = useCallback((val) => {
-        if (!val || val === 'All') return '';
-        if (Array.isArray(val)) {
-            const filtered = val.filter(v => v && v !== 'All');
-            return filtered.length > 0 ? filtered.join(',') : '';
-        }
-        return val;
-    }, []);
+    // State for real API data
+    const [apiSkus, setApiSkus] = useState(null); // null = not fetched yet
+    const [totalCount, setTotalCount] = useState(0);
+    const [apiError, setApiError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
 
-    const normalizeLocation = useCallback((val) => {
-        if (!val || val === 'All') return '';
-        if (Array.isArray(val)) {
-            const filtered = val.filter(v => v && v !== 'All');
-            return filtered.length > 0 ? filtered.join(',') : '';
-        }
-        return val;
-    }, []);
-
-    /**
-     * Map backend signal to the card format expected by SignalCard
-     */
-    const mapSignalToCard = useCallback((signal) => {
-        return {
-            id: signal.id,
-            type: signal.type,
-            metricType: 'visibility',
-            skuCode: signal.keyword || signal.skuCode || signal.id,
-            skuName: signal.keyword || signal.skuName || 'Unknown',
-            packSize: signal.level === 'keyword' ? 'Keyword' : 'SKU',
-            platform: signal.platform || 'All',
-            categoryTag: signal.level === 'keyword' ? 'Keyword' : 'SKU',
-            offtakeValue: signal.kpis?.overallSos || '0%',
-            impact: signal.impact || '0%',
-            kpis: signal.kpis || {},
-            topCities: (signal.cities || []).map(c => ({
-                city: c.city,
-                metric: c.metric,
-                change: c.change
-            }))
-        };
-    }, []);
-
-    // Fetch live data from backend for ALL tabs
+    // Fetch real data from backend API
     useEffect(() => {
+        let cancelled = false;
         setIsLoading(true);
         setApiError(null);
-        setPage(1);
+        setPage(1); // Reset to page 1 on filter change
 
-        const loadSignals = async () => {
+        const fetchSignalLab = async () => {
             try {
-                const data = await fetchVisibilitySignals({
-                    level: 'keyword',
-                    signalType: signalType,
-                    platform: normalizePlatform(globalPlatform),
-                    location: normalizeLocation(selectedLocation),
-                    startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
-                    endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
-                    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
-                    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : ''
+                const token = localStorage.getItem('token');
+                const params = new URLSearchParams();
+                params.append('type', metricType);
+                params.append('signalType', signalType);
+                params.append('page', '1');
+                params.append('limit', String(rowsPerPage));
+
+                if (globalPlatform && globalPlatform !== 'All') {
+                    if (Array.isArray(globalPlatform)) {
+                        params.append('platform', globalPlatform.join(','));
+                    } else {
+                        params.append('platform', globalPlatform);
+                    }
+                }
+                if (selectedLocation && selectedLocation !== 'All') {
+                    if (Array.isArray(selectedLocation)) {
+                        params.append('location', selectedLocation.join(','));
+                    } else {
+                        params.append('location', selectedLocation);
+                    }
+                }
+                if (selectedBrand && selectedBrand !== 'All') {
+                    if (Array.isArray(selectedBrand)) {
+                        params.append('brand', selectedBrand.join(','));
+                    } else {
+                        params.append('brand', selectedBrand);
+                    }
+                }
+                if (selectedChannel && selectedChannel !== 'All') {
+                    params.append('channel', selectedChannel);
+                }
+                if (selectedCategory && selectedCategory !== 'All') {
+                    if (Array.isArray(selectedCategory)) {
+                        params.append('category', selectedCategory.join(','));
+                    } else {
+                        params.append('category', selectedCategory);
+                    }
+                }
+                if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
+                if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
+
+                const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
                 });
-                const signals = (data.signals || []).map(s => mapSignalToCard(s));
-                setApiSignals(signals);
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                if (!cancelled) {
+                    setApiSkus(data.skus || []);
+                    setTotalCount(data.totalCount || 0);
+                }
             } catch (err) {
-                console.error('Failed to fetch signals:', err);
-                setApiError(err.message || 'Failed to load signals');
-                setApiSignals([]);
+                console.error('[SignalLab] API error, falling back to sample data:', err);
+                if (!cancelled) {
+                    setApiError(err.message);
+                    // Fallback to filtered SAMPLE_SKUS
+                    const fallback = SAMPLE_SKUS.filter(s => s.metricType === metricType && s.type === signalType);
+                    setApiSkus(fallback);
+                    setTotalCount(fallback.length);
+                }
             } finally {
-                setIsLoading(false);
+                if (!cancelled) setIsLoading(false);
             }
         };
-        loadSignals();
-    }, [retryCount, metricType, signalType, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, normalizePlatform, normalizeLocation, mapSignalToCard]);
 
-    // Use API data for all tabs
-    const filtered = useMemo(() => {
-        return apiSignals;
-    }, [apiSignals]);
+        fetchSignalLab();
+        return () => { cancelled = true; };
+    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation, selectedBrand, selectedChannel, timeStart, timeEnd, retryCount]);
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+    // Fetch when page or rowsPerPage changes (server-side pagination)
+    useEffect(() => {
+        // Skip initial render (handled by the filter useEffect above)
+        if (apiSkus === null) return;
+
+        let cancelled = false;
+        setIsLoading(true);
+
+        const fetchPage = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const params = new URLSearchParams();
+                params.append('type', metricType);
+                params.append('signalType', signalType);
+                params.append('page', String(page));
+                params.append('limit', String(rowsPerPage));
+
+                if (globalPlatform && globalPlatform !== 'All') {
+                    if (Array.isArray(globalPlatform)) {
+                        params.append('platform', globalPlatform.join(','));
+                    } else {
+                        params.append('platform', globalPlatform);
+                    }
+                }
+                if (selectedLocation && selectedLocation !== 'All') {
+                    if (Array.isArray(selectedLocation)) {
+                        params.append('location', selectedLocation.join(','));
+                    } else {
+                        params.append('location', selectedLocation);
+                    }
+                }
+                if (selectedBrand && selectedBrand !== 'All') {
+                    if (Array.isArray(selectedBrand)) {
+                        params.append('brand', selectedBrand.join(','));
+                    } else {
+                        params.append('brand', selectedBrand);
+                    }
+                }
+                if (selectedChannel && selectedChannel !== 'All') {
+                    params.append('channel', selectedChannel);
+                }
+                if (selectedCategory && selectedCategory !== 'All') {
+                    if (Array.isArray(selectedCategory)) {
+                        params.append('category', selectedCategory.join(','));
+                    } else {
+                        params.append('category', selectedCategory);
+                    }
+                }
+                if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
+                if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
+
+                const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                if (!cancelled) {
+                    setApiSkus(data.skus || []);
+                    setTotalCount(data.totalCount || 0);
+                }
+            } catch (err) {
+                console.error('[SignalLab] Pagination fetch error:', err);
+            } finally {
+                if (!cancelled) setIsLoading(false);
+            }
+        };
+
+        fetchPage();
+        return () => { cancelled = true; };
+    }, [page, rowsPerPage, retryCount]);
+
+    const filtered = apiSkus || [];
+    const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
 
+    // For API data, pagination is server-side so pageRows = filtered directly
     const pageRows = useMemo(() => {
-        if (!usePagination) return filtered;
-        const start = (safePage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        return filtered.slice(start, end);
-    }, [filtered, safePage, rowsPerPage, usePagination]);
+        return filtered;
+    }, [filtered]);
 
 
     return (

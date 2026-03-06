@@ -1,66 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2 } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
+import { fetchVisibilityBrandDrilldown } from "../../api/visibilityService";
+import { FilterContext } from "../../utils/FilterContext";
 
-// Mock Data focused on "Kwality Walls"
-// Branded keywords (Own Brands)
-const BRANDED_DATA = [
-    { keyword: "Kwality Walls Cornetto Choco Brownie", topBrand: "KWALITY WALLS", overallSos: 18.5, overallDelta: 4.2, organicSos: 12.1, organicDelta: 3.1, paidSos: 6.4, paidDelta: 1.1 },
-    { keyword: "Kwality Walls Trixy Cookie Cup", topBrand: "KWALITY WALLS", overallSos: 16.2, overallDelta: -1.5, organicSos: 10.5, organicDelta: -2.0, paidSos: 5.7, paidDelta: 0.5 },
-    { keyword: "Magnum Almond Stick", topBrand: "KWALITY WALLS", overallSos: 19.1, overallDelta: 5.6, organicSos: 13.0, organicDelta: 4.2, paidSos: 6.1, paidDelta: 1.4 },
-    { keyword: "The Dairy Factory Vanilla Tub", topBrand: "THE DAIRY FACTORY", overallSos: 15.8, overallDelta: -0.8, organicSos: 10.8, organicDelta: -1.2, paidSos: 5.0, paidDelta: 0.4 },
-    { keyword: "Kwality Walls Chocochip Tub", topBrand: "KWALITY WALLS", overallSos: 17.7, overallDelta: 2.8, organicSos: 12.5, organicDelta: 2.5, paidSos: 5.2, paidDelta: 0.3 },
-    { keyword: "Magnum Brownie Stick", topBrand: "KWALITY WALLS", overallSos: 18.2, overallDelta: 2.1, organicSos: 12.2, organicDelta: 1.8, paidSos: 6.0, paidDelta: 0.3 },
-    { keyword: "The Dairy Factory Alphonso Mango", topBrand: "THE DAIRY FACTORY", overallSos: 16.0, overallDelta: 4.1, organicSos: 11.0, organicDelta: 3.5, paidSos: 5.0, paidDelta: 0.6 },
-    { keyword: "Kwality Walls Cornetto Oreo", topBrand: "KWALITY WALLS", overallSos: 17.6, overallDelta: 1.2, organicSos: 12.4, organicDelta: 0.9, paidSos: 5.2, paidDelta: 0.3 }
-];
-
-// Competitor keywords
-const COMPETITOR_DATA = [
-    { keyword: "Dairy Day Blackcurrant Cone", topBrand: "DAIRY DAY", overallSos: 14.5, overallDelta: -2.4, organicSos: 9.0, organicDelta: -1.8, paidSos: 5.5, paidDelta: -0.6 },
-    { keyword: "Minus Thirty Mint Choc Chip", topBrand: "MINUS THIRTY", overallSos: 13.8, overallDelta: 1.2, organicSos: 8.5, organicDelta: 0.8, paidSos: 5.3, paidDelta: 0.4 },
-    { keyword: "Havmor World Cone Double", topBrand: "HAVMOR", overallSos: 15.5, overallDelta: 2.8, organicSos: 9.8, organicDelta: 2.4, paidSos: 5.7, paidDelta: 0.4 },
-    { keyword: "Cream Bell Maxxum Silky", topBrand: "CREAM BELL", overallSos: 14.0, overallDelta: 0.5, organicSos: 9.2, organicDelta: 0.2, paidSos: 4.8, paidDelta: 0.3 },
-    { keyword: "Vadilal Gourmet Natural", topBrand: "VADILAL", overallSos: 14.1, overallDelta: 1.1, organicSos: 9.4, organicDelta: 0.7, paidSos: 4.7, paidDelta: 0.4 },
-    { keyword: "Go Desi Ice Popz 12-Pack", topBrand: "GO DESI", overallSos: 12.8, overallDelta: 1.5, organicSos: 8.2, organicDelta: 1.2, paidSos: 4.6, paidDelta: 0.3 },
-    { keyword: "Milky Mist Duet Vanilla", topBrand: "MILKY MIST", overallSos: 14.8, overallDelta: 2.1, organicSos: 9.5, organicDelta: 1.5, paidSos: 5.3, paidDelta: 0.6 },
-    { keyword: "Baskin Robbins Hazelnut", topBrand: "BASKIN ROBBINS", overallSos: 15.2, overallDelta: 0.4, organicSos: 10.6, organicDelta: 0.2, paidSos: 4.6, paidDelta: 0.2 }
-];
-
-// Generic keywords
-const GENERIC_DATA = [
-    { keyword: "ice cream", topBrand: "KWALITY WALLS", overallSos: 14.8, overallDelta: -3.1, organicSos: 9.2, organicDelta: -4.5, paidSos: 5.6, paidDelta: 0.0 },
-    { keyword: "chocolate ice cream", topBrand: "KWALITY WALLS", overallSos: 14.2, overallDelta: -0.5, organicSos: 8.8, organicDelta: -0.8, paidSos: 5.4, paidDelta: 0.0 },
-    { keyword: "vanilla tub", topBrand: "AMUL", overallSos: 13.8, overallDelta: -1.4, organicSos: 8.5, organicDelta: -2.0, paidSos: 5.3, paidDelta: 0.0 },
-    { keyword: "strawberry cone", topBrand: "KWALITY WALLS", overallSos: 14.5, overallDelta: -1.0, organicSos: 10.0, organicDelta: -1.5, paidSos: 4.5, paidDelta: 0.0 },
-    { keyword: "family pack tub", topBrand: "KWALITY WALLS", overallSos: 14.0, overallDelta: -1.0, organicSos: 9.5, organicDelta: -0.2, paidSos: 4.5, paidDelta: -0.2 },
-    { keyword: "kulfi sticks", topBrand: "HANGYO", overallSos: 13.6, overallDelta: -0.6, organicSos: 8.5, organicDelta: -1.1, paidSos: 5.1, paidDelta: 0.0 },
-    { keyword: "cassatta", topBrand: "HAVMOR", overallSos: 13.5, overallDelta: 2.5, organicSos: 9.0, organicDelta: 3.7, paidSos: 4.5, paidDelta: -1.0 },
-    { keyword: "chocobar", topBrand: "KWALITY WALLS", overallSos: 14.4, overallDelta: -4.4, organicSos: 9.4, organicDelta: -2.8, paidSos: 5.0, paidDelta: -3.6 }
-];
-
-// Shuffled for the "All" tab to ensure variety
-const ALL_DATA = [
-    GENERIC_DATA[0], BRANDED_DATA[0], COMPETITOR_DATA[0],
-    GENERIC_DATA[1], BRANDED_DATA[1], COMPETITOR_DATA[1],
-    GENERIC_DATA[2], BRANDED_DATA[2], COMPETITOR_DATA[2],
-    GENERIC_DATA[3], BRANDED_DATA[3], COMPETITOR_DATA[3],
-    GENERIC_DATA[4], BRANDED_DATA[4], COMPETITOR_DATA[4],
-    GENERIC_DATA[5], BRANDED_DATA[5], COMPETITOR_DATA[5],
-    GENERIC_DATA[6], BRANDED_DATA[6], COMPETITOR_DATA[6],
-    GENERIC_DATA[7], BRANDED_DATA[7], COMPETITOR_DATA[7]
-];
-
-// Mock Data for Drilldown (Competitors for a keyword)
-// Mock Data for Drilldown (Competitors for a keyword)
-const getCompetitorData = (keyword) => [
-    { brand: "Kwality Walls", overall: 45, organic: 30, paid: 15 },
-    { brand: "Amul", overall: 25, organic: 15, paid: 10 },
-    { brand: "Mother Dairy", overall: 22, organic: 12, paid: 10 },
-    { brand: "Vadilal", overall: 18, organic: 10, paid: 8 },
-    { brand: "Havmor", overall: 15, organic: 10, paid: 5 },
-];
+// TopSearchTerms component uses dynamic data passed via `apiData` prop
 
 const getCityData = (row) => {
     const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune"];
@@ -211,33 +156,73 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     const [pageSize, setPageSize] = useState(5);
     const [selectedBrands, setSelectedBrands] = useState([]);
 
-    // Select specific data based on tab filter
-    // Use API data if available, otherwise fall back to hardcoded data
-    const activeData = useMemo(() => {
-        // If API data is available, use it directly (already filtered by backend based on filter param)
-        if (apiData?.terms && apiData.terms.length > 0) {
-            return apiData.terms;
-        }
+    // Drilldown modal dynamic states
+    const [drilldownData, setDrilldownData] = useState([]);
+    const [drilldownLosers, setDrilldownLosers] = useState([]);
+    const [drilldownLoading, setDrilldownLoading] = useState(false);
+    const [showOnlyLosers, setShowOnlyLosers] = useState(false);
 
-        // Fallback to hardcoded data
-        switch (filter) {
-            case "Branded": return BRANDED_DATA;
-            case "Competitor": return COMPETITOR_DATA;
-            case "Generic": return GENERIC_DATA;
-            default: return ALL_DATA;
-        }
-    }, [filter, apiData]);
+    // Modal Pagination State
+    const [modalPage, setModalPage] = useState(1);
+    const [modalPageSize, setModalPageSize] = useState(5);
+
+    const { platform, location, timeStart, timeEnd } = useContext(FilterContext) || {};
+
+    // Select specific data based on tab filter
+    // Use API data (already filtered by backend based on filter param)
+    const activeData = useMemo(() => {
+        return apiData?.terms || [];
+    }, [apiData]);
 
     // Reset page when filter changes
     useEffect(() => {
         setCurrentPage(1);
     }, [filter]);
 
-    const handleBrandClick = (keyword) => {
+    const handleBrandClick = async (keyword) => {
         setSelectedKeyword(keyword);
-        // Initialize brand selection with all brands for the clicked keyword
-        const brands = getCompetitorData(keyword).map(d => d.brand);
-        setSelectedBrands(brands);
+        setShowOnlyLosers(false); // Reset toggle when opening a new drilldown
+        setModalPage(1);
+
+        // Fetch real data from backend
+        try {
+            setDrilldownLoading(true);
+            const data = await fetchVisibilityBrandDrilldown({
+                keyword,
+                platform,
+                location,
+                startDate: timeStart,
+                endDate: timeEnd
+            });
+
+            const formatBrandData = (b) => ({
+                brand: b.brand,
+                overall: b.overallSos?.value || 0,
+                overallDelta: b.overallSos?.delta || 0,
+                organic: b.organicSos?.value || 0,
+                organicDelta: b.organicSos?.delta || 0,
+                paid: b.paidSos?.value || 0,
+                paidDelta: b.paidSos?.delta || 0
+            });
+
+            const brands = (data?.brands || []).map(formatBrandData);
+            const losers = (data?.topLosers || []).map(formatBrandData);
+
+            setDrilldownData(brands);
+            setDrilldownLosers(losers);
+
+            // Initialize brand selection with all returned brands
+            const brandNames = brands.map(d => d.brand);
+            setSelectedBrands(brandNames);
+        } catch (error) {
+            console.error("Failed to load drilldown data:", error);
+            // Fallback to empty if fails
+            setDrilldownData([]);
+            setDrilldownLosers([]);
+            setSelectedBrands([]);
+        } finally {
+            setDrilldownLoading(false);
+        }
     };
 
     const toggleCityDrilldown = (keyword) => {
@@ -255,13 +240,23 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     const closeDrilldown = () => {
         setSelectedKeyword(null);
         setSelectedBrands([]);
+        setDrilldownData([]);
+        setDrilldownLosers([]);
     };
 
-    const allDrilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
-    const availableBrands = allDrilldownData.map(d => d.brand);
+    const availableBrands = showOnlyLosers
+        ? drilldownLosers.map(d => d.brand)
+        : drilldownData.map(d => d.brand);
 
-    // Filter the data based on selection
-    const displayedDrilldownData = allDrilldownData.filter(d => selectedBrands.includes(d.brand));
+    // Filter the data based on selection and Losers toggle
+    const baseDrilldownData = showOnlyLosers ? drilldownLosers : drilldownData;
+    const displayedDrilldownData = baseDrilldownData.filter(d => selectedBrands.includes(d.brand));
+
+    // Paginate Modal Data
+    const paginatedDrilldownData = displayedDrilldownData.slice(
+        (modalPage - 1) * modalPageSize,
+        modalPage * modalPageSize
+    );
 
     // Animation Variants
     const containerVariants = {
@@ -454,6 +449,29 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                                     Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
                                 </h4>
                                 <div className="flex items-center gap-3">
+                                    {/* Modal Tabs for All Brands vs Losers */}
+                                    <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm mr-2">
+                                        <button
+                                            onClick={() => {
+                                                setShowOnlyLosers(false);
+                                                setModalPage(1);
+                                            }}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${!showOnlyLosers ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                        >
+                                            All Brands
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowOnlyLosers(true);
+                                                setModalPage(1);
+                                            }}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${showOnlyLosers ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                        >
+                                            Losers
+                                        </button>
+                                    </div>
                                     <FilterDropdown
                                         options={availableBrands}
                                         selected={selectedBrands}
@@ -468,33 +486,70 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                                 </div>
                             </div>
                             <div className="p-4">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
-                                            <th className="pb-2 font-semibold">Brand</th>
-                                            <th className="pb-2 font-semibold text-center">Overall Sos</th>
-                                            <th className="pb-2 font-semibold text-center">Organic Sos</th>
-                                            <th className="pb-2 font-semibold text-center">Paid Sos</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {displayedDrilldownData.map((d, i) => (
-                                            <tr key={i} className="hover:bg-slate-50/50">
-                                                <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.overall}%</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.organic}%</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.paid}%</td>
-                                            </tr>
-                                        ))}
-                                        {displayedDrilldownData.length === 0 && (
-                                            <tr>
-                                                <td colSpan={4} className="py-8 text-center text-xs text-slate-400 italic">
-                                                    No brands selected
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                {drilldownLoading ? (
+                                    <div className="flex flex-col items-center justify-center py-12">
+                                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+                                        <p className="text-sm font-medium text-slate-600">Loading brand insights...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
+                                                    <th className="pb-2 font-semibold">Brand</th>
+                                                    <th className="pb-2 font-semibold text-center">Overall Sos</th>
+                                                    <th className="pb-2 font-semibold text-center">Organic Sos</th>
+                                                    <th className="pb-2 font-semibold text-center">Paid Sos</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {paginatedDrilldownData.map((d, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/50">
+                                                        <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
+                                                        <td className="py-2 text-center text-xs text-slate-600">
+                                                            <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                <span className="text-slate-600">{d.overall}%</span>
+                                                                <DeltaIndicator value={d.overallDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-2 text-center text-xs text-slate-600">
+                                                            <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                <span className="text-slate-600">{d.organic}%</span>
+                                                                <DeltaIndicator value={d.organicDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-2 text-center text-xs text-slate-600">
+                                                            <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                <span className="text-slate-600">{d.paid}%</span>
+                                                                <DeltaIndicator value={d.paidDelta} />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {paginatedDrilldownData.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="py-8 text-center text-xs text-slate-400 italic">
+                                                            {showOnlyLosers ? "No loser brands found or selected" : "No brands selected or available"}
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+
+                                        {/* Modal Footer with Pagination */}
+                                        <div className="mt-4 border-t border-slate-100 pt-3">
+                                            <PaginationFooter
+                                                isVisible={displayedDrilldownData.length > 0}
+                                                currentPage={modalPage}
+                                                totalPages={Math.ceil(displayedDrilldownData.length / modalPageSize)}
+                                                onPageChange={setModalPage}
+                                                pageSize={modalPageSize}
+                                                onPageSizeChange={setModalPageSize}
+                                                totalItems={displayedDrilldownData.length}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>

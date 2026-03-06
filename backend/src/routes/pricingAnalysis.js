@@ -1,24 +1,42 @@
-import { PriceAndDiscountIntelligence, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity } from '../controllers/pricingAnalysisController.js';
+import { getPricingKpis, getPricingInsights, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity, getDimensionOverview, getDimensionTrends, getPricingCompetition, getPricingCompetitionTrends } from '../controllers/pricingAnalysisController.js';
 import { getOneViewPriceGrid } from '../controllers/oneViewPriceGridController.js';
 
 export default (app) => {
     /**
      * @swagger
-     * /api/pricing-analysis:
+     * /api/pricing-analysis/kpis:
      *   get:
-     *     summary: Get Pricing Analysis metrics
-     *     description: Retrieve metrics for Pricing Analysis (Price & Discount Intelligence).
-     *     parameters:
-     *       - in: query
-     *         name: platform
-     *         schema:
-     *           type: string
-     *         description: Filter by platform
+     *     summary: Get Pricing KPIs
+     *     description: Retrieve metrics for Pricing Analysis (Discount, Weighted Discount, Price Per Unit, RPI)
      *     responses:
      *       200:
      *         description: Successful response
      */
-    app.get('/api/pricing-analysis', PriceAndDiscountIntelligence);
+    app.get('/api/pricing-analysis/kpis', getPricingKpis);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/insights:
+     *   get:
+     *     summary: Get Pricing Insights
+     *     description: Retrieve Price Drop and Price Hike signals
+     *     responses:
+     *       200:
+     *         description: Successful response
+     */
+    app.get('/api/pricing-analysis/insights', getPricingInsights);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/dimension-overview:
+     *   get:
+     *     summary: Get Pricing Dimension Overview
+     *     description: Retrieve metrics grouped by Category or Location
+     *     responses:
+     *       200:
+     *         description: Successful response
+     */
+    app.get('/api/pricing-analysis/dimension-overview', getDimensionOverview);
 
     /**
      * @swagger
@@ -372,4 +390,31 @@ export default (app) => {
      *         description: Successful response with ECP by city data
      */
     app.get('/api/pricing-analysis/ecp-by-city', getEcpByCity);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/dimension-trends:
+     *   get:
+     *     summary: Get Pricing KPI time-series for a category or city
+     *     description: Returns daily/weekly/monthly trend of Discount, PricePerUnit, RPI, ASP for a given dimension value (category or city).
+     */
+    app.get('/api/pricing-analysis/dimension-trends', getDimensionTrends);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/competition:
+     *   get:
+     *     summary: Get brand-level and SKU-level pricing competition data
+     *     description: Returns Discount, PricePerUnit, RPI, ASP grouped by Brand and SKU for the Competition tab in the Category Overview drawer.
+     */
+    app.get('/api/pricing-analysis/competition', getPricingCompetition);
+
+    /**
+     * @swagger
+     * /api/pricing-analysis/competition-trends:
+     *   get:
+     *     summary: Get trend metrics for selected brands or SKUs
+     *     description: Returns Discount, PricePerUnit, RPI, ASP over time for given targets
+     */
+    app.get('/api/pricing-analysis/competition-trends', getPricingCompetitionTrends);
 };

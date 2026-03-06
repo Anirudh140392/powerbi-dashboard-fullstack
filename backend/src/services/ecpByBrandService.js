@@ -105,13 +105,13 @@ async function getEcpByBrand(filters = {}) {
             SELECT
                 p.Brand,
                 ROUND(
-                    SUM(CASE WHEN p.MRP IS NOT NULL AND toFloat64(p.MRP) > 0 THEN toFloat64(p.MRP) ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND toFloat64(p.MRP) > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.MRP IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(p.MRP)), 0) ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN 1 END), 0),
                     0
                 ) AS mrp,
                 ROUND(
-                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND toFloat64(p.Selling_Price) > 0 THEN toFloat64(p.Selling_Price) ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND toFloat64(p.Selling_Price) > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END), 0),
                     0
                 ) AS ecp,
                 AVG(
@@ -119,9 +119,9 @@ async function getEcpByBrand(filters = {}) {
                         WHEN s.gram IS NOT NULL 
                         AND s.gram != '' 
                         AND s.gram != '0' 
-                        AND isFinite(toFloat64(s.gram))
-                        AND toFloat64(s.gram) > 0 
-                        THEN toFloat64(s.gram) 
+                        AND isFinite(ifNull(toFloat64OrZero(toString(s.gram)), 0))
+                        AND ifNull(toFloat64OrZero(toString(s.gram)), 0) > 0 
+                        THEN ifNull(toFloat64OrZero(toString(s.gram)), 0) 
                         ELSE NULL 
                     END
                 ) AS avg_gram

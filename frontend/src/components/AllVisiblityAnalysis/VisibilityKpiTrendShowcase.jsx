@@ -1068,12 +1068,6 @@ const KPI_KEYS = [
     color: "#16A34A", // green
     unit: "%",
   },
-  {
-    key: "display_sos",
-    label: "Display SOS",
-    color: "#7C3AED", // purple
-    unit: "%",
-  },
 ];
 
 const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands = [] }) => {
@@ -1166,8 +1160,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
           <Skeleton variant="rounded" width={100} height={32} animation="wave" sx={{ borderRadius: 2 }} />
         </CardHeader>
         <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
-          {/* 4 Chart skeletons for Overall SOS, Sponsored SOS, Organic SOS, Display SOS */}
-          {[1, 2, 3, 4].map((i) => (
+          {/* 3 Chart skeletons for Overall SOS, Sponsored SOS, Organic SOS */}
+          {[1, 2, 3].map((i) => (
             <Card key={i} className="border-slate-200 bg-slate-50/80 shadow-none">
               <CardHeader className="pb-2">
                 <Skeleton variant="text" width={100} height={20} animation="wave" sx={{ borderRadius: 1 }} />
@@ -1303,7 +1297,6 @@ const BrandTable = ({ rows }) => {
                 <th className="px-3 py-2 text-right">Overall SOS</th>
                 <th className="px-3 py-2 text-right">Sponsored</th>
                 <th className="px-3 py-2 text-right">Organic</th>
-                <th className="px-3 py-2 text-right">Display</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1329,14 +1322,14 @@ const BrandTable = ({ rows }) => {
                     {row.organic_sos.toFixed(1)}%
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.display_sos.toFixed(1)}%
+                    {row.organic_sos.toFixed(1)}%
                   </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No brands matching current filters.
@@ -1376,7 +1369,6 @@ const SkuTable = ({ rows }) => {
                 <th className="px-3 py-2 text-right">Overall SOS</th>
                 <th className="px-3 py-2 text-right">Sponsored</th>
                 <th className="px-3 py-2 text-right">Organic</th>
-                <th className="px-3 py-2 text-right">Display</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1404,15 +1396,12 @@ const SkuTable = ({ rows }) => {
                   <td className="px-3 py-2 text-right text-[12px]">
                     {row.organic_sos.toFixed(1)}%
                   </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {row.display_sos.toFixed(1)}%
-                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No SKUs matching current filters.
@@ -1464,7 +1453,6 @@ const KeywordTable = ({ rows }) => {
                 <th className="px-3 py-2 text-right">Overall SOS</th>
                 <th className="px-3 py-2 text-right">Sponsored</th>
                 <th className="px-3 py-2 text-right">Organic</th>
-                <th className="px-3 py-2 text-right">Display</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1492,15 +1480,12 @@ const KeywordTable = ({ rows }) => {
                   <td className="px-3 py-2 text-right text-[12px]">
                     {row.organic_sos.toFixed(1)}%
                   </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {row.display_sos.toFixed(1)}%
-                  </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No Keywords matching current filters.
@@ -1540,13 +1525,11 @@ const TableSkeleton = () => (
           <Skeleton variant="text" width="15%" height={16} animation="wave" />
           <Skeleton variant="text" width="15%" height={16} animation="wave" />
           <Skeleton variant="text" width="15%" height={16} animation="wave" />
-          <Skeleton variant="text" width="15%" height={16} animation="wave" />
         </div>
         {/* Table rows skeleton */}
         {[1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="flex gap-4 px-3 py-3 border-b border-slate-100">
             <Skeleton variant="text" width="25%" height={18} animation="wave" />
-            <Skeleton variant="text" width="15%" height={18} animation="wave" />
             <Skeleton variant="text" width="15%" height={18} animation="wave" />
             <Skeleton variant="text" width="15%" height={18} animation="wave" />
             <Skeleton variant="text" width="15%" height={18} animation="wave" />

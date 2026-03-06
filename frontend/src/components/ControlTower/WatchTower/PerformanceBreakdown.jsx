@@ -394,7 +394,11 @@ export function AggregatedViewTable() {
                 setUntagged(result.untagged || null);
                 setPeriodComparison(result.period_comparison || null);
             } else {
-                throw new Error("No data returned from API");
+                // No data returned — show empty state gracefully instead of erroring
+                setData([]);
+                setTotals(null);
+                setUntagged(null);
+                setPeriodComparison(null);
             }
         } catch (e) {
             console.error("Failed to fetch performance breakdown:", e);
