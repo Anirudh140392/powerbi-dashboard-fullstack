@@ -230,7 +230,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
               {/* CATEGORY SELECTION */}
               <CustomHeaderDropdown
-                label="CATEGORY"
+                label={title === "Availability Analysis" ? "SKU TYPE" : "CATEGORY"}
                 options={title === "Availability Analysis" ? ["gold", "silver", "bronze", "non-pds"] : categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
