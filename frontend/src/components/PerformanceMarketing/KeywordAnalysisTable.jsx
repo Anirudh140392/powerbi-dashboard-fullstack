@@ -21,6 +21,7 @@ import {
   Button,
   InputAdornment,
   CircularProgress,
+  Skeleton
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, ChevronUp, ChevronDown, LineChart, Search, SlidersHorizontal, X } from "lucide-react";
@@ -203,9 +204,9 @@ export default function KeywordAnalysisTable() {
   });
 
   const {
-    pmSelectedPlatform,
-    pmSelectedBrand,
-    selectedZone,
+    platform,
+    selectedCategory,
+    selectedLocation,
     timeStart,
     timeEnd,
   } = useContext(FilterContext);
@@ -216,9 +217,9 @@ export default function KeywordAnalysisTable() {
       try {
         const response = await axiosInstance.get('/performance-marketing/keyword-analysis', {
           params: {
-            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
-            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
-            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
+            platform: Array.isArray(platform) ? platform.join(',') : platform,
+            brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+            zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD"),
             weekendFlag: activeFilters.weekendFlag
@@ -235,7 +236,7 @@ export default function KeywordAnalysisTable() {
       }
     };
     fetchKeywordData();
-  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd, activeFilters.weekendFlag]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -735,14 +736,20 @@ export default function KeywordAnalysisTable() {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={visibleHierarchyCols + 4} align="center" sx={{ py: 10 }}>
-                  <CircularProgress size={40} sx={{ color: "#10b981" }} />
-                  <Typography sx={{ mt: 2, color: "#64748b", fontSize: 14 }}>
-                    Fetching keyword performance...
-                  </Typography>
-                </TableCell>
-              </TableRow>
+              Array.from({ length: 5 }).map((_, idx) => (
+                <TableRow key={`skeleton-${idx}`}>
+                  {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+                    <TableCell key={i} sx={i === 0 ? { position: "sticky", left: 0, background: "white", zIndex: 10 } : {}}>
+                      <Skeleton variant="text" width="80%" />
+                    </TableCell>
+                  ))}
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                </TableRow>
+              ))
             ) : paginated.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={visibleHierarchyCols + 4} align="center" sx={{ py: 10 }}>
