@@ -572,6 +572,12 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 </div>
 
                 <div className="space-y-3 border-t border-slate-50 pt-3">
+                    {kpi.brand && (
+                        <div className="flex items-baseline gap-1.5 mb-0.5">
+                            <span className="text-[12px] text-slate-400 font-semibold uppercase tracking-wider leading-none">Market Leader brand -</span>
+                            <span className="text-[12px] font-bold text-slate-600 leading-none">{kpi.brand}</span>
+                        </div>
+                    )}
                     <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                         <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
                             {deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}% {kpi.deltaLabel ? `(${kpi.deltaLabel.replace(/[▲▼]/, '').trim()})` : ''}
@@ -617,7 +623,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
-        </div>
+        </div >
     )
 }
 

@@ -34,19 +34,20 @@ const marketShareKpis = [
     icon: Layers,
     gradient: ["#6366f1", "#8b5cf6"],
     extraChangeColor: "green",
-    prevText: "vs Previous Period",
+    prevText: "vs Comparison Period",
   },
   {
     id: "ms-leader-sales",
     title: "Market Leader Sales (Cr)",
     value: "₹ 77.46 Cr",
     subtitle: "Sales of the market leading brand",
+    brand: "Amul",
     delta: 91.1,
     deltaLabel: "▲ 91.1% (₹40.53 Cr)",
     icon: TrendingUp,
     gradient: ["#14b8a6", "#06b6d4"],
     extraChangeColor: "green",
-    prevText: "vs Previous Period",
+    prevText: "vs Comparison Period",
   },
   {
     id: "ms-mars-wrigley",
@@ -58,7 +59,7 @@ const marketShareKpis = [
     icon: PieChart,
     gradient: ["#f43f5e", "#ec4899"],
     extraChangeColor: "green",
-    prevText: "vs Previous Period",
+    prevText: "vs Comparison Period",
   },
 ];
 
@@ -361,7 +362,7 @@ export default function MarketShareAnalysis() {
         chip="All Platforms"
         headerRight={
           <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-            vs Previous Period
+            vs Comparison Period
           </span>
         }
         kpis={marketShareKpis}
