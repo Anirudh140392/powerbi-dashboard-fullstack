@@ -1326,19 +1326,35 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
           trendSeries: osaTrend,
           prevText: "vs Previous Period"
         },
-        {
-          id: `avail-api-metro`,
-          title: "Metro City Stock Availability",
-          value: `${metroStock.toFixed(2)}%`,
-          subtitle: "MTD availability across metro cities",
-          delta: parseFloat(deltaMetro.toFixed(1)),
-          deltaLabel: `${deltaMetro >= 0 ? '▲' : '▼'} ${Math.abs(deltaMetro).toFixed(1)}%`,
-          icon: MapPin,
-          gradient: ['#8b5cf6', '#a855f7'],
-          trend: osaTrend,
-          trendSeries: osaTrend,
-          prevText: "vs Previous Period"
-        }
+        metroData.isMetroCity === false
+          ? {
+            id: `avail-api-metro`,
+            title: "Metro City Stock Availability",
+            isNotMetro: true,
+            notMetroLocation: metroData.filters?.location || selectedLocation,
+            value: "N/A",
+            subtitle: "Selected location is not a metro city",
+            delta: 0,
+            deltaLabel: "",
+            icon: MapPin,
+            gradient: ['#8b5cf6', '#a855f7'],
+            trend: [],
+            trendSeries: [],
+            prevText: ""
+          }
+          : {
+            id: `avail-api-metro`,
+            title: "Metro City Stock Availability",
+            value: `${metroStock.toFixed(2)}%`,
+            subtitle: "MTD availability across metro cities",
+            delta: parseFloat(deltaMetro.toFixed(1)),
+            deltaLabel: `${deltaMetro >= 0 ? '▲' : '▼'} ${Math.abs(deltaMetro).toFixed(1)}%`,
+            icon: MapPin,
+            gradient: ['#8b5cf6', '#a855f7'],
+            trend: osaTrend,
+            trendSeries: osaTrend,
+            prevText: "vs Previous Period"
+          }
       ];
     }
 

@@ -59,6 +59,9 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
     categories,
     selectedCategory,
     setSelectedCategory,
+    productCategories,
+    selectedProductCategory,
+    setSelectedProductCategory,
   } = React.useContext(FilterContext);
 
   const [darkStoreData, setDarkStoreData] = React.useState({ totalCount: 0, byPlatform: {} });
@@ -230,13 +233,25 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
               {/* CATEGORY SELECTION */}
               <CustomHeaderDropdown
-                label={title === "Availability Analysis" ? "SKU TYPE" : "CATEGORY"}
-                options={title === "Availability Analysis" ? ["gold", "silver", "bronze", "non-pds"] : categories}
+                label="CATEGORY"
+                options={categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
                 multiSelect={true}
               />
+
+              {/* PRODUCT CATEGORY SELECTION (Only for Availability Analysis) */}
+              {title === "Availability Analysis" && (
+                <CustomHeaderDropdown
+                  label="PRODUCT CATEGORY"
+                  options={productCategories}
+                  value={selectedProductCategory}
+                  onChange={(newValue) => setSelectedProductCategory(newValue)}
+                  width={{ xs: "calc(50% - 6px)", sm: 140 }}
+                  multiSelect={true}
+                />
+              )}
 
               <CustomHeaderDropdown
                 label="LOCATION"

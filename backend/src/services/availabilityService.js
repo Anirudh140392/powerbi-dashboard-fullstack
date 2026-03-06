@@ -90,7 +90,7 @@ const buildPlatformChannelCond = (platform, channel, prefix = '') => {
 const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     const {
         platform, brand, location, startDate, endDate, dates, months,
-        cities, categories, formats, zones, metroFlags, pincodes
+        cities, categories, formats, zones, metroFlags, pincodes, productCategory
     } = filters;
     const conditions = [];
 
@@ -179,6 +179,30 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
         conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    }
+
+    // Product Category filter
+    const pcArr = [];
+    if (productCategory && productCategory !== 'All') {
+        if (Array.isArray(productCategory)) {
+            const filtered = productCategory.filter(v => v !== 'All' && v !== 'all');
+            pcArr.push(...filtered);
+        } else {
+            pcArr.push(productCategory);
+        }
+    }
+    if (filters.productCategory && !productCategory) { // Handle case where it's not array destructured
+        if (Array.isArray(filters.productCategory)) {
+            const filtered = filters.productCategory.filter(v => v !== 'All' && v !== 'all');
+            pcArr.push(...filtered);
+        } else if (filters.productCategory !== 'All' && filters.productCategory !== 'all') {
+            pcArr.push(filters.productCategory);
+        }
+    }
+
+    if (pcArr.length > 0) {
+        const uniquePcArr = [...new Set(pcArr)];
+        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     // Date/Month range

@@ -13,7 +13,8 @@ import {
     Percent,
     PieChart,
     Wallet,
-    MousePointer2
+    MousePointer2,
+    MapPin
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
@@ -549,6 +550,63 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
         )
     }
 
+    // Not a Metro City — show premium styled block
+    if (kpi.isNotMetro) {
+        const locationName = kpi.notMetroLocation && kpi.notMetroLocation !== 'All'
+            ? kpi.notMetroLocation
+            : null;
+
+        return (
+            <div className="group relative overflow-hidden rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50 via-white to-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
+                {/* Decorative background elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-violet-100/40 to-transparent rounded-full -translate-y-8 translate-x-8" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
+
+                <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
+                    <h3 className="text-sm font-semibold text-slate-500 mb-3">{kpi.title}</h3>
+
+                    <div className="flex flex-col items-center justify-center py-4 gap-3">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-200/50">
+                            <MapPin size={24} color="white" strokeWidth={2.5} />
+                        </div>
+
+                        <div className="text-center space-y-1.5">
+                            <div className="text-base font-bold text-slate-700">
+                                Not a Metro City
+                            </div>
+                            {locationName && (
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-100/60 border border-violet-200/40">
+                                    <span className="text-[11px] font-semibold text-violet-700">
+                                        {Array.isArray(locationName) ? locationName.join(', ') : locationName}
+                                    </span>
+                                </div>
+                            )}
+                            <p className="text-[11px] text-slate-400 font-medium leading-relaxed max-w-[180px] mx-auto">
+                                This KPI is available for Tier 1 metro cities only
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom gradient bar instead of sparkline */}
+                <div className="h-16 w-full mt-auto relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-violet-100/40 via-purple-50/20 to-violet-100/40" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex gap-1.5">
+                            {[...Array(5)].map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="w-1.5 rounded-full bg-violet-200/50"
+                                    style={{ height: `${12 + Math.sin(i * 1.2) * 8}px` }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -884,7 +942,9 @@ const SnapshotOverview = ({
                 <div className="p-4 sm:p-6 lg:p-8">
                     <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
                         {loading ? (
-                            [1, 2, 3, 4].map((i) => <DetailedSparklineCard key={i} loading={true} />)
+                            Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
+                                <DetailedSparklineCard key={i} loading={true} />
+                            ))
                         ) : (
                             detailedKpis.map((kpi, idx) => (
                                 <motion.div

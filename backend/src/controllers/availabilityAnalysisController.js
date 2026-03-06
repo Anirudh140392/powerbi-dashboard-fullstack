@@ -60,6 +60,7 @@ export const getAvailabilityOverview = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
@@ -103,6 +104,7 @@ export const getPlatformKpiMatrix = async (req, res) => {
             drillDimension: req.query.drillDimension || 'region',
             includeBreakdown: req.query.includeBreakdown === 'true',
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
@@ -145,6 +147,7 @@ export const getOsaPercentageDetail = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
@@ -186,6 +189,7 @@ export const getDOI = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
@@ -226,6 +230,7 @@ export const getMetroCityStockAvailability = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
@@ -300,6 +305,7 @@ export const getOsaDetailByCategory = async (req, res) => {
             pincodes: parseFilter(req.query.pincodes),
             kpis: parseFilter(req.query.kpis),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
@@ -329,6 +335,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
             category: parseFilter(req.query.category),
+            productCategory: parseFilter(req.query.productCategory),
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             channel: req.query.channel,

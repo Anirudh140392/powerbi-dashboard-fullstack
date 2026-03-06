@@ -5664,12 +5664,12 @@ const getCategoryOverview = async (filters) => {
     ] = await Promise.all([
         // Query 1: Distinct categories from rb_pdp_olap (same table as metrics)
         queryClickHouse(`
-            SELECT DISTINCT Category as category
+            SELECT DISTINCT Product_Category as category
             FROM rb_pdp_olap
-            WHERE ${buildCatConds(startDate, endDate)} AND Category IS NOT NULL AND Category != '' AND Category != '0'
+            WHERE ${buildCatConds(startDate, endDate)} AND Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0'
         `),
         // Metrics
-        queryClickHouse(`SELECT Category, 
+        queryClickHouse(`SELECT Product_Category as Category, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as total_qty, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as total_spend, 
@@ -5683,8 +5683,8 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN Comp_flag = 0 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(Selling_Price)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as my_actual_sales,
             SUM(CASE WHEN Comp_flag = 1 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(MRP)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as comp_mrp_val,
             SUM(CASE WHEN Comp_flag = 1 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(Selling_Price)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as comp_actual_sales 
-        FROM rb_pdp_olap WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
-        queryClickHouse(`SELECT Category, 
+        FROM rb_pdp_olap WHERE ${buildCatConds(startDate, endDate)} GROUP BY Product_Category`),
+        queryClickHouse(`SELECT Product_Category as Category, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as total_qty, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as total_spend, 
@@ -5698,7 +5698,7 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN Comp_flag = 0 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(Selling_Price)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as my_actual_sales,
             SUM(CASE WHEN Comp_flag = 1 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(MRP)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as comp_mrp_val,
             SUM(CASE WHEN Comp_flag = 1 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(Selling_Price)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as comp_actual_sales
-        FROM rb_pdp_olap WHERE ${buildCatConds(momStart, momEnd)} GROUP BY Category`),
+        FROM rb_pdp_olap WHERE ${buildCatConds(momStart, momEnd)} GROUP BY Product_Category`),
         // SOS
         queryClickHouse(`SELECT keyword_category, count() as count FROM rb_kw WHERE ${buildSosCatConds(startDate, endDate)} AND toString(keyword_is_rb_product) = '1' GROUP BY keyword_category`),
         queryClickHouse(`SELECT keyword_category, count() as count FROM rb_kw WHERE ${buildSosCatConds(startDate, endDate)} GROUP BY keyword_category`),
@@ -8625,7 +8625,7 @@ const getSkuOverview = async (filters) => {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -8940,7 +8940,7 @@ const getCityOverview = async (filters) => {
         }
 
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -9138,11 +9138,11 @@ const getPerformanceBreakdownData = async (filters) => {
     try {
         const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' ? `AND Platform = '${filters.platform_uuid}'` : '';
         const groupByMap = {
-            'category': 'Product_Category',
+            'category': 'Category',
             'brand': 'Brand',
             'sku': 'Product'
         };
-        const groupByCol = groupByMap[filters.group_by] || 'Product_Category';
+        const groupByCol = groupByMap[filters.group_by] || 'Category';
 
         let dateClause = '';
         if (filters.start_date && filters.end_date) {
@@ -9327,13 +9327,32 @@ const getProducts = async (filters = {}) => {
             conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
         }
         if (category && category !== 'All') {
-            conditions.push(`Product_Category = '${category.replace(/'/g, "''")}'`);
+            conditions.push(`Category = '${category.replace(/'/g, "''")}'`);
         }
         const query = `SELECT DISTINCT Product FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Product LIMIT 500`;
         const results = await queryClickHouse(query);
         return results.map(r => r.Product).filter(Boolean).sort();
     } catch (error) {
         console.error("[getProducts] Error:", error);
+        return [];
+    }
+};
+
+const getProductCategories = async (filters = {}) => {
+    try {
+        const { platform, brand } = filters;
+        const conditions = [`Product_Category IS NOT NULL`, `Product_Category != ''`, `toString(Comp_flag) = '0'`];
+        if (platform && platform !== 'All') {
+            conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
+        }
+        if (brand && brand !== 'All') {
+            conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
+        }
+        const query = `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category LIMIT 500`;
+        const results = await queryClickHouse(query);
+        return results.map(r => r.category).filter(Boolean).sort();
+    } catch (error) {
+        console.error("[getProductCategories] Error:", error);
         return [];
     }
 };
@@ -9366,5 +9385,6 @@ export default {
     getCityOverview,
     getPerformanceBreakdownData,
     getProducts,
+    getProductCategories,
     getChannels
 };
