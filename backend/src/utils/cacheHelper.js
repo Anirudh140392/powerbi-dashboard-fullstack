@@ -72,6 +72,7 @@ export function generateCacheKey(section, filters) {
         metroFlag = '',
         pincode = '',
         channel = '',
+        productCategory = '',
         // Drill-down specific
         drillDimension = '',
         includeBreakdown = '',
@@ -100,6 +101,7 @@ export function generateCacheKey(section, filters) {
     if (includeBreakdown) key += `:ibd_${includeBreakdown}`;
 
     if (category && category !== 'all') key += `:cat_${normalize(category)}`;
+    if (productCategory && productCategory !== 'all' && productCategory !== 'All') key += `:pcat_${normalize(productCategory)}`;
 
     if (type && type !== 'all') key += `:tp_${normalize(type)}`;
     if (filter && filter !== 'all' && filter !== 'All') key += `:flt_${normalize(filter)}`;

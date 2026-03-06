@@ -21,6 +21,8 @@ export default function AvailablityAnalysis() {
     setTimeEnd,
     selectedCategory,
     setSelectedCategory,
+    selectedProductCategory,
+    setSelectedProductCategory,
     compareStart,
     compareEnd,
     selectedChannel,
@@ -35,6 +37,7 @@ export default function AvailablityAnalysis() {
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     category: selectedCategory || "All",
+    productCategory: selectedProductCategory || "All",
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
     months: 6,
@@ -67,6 +70,9 @@ export default function AvailablityAnalysis() {
     if (newFilters.category && newFilters.category !== selectedCategory) {
       setSelectedCategory(newFilters.category);
     }
+    if (newFilters.productCategory && newFilters.productCategory !== selectedProductCategory) {
+      setSelectedProductCategory(newFilters.productCategory);
+    }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
       if (!newStart.isSame(timeStart, 'day')) {
@@ -92,6 +98,7 @@ export default function AvailablityAnalysis() {
       brand: selectedBrand || prev.brand,
       location: selectedLocation || prev.location,
       category: selectedCategory || prev.category,
+      productCategory: selectedProductCategory || prev.productCategory,
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
@@ -99,7 +106,7 @@ export default function AvailablityAnalysis() {
       compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
+  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -333,7 +340,8 @@ export default function AvailablityAnalysis() {
       brand: 'All',
       location: 'All',
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
+      productCategory: filters.productCategory
     }).toString();
 
     switch (segmentKey) {
@@ -356,6 +364,7 @@ export default function AvailablityAnalysis() {
       brand: filters.brand,
       location: filters.location,
       category: filters.category,
+      productCategory: filters.productCategory,
       channel: filters.channel,
       startDate: filters.startDate,
       endDate: filters.endDate,
@@ -396,7 +405,8 @@ export default function AvailablityAnalysis() {
           brand: 'All',
           location: 'All',
           startDate: filters.startDate,
-          endDate: filters.endDate
+          endDate: filters.endDate,
+          productCategory: filters.productCategory
         }).toString();
 
         // Fetch all segments (errors are tracked per-segment)

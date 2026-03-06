@@ -41,9 +41,14 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState("All");
 
-    // Category state
+    // Category state (from rca_sku_dim)
     const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
     const [selectedCategory, setSelectedCategory] = useState("All");
+
+    // Product Category state (from rb_pdp_olap)
+    const [productCategories, setProductCategories] = useState([]);
+    const [selectedProductCategory, setSelectedProductCategory] = useState("All");
+    const [productCategoriesFetched, setProductCategoriesFetched] = useState(false);
 
     // Date Ranges
     const [timeStart, setTimeStart] = useState(dayjs().startOf('month'));
@@ -226,6 +231,46 @@ export const FilterProvider = ({ children }) => {
         fetchCategories();
     }, [platform, isAuthenticated]);
 
+    // ====== FETCH PRODUCT CATEGORIES FROM DB (when platform or brand changes) ======
+    useEffect(() => {
+        const fetchProductCategories = async () => {
+            if (!isAuthenticated) return;
+            setProductCategoriesFetched(false);
+            try {
+                const res = await axiosInstance.get("/watchtower/product-categories", {
+                    params: {
+                        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+                        brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand)
+                    }
+                });
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched product categories from DB:", res.data);
+                    const cats = [...res.data.filter(c => c !== "All")];
+                    setProductCategories(cats);
+                    // Keep current selection if valid, otherwise reset
+                    setSelectedProductCategory(prevCat => {
+                        if (prevCat !== "All") {
+                            const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
+                            const validList = currentList.filter(c => cats.includes(c));
+                            if (validList.length === 0) return "All";
+                            if (validList.length === cats.length) return "All";
+                            return validList.length === 1 ? validList[0] : validList;
+                        }
+                        return prevCat;
+                    });
+                } else {
+                    setProductCategories([]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch product categories:", err.message);
+                setProductCategories([]);
+            } finally {
+                setProductCategoriesFetched(true);
+            }
+        };
+        fetchProductCategories();
+    }, [platform, selectedBrand, isAuthenticated]);
+
     // ====== FETCH LOCATIONS FROM DB (when platform changes) ======
     useEffect(() => {
         const fetchLocations = async () => {
@@ -353,6 +398,9 @@ export const FilterProvider = ({ children }) => {
             categories,
             selectedCategory,
             setSelectedCategory,
+            productCategories,
+            selectedProductCategory,
+            setSelectedProductCategory,
             datesInitialized,
             datesFetched,
             platformsFetched,

@@ -502,3 +502,17 @@ export const getProducts = async (req, res) => {
         res.json([]);
     }
 };
+
+/**
+ * Get distinct Product Categories from rb_pdp_olap
+ * GET /api/watchtower/product-categories
+ */
+export const getProductCategories = async (req, res) => {
+    try {
+        const productCategories = await watchTowerService.getProductCategories();
+        res.json(productCategories);
+    } catch (error) {
+        console.error('[getProductCategories] Error:', error);
+        res.status(500).json({ error: error.message, stack: error.stack });
+    }
+};
