@@ -451,6 +451,7 @@ export const getSignalLabData = async (req, res) => {
                 platform,
                 brand,
                 location,
+                category,
                 startDate,
                 endDate,
                 compareStartDate,
@@ -489,6 +490,7 @@ export const getSignalLabData = async (req, res) => {
             const platformFilter = processFilter(platform);
             const locationFilter = processFilter(location);
             const brandFilter = processFilter(brand);
+            const categoryFilter = processFilter(category);
 
             // Build WHERE clause for ClickHouse
             const buildWhereClause = (includeCompDates = false) => {
@@ -516,6 +518,14 @@ export const getSignalLabData = async (req, res) => {
                     }
                 }
 
+                if (categoryFilter) {
+                    if (Array.isArray(categoryFilter)) {
+                        conditions.push(`Category IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Category = '${escapeStr(categoryFilter)}'`);
+                    }
+                }
+
                 if (brandFilter) {
                     if (Array.isArray(brandFilter)) {
                         conditions.push(`Brand IN (${brandFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
@@ -538,8 +548,8 @@ export const getSignalLabData = async (req, res) => {
 
             if (metricType === 'availability') {
                 // OSA columns are Int64 - use toFloat64() with 0.0 as else value for type matching
-                mainMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100`;
-                const compMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100`;
+                mainMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
+                const compMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
                 metricExpr = `(ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExpr}, 0))`;
 
                 havingClause = signalType === 'gainer'
@@ -547,8 +557,8 @@ export const getSignalLabData = async (req, res) => {
                     : `HAVING ${metricExpr} < 0`;
             } else {
                 const baseField = 'Sales';
-                mainMetricExpr = `sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${baseField}), 0.0))`;
-                const compMetricExprVal = `sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(${baseField}), 0.0))`;
+                mainMetricExpr = `sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(${baseField})), 0.0), 0.0))`;
+                const compMetricExprVal = `sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(${baseField})), 0.0), 0.0))`;
                 metricExpr = `((ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExprVal}, 0)) / nullIf(ifNull(${compMetricExprVal}, 0), 0)) * 100`;
 
                 if (signalType === 'gainer') {
@@ -599,7 +609,7 @@ export const getSignalLabData = async (req, res) => {
                     any(Product) as Product, 
                     any(Category) as Category, 
                     any(Platform) as Platform, 
-                    any(Weight) as Weight, 
+                    '' as Weight, 
                     any(Brand) as Brand,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) AS totalDeno,
@@ -608,7 +618,7 @@ export const getSignalLabData = async (req, res) => {
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) AS avgInventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0), 0.0)) AS avgRoas,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) AS avgRoas,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
@@ -628,7 +638,7 @@ export const getSignalLabData = async (req, res) => {
                 SELECT
                     Web_Pid, Location,
                     (sum(toFloat64(neno_osa)) / nullIf(sum(toFloat64(deno_osa)), 0)) * 100 AS osa,
-                    avg(toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0)) as roas,
+                    avg(toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0)) as roas,
                     sum(toFloat64(Ad_Clicks)) as clicks,
                     sum(toFloat64(Ad_Impressions)) as impressions,
                     avg(toFloat64(Inventory)) as inventory,
@@ -813,11 +823,11 @@ export const getCityDetailsForProduct = async (req, res) => {
                     (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
                     (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS compOsa,
                     -- Sales/Offtake metrics
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Sales), 0.0)) AS offtake,
-                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64OrZero(Sales), 0.0)) AS compOfftake,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS offtake,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS compOfftake,
                     -- Discount calculation: (MRP - Selling_Price) / MRP * 100
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64OrZero(MRP) > 0, 
-                        (toFloat64OrZero(MRP) - toFloat64OrZero(Selling_Price)) / toFloat64OrZero(MRP) * 100, 0.0)) AS discount,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64(MRP) > 0, 
+                        (toFloat64(MRP) - toFloat64(Selling_Price)) / toFloat64(MRP) * 100, 0.0)) AS discount,
                     -- For category share - we need total sales for this location
                     count() as rowCount
                 FROM rb_pdp_olap
@@ -835,7 +845,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const catShareQuery = `
                     SELECT
                         Location,
-                        sum(toFloat64OrZero(Sales)) AS catTotal
+                        sum(toFloat64(Sales)) AS catTotal
                     FROM rb_pdp_olap
                     WHERE Category = '${escapeStr(productCategory)}'
                       AND toDate(DATE) BETWEEN '${start}' AND '${end}'

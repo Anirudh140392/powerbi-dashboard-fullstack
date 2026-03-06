@@ -215,6 +215,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 value={selectedChannel}
                 onChange={(newValue) => setSelectedChannel(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 130 }}
+                multiSelect={true}
               />
 
               {/* PLATFORM SELECTION */}
@@ -224,6 +225,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
               {/* CATEGORY SELECTION */}
@@ -233,6 +235,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
               <CustomHeaderDropdown
@@ -241,6 +244,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 value={selectedLocation}
                 onChange={(newValue) => setSelectedLocation(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
               {location.pathname === "/visibility-anlysis" && (

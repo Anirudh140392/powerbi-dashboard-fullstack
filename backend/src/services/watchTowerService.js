@@ -583,7 +583,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             const locationArrLocal = normalizeFilterArray(location);
             if (locationArrLocal && locationArrLocal.length > 0) {
-                conditions.push(`Location IN (${locationArrLocal.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+                const locCond = `Location IN (${locationArrLocal.map(l => `'${escapeStrMain(l)}'`).join(', ')})`;
+                console.log('[DEBUG] Location Array:', locationArrLocal, 'Condition:', locCond);
+                conditions.push(locCond);
             }
 
             const platformArrLocal = normalizeFilterArray(platform);
@@ -2508,7 +2510,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dayjsEnd = dayjs(endDt);
             const conds = [`DATE BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
             if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
-            if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
+            const locArr = normalizeFilterArray(location);
+            if (locArr && locArr.length > 0) {
+                conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            }
 
             // Apply Product_Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(filters.category);
@@ -2668,7 +2673,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     `created_on BETWEEN '${startDt}' AND '${endDt}'`,
                     `sales IS NOT NULL`
                 ];
-                if (platform && platform !== 'All') conds.push(`Platform = '${escapeStr(platform)}'`);
+                const platArrLocal = normalizeFilterArray(platform);
+                if (platArrLocal && platArrLocal.length > 0) conds.push(`Platform IN (${platArrLocal.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 const locArr = normalizeFilterArray(location);
                 if (locArr && locArr.length > 0) {
                     if (locArr.length === 1) {
@@ -3179,8 +3185,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (brand && brand !== 'All') {
             catDataConds.push(`Brand LIKE '%${escapeStrMain(brand)}%'`);
         }
-        if (location && location !== 'All') {
-            catDataConds.push(`Location = '${escapeStrMain(location)}'`);
+        const catLocArr = normalizeFilterArray(location);
+        if (catLocArr && catLocArr.length > 0) {
+            catDataConds.push(`Location IN (${catLocArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
         }
         const distinctCategories = await queryClickHouse(
             `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE ${catDataConds.join(' AND ')} AND Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0' ORDER BY category`
@@ -3199,8 +3206,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (brand && brand !== 'All') {
                     catConds.push(`Brand LIKE '%${escapeStrMain(brand)}%'`);
                 }
-                if (location && location !== 'All') {
-                    catConds.push(`Location = '${escapeStrMain(location)}'`);
+                const locArr = normalizeFilterArray(location);
+                if (locArr && locArr.length > 0) {
+                    catConds.push(`Location IN (${locArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
                 }
                 if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
                     catConds.push(`Platform = '${escapeStrMain(categoryOverviewPlatform)}'`);
@@ -3248,7 +3256,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                             AND Product_Category = '${escapeStrMain(catName)}'
                             ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
-                            ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
+                            ${(() => {
+                                const locArr = normalizeFilterArray(location);
+                                return locArr && locArr.length > 0 ? `AND Location IN (${locArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})` : '';
+                            })()}
                         `).then(r => r[0] || {})
                     ]),
                     // Promo My Brand (Comp_flag = 0)
@@ -3450,14 +3461,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (brand && brand !== 'All') {
             boOfftakeConds.push(`Brand LIKE '%${escapeStrMain(brand)}%'`);
         }
-        if (location && location !== 'All') {
-            boOfftakeConds.push(`Location = '${escapeStrMain(location)}'`);
+        const boLocArr = normalizeFilterArray(location);
+        if (boLocArr && boLocArr.length > 0) {
+            boOfftakeConds.push(`Location IN (${boLocArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             if (brandsOverviewCategoryArr.length === 1) {
-                boOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+                boOfftakeConds.push(`Product_Category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
             } else {
-                boOfftakeConds.push(`Category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                boOfftakeConds.push(`Product_Category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
         }
 
@@ -3488,13 +3500,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             if (brandsOverviewCategoryArr.length === 1) {
-                boPrevOfftakeConds.push(`Category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+                boPrevOfftakeConds.push(`Product_Category = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
             } else {
-                boPrevOfftakeConds.push(`Category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                boPrevOfftakeConds.push(`Product_Category IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
         }
-        if (location && location !== 'All') {
-            boPrevOfftakeConds.push(`Location = '${escapeStrMain(location)}'`);
+        const locArr2 = normalizeFilterArray(location);
+        if (locArr2 && locArr2.length > 0) {
+            boPrevOfftakeConds.push(`Location IN (${locArr2.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
         }
 
         // Brand list conditions for ClickHouse
@@ -3803,15 +3816,33 @@ const computeSummaryMetrics = async (filters, options = {}) => {
     }
 };
 
-const getPlatforms = async () => {
+const getPlatforms = async (channel) => {
     try {
-        // ClickHouse query
-        const query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        let query;
+        if (channel && channel !== 'All') {
+            // When channel is specified, get platforms from rca_sku_dim for that channel
+            const escapedChannel = channel.replace(/'/g, "''");
+            query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' AND channel = '${escapedChannel}' ORDER BY platform`;
+        } else {
+            // No channel filter — get all platforms from rb_pdp_olap
+            query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
+        }
         const results = await queryClickHouse(query);
         return results.map(p => p.platform).filter(Boolean).sort();
     } catch (error) {
         console.error("Error fetching platforms:", error);
         return []; // Return empty array instead of throwing
+    }
+};
+
+const getChannels = async () => {
+    try {
+        const query = `SELECT DISTINCT channel FROM rca_sku_dim WHERE channel IS NOT NULL AND channel != '' ORDER BY channel`;
+        const results = await queryClickHouse(query);
+        return results.map(r => r.channel).filter(Boolean).sort();
+    } catch (error) {
+        console.error("Error fetching channels from rca_sku_dim:", error);
+        return [];
     }
 };
 
@@ -3822,20 +3853,26 @@ const getSummaryMetrics = async (filters) => {
 
 const getBrands = async (platform, includeCompetitors = false) => {
     try {
-        // ClickHouse query - build conditions
-        const conditions = [`brand_name IS NOT NULL`, `brand_name != ''`];
+        // Query rb_pdp_olap for brands (Colgate database)
+        const conditions = [`Brand IS NOT NULL`, `Brand != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            // Support multi-value: comma-separated string or array
+            const platArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
+            if (platArr.length === 1) {
+                conditions.push(`Platform = '${platArr[0].replace(/'/g, "''")}'`);
+            } else if (platArr.length > 1) {
+                conditions.push(`Platform IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`);
+            }
         }
         if (!includeCompetitors) {
-            conditions.push(`comp_flag = 0`);
+            conditions.push(`toString(Comp_flag) = '0'`);
         }
 
-        const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY brand_name`;
+        const query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Brand`;
         const results = await queryClickHouse(query);
-        return results.map(r => r.brand_name).filter(Boolean);
+        return results.map(r => r.brand).filter(Boolean);
     } catch (error) {
-        console.error('Error fetching brands from rca_sku_dim:', error);
+        console.error('Error fetching brands from rb_pdp_olap:', error);
         return [];
     }
 };
@@ -3859,23 +3896,35 @@ const getKeywords = async (brand) => {
 
 const getLocations = async (platform, brand, includeCompetitors = false) => {
     try {
-        // ClickHouse query
-        const conditions = [`location IS NOT NULL`, `location != ''`];
+        // Query rb_pdp_olap for locations (Colgate database)
+        const conditions = [`Location IS NOT NULL`, `Location != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            // Support multi-value: comma-separated string or array
+            const platArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
+            if (platArr.length === 1) {
+                conditions.push(`Platform = '${platArr[0].replace(/'/g, "''")}'`);
+            } else if (platArr.length > 1) {
+                conditions.push(`Platform IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`);
+            }
         }
         if (brand && brand !== 'All') {
-            conditions.push(`brand_name = '${brand.replace(/'/g, "''")}'`);
+            // Support multi-value brand
+            const brandArr = Array.isArray(brand) ? brand : brand.split(',').map(b => b.trim()).filter(Boolean);
+            if (brandArr.length === 1) {
+                conditions.push(`Brand LIKE '%${brandArr[0].replace(/'/g, "''")}'`);
+            } else if (brandArr.length > 1) {
+                conditions.push(`(${brandArr.map(b => `Brand LIKE '%${b.replace(/'/g, "''")}'`).join(' OR ')})`);
+            }
         }
         if (!includeCompetitors) {
-            conditions.push(`comp_flag = 0`);
+            conditions.push(`toString(Comp_flag) = '0'`);
         }
 
-        const query = `SELECT DISTINCT location FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY location`;
+        const query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Location`;
         const results = await queryClickHouse(query);
         return results.map(l => l.location).filter(Boolean);
     } catch (error) {
-        console.error("Error fetching locations:", error);
+        console.error("Error fetching locations from rb_pdp_olap:", error);
         return [];
     }
 };
@@ -4011,9 +4060,9 @@ const computeTrendData = async (filters) => {
             const trendCatArr = normalizeFilterArray(category);
             if (trendCatArr && trendCatArr.length > 0) {
                 if (trendCatArr.length === 1) {
-                    conds.push(`Category = '${escapeStr(trendCatArr[0])}'`);
+                    conds.push(`Product_Category = '${escapeStr(trendCatArr[0])}'`);
                 } else {
-                    conds.push(`Category IN (${trendCatArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    conds.push(`Product_Category IN (${trendCatArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
             }
             const trendBrandArr = normalizeFilterArray(brand);
@@ -4061,7 +4110,7 @@ const computeTrendData = async (filters) => {
                 SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
                 SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno,
                 SUM(CASE WHEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) > 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as sales_with_mrp,
-                SUM(CASE WHEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) > 0 THEN toFloat64OrNull(replaceAll(toString(MRP), ',', '')) * toFloat64OrNull(Qty_Sold) ELSE 0 END) as mrp_sales_valid
+                SUM(CASE WHEN ifNull(toFloat64OrZero(toString(replaceAll(toString(MRP), ',', ''))), 0) > 0 THEN ifNull(toFloat64OrZero(toString(replaceAll(toString(MRP), ',', ''))), 0) * ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as mrp_sales_valid
             FROM rb_pdp_olap
             WHERE ${pdpConds}
             GROUP BY ${groupExpression}
@@ -4266,17 +4315,23 @@ const getTrendData = async (filters) => {
 
 const getBrandCategories = async (platform) => {
     try {
-        // ClickHouse query
-        const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
+        // Query rca_sku_dim for categories (using the requested rca_sku_dim source)
+        const conditions = [`category IS NOT NULL`, `category != ''`];
         if (platform && platform !== 'All') {
-            conditions.push(`platform = '${platform.replace(/'/g, "''")}'`);
+            // Support multi-value: comma-separated string or array
+            const platArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
+            if (platArr.length === 1) {
+                conditions.push(`lower(platform) = '${platArr[0].toLowerCase().replace(/'/g, "''")}'`);
+            } else if (platArr.length > 1) {
+                conditions.push(`lower(platform) IN (${platArr.map(p => `'${p.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`);
+            }
         }
 
-        const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+        const query = `SELECT DISTINCT category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
         const results = await queryClickHouse(query);
         return results.map(c => c.category).filter(Boolean);
     } catch (error) {
-        console.error("Error fetching brand categories:", error);
+        console.error("Error fetching brand categories from rca_sku_dim:", error);
         throw error;
     }
 };
@@ -4439,7 +4494,7 @@ const getPlatformOverview = async (filters) => {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Channel-based platform filtering
@@ -5200,7 +5255,7 @@ const getMonthOverview = async (filters) => {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         // Advanced SKU Search Filters
         const skuArr = normalizeFilterArray(skuName);
@@ -5539,7 +5594,7 @@ const getCategoryOverview = async (filters) => {
         }
 
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`LOWER(Category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`LOWER(Product_Category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -5856,7 +5911,7 @@ const getBrandsOverview = async (filters) => {
         if (platformCond) conds.push(platformCond);
         const categoryArr = normalizeFilterArray(boCategory);
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -6155,7 +6210,7 @@ const getBrandsOverview = async (filters) => {
 const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
-    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel, skuName, skuCode } = filters;
+    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel, skuName, skuCode, dimension, dimensionValue } = filters;
 
     // 1. Determine Date Range
     let endDate = await getCachedMaxDate();
@@ -6208,7 +6263,17 @@ const getKpiTrends = async (filters) => {
     const buildKpiConds = () => {
         const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
 
-        if (catArr && catArr.length > 0) conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        // Handle dimension filter if provided (matching Trends drawer behavior)
+        if (dimension && dimensionValue && dimensionValue !== 'All') {
+            const dimKey = dimension.toLowerCase();
+            const val = dimensionValue;
+            if (dimKey === 'platform') conds.push(`Platform = '${escapeStr(val)}'`);
+            else if (dimKey === 'category' || dimKey === 'format') conds.push(`Product_Category = '${escapeStr(val)}'`);
+            else if (dimKey === 'brand') conds.push(`Brand = '${escapeStr(val)}'`);
+            else if (dimKey === 'city' || dimKey === 'location') conds.push(`Location = '${escapeStr(val)}'`);
+        }
+
+        if (catArr && catArr.length > 0) conds.push(`Product_Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
         if (brandArr && brandArr.length > 0) {
             const brandConditions = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
@@ -6253,7 +6318,13 @@ const getKpiTrends = async (filters) => {
                 SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_ad_clicks,
                 SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_ad_impressions,
                 SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno_osa,
-                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno_osa
+                SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno_osa,
+                COUNT(DISTINCT Web_Pid) as assortment_count,
+                AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_selling_price,
+                AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_mrp,
+                AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
+                0 as sum_weight
             FROM rb_pdp_olap
             WHERE ${kpiConds}
             GROUP BY ${groupExpression}
@@ -6317,7 +6388,22 @@ const getKpiTrends = async (filters) => {
     const msGroupExpr = (timeStep === 'Weekly') ? `toYearWeek(toDate(created_on), 1)` : `formatDateTime(toDate(created_on), '${groupFormat}')`;
     const ourBrandsFilter = validOurBrandNames.length > 0 ? `brand IN (${validOurBrandNames.map(b => `'${escapeStr(b)}'`).join(', ')})` : '1=0';
 
-    const [sosNumerator, sosDenominator, msTotalsResults, msOurResults, catTotalsResults, catOurResults] = await Promise.all([
+    // Calculate master assortment from rb_sku_platform for Listing %
+    const masterAssortmentConds = [`status = 1`];
+    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(brand_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+    if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(brand_name) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+
+    // Dimension-specific master count (e.g. when opening a specific category row trend)
+    if (dimension && dimensionValue && dimensionValue !== 'All') {
+        const dimKey = dimension.toLowerCase();
+        const val = dimensionValue.toLowerCase();
+        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(brand_category) = '${escapeStr(val)}'`);
+        else if (dimKey === 'brand') masterAssortmentConds.push(`lower(brand_name) = '${escapeStr(val)}'`);
+    }
+
+    const masterQuery = `SELECT count(DISTINCT web_pid) as total_master FROM rb_sku_platform WHERE ${masterAssortmentConds.join(' AND ')}`;
+
+    const [sosNumerator, sosDenominator, msTotalsResults, msOurResults, catTotalsResults, catOurResults, masterResult] = await Promise.all([
         // SOS Numerator
         queryClickHouse(`
                 SELECT ${groupExpressionKw} as date_group, count() as count
@@ -6359,8 +6445,12 @@ const getKpiTrends = async (filters) => {
                 FROM rb_brand_ms
                 WHERE ${buildMsBaseConds(category)} AND ${ourBrandsFilter}
                 GROUP BY date_group
-            `)
+            `),
+        // Master Assortment Count
+        queryClickHouse(masterQuery)
     ]);
+
+    const masterCount = parseInt(masterResult[0]?.total_master, 10) || 0;
 
     const msTotalsMap = new Map(msTotalsResults.map(r => [String(r.date_group), parseFloat(r.total_sales || 0)]));
     const msOurMap = new Map(msOurResults.map(r => [String(r.date_group), parseFloat(r.our_sales || 0)]));
@@ -6380,7 +6470,27 @@ const getKpiTrends = async (filters) => {
         const adOrders = parseFloat(row.total_ad_orders || 0);
         const adClicks = parseFloat(row.total_ad_clicks || 0);
 
+        // Calculate Pricing KPIs
+        const avgSellingPrice = parseFloat(row.avg_selling_price || 0);
+        const avgMrp = parseFloat(row.avg_mrp || 0);
+        const avgDiscount = parseFloat(row.avg_discount || 0);
+        const sumSellingPrice = parseFloat(row.sum_selling_price || 0);
+        const sumWeight = parseFloat(row.sum_weight || 0);
+
+        const discount = avgDiscount;
+        const pricePerUnit = sumWeight > 0 ? sumSellingPrice / sumWeight : 0;
+        const asp = avgSellingPrice;
+        const rpi = avgMrp > 0 ? (avgSellingPrice / avgMrp) : 0; // Relative Price Index baseline
+
         // Calculate KPIs
+        // 10. Availability (OSA%)
+        const nenoOsa = parseFloat(row.total_neno_osa || 0);
+        const denoOsa = parseFloat(row.total_deno_osa || 0);
+        const availability = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
+
+        // 11. Assortment
+        const assortment = parseInt(row.assortment_count || 0, 10);
+
         // 1. Share of Search
         const sosNum = sosNumerator.find(s => String(s.date_group) === String(bucket.groupKey));
         const sosDen = sosDenominator.find(s => String(s.date_group) === String(bucket.groupKey));
@@ -6413,11 +6523,6 @@ const getKpiTrends = async (filters) => {
         // 9. CPC (Cost Per Click)
         const cpc = adClicks > 0 ? adSpend / adClicks : 0;
 
-        // 10. Availability (OSA%)
-        const nenoOsa = parseFloat(row.total_neno_osa || 0);
-        const denoOsa = parseFloat(row.total_deno_osa || 0);
-        const availability = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
-
         // 11. Market Share and Category Share
         const groupKey = String(bucket.groupKey);
         const msTotalSales = msTotalsMap.get(groupKey) || 0;
@@ -6441,8 +6546,16 @@ const getKpiTrends = async (filters) => {
             Offtakes: parseFloat(offtakes.toFixed(0)),
             Spend: parseFloat(spend.toFixed(0)),
             Availability: parseFloat(availability.toFixed(2)),
+            Osa: parseFloat(availability.toFixed(2)),
+            Listing: masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : parseFloat(availability.toFixed(2)),
+            Assortment: assortment,
             CPM: parseFloat(cpm.toFixed(2)),
             CPC: parseFloat(cpc.toFixed(2)),
+            // Pricing KPIs
+            Discount: parseFloat(discount.toFixed(2)),
+            PricePerUnit: parseFloat(pricePerUnit.toFixed(2)),
+            ASP: parseFloat(asp.toFixed(2)),
+            RPI: parseFloat(rpi.toFixed(2)),
             // Mapped aliases for frontend compatibility
             ROAS: parseFloat(roas.toFixed(2)),
             SOS: parseFloat(shareOfSearch.toFixed(2)),
@@ -6459,6 +6572,8 @@ const getKpiTrends = async (filters) => {
         return dataPoint;
 
     });
+
+
 
     return {
         timeSeries,
@@ -6494,13 +6609,13 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         }
 
         if (filterType === 'categories') {
-            // Fetch unique categories (category) from rca_sku_dim (status=1)
-            const conditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
+            // Fetch unique categories (category) from rca_sku_dim (requested source)
+            const conditions = [`category IS NOT NULL`, `category != ''`];
             if (platform && platform !== 'All') {
                 conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
             }
 
-            const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+            const query = `SELECT DISTINCT category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
             const results = await queryClickHouse(query);
             const categoryList = results.map(c => c.category).filter(c => c && c.trim()).sort();
             return { options: [...categoryList] };
@@ -6677,7 +6792,11 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Spend), '[^0-9.-]', '')), 0)) as total_spend,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_sales), '[^0-9.-]', '')), 0)) as total_ad_sales,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
-                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
+                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_mrp,
+                    AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_selling_price,
+                    AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                    SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
+                    0 as sum_weight,
                     count() as record_count
                 FROM rb_pdp_olap
                 WHERE ${currConds}
@@ -6690,7 +6809,11 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Spend), '[^0-9.-]', '')), 0)) as total_spend,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_sales), '[^0-9.-]', '')), 0)) as total_ad_sales,
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
-                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
+                    AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_mrp,
+                    AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_selling_price,
+                    AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
+                    SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
+                    0 as sum_weight,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno_osa,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa
                 FROM rb_pdp_olap
@@ -6777,8 +6900,11 @@ const getCompetitionData = async (filters = {}) => {
         // Query per-category sales from rb_brand_ms for Category Share calculation
         // This gets total sales and our brands' sales per category
         const baseMsConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `sales IS NOT NULL`];
-        if (platform && platform !== 'All') baseMsConds.push(`Platform = '${escapeStr(platform)}'`);
-        if (location && location !== 'All') baseMsConds.push(`Location = '${escapeStr(location)}'`);
+        const msPlatArr = normalizeFilterArray(platform);
+        if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`Platform IN (${msPlatArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+
+        const msLocArr = normalizeFilterArray(location);
+        if (msLocArr && msLocArr.length > 0) baseMsConds.push(`Location IN (${msLocArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
         const [categorySalesQuery, categoryOurBrandsSalesQuery, categorySalesQueryPrev, categoryOurBrandsSalesQueryPrev] = await Promise.all([
             // Total sales per category
@@ -6891,7 +7017,6 @@ const getCompetitionData = async (filters = {}) => {
 
         const brandMetrics = currentBrands.map(brand => {
             const impressions = parseFloat(brand.total_impressions || 0);
-            const avgPrice = parseFloat(brand.avg_price || 0);
             const brandCategory = brand.brand_category || '';
             const prevBrand = prevMap.get(brand.Brand) || {};
 
@@ -6924,9 +7049,29 @@ const getCompetitionData = async (filters = {}) => {
             const sosPrev = totalImpressionsPrev > 0 ? (prevImpressions / totalImpressionsPrev) * 100 : 0;
             const sosDelta = calcPPChange(sos, sosPrev);
 
-            // Price Change
-            const prevAvgPrice = parseFloat(prevBrand.avg_price || 0);
-            const priceDelta = calcChange(avgPrice, prevAvgPrice);
+            // Pricing Metrics
+            const discount = parseFloat(brand.avg_discount || 0);
+            const prevDiscount = parseFloat(prevBrand.avg_discount || 0);
+            const discountDelta = calcPPChange(discount, prevDiscount);
+
+            const sumSellingPrice = parseFloat(brand.sum_selling_price || 0);
+            const sumWeight = parseFloat(brand.sum_weight || 0);
+            const pricePerUnit = sumWeight > 0 ? sumSellingPrice / sumWeight : 0;
+
+            const prevSumSellingPrice = parseFloat(prevBrand.sum_selling_price || 0);
+            const prevSumWeight = parseFloat(prevBrand.sum_weight || 0);
+            const prevPricePerUnit = prevSumWeight > 0 ? prevSumSellingPrice / prevSumWeight : 0;
+            const pricePerUnitDelta = calcChange(pricePerUnit, prevPricePerUnit);
+
+            const avgSellingPrice = parseFloat(brand.avg_selling_price || 0);
+            const prevAvgSellingPrice = parseFloat(prevBrand.avg_selling_price || 0);
+            const aspDelta = calcChange(avgSellingPrice, prevAvgSellingPrice);
+
+            const avgMrp = parseFloat(brand.avg_mrp || 0);
+            const rpi = avgMrp > 0 ? (avgSellingPrice / avgMrp) : 0;
+            const prevAvgMrp = parseFloat(prevBrand.avg_mrp || 0);
+            const prevRpi = prevAvgMrp > 0 ? (prevAvgSellingPrice / prevAvgMrp) : 0;
+            const rpiDelta = calcPPChange(rpi, prevRpi);
 
             // Market Share: Individual brand's share = brand's sales / total platform sales
             const brandSales = brandSalesMap.get(brand.Brand?.toLowerCase()) || 0;
@@ -6951,7 +7096,12 @@ const getCompetitionData = async (filters = {}) => {
                 ROAS: { value: parseFloat(roas.toFixed(2)), delta: parseFloat(roasDelta.toFixed(1)) },
                 OSA: { value: parseFloat(osa.toFixed(1)), delta: parseFloat(osaDelta.toFixed(1)) },
                 SOS: { value: parseFloat(sos.toFixed(1)), delta: parseFloat(sosDelta.toFixed(1)) },
-                Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(1)) },
+                Discount: { value: parseFloat(discount.toFixed(1)), delta: parseFloat(discountDelta.toFixed(1)) },
+                PricePerUnit: { value: parseFloat(pricePerUnit.toFixed(1)), delta: parseFloat(pricePerUnitDelta.toFixed(1)) },
+                ASP: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
+                RPI: { value: parseFloat(rpi.toFixed(2)), delta: parseFloat(rpiDelta.toFixed(1)) },
+                // Legacy key for compat if needed
+                Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(1)), delta: parseFloat(categoryShareDelta.toFixed(1)) },
                 MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) }
             };
@@ -7176,8 +7326,8 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct categories filtered by platform/location
             (() => {
                 const conds = buildBaseConds();
-                conds.push(`category IS NOT NULL`, `category != ''`);
-                return queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
+                conds.push(`Category IS NOT NULL`, `Category != ''`);
+                return queryClickHouse(`SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
             })(),
 
             // Fetch distinct brands filtered by platform/location + category
@@ -7211,7 +7361,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 }
                 const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
                 if (catArr.length > 0) {
-                    conds.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                    conds.push(`Product_Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
                 }
                 const bndArr = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
                 if (bndArr.length > 0) {
@@ -7522,8 +7672,9 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         for (const targetName of targetList) {
             // Build conditions for ClickHouse (rb_pdp_olap for OSA, SOS, Price)
             const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-            if (location && location !== 'All') {
-                conds.push(`Location = '${escapeStr(location)}'`);
+            const locArr = normalizeFilterArray(location);
+            if (locArr && locArr.length > 0) {
+                conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
             if (isSkuMode) {
                 // In SKU competition queries, group by Product uses Product
@@ -8101,11 +8252,12 @@ const getRcaData = async (filters = {}) => {
         // Build conditions for rb_pdp_olap
         const buildOlapConds = (sDate, eDate) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
-            if (platform && platform !== 'All') {
-                conds.push(`Platform = '${escapeStr(platform)}'`);
+            const platArr = normalizeFilterArray(platform);
+            if (platArr && platArr.length > 0) {
+                conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
-                conds.push(`Category = '${escapeStr(category)}'`);
+                conds.push(`Product_Category = '${escapeStr(category)}'`);
             }
             if (brand && brand !== 'All' && brand !== 'All Brands') {
                 conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
@@ -8120,8 +8272,9 @@ const getRcaData = async (filters = {}) => {
         const buildKwConds = (sDate, eDate) => {
             const conds = [`toDate(created_on) BETWEEN '${sDate}' AND '${eDate}'`];
             conds.push(`keyword_search_rank < 11`);
-            if (platform && platform !== 'All') {
-                conds.push(`platform_name = '${escapeStr(platform)}'`);
+            const platArr = normalizeFilterArray(platform);
+            if (platArr && platArr.length > 0) {
+                conds.push(`platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
                 conds.push(`keyword_category = '${escapeStr(category)}'`);
@@ -8132,8 +8285,9 @@ const getRcaData = async (filters = {}) => {
         // Build conditions for rb_brand_ms
         const buildMsConds = (sDate, eDate) => {
             const conds = [`toDate(created_on) BETWEEN '${sDate}' AND '${eDate}'`];
-            if (platform && platform !== 'All') {
-                conds.push(`Platform = '${escapeStr(platform)}'`);
+            const platArr = normalizeFilterArray(platform);
+            if (platArr && platArr.length > 0) {
+                conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
                 conds.push(`category = '${escapeStr(category)}'`);
@@ -8471,7 +8625,7 @@ const getSkuOverview = async (filters) => {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -8786,7 +8940,7 @@ const getCityOverview = async (filters) => {
         }
 
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`Product_Category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -9211,5 +9365,6 @@ export default {
     getSkuOverview,
     getCityOverview,
     getPerformanceBreakdownData,
-    getProducts
+    getProducts,
+    getChannels
 };

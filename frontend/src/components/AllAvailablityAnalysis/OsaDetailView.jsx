@@ -12,53 +12,6 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
 }
-
-function seededRandom(seed) {
-    let t = seed % 2147483647;
-    if (t <= 0) t += 2147483646;
-    return function () {
-        t = (t * 16807) % 2147483647;
-        return (t - 1) / 2147483646;
-    };
-}
-
-function makeRow(seed, name, sku, base) {
-    const rnd = seededRandom(seed);
-    const values = DAYS.map((d) => {
-        const drift = (rnd() - 0.5) * 6;
-        const weekdayWave = Math.sin(d / 2.8) * 2;
-        const v = clamp(Math.round(base + drift + weekdayWave), 55, 96);
-        return v;
-    });
-
-    const avg7 = Math.round(values.slice(-7).reduce((a, b) => a + b, 0) / 7);
-    const avg31 = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-
-    const status = avg7 >= 85 ? "Healthy" : avg7 >= 70 ? "Watch" : "Action";
-
-    return { name, sku, values, avg7, avg31, status };
-}
-
-const SAMPLE_ROWS = [
-    makeRow(90001, "Amul Tricone 120ml", "90001", 78),
-    makeRow(90002, "Mother Dairy Vanilla Cup", "90002", 85),
-    makeRow(90003, "Vadilal Bombay Kulfi", "90003", 72),
-    makeRow(90004, "Havmor Choco Block", "90004", 88),
-    makeRow(90005, "BR Gold Medal Ribbon", "90005", 81),
-    makeRow(85045, "KW CORNETTO - DOUBLE CHOC...", "85045", 80),
-    makeRow(85047, "KW CORNETTO - BUTTERSCOTCH", "85047", 84),
-    makeRow(85123, "KW Cassatta", "85123", 72),
-    makeRow(85336, "KW PP Strawberry", "85336", 71),
-    makeRow(85338, "KW Magnum Chocolate Truffle", "85338", 74),
-    makeRow(85339, "KW Magnum Almond 90 ml", "85339", 81),
-    makeRow(85350, "KW CDO - FRUIT & NUT", "85350", 72),
-    makeRow(85411, "KW Magnum Brownie 90ml", "85411", 78),
-    makeRow(85437, "COR DISC OREO 120ML", "85437", 83),
-    makeRow(85438, "KW Sandwich Chocolate n Vanilla...", "85438", 77),
-    makeRow(85555, "KW Oreo Tub 2x700ml", "85555", 89),
-    makeRow(85570, "KW AAMRAS 70ml", "85570", 86),
-];
-
 function statusStyles(status) {
     if (status === "Healthy")
         return {
@@ -93,16 +46,11 @@ function SortIcon({ dir }) {
 }
 
 export default function OsaDetailTableLight({ apiData, loading }) {
-    const [query, setQuery] = useState("");
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
-
-    const [sortKey, setSortKey] = useState("avg7");
+    const [sortKey, setSortKey] = useState("avg31");
     const [sortDir, setSortDir] = useState("desc");
-
-
-
-    const [visibleDays, setVisibleDays] = useState(31); // 7/14/31 toggle
+    const visibleDays = 31;
     const [expandedRows, setExpandedRows] = useState(new Set());
 
     const toggleRow = (sku) => {
@@ -117,61 +65,87 @@ export default function OsaDetailTableLight({ apiData, loading }) {
         });
     };
 
-    const [statusFilter, setStatusFilter] = useState([]);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
-    const [filterRules, setFilterRules] = useState(null);
+    const [advancedFilters, setAdvancedFilters] = useState({});
+
+    const handleSectionChange = (sectionId, values) => {
+        setAdvancedFilters(prev => ({
+            ...prev,
+            [sectionId]: values
+        }));
+    };
+
+    const handleApplyFilters = () => {
+        setPage(1);
+        setShowFilterPanel(false);
+    };
 
     const filterOptions = useMemo(() => {
+        if (!apiData?.osaDetail) return [];
+
+        const platforms = Array.from(new Set(apiData.osaDetail.map(r => r.platform).filter(Boolean)))
+            .map(p => ({ id: p, label: p }));
+
+        const products = Array.from(new Set(apiData.osaDetail.map(r => r.name).filter(Boolean)))
+            .map(p => ({ id: p, label: p }));
+
+        const formats = Array.from(new Set(apiData.osaDetail.map(r => r.format).filter(Boolean)))
+            .map(p => ({ id: p, label: p }));
+
+        const cities = Array.from(new Set(apiData.osaDetail.flatMap(r => r.cities?.map(c => c.name) || []).filter(Boolean)))
+            .map(p => ({ id: p, label: p }));
+
         return [
-            { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-            { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-            { id: "platform", label: "Platform", options: [{ id: "blinkit", label: "Blinkit" }, { id: "zepto", label: "Zepto" }] },
-            { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-            { id: "kpi", label: "KPI", options: [{ id: "osa", label: "OSA" }, { id: "fillrate", label: "Fill Rate" }, { id: "doi", label: "DOI" }, { id: "assortment", label: "Assortment" }, { id: "psl", label: "PSL" }] },
-            { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-            { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-            { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-            { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-            { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-            { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
+            { id: "platform", label: "Platform", options: platforms },
+            { id: "productName", label: "Product Name", options: products },
+            { id: "format", label: "Format", options: formats },
+            { id: "city", label: "City", options: cities },
         ];
-    }, []);
+    }, [apiData]);
+
+    const baseRows = useMemo(() => {
+        if (!apiData?.osaDetail || apiData.osaDetail.length === 0) return [];
+
+        return apiData.osaDetail.map(row => {
+            const values = row.values || DAYS.map(d => row[String(d)] || 0);
+            return {
+                name: row.name || row.productName || "Unknown Product",
+                sku: row.sku || "N/A",
+                platform: row.platform,
+                format: row.format,
+                values: values,
+                avg7: row.avg7 || 0,
+                avg31: row.avg31 || 0,
+                status: row.status || "Healthy",
+                cities: row.cities || []
+            };
+        });
+    }, [apiData]);
+
 
     const filtered = useMemo(() => {
-        // Map backend data if it exists
-        let baseRows = SAMPLE_ROWS;
-
-        if (apiData?.osaDetail && apiData.osaDetail.length > 0) {
-            baseRows = apiData.osaDetail.map(row => {
-                // Ensure values array exists
-                const values = row.values || DAYS.map(d => row[String(d)] || 0);
-
-                return {
-                    name: row.name || row.productName || "Unknown Product",
-                    sku: row.sku || "N/A",
-                    values: values,
-                    avg7: row.avg7 || 0,
-                    avg31: row.avg31 || 0,
-                    status: row.status || "Healthy",
-                    cities: row.cities || []
-                };
-            });
-        }
-
-        const q = query.trim().toLowerCase();
-        if (!q && statusFilter.length === 0) return baseRows;
-
         let res = baseRows;
-        if (q) {
-            res = res.filter(
-                (r) => r.name.toLowerCase().includes(q) || r.sku.toLowerCase().includes(q)
-            );
-        }
-        if (statusFilter.length > 0) {
-            res = res.filter((r) => statusFilter.includes(r.status));
-        }
+
+
+
+        // Apply Advanced Filters
+        Object.keys(advancedFilters).forEach(key => {
+            const values = advancedFilters[key];
+            if (values && values.length > 0) {
+                if (key === 'platform') {
+                    res = res.filter(r => values.includes(r.platform));
+                } else if (key === 'productName') {
+                    res = res.filter(r => values.includes(r.name));
+                } else if (key === 'format') {
+                    res = res.filter(r => values.includes(r.format));
+                } else if (key === 'city') {
+                    res = res.filter(r => r.cities?.some(c => values.includes(c.name)));
+                }
+            }
+        });
+
         return res;
-    }, [query, statusFilter, apiData]);
+    }, [baseRows, advancedFilters, apiData]);
 
     const sorted = useMemo(() => {
         const dirMul = sortDir === "asc" ? 1 : -1;
@@ -224,7 +198,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
         });
     };
 
-    const dayCols = DAYS.slice(0, visibleDays);
+    const dayCols = DAYS;
 
     return (
         <div className="rounded-3xl flex-col bg-slate-50 relative">
@@ -268,8 +242,6 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                         </div>
 
 
-
-                        {/* Controls */}
                         {/* Table */}
                         <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                             <div className="overflow-auto">
@@ -492,7 +464,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                     {/* ------------------ KPI FILTER MODAL ------------------ */}
                     {showFilterPanel && (
                         <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[600px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                 {/* Modal Header */}
                                 <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                                     <div>
@@ -508,19 +480,11 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                 </div>
 
                                 {/* Panel Content */}
-                                {/* Panel Content */}
-                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
+                                <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-4 pb-4">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
-                                        onSectionChange={(sectionId, values) => {
-                                            if (sectionId === 'kpi') {
-                                                // Handle KPI filter changes - Assuming 'values' is an array of selected IDs
-                                                // For now just console log, or update a state if we wanted to filter the table
-                                                console.log("Selected KPIs:", values);
-                                                // To make this functional, we would add:
-                                                // setStatusFilter(values); // if statusFilter is used for KPIs
-                                            }
-                                        }}
+                                        sectionValues={advancedFilters}
+                                        onSectionChange={handleSectionChange}
                                     />
                                 </div>
 
@@ -533,7 +497,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                         Cancel
                                     </button>
                                     <button
-                                        onClick={() => setShowFilterPanel(false)}
+                                        onClick={handleApplyFilters}
                                         className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
                                     >
                                         Apply Filters

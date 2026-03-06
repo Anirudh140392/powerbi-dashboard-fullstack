@@ -1,5 +1,8 @@
 // InsightsPricingView.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useContext } from "react";
+import { FilterContext } from "@/utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
+import { Box, Typography, Skeleton, Grid } from "@mui/material";
 
 function cn(...c) {
     return c.filter(Boolean).join(" ");
@@ -305,7 +308,7 @@ function MiniSkuMark({ brand }) {
     );
 }
 
-function TabsHeader({ active, onChange }) {
+function TabsHeader({ active, onChange, tabs }) {
     return (
         <div className="flex flex-wrap items-center gap-2">
             {tabs.map((t) => {
@@ -401,9 +404,74 @@ function CardMinimal({ item, tabKey }) {
 }
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
-export default function InsightsPricingView() {
+export default function InsightsPricingView({ loading = false }) {
     const [activeTab, setActiveTab] = useState("pd_my");
-    const data = useMemo(() => DATA_BY_TAB[activeTab] || [], [activeTab]);
+
+    // Get global filters
+    const {
+        platform: globalPlatform,
+        selectedBrand,
+        selectedLocation,
+        selectedCategory,
+        selectedChannel,
+        timeStart,
+        timeEnd,
+        datesInitialized,
+    } = useContext(FilterContext);
+
+    const [insightsData, setInsightsData] = useState({
+        pd_my: [],
+        pi_my: [],
+        pd_comp: [],
+        pi_comp: []
+    });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!datesInitialized) return;
+
+        const fetchInsights = async () => {
+            setIsLoading(true);
+            try {
+                const params = {
+                    startDate: timeStart?.format('YYYY-MM-DD'),
+                    endDate: timeEnd?.format('YYYY-MM-DD'),
+                };
+
+                const toStr = (v) => Array.isArray(v) ? v.join(',') : v;
+                if (globalPlatform && globalPlatform !== 'All') params.platform = toStr(globalPlatform);
+                if (selectedLocation && selectedLocation !== 'All') params.location = toStr(selectedLocation);
+                if (selectedCategory && selectedCategory !== 'All') params.category = toStr(selectedCategory);
+                if (selectedBrand && selectedBrand !== 'All') params.brand = toStr(selectedBrand);
+
+                console.log("[InsightsPricingView] Fetching Insights with params:", params);
+                const response = await axiosInstance.get('/pricing-analysis/insights', { params });
+
+                if (response.data?.success && response.data?.data) {
+                    setInsightsData(response.data.data);
+                } else {
+                    setInsightsData({ pd_my: [], pi_my: [], pd_comp: [], pi_comp: [] });
+                }
+            } catch (error) {
+                console.error("Error fetching Pricing Insights:", error);
+                setInsightsData({ pd_my: [], pi_my: [], pd_comp: [], pi_comp: [] });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchInsights();
+    }, [timeStart, timeEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
+
+    const data = useMemo(() => insightsData[activeTab] || [], [activeTab, insightsData]);
+
+    // Use dynamic tabs configuration based on counts
+    const dynamicTabs = [
+        { key: "pd_my", label: "Price Drop (my SKUs)", count: insightsData.pd_my.length },
+        { key: "pi_my", label: "Price Increase (my SKUs)", count: insightsData.pi_my.length },
+        { key: "pd_comp", label: "Price Drop (comp. SKUs)", count: insightsData.pd_comp.length },
+        { key: "pi_comp", label: "Price Increase (comp. SKUs)", count: insightsData.pi_comp.length },
+    ];
 
     return (
         <div className="w-full bg-slate-50 p-6">
@@ -417,16 +485,40 @@ export default function InsightsPricingView() {
                     </div>
                 </div>
 
-                <TabsHeader active={activeTab} onChange={setActiveTab} />
+                {(isLoading || loading) ? (
+                    <Box sx={{ mt: 2 }}>
+                        <div className="flex gap-4">
+                            {[1, 2, 3, 4].map((i) => (
+                                <Skeleton
+                                    key={i}
+                                    variant="rectangular"
+                                    width={280}
+                                    height={180}
+                                    sx={{ borderRadius: 4, flexShrink: 0 }}
+                                />
+                            ))}
+                        </div>
+                    </Box>
+                ) : (
+                    <>
+                        <TabsHeader active={activeTab} onChange={setActiveTab} tabs={dynamicTabs} />
 
-                {/* Horizontal rail */}
-                <div className="mt-2 overflow-x-auto pb-2">
-                    <div className="flex min-w-max gap-3">
-                        {data.map((it) => (
-                            <CardMinimal key={it.id} item={it} tabKey={activeTab} />
-                        ))}
-                    </div>
-                </div>
+                        {/* Horizontal rail */}
+                        <div className="mt-2 overflow-x-auto pb-2 min-h-[160px]">
+                            {data.length === 0 ? (
+                                <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+                                    No significant changes detected for this period.
+                                </Typography>
+                            ) : (
+                                <div className="flex min-w-max gap-3">
+                                    {data.map((it) => (
+                                        <CardMinimal key={it.id} item={it} tabKey={activeTab} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

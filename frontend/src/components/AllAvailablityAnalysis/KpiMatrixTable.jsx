@@ -173,8 +173,12 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
     const [filterOptions, setFilterOptions] = useState([
         { id: 'platform', label: 'Platform', options: [] },
+        { id: 'format', label: 'Format / Category', options: [] },
         { id: 'city', label: 'City', options: [] },
-        { id: 'format', label: 'Format', options: [] },
+        { id: 'brand', label: 'Brand', options: [] },
+        { id: 'kpi', label: 'KPI', options: [] },
+        { id: 'month', label: 'Month', options: [] },
+        { id: 'metroFlag', label: 'Metro Flag', options: [] },
     ]);
     const [filterOptionsLoaded, setFilterOptionsLoaded] = useState(false);
 
@@ -185,14 +189,22 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
     const [tentativeFilters, setTentativeFilters] = useState({
         platform: [],
-        city: [],
         format: [],
+        city: [],
+        brand: [],
+        kpi: [],
+        month: [],
+        metroFlag: [],
     });
 
     const [appliedFilters, setAppliedFilters] = useState({
         platform: [],
-        city: [],
         format: [],
+        city: [],
+        brand: [],
+        kpi: [],
+        month: [],
+        metroFlag: [],
     });
 
     const appliedCount = Object.values(appliedFilters).flat().length;
@@ -204,8 +216,12 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             try {
                 const filterTypes = [
                     { id: 'platform', apiType: 'platforms', label: 'Platform' },
+                    { id: 'format', apiType: 'formats', label: 'Format / Category' },
                     { id: 'city', apiType: 'cities', label: 'City' },
-                    { id: 'format', apiType: 'formats', label: 'Format' },
+                    { id: 'brand', apiType: 'brands', label: 'Brand' },
+                    { id: 'kpi', apiType: 'kpis', label: 'KPI' },
+                    { id: 'month', apiType: 'months', label: 'Month' },
+                    { id: 'metroFlag', apiType: 'metroFlags', label: 'Metro Flag' },
                 ];
 
                 // Build query params from global filters to narrow down options
@@ -223,7 +239,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     filterTypes.map(async (ft) => {
                         const qp = new URLSearchParams(filterQueryParams);
                         qp.set('filterType', ft.apiType);
-                        const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`);
+                        const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`, {
+                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                        });
                         if (!res.ok) return { id: ft.id, label: ft.label, options: [] };
                         const data = await res.json();
                         const opts = (data.options || []).map(v => ({ id: v, label: v }));
@@ -263,11 +281,21 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
         if (appliedFilters.format?.length > 0) {
             combined.formats = appliedFilters.format;
-            // Remove global category to ensure formats override it
             delete combined.category;
         } else if (globalFilters.category) {
-            // Fallback to global category mapped to 'formats' for consistency
             combined.formats = globalFilters.category;
+        }
+
+        if (appliedFilters.brand?.length > 0) {
+            combined.brand = appliedFilters.brand;
+        }
+
+        if (appliedFilters.month?.length > 0) {
+            combined.months = appliedFilters.month;
+        }
+
+        if (appliedFilters.metroFlag?.length > 0) {
+            combined.metroFlags = appliedFilters.metroFlag;
         }
 
         return combined;
@@ -310,7 +338,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     }
                 });
 
-                const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`);
+                const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const result = await res.json();
                 setApiData(result);
@@ -364,8 +394,12 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const resetFilters = () => {
         setTentativeFilters({
             platform: [],
-            city: [],
             format: [],
+            city: [],
+            brand: [],
+            kpi: [],
+            month: [],
+            metroFlag: [],
         });
     };
 
@@ -546,7 +580,13 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                         </thead>
 
                         <tbody>
-                            {kpis.map((kpi, kIdx) => {
+                            {kpis.filter(kpi => {
+                                if (!appliedFilters.kpi || appliedFilters.kpi.length === 0) return true;
+                                // Case-insensitive match between kpi.label and appliedFilters.kpi array
+                                return appliedFilters.kpi.some(selectedKpi =>
+                                    selectedKpi.toLowerCase() === kpi.label.toLowerCase()
+                                );
+                            }).map((kpi, kIdx) => {
                                 const drillEnabled = isDrillEnabled(kpi.key);
                                 const isRowExpanded = expandedRows.includes(kpi.key);
 

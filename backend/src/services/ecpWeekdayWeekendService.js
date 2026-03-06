@@ -85,19 +85,19 @@ async function getEcpWeekdayWeekend(filters = {}) {
                 Brand,
                 ROUND(AVG(CASE 
                     WHEN toDayOfWeek(DATE) IN (1,2,3,4,5) 
-                    THEN toFloat64(Selling_Price) 
+                    THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) 
                     ELSE NULL 
                 END), 2) AS weekdayEcp,
                 ROUND(AVG(CASE 
                     WHEN toDayOfWeek(DATE) IN (6,7) 
-                    THEN toFloat64(Selling_Price) 
+                    THEN ifNull(toFloat64OrZero(toString(Selling_Price)), 0) 
                     ELSE NULL 
                 END), 2) AS weekendEcp
             FROM rb_pdp_olap
             WHERE ${whereClause}
               AND Brand IS NOT NULL
               AND Brand != ''
-              AND toFloat64(Selling_Price) > 0
+              AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
             GROUP BY Brand
             ORDER BY Brand
         `;

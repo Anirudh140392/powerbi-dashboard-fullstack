@@ -63,9 +63,9 @@ async function getBrandPriceOverview(filters = {}) {
                 p.Brand,
                 p.Platform,
                 s.gram AS gram_size,
-                ROUND(AVG(toFloat64(p.Selling_Price)), 1) AS ecp,
-                ROUND(AVG(toFloat64(p.MRP)), 1) AS mrp,
-                ROUND(AVG(toFloat64(p.Discount)), 1) AS discount,
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)), 1) AS ecp,
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.MRP)), 0)), 1) AS mrp,
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Discount)), 0)), 1) AS discount,
                 COUNT(*) AS record_count
             FROM rb_pdp_olap p
             INNER JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
@@ -74,7 +74,7 @@ async function getBrandPriceOverview(filters = {}) {
               AND p.Brand != ''
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
-              AND toFloat64(p.Selling_Price) > 0
+              AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0
               AND s.gram IS NOT NULL 
               AND s.gram != '' 
               AND s.gram != '0'
