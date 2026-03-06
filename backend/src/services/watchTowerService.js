@@ -596,9 +596,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (cond) conditions.push(cond);
             }
 
-            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+            // Apply Product_Category filter for rb_pdp_olap
+            const catArrLocal = normalizeFilterArray(category);
+            if (catArrLocal && catArrLocal.length > 0) {
+                conditions.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+            }
 
             // Advanced SKU Search Filters
             const skuArr = normalizeFilterArray(skuName);
@@ -660,9 +662,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 conditions.push(`Location IN (${locationFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
-            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+            // Apply Product_Category filter for rb_pdp_olap
+            const catArrLocal = normalizeFilterArray(categoryFilter);
+            if (catArrLocal && catArrLocal.length > 0) {
+                conditions.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            }
 
             // Advanced SKU Search Filters
             const skuArr = normalizeFilterArray(skuNameFilter);
@@ -954,9 +958,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(platformCond);
                     }
 
-                    // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-                    // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-                    // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+                    // Apply Product_Category filter for rb_pdp_olap
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        conditions.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    }
                     const skuArr = normalizeFilterArray(skuName);
                     if (skuArr && skuArr.length > 0) {
                         const skuConds = skuArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
@@ -1409,9 +1415,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const cond = buildPlatformChannelCond(null, channel);
                         if (cond) prevConditions.push(cond);
                     }
-                    // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-                    // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-                    // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+                    // Apply Product_Category filter for rb_pdp_olap
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        prevConditions.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                    }
                     // Advanced SKU Search Filters
                     const skuArr = normalizeFilterArray(skuName);
                     if (skuArr && skuArr.length > 0) {
@@ -2124,9 +2132,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const catArr = normalizeFilterArray(category);
                     if (catArr && catArr.length > 0) {
                         if (catArr.length === 1) {
-                            osaConds.push(`Category = '${osaEscapeStr(catArr[0])}'`);
+                            osaConds.push(`Product_Category = '${osaEscapeStr(catArr[0])}'`);
                         } else {
-                            osaConds.push(`Category IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);
+                            osaConds.push(`Product_Category IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);
                         }
                     }
 
@@ -2502,9 +2510,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             if (plat && plat !== 'All') conds.push(`Platform = '${escapeStr(plat)}'`);
             if (location && location !== 'All') conds.push(`Location = '${escapeStr(location)}'`);
 
-            // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-            // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-            // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+            // Apply Product_Category filter for rb_pdp_olap
+            const catArrLocal = normalizeFilterArray(filters.category);
+            if (catArrLocal && catArrLocal.length > 0) {
+                conds.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            }
 
 
             if (isCompete) {
@@ -2554,9 +2564,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     }
                 }
-                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+                // Apply Product_Category filter for rb_pdp_olap
+                const catArrLocal = normalizeFilterArray(filters.category);
+                if (catArrLocal && catArrLocal.length > 0) {
+                    conditions.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
 
                 // Apply channel-based platform filter (matching Watch Tower Overview logic)
                 if (platformArr && platformArr.length > 0) {
@@ -2934,9 +2946,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conds.push(`Location IN (${locationArr.map(l => `'${escapeStrMo(l)}'`).join(', ')})`);
                     }
                 }
-                // NOTE: Category filter from rca_sku_dim NOT applied to rb_pdp_olap
-                // because rb_pdp_olap.Category has tier values (Bronze/Gold/Silver/Others)
-                // which don't match rca_sku_dim categories (Chocolates/GMFC/etc.)
+                // Apply Product_Category filter for rb_pdp_olap
+                const catArrLocal = normalizeFilterArray(filters.category);
+                if (catArrLocal && catArrLocal.length > 0) {
+                    conds.push(`Product_Category IN (${catArrLocal.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
+                }
 
                 // Advanced SKU Search Filters
                 const skuArr = normalizeFilterArray(filters.skuName);
@@ -3169,7 +3183,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             catDataConds.push(`Location = '${escapeStrMain(location)}'`);
         }
         const distinctCategories = await queryClickHouse(
-            `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${catDataConds.join(' AND ')} AND Category IS NOT NULL AND Category != '' AND Category != '0' ORDER BY category`
+            `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE ${catDataConds.join(' AND ')} AND Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0' ORDER BY category`
         );
 
         const categories = distinctCategories.map(c => c.category).filter(Boolean);
@@ -3180,7 +3194,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Build ClickHouse conditions for this category
                 const catConds = [
                     `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
-                    `Category = '${escapeStrMain(catName)}'`
+                    `Product_Category = '${escapeStrMain(catName)}'`
                 ];
                 if (brand && brand !== 'All') {
                     catConds.push(`Brand LIKE '%${escapeStrMain(brand)}%'`);
@@ -3232,7 +3246,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
                             FROM rb_pdp_olap 
                             WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
-                            AND Category = '${escapeStrMain(catName)}'
+                            AND Product_Category = '${escapeStrMain(catName)}'
                             ${categoryOverviewPlatform && categoryOverviewPlatform !== 'All' ? `AND Platform = '${escapeStrMain(categoryOverviewPlatform)}'` : ''}
                             ${location && location !== 'All' ? `AND Location = '${escapeStrMain(location)}'` : ''}
                         `).then(r => r[0] || {})
@@ -6956,7 +6970,7 @@ const getCompetitionData = async (filters = {}) => {
             try {
                 const [availableLocations, availableCategories, availableBrands] = await Promise.all([
                     queryClickHouse(`SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' LIMIT 10`),
-                    queryClickHouse(`SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE Category IS NOT NULL AND Category != '' LIMIT 10`),
+                    queryClickHouse(`SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE Product_Category IS NOT NULL AND Product_Category != '' LIMIT 10`),
                     queryClickHouse(`SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' LIMIT 30`)
                 ]);
 
@@ -8970,11 +8984,11 @@ const getPerformanceBreakdownData = async (filters) => {
     try {
         const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' ? `AND Platform = '${filters.platform_uuid}'` : '';
         const groupByMap = {
-            'category': 'Category',
+            'category': 'Product_Category',
             'brand': 'Brand',
             'sku': 'Product'
         };
-        const groupByCol = groupByMap[filters.group_by] || 'Category';
+        const groupByCol = groupByMap[filters.group_by] || 'Product_Category';
 
         let dateClause = '';
         if (filters.start_date && filters.end_date) {
@@ -9159,7 +9173,7 @@ const getProducts = async (filters = {}) => {
             conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
         }
         if (category && category !== 'All') {
-            conditions.push(`Category = '${category.replace(/'/g, "''")}'`);
+            conditions.push(`Product_Category = '${category.replace(/'/g, "''")}'`);
         }
         const query = `SELECT DISTINCT Product FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Product LIMIT 500`;
         const results = await queryClickHouse(query);
